@@ -1,0 +1,35 @@
+# Tool/session artifacts
+.v2c/
+.video_agent/
+.zcode/
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Future Laravel project files
+/vendor/
+/node_modules/
+/public/build/
+/public/hot
+/public/storage
+/storage/*.key
+/storage/pail/
+/bootstrap/cache/*.php
+npm-debug.log
+yarn-error.log
+.phpunit.result.cache
+.phpunit.cache/
+.phpstan.cache/
+.phpunit/
+.caddy/
+composer.phar
+*.log
