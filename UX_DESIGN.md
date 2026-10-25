@@ -16,14 +16,15 @@ Companion documents: [ARCHITECTURE.md](ARCHITECTURE.md) · [ONBOARDING_COMPLIANC
 | Surface | Style | Notes |
 | --- | --- | --- |
 | Marketing (`goproperty.ng`) | Bold, modern, product screenshots | Hero (§ 4), pricing, features, FAQs, signup |
-| Customer app (`app.…/o/{slug}`) | Clean dashboard, sidebar on desktop, bottom nav on mobile | Installable PWA with push notifications |
-| Tenant portal (`app.…/portal`) | Very simple, card-based, big buttons | "Pay this bill", "Upload proof", "Report a problem" |
-| Owner portal (`app.…/owner`) | Read-only statements and charts | Monthly statement PDF |
-| Platform console (`admin.…`) | Filament, dense tables | Distinct accent colour so staff always know they're in admin |
+| Customer app (`/o/{slug}`) | Clean dashboard, sidebar on desktop, bottom nav on mobile; agency logo in the sidebar | Installable PWA with push notifications |
+| Tenant portal (`/portal`) | Very simple, card-based, big buttons; each agency's bills shown with **that agency's logo and colours** | "Pay this bill", "Upload proof", "Report a problem" |
+| Owner portal (`/owner`) | Read-only statements and charts, agency-branded | Monthly statement PDF |
+| Invoices, receipts, statements | Agency-branded documents ([BRANDING_DOCUMENTS.md](BRANDING_DOCUMENTS.md)) | Reference designs in `docs/design/templates/` |
+| Platform console (`/{ADMIN_PATH}`) | Filament, dense tables | Distinct accent colour so staff always know they're in admin |
 
 ## 3. Login Pages
 
-### 3.1 Customer login (`app.goproperty.ng/login`)
+### 3.1 Customer login (`goproperty.ng/login`)
 
 **Layout: split screen on desktop, single column on mobile.**
 
@@ -44,9 +45,9 @@ Companion documents: [ARCHITECTURE.md](ARCHITECTURE.md) · [ONBOARDING_COMPLIANC
 - New-device login email.
 - HTTPS only with HSTS; CSP headers; no third-party scripts on login pages except Turnstile.
 
-### 3.2 Staff login (`admin.goproperty.ng/login`)
+### 3.2 Staff login (`goproperty.ng/{ADMIN_PATH}/login`)
 
-Same visual quality, but clearly different: dark neutral background, GoProperty logo + "Staff console" label, single centred card, **no** signup link, **no** marketing content. Email + password, then mandatory 2FA code screen. Optional IP allowlist; 30-minute idle timeout with warning modal.
+Same visual quality, but clearly different: dark neutral background, GoProperty logo + "Staff console" label, single centred card, **no** signup link, **no** marketing content. Email + password, then mandatory 2FA code screen. Optional IP allowlist; 30-minute idle timeout with warning modal. The path is configurable and never `/admin`. Common guesses such as `/admin`, and any request from a non-allowlisted IP when the allowlist is on, get a plain 404 with no GoProperty branding, so the console is hard to find by scanning.
 
 ### 3.3 Other auth screens (same split layout)
 

@@ -1,6 +1,6 @@
 # GoProperty — Implementation Plan
 
-Companion documents: [ARCHITECTURE.md](ARCHITECTURE.md) · [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) · [BILLING_PAYMENTS.md](BILLING_PAYMENTS.md) · [ONBOARDING_COMPLIANCE.md](ONBOARDING_COMPLIANCE.md) · [PLATFORM_CONSOLE.md](PLATFORM_CONSOLE.md) · [UX_DESIGN.md](UX_DESIGN.md) · [AGENT.md](AGENT.md)
+Companion documents: [ARCHITECTURE.md](ARCHITECTURE.md) · [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) · [BILLING_PAYMENTS.md](BILLING_PAYMENTS.md) · [ONBOARDING_COMPLIANCE.md](ONBOARDING_COMPLIANCE.md) · [PLATFORM_CONSOLE.md](PLATFORM_CONSOLE.md) · [UX_DESIGN.md](UX_DESIGN.md) · [BRANDING_DOCUMENTS.md](BRANDING_DOCUMENTS.md) · [DATA_IMPORT.md](DATA_IMPORT.md) · [AGENT.md](AGENT.md)
 
 ## 1. Team & Timeline Assumptions
 
@@ -8,8 +8,8 @@ Companion documents: [ARCHITECTURE.md](ARCHITECTURE.md) · [DATABASE_SCHEMA.md](
 | --- | --- |
 | Team | 2 full-stack developers + 1 UI/UX designer (part-time after Phase 1) + product owner (you) |
 | Working cadence | 2-week sprints, demo at sprint end |
-| Total to launch | ~21 weeks (~11 sprints) for the MVP described here, plus ~20% contingency. Was 18 weeks; +3 weeks for Transaction Tiers & compliance, bank statement matching, agency-owned Paystack, and the expanded platform console |
-| Solo-dev scenario | Double every phase duration ≈ 10–11 months |
+| Total to launch | ~23 weeks (~12 sprints) for the full feature set, built and launched in one release (no separate pilot), plus ~20% contingency. Was 18 weeks; +3 weeks for Transaction Tiers & compliance, statement matching, agency-owned Paystack and the expanded console; +2 weeks for Excel import, agency branding/documents, WhatsApp and shared-hosting compatibility |
+| Solo-dev scenario | Double every phase duration ≈ 11–12 months |
 | Sequencing principle | Money paths (tenancy → leasing → bills → receipts → SaaS billing) are built early and hardened continuously; collaboration features (Building Group) come last so they can't destabilize billing |
 
 Each phase below lists deliverables and acceptance criteria (AC). A phase is done when all ACs pass on staging, not when code is pushed.
@@ -20,25 +20,26 @@ Each phase below lists deliverables and acceptance criteria (AC). A phase is don
 | --- | --- | --- | --- |
 | 0 | Foundation, tooling, login pages & backups baseline | 1–2 | M0 |
 | 1 | Tenancy, auth, registration, Transaction Tiers & staff console core | 3–5 | M1 |
-| 2 | Properties, units & owners | 6–7 | M2 |
-| 3 | Leasing & the customer money loop (bank transfer matching + agency Paystack) | 8–11 | M3 |
-| 4 | Maintenance tickets | 12 | M4 |
-| 5 | Reminders, notifications & email templates | 13 | M5 |
-| 6 | SaaS billing, compliance monitoring & full platform console | 14–16 | M6 |
-| 7 | Building Group | 17 | M7 |
-| 8 | Reports, operations & analytics dashboards | 18 | M8 |
-| 9 | Hardening, NDPA & launch | 19–21 | M9 (Launch) |
+| 2 | Properties, units, owners & import (part 1) | 6–8 | M2 |
+| 3 | Leasing, branded documents & the customer money loop + import (part 2) | 9–12 | M3 |
+| 4 | Maintenance tickets | 13 | M4 |
+| 5 | Reminders, notifications, email templates & WhatsApp | 14–15 | M5 |
+| 6 | SaaS billing, compliance monitoring & full platform console | 16–18 | M6 |
+| 7 | Building Group | 19 | M7 |
+| 8 | Reports, operations & analytics dashboards | 20 | M8 |
+| 9 | Hardening, NDPA & launch | 21–23 | M9 (Launch) |
 
 ## 3. Phase Details
 
 ### Phase 0 — Foundation, tooling, login pages & backups baseline (Weeks 1–2)
 
 **Deliverables**
-- Laravel 13 project (Livewire starter kit), PHP 8.4, MySQL 8, Redis; Sail for local dev.
+- Laravel 13 project (Livewire 4 starter kit), PHP 8.4, MySQL 8, Filament 5, Pest 4; Sail for local dev. Exact versions pinned.
+- **Hosting profiles** ([ARCHITECTURE.md § 12.1](ARCHITECTURE.md)): config switches for queue/cache/session drivers, realtime (polling vs Reverb) and PDF driver (`dompdf` vs Chrome). Shared-hosting deploy pipeline (CI builds assets, deploys over SSH, runs migrations); cron-started queue worker. CI also runs the test suite with the shared-hosting profile.
 - CI: GitHub Actions running Pint, Larastan (level 6), Pest; branch protection on `main`.
-- Module skeleton (nwidart/laravel-modules) with a `Core` area: tenancy trait + `TenantContext` + middleware, base enums, money helper (kobo), settings store, activity log wiring.
-- Filament platform panel shell on `admin.goproperty.ng` with separate `staff` guard and `platform_staff` table (auth-protected, empty).
-- Domain/route skeleton: `goproperty.ng`, `app.goproperty.ng/o/{org-slug}`, `/portal`, `/owner`, `admin.goproperty.ng` ([ONBOARDING_COMPLIANCE.md § 1](ONBOARDING_COMPLIANCE.md)).
+- Module skeleton (nwidart/laravel-modules) with a `Core` area: tenancy trait (`BelongsToOrganization`) + `OrganizationContext` + middleware, base enums, money helper (kobo), settings store, activity log wiring.
+- Filament platform panel shell at the configurable `ADMIN_PATH` with separate `staff` guard, `platform_staff` table and path-scoped session cookie (auth-protected, empty).
+- Route skeleton on one domain: `/`, `/login`, `/o/{org-slug}`, `/portal`, `/owner`, `/pay/{ref}`, `/verify/{code}`, `/{ADMIN_PATH}` ([ONBOARDING_COMPLIANCE.md § 1](ONBOARDING_COMPLIANCE.md)). Hosts and admin path read from config so they can move to subdomains later.
 - Design system kickoff ([UX_DESIGN.md](UX_DESIGN.md)): Tailwind theme, app shell (sidebar nav, org switcher placeholder), blank page templates for all surfaces.
 - **Login pages built to final quality** ([UX_DESIGN.md § 3](UX_DESIGN.md)): customer split-screen login (email/password or phone OTP), staff login with mandatory 2FA, forgot/reset password; rate limits, lockout, Turnstile, no account enumeration.
 - Audit log (append-only, hash chain) and authentication/access log wired for both guards.
@@ -57,7 +58,7 @@ Each phase below lists deliverables and acceptance criteria (AC). A phase is don
 - Transaction Tier applications: document upload (CAC, SCUML, IDs, proof of address, beneficial owners for Tier 3), compliance review queue in the console, approve/reject/more-info, document expiry tracking.
 - Organization switcher for multi-org users; per-org role assignment via spatie teams.
 - Invitations (email + token): user invites with roles; invite acceptance sets password and joins org.
-- Org settings: profile, bank accounts (encrypted), document branding (logo, colors, invoice prefix/footer).
+- Org settings: profile, bank accounts (encrypted, name-checked), **branding** ([BRANDING_DOCUMENTS.md § 1](BRANDING_DOCUMENTS.md)): logo, colours with contrast check, letterhead, signature/stamp, prefixes, notes, layout choice, live invoice/receipt preview.
 - Platform console: customers list (orgs, users, statuses, tier), org suspend/reactivate actions, staff management with roles, designations and departments + 2FA enforcement, two-person approvals ([PLATFORM_CONSOLE.md § 1](PLATFORM_CONSOLE.md)).
 - Impersonation with reason, consent setting, 30-minute limit, banner, blocked money actions, and full audit ([PLATFORM_CONSOLE.md § 6](PLATFORM_CONSOLE.md)).
 
@@ -76,28 +77,34 @@ Each phase below lists deliverables and acceptance criteria (AC). A phase is don
 - Agent↔building assignment (optional narrowing) and unit filters/lists with server-side pagination.
 - Org-to-org invitation flow UI: property owner invites agency; agency sees invite inbox; **billing transfer accept screen** with explicit amount (state machine in BILLING_PAYMENTS § 7) — the accept path can be fully wired later, but the invite + accept/decline record lands now.
 - Media library integration (photos, thumbnails) on S3-compatible storage with signed URLs.
+- **Data import, part 1** ([DATA_IMPORT.md](DATA_IMPORT.md)): import engine (streaming reader, column mapping with saved mappings, downloadable template, **dry run** with error/warning report, queued commit, batch rollback within 7 days, `external_ref` upserts) for owners, properties, units and tenants. Excel/CSV export of every list.
 
 **AC**
 - Creating 10 units in one bulk action; unit statuses drive occupancy counts on the building page.
 - Cross-org access tests pass (unit of org B not addressable by org A user via ID guessing).
 - Branding settings actually render on a sample document page.
+- Dry run of a 2,000-row workbook saves nothing and returns exact errors per row; commit then creates exactly the previewed records; re-importing the same file creates no duplicates; rollback removes the batch.
 
 ### Phase 3 — Leasing & the customer money loop (Weeks 8–11) — *the heart*
 
 **Deliverables**
 - Tenant profiles (with user accounts for portal access, phone OTP verification).
-- Lease engine: `CycleCalculator` (daily → biennial), lease CRUD with draft/reserve → active → renew/terminate, renewal referencing, deposit handling, contract PDF generation (Browsershot, branded template with signature blocks).
-- Rent billing: scheduler job generating rent bills from leases; bill numbering; invoice PDF (bank details on it).
+- Lease engine: `CycleCalculator` (daily → biennial), lease CRUD with draft/reserve → active → renew/terminate, renewal referencing, deposit handling, contract PDF generation (via the PDF driver interface, branded template with signature blocks).
+- Rent billing: scheduler job generating rent bills from leases using `next_billing_date`; bill numbering.
+- **Branded documents** ([BRANDING_DOCUMENTS.md](BRANDING_DOCUMENTS.md)): invoice and receipt built from `docs/design/templates/`, three layouts, web + PDF views, QR verification codes, amount in words, branding snapshot per document, public `/verify/{code}` page and branded `/pay/{reference}` page.
 - Utility billing: utility types, per-unit settings, flat + metered (readings) utilities, utility bill PDF.
 - Payment collection ([ONBOARDING_COMPLIANCE.md § 4](ONBOARDING_COMPLIANCE.md)): org bank accounts with Paystack account-name check; unique `payment_reference` per bill; **bank statement import (CSV/XLSX) with matching** and one-tap/bulk confirm; **agency-owned Paystack connection** (encrypted keys, per-org webhook, verify-by-fetch, auto-confirm, online-payment cap); proof upload fallback with duplicate-image detection; cash/POS with direct-to-tenant receipt.
 - Payments loop: payment allocations across bills, tenant credit for excess, confirm/reject with reason, receipt PDF with sequential numbering and QR verification code, receipt void with second approver, notifications on every transition.
 - Tenant portal: my units, my bills, pay-instructions, upload proof, receipts, documents.
 - Expenses recording (category, property/unit linkage, receipt upload) — minimal now, reporting in Phase 8.
+- **Data import, part 2:** ongoing leases with **paid until** (no back-billing), opening balances (as `opening_balance` bills), tenant credits, deposits held, utility settings, optional payment history; tenant invitations only on request after review.
 
 **AC**
 - End-to-end integration test: create building → 3 units → tenant → lease (annual) → scheduler generates invoice → payment + proof upload → confirmation → receipt number sequence increments → tenant portal shows receipt. Also weekly and semi-annual cycles.
 - `CycleCalculator` property-based tests: period end always = start + cycle − 1 day across leap years and month-length edges.
-- Overpayment beyond bill balance is rejected with a clear message; voided bills accept nothing.
+- Overpayment beyond bill balance goes to tenant credit and is applied to the next bill; voided bills accept nothing.
+- Invoice and receipt render identically (visual diff) with `dompdf` and Chrome drivers, on one A4 page for up to 8 line items.
+- Importing a lease that started in 2023 with "paid until" 31/12/2026 creates no past bills, and the first generated bill covers the period starting 01/01/2027; no reminders are sent for past dates.
 - Concurrent confirmations of the same bill cannot over-settle (locked transaction test).
 - Statement import: re-uploading the same statement creates no duplicate lines; a credit with the bill reference is matched with high confidence; one credit split across two bills settles both.
 - Agency Paystack webhook signed with the wrong org's key is rejected; replayed webhook creates one payment.
@@ -112,25 +119,29 @@ Each phase below lists deliverables and acceptance criteria (AC). A phase is don
 - Tenant can reopen a resolved ticket; staff see internal notes the tenant never sees (enforced server-side).
 - Status transitions invalid per state machine are rejected (tested).
 
-### Phase 5 — Reminders, notifications & email templates (Week 13)
+### Phase 5 — Reminders, notifications, email templates & WhatsApp (Weeks 14–15)
 
 **Deliverables**
 - Reminder engine (`reminders:dispatch`) with dedupe keys; rent/utilities/lease-renewal ladders; overdue ladder.
 - SMS via Termii (tenant OTP + bill reminders); per-user channel preferences; `notification_deliveries` log with provider refs and cost.
 - Email template system ([PLATFORM_CONSOLE.md § 5](PLATFORM_CONSOLE.md)): database templates with whitelisted placeholders (never Blade), versions + rollback, live preview, test send, categories, org branding, bounce/complaint suppression.
 - Platform console: delivery health dashboard (failure rates, SMS spend).
+- SMS credits per plan (monthly allowance, in-app top-up, ledger).
+- **WhatsApp (optional, agency's own Business API)** ([ARCHITECTURE.md § 6.7](ARCHITECTURE.md)): connection settings, template sync from Meta, event → template mapping with variable mapping and preview, sending via Cloud API, status webhooks, tenant opt-in, fallback to SMS/email, per-event channel order.
 
 **AC**
 - Time-travel tests (Carbon::setTestNow) prove exact send days and zero duplicates across reruns.
 - SMS template stays under 160 chars; failed provider sends retry with backoff then surface in the health dashboard.
+- A WhatsApp template paused by Meta disables its mapping on next sync and that event falls back to SMS; a status webhook with a bad signature is rejected.
 
-### Phase 6 — SaaS billing, compliance monitoring & full platform console (Weeks 14–16)
+### Phase 6 — SaaS billing, compliance monitoring & full platform console (Weeks 16–18)
 
 **Deliverables**
-- Plans, plan features + limits, trial, subscription lifecycle states and gating middleware.
+- Plans with launch prices and feature matrix ([BILLING_PAYMENTS.md § 1](BILLING_PAYMENTS.md)), editable in the console with versioning and 30-day customer notice; plan features + limits, trial, subscription lifecycle states and gating middleware.
 - Monthly metering + platform invoice generation + VAT line; Paystack integration (checkout, stored authorization, auto-charge, webhooks with verify-by-fetch, webhook log + replay); bank transfer proof upload + platform-staff confirmation flow; dunning ladder + suspension gating.
 - Billing responsibility transfer completion (switch payer on acceptance; new payer payment-method enrolment).
 - Platform console full build: customers, subscriptions, invoices, payments (Paystack + manual confirmations), refunds, feature overrides, staff audit, audit-log and access-log viewers.
+- Tier settings screen: editable tier limits and documents (two-person approval, effective dates, versions), per-organization overrides.
 - Transaction Tier monitoring ([ONBOARDING_COMPLIANCE.md § 5.4–5.5](ONBOARDING_COMPLIANCE.md)): daily `compliance:evaluate-tiers`, volume snapshots, flags (80%/100%/single-over/cash threshold/structuring/spike/document expiry), upgrade prompts, 30-day grace, restriction, compliance flag queue.
 - Backups console ([PLATFORM_CONSOLE.md § 4](PLATFORM_CONSOLE.md)): destinations, run now, list/download, verify, restore to staging, production restore with two-person approval.
 - Marketing/pricing page + plan checkout for new orgs.
@@ -143,17 +154,17 @@ Each phase below lists deliverables and acceptance criteria (AC). A phase is don
 - Time-travel test: an org crossing 80% and 100% of its tier gets exactly one flag each; after 30 days without an application it becomes restricted, yet tenants can still view bills, upload proofs and receive receipts.
 - Backup verify restores the latest dump into a temporary database successfully; production restore cannot start without a second approver.
 
-### Phase 7 — Building Group (Week 17)
+### Phase 7 — Building Group (Week 19)
 
 **Deliverables**
-- Per-building group (auto-created), membership sync from leases, posts/comments/reactions, rich text (limited toolbar, sanitized), images (validated + thumbnails), Reverb realtime with polling fallback, moderation (pin/hide/mute), report-abuse.
+- Per-building group (auto-created), membership sync from leases, posts/comments/reactions, rich text (limited toolbar, sanitized), images (validated + thumbnails), polling updates (shared hosting) with Reverb realtime on VPS, moderation (pin/hide/mute), report-abuse.
 
 **AC**
-- Two browser sessions see a post/comment/react within 1s via Reverb; polling path works with WebSockets disabled.
+- Two browser sessions see a post/comment/reaction within 30 s by polling (shared-hosting profile) and within 1 s via Reverb (VPS profile).
 - XSS suite: script/iframe/onload payloads in rich text are neutralized; uploads of disallowed types rejected.
 - Hidden/removed posts vanish for members but remain for moderators with an audit trail.
 
-### Phase 8 — Reports, operations & analytics dashboards (Week 18)
+### Phase 8 — Reports, operations & analytics dashboards (Week 20)
 
 **Deliverables**
 - Customer app dashboards: occupancy, collections vs billed, arrears aging, upcoming renewals, expenses by category, per-building performance; date-range filters; CSV + PDF export.
@@ -165,7 +176,7 @@ Each phase below lists deliverables and acceptance criteria (AC). A phase is don
 - Arrears aging buckets (0–30/31–60/61–90/90+) reconcile against a hand-computed fixture org.
 - Every report has a feature test with seeded edge data (voided bills excluded, refunds netted).
 
-### Phase 9 — Hardening, NDPA & launch (Weeks 19–21)
+### Phase 9 — Hardening, NDPA & launch (Weeks 21–23)
 
 **Deliverables**
 - Security review: policy coverage sweep, rate-limit audit, upload validation audit, dependency audit, session/2FA checks; external pen-test if budget allows.
@@ -183,7 +194,7 @@ Each phase below lists deliverables and acceptance criteria (AC). A phase is don
 - [ ] Production env vars audited (no test keys, mail/SMS senders verified)
 - [ ] Paystack live keys + webhook live-verified; test charge + refund executed live with a small amount
 - [ ] Termii live sender ID approved; DND-template path verified
-- [ ] Scheduled jobs visible in production (Horizon + scheduler heartbeat alert)
+- [ ] Scheduled jobs and queue worker running in production (cron on shared hosting / Horizon on VPS) with scheduler heartbeat alert
 - [ ] Sentry environment tags correct; alerts routed
 - [ ] Backups running 3 consecutive nights + one restore verified
 - [ ] Legal pages live; NDPA consent at signup; Terms name the agency as AML reporting entity
@@ -211,12 +222,14 @@ Each phase below lists deliverables and acceptance criteria (AC). A phase is don
 | R2 | SMS costs/DND blocks break reminder trust | Tenants miss due dates | Email-first design, verified-phones-only SMS, delivery dashboard, cost caps per org |
 | R3 | Paystack webhook outages/misses | Wrong subscription states | Hourly reconciliation job, verify-by-fetch, replay tooling |
 | R4 | Tenancy leaks (cross-org data exposure) | Catastrophic privacy failure | Trait + global scopes, per-model security tests, Larastan rules, pen-test before launch |
-| R5 | Laravel 13/package ecosystem drift (Filament/Reverb versions) | Upgrade churn mid-build | Pin versions in Phase 0; upgrade only between phases; CI on latest stable |
+| R5 | Laravel 13/package ecosystem drift (Livewire 4 / Filament 5 / Pest 4 versions) | Upgrade churn mid-build | Pin versions in Phase 0; upgrade only between phases; CI on latest stable |
 | R6 | Scope creep (expenses accounting, owner payouts demanded pre-launch) | Timeline slip | Backlog discipline: § 8 post-launch modules; platform owner sign-off per sprint scope |
 | R7 | Single dev + complex money logic | Key-person risk | Money paths pair-tested, docs-as-code in this repo, money invariants in tests |
 | R9 | GoProperty treated as a payment intermediary or exposed to agencies' AML failures | Licensing demands, legal liability, Paystack account closure | No-funds-flow rule (AGENT.md § 3), agency-owned Paystack only, Transaction Tiers with SCUML for Tier 2/3, compliance flags, ToS naming the agency as reporting entity, written legal opinion before launch |
 | R10 | Leak of agencies' Paystack secret keys | Attackers could move agencies' money | Encrypted at rest, masked, org-owner-only edits, blocked during impersonation, access audited, key-rotation prompt |
 | R11 | Staff misuse of impersonation or backups | Privacy breach | Consent setting, reason required, read-only default, banner, owner email summary, two-person rules, signed expiring backup downloads |
+| R12 | Shared hosting limits (CPU, memory, execution time, disabled `exec`, mail limits) | Slow queues, failed backups/imports, outages | Requirements checklist before choosing a host; chunked queued jobs; API mail provider; dompdf; monitoring of queue wait; clear triggers to move to VPS (ARCHITECTURE.md § 12.1) |
+| R13 | Imported data is wrong (bad balances, wrong "paid until") | Wrong bills sent to tenants, trust lost | Mandatory dry run, review summary, no auto-contact of tenants, 7-day rollback, opening balances shown separately on statements |
 | R8 | Low-end devices/2G users abandon portal | Adoption | Livewire server-rendered UI, image caps, polling fallback, performance budget in CI (Lighthouse check on portal pages) |
 
 ## 7. Post-Launch Module Backlog (expansion via the module system)
@@ -225,13 +238,16 @@ Ordered by expected demand in the Nigerian market:
 
 1. **DVA auto-matching** for platform billing (Paystack dedicated virtual accounts).
 2. **Late fees & penalties** module — configurable grace + percentage, auto bill line, legal-notice templates (7-day quit notice generation for agencies).
-3. **Property owner payouts & statements** — owner statements, agency commission tracking, payout approvals.
-4. **Tenant online payments** — Paystack checkout for rent/utilities from the tenant portal (currently transfer-first by design; this becomes an org-level paid add-on).
+3. **Owner payouts** — agency commission tracking and payout approvals on top of the owner statements already in the MVP.
+4. **WhatsApp Embedded Signup** — GoProperty as a Meta Tech Provider so agencies connect WhatsApp in a few clicks (the MVP already supports the agency's own WhatsApp Business API with template mapping).
 5. **E-signatures** on lease contracts (tenant signs in portal).
-6. **WhatsApp notifications bot** (Termii/360dialog) — reminder + ticket updates where tenants live.
+6. **More collection channels** — open-banking transaction feeds and bank virtual-account APIs on the agency's own bank account; PDF bank statement parsing.
 7. **Vacancy marketplace / public listings** — public unit listing pages with enquiry forms.
 8. **Mobile app (API module)** — Sanctum API + tenant-facing app.
-9. **Insurance/agency fees module**, multi-currency, FRSC/tenant-scoring style add-ons as the market demands.
+9. **White-label tenant portal** on agency subdomain/custom domain (VPS hosting).
+10. **Insurance/agency fees module**, multi-currency, tenant-scoring style add-ons as the market demands.
+
+(Tenant online payments via the agency's own Paystack and WhatsApp notifications moved into the MVP.)
 
 ## 8. Immediate Next Steps (this week)
 
@@ -240,5 +256,5 @@ Ordered by expected demand in the Nigerian market:
 3. Save SocietyFlow hero and login screenshots (desktop + mobile) into `docs/design/reference/` as the visual reference ([UX_DESIGN.md § 5](UX_DESIGN.md)).
 4. Set Transaction Tier thresholds and document list ([ONBOARDING_COMPLIANCE.md § 5](ONBOARDING_COMPLIANCE.md)); get a written legal opinion on the no-funds-flow model and confirm the agency-owned-Paystack setup with Paystack.
 5. Decide the staff designations and departments list for the console.
-6. Provision accounts: Paystack (test), Termii (test), object storage (live media + separate backup provider), Google Workspace Shared Drive for backups, Cloudflare (Turnstile), Sentry, Forge/Ploi; register `goproperty.ng` with `app.` and `admin.` subdomains.
+6. Provision accounts: Paystack (test), Termii (test), object storage (live media + separate backup provider), Google Workspace Shared Drive for backups, Cloudflare (Turnstile), Sentry; register `goproperty.ng` and choose hosting: a shared host meeting the requirements in [ARCHITECTURE.md § 12.1](ARCHITECTURE.md) (PHP 8.4, MySQL 8, SSH, Composer, cron every minute, `exec` allowed), or a small VPS with Forge/Ploi. Pick a secret `ADMIN_PATH`.
 7. Kick off Phase 0; use [AGENT.md](AGENT.md) as the working contract for anyone (human or AI) writing code.

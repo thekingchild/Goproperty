@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<!--
+  GoProperty — Agency-branded official receipt (design reference)
+  Sample data only. Same rendering rules as invoice.html: tables + simple CSS so it works
+  in dompdf (shared hosting) and headless Chrome (VPS). Brand colour #0E6B5C is per organization.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Receipt RCT-ADR-2026-000318</title>
+<style>
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e5e7eb; font-family: Inter, "DejaVu Sans", Arial, sans-serif; color: #0f172a; font-size: 12px; line-height: 1.45; }
+  .page { width: 794px; min-height: 1123px; margin: 0 auto; background: #ffffff; position: relative; }
+  .topbar { height: 8px; background: #0E6B5C; }
+  .wrap { padding: 36px 48px 28px 48px; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { vertical-align: top; padding: 0; }
+  .muted { color: #64748b; }
+  .small { font-size: 10.5px; }
+  .label { font-size: 9.5px; letter-spacing: 1.2px; text-transform: uppercase; color: #64748b; font-weight: 600; }
+  .org-name { font-size: 19px; font-weight: 700; margin: 0 0 4px 0; }
+  .doc-title { font-size: 24px; font-weight: 800; letter-spacing: 3px; color: #0E6B5C; text-align: right; margin: 0; }
+  .meta td { padding: 3px 0; font-size: 11.5px; }
+  .meta td.k { color: #64748b; text-align: right; padding-right: 12px; }
+  .meta td.v { text-align: right; font-weight: 600; }
+  .rule { height: 1px; background: #e2e8f0; margin: 24px 0; }
+  .hero { background: #F2F7F6; border-radius: 12px; padding: 22px 24px; border-left: 6px solid #0E6B5C; }
+  .paid-stamp { display: inline-block; border: 3px solid #15803D; color: #15803D; font-weight: 800; letter-spacing: 4px; font-size: 18px; padding: 6px 16px; border-radius: 8px; }
+  .amount { font-size: 34px; font-weight: 800; color: #0f172a; margin: 4px 0 2px 0; }
+  .words { font-style: italic; color: #334155; font-size: 12px; }
+  .kv td { padding: 7px 0; border-bottom: 1px solid #f1f5f9; font-size: 12px; }
+  .kv td.k { color: #64748b; width: 42%; }
+  .kv td.v { font-weight: 600; }
+  .items th { background: #0E6B5C; color: #fff; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; font-weight: 600; padding: 9px 12px; text-align: left; }
+  .items th.r, .items td.r { text-align: right; }
+  .items td { padding: 11px 12px; border-bottom: 1px solid #e2e8f0; font-size: 12px; }
+  .chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 9.5px; font-weight: 700; background: #DCFCE7; color: #166534; letter-spacing: .5px; }
+  .summary td { padding: 6px 12px; font-size: 12px; }
+  .summary td.k { text-align: right; color: #64748b; }
+  .summary td.v { text-align: right; width: 150px; font-weight: 600; }
+  .verify { border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 16px; }
+  .code { font-family: "DejaVu Sans Mono", Menlo, monospace; font-weight: 700; font-size: 15px; letter-spacing: 2px; color: #0E6B5C; }
+  .sig-line { border-top: 1px solid #94a3b8; width: 200px; margin-top: 36px; padding-top: 4px; }
+  .footer { position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 48px; border-top: 1px solid #e2e8f0; font-size: 9.5px; color: #94a3b8; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="topbar"></div>
+  <div class="wrap">
+
+    <table>
+      <tr>
+        <td style="width:58%">
+          <table><tr>
+            <td style="width:64px">
+              <svg width="54" height="54" viewBox="0 0 54 54" xmlns="http://www.w3.org/2000/svg"><rect width="54" height="54" rx="12" fill="#0E6B5C"/><path d="M13 36 L27 17 L41 36" fill="none" stroke="#fff" stroke-width="3.2" stroke-linejoin="round"/><rect x="22" y="28" width="10" height="9" fill="#F2B53A"/></svg>
+            </td>
+            <td style="padding-left:12px">
+              <p class="org-name">Adeyemi Realty Ltd</p>
+              <div class="muted small">14 Admiralty Way, Lekki Phase 1, Lagos</div>
+              <div class="muted small">RC 1234567 · +234 803 000 0000</div>
+              <div class="muted small">accounts@adeyemirealty.ng · adeyemirealty.ng</div>
+            </td>
+          </tr></table>
+        </td>
+        <td style="width:42%">
+          <p class="doc-title">OFFICIAL RECEIPT</p>
+          <table class="meta" style="margin-top:8px">
+            <tr><td class="k">Receipt no.</td><td class="v">RCT-ADR-2026-000318</td></tr>
+            <tr><td class="k">Date issued</td><td class="v">14/12/2026</td></tr>
+            <tr><td class="k">Tenant ID</td><td class="v">TN-0087</td></tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+
+    <div class="rule"></div>
+
+    <!-- Amount hero -->
+    <div class="hero">
+      <table><tr>
+        <td>
+          <div class="label">Amount received</div>
+          <div class="amount">₦2,900,000.00</div>
+          <div class="words">Two million, nine hundred thousand naira only</div>
+        </td>
+        <td style="text-align:right; vertical-align:middle; width:160px"><span class="paid-stamp">PAID</span></td>
+      </tr></table>
+    </div>
+
+    <!-- Details -->
+    <table style="margin-top:22px">
+      <tr>
+        <td style="width:48%">
+          <div class="label" style="margin-bottom:4px">Received from</div>
+          <table class="kv">
+            <tr><td class="k">Tenant</td><td class="v">Chiamaka Okafor</td></tr>
+            <tr><td class="k">Phone</td><td class="v">+234 812 345 6789</td></tr>
+            <tr><td class="k">Property</td><td class="v">Palm Court Apartments — Flat 3B</td></tr>
+            <tr><td class="k">Lease</td><td class="v">LS-ADR-2024-0031</td></tr>
+          </table>
+        </td>
+        <td style="width:4%"></td>
+        <td style="width:48%">
+          <div class="label" style="margin-bottom:4px">Payment details</div>
+          <table class="kv">
+            <tr><td class="k">Method</td><td class="v">Bank transfer</td></tr>
+            <tr><td class="k">Date paid</td><td class="v">13/12/2026</td></tr>
+            <tr><td class="k">Paid into</td><td class="v">GTBank ···6789</td></tr>
+            <tr><td class="k">Bank narration</td><td class="v">GP-7KQ2M C OKAFOR RENT</td></tr>
+            <tr><td class="k">Confirmed</td><td class="v">Matched from bank statement</td></tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+
+    <!-- Applied to -->
+    <div class="label" style="margin:24px 0 6px 0">Applied to</div>
+    <table class="items">
+      <tr>
+        <th style="width:30%">Invoice</th>
+        <th style="width:40%">Description</th>
+        <th class="r" style="width:30%">Amount applied (₦)</th>
+      </tr>
+      <tr>
+        <td>INV-ADR-2027-000142 <span class="chip">PAID</span></td>
+        <td>Rent, service charge, security levy, waste — 2027</td>
+        <td class="r">2,900,000.00</td>
+      </tr>
+    </table>
+    <table class="summary" style="margin-top:8px">
+      <tr><td class="k">Total applied</td><td class="v">₦2,900,000.00</td></tr>
+      <tr><td class="k">Outstanding balance after this payment</td><td class="v">₦0.00</td></tr>
+      <tr><td class="k">Credit balance</td><td class="v">₦0.00</td></tr>
+    </table>
+
+    <!-- Confirmation + verification -->
+    <table style="margin-top:26px">
+      <tr>
+        <td style="width:55%">
+          <div class="label">Confirmed by</div>
+          <div style="font-weight:600; margin-top:4px">Tunde Bakare, Accounts Officer</div>
+          <div class="small muted">14/12/2026, 10:42 WAT</div>
+          <div class="sig-line small muted">Authorised signature / stamp</div>
+        </td>
+        <td style="width:45%" class="verify">
+          <table><tr>
+            <td style="vertical-align:middle">
+              <div class="label">Verify this receipt</div>
+              <div class="small muted" style="margin:4px 0">Scan the code or visit goproperty.ng/verify and enter:</div>
+              <div class="code">R8X4P2</div>
+            </td>
+            <td style="width:95px; text-align:right"><svg xmlns="http://www.w3.org/2000/svg" width="87" height="87" class="segno"><path transform="scale(3)" class="qrline" stroke="#0f172a" d="M0 0.5h7m3 0h1m1 0h3m1 0h1m2 0h1m2 0h7m-29 1h1m5 0h1m1 0h2m1 0h2m1 0h2m2 0h3m1 0h1m5 0h1m-29 1h1m1 0h3m1 0h1m2 0h2m1 0h3m1 0h1m1 0h2m2 0h1m1 0h3m1 0h1m-29 1h1m1 0h3m1 0h1m4 0h1m1 0h3m2 0h1m3 0h1m1 0h3m1 0h1m-29 1h1m1 0h3m1 0h1m1 0h1m1 0h1m3 0h1m1 0h1m1 0h3m1 0h1m1 0h3m1 0h1m-29 1h1m5 0h1m4 0h3m1 0h1m1 0h4m1 0h1m5 0h1m-29 1h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7m-20 1h3m1 0h2m2 0h2m1 0h1m-21 1h1m1 0h1m1 0h1m1 0h1m2 0h1m2 0h1m1 0h1m2 0h1m2 0h1m3 0h1m2 0h1m-28 1h2m3 0h1m4 0h1m3 0h1m2 0h2m1 0h3m2 0h1m2 0h1m-27 1h2m1 0h2m1 0h1m1 0h4m2 0h3m1 0h2m4 0h3m-29 1h1m2 0h1m4 0h1m3 0h1m2 0h1m1 0h1m2 0h1m1 0h2m3 0h1m-28 1h2m3 0h2m3 0h1m6 0h1m1 0h5m1 0h1m1 0h2m-22 1h7m1 0h2m3 0h1m1 0h1m2 0h1m2 0h1m-27 1h11m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h2m1 0h2m-29 1h1m4 0h1m1 0h2m2 0h1m1 0h6m1 0h2m1 0h1m1 0h1m1 0h1m-25 1h1m1 0h2m2 0h3m2 0h1m2 0h1m1 0h5m1 0h1m1 0h2m-27 1h3m4 0h1m1 0h2m1 0h1m2 0h1m3 0h2m2 0h2m1 0h1m-29 1h1m1 0h1m2 0h3m1 0h5m2 0h2m3 0h3m3 0h2m-28 1h1m3 0h1m6 0h1m2 0h1m1 0h1m1 0h1m4 0h2m1 0h1m-28 1h1m1 0h1m1 0h1m1 0h2m1 0h1m5 0h1m1 0h1m1 0h6m-17 1h1m1 0h4m1 0h2m1 0h1m1 0h1m3 0h1m1 0h3m-29 1h7m3 0h2m2 0h1m1 0h1m1 0h3m1 0h1m1 0h2m1 0h2m-29 1h1m5 0h1m3 0h1m1 0h4m1 0h2m1 0h1m3 0h2m2 0h1m-29 1h1m1 0h3m1 0h1m1 0h4m2 0h2m1 0h2m1 0h5m3 0h1m-29 1h1m1 0h3m1 0h1m6 0h2m4 0h1m3 0h2m1 0h3m-29 1h1m1 0h3m1 0h1m1 0h1m3 0h1m1 0h1m1 0h2m1 0h3m1 0h3m2 0h1m-29 1h1m5 0h1m3 0h1m1 0h1m4 0h2m1 0h2m2 0h1m2 0h1m-28 1h7m1 0h1m1 0h1m1 0h1m6 0h2m2 0h2m2 0h2"/></svg></td>
+          </tr></table>
+        </td>
+      </tr>
+    </table>
+
+    <div class="small muted" style="margin-top:22px">This receipt was issued electronically and is valid without a signature. A copy was sent to the tenant by SMS/WhatsApp and email.</div>
+  </div>
+
+  <div class="footer">
+    <table><tr>
+      <td>Adeyemi Realty Ltd · Receipt RCT-ADR-2026-000318</td>
+      <td style="text-align:right">Generated with GoProperty · goproperty.ng/verify</td>
+    </tr></table>
+  </div>
+</div>
+</body>
+</html>

@@ -20,23 +20,46 @@ The only money GoProperty itself receives is its **own subscription fee** (see [
 
 ## 1. Domains & Login Paths (decision)
 
-**Decision: one app domain with path-based organization slugs. No subdomain per agency at launch.**
+**Decision: one domain, path-based everything. No subdomain per agency.** This works on shared hosting (one domain, one SSL certificate, one document root) and can move to subdomains later by changing configuration only.
 
-| Host | Purpose | Who |
+### Launch layout (single domain)
+
+| Path | Purpose | Who |
 | --- | --- | --- |
-| `goproperty.ng` | Marketing site, pricing, signup, receipt verification (`/verify/{code}`), legal pages | Public |
-| `app.goproperty.ng` | One login for everyone except GoProperty staff | Agency staff, property owners, tenants |
-| `app.goproperty.ng/o/{org-slug}/…` | Agency/owner workspace (dashboard, properties, leases, bills, payments) | Org members |
-| `app.goproperty.ng/portal/…` | Tenant portal, across every agency the tenant rents from | Tenants |
-| `app.goproperty.ng/owner/…` | Owner portal (read-only statements, properties), across agencies | Property owners invited by agencies |
-| `admin.goproperty.ng` | Platform console (Filament). Separate session cookie, mandatory 2FA, not linked from the public site, optional IP allowlist | GoProperty staff only |
+| `goproperty.ng/` | Marketing site, pricing, signup, legal pages | Public |
+| `goproperty.ng/login` | One login for everyone except GoProperty staff | Agency staff, property owners, tenants |
+| `goproperty.ng/o/{org-slug}/…` | Agency/owner workspace (dashboard, properties, leases, bills, payments) | Org members |
+| `goproperty.ng/portal/…` | Tenant portal, across every agency the tenant rents from | Tenants |
+| `goproperty.ng/owner/…` | Owner portal (read-only statements, properties), across agencies | Property owners invited by agencies |
+| `goproperty.ng/pay/{reference}` · `/verify/{code}` | Branded pay page (no login) · document verification | Tenants, anyone holding a document |
+| `goproperty.ng/{ADMIN_PATH}` | Platform console (Filament) | GoProperty staff only |
+
+### The staff console path
+
+- The path comes from configuration (`ADMIN_PATH` in `.env`), e.g. `/gp-ops-7x2k`. It is **never** `/admin`, `/administrator` or `/dashboard`, and is not linked from the public site or `robots.txt`.
+- A hidden path only cuts automated bot traffic; it is **not** the security control. The real controls are:
+  - a separate `staff` guard and `platform_staff` table;
+  - a **separate session cookie** (`gp_staff_session`, `Path=/{ADMIN_PATH}`, `Secure`, `HttpOnly`, `SameSite=Strict`), set by panel middleware before the session starts, so customer and staff sessions never mix even on one domain;
+  - mandatory 2FA, strict login rate limits, lockout and Turnstile;
+  - optional IP allowlist (office/VPN IPs). Non-allowlisted requests get a plain 404;
+  - 30-minute idle timeout and full audit.
+- `/admin` and other common guesses return a normal 404 and are logged as probes.
+
+### Moving to subdomains later (no code changes)
+
+| Setting | Launch (shared hosting) | Later (VPS) |
+| --- | --- | --- |
+| `APP_URL` | `https://goproperty.ng` | `https://app.goproperty.ng` |
+| `ADMIN_PATH` / `ADMIN_DOMAIN` | `/gp-ops-7x2k` / empty | empty / `ops.goproperty.ng` (also a non-obvious name) |
+
+Filament panels support both `->path()` and `->domain()`. Old URLs redirect permanently to the new location, so links in already-sent emails keep working.
 
 ### Why not a subdomain (or separate login page) per agency?
 
 1. **People belong to several organizations.** A tenant may rent from two agencies; a staff member may work for two. One login with an org switcher is simpler than separate logins per subdomain.
 2. **Isolation comes from the database scope, not the URL.** The `organization_id` scope and policies protect data either way. A subdomain adds no security.
 3. **Phishing risk.** Self-chosen subdomains such as `gtbank-rent.goproperty.ng` look official. Paths are less convincing to fake.
-4. **Simpler operations:** one session cookie, one TLS certificate, no wildcard DNS.
+4. **Shared hosting:** wildcard subdomains and wildcard SSL are often unavailable or paid extras on shared plans.
 
 ### Why the org slug is in the path
 
@@ -55,7 +78,7 @@ The only money GoProperty itself receives is its **own subscription fee** (see [
 | Owner only | `/owner` |
 | Mixed (e.g. agent who also rents) | Last used, with a switcher listing orgs + "My rentals" + "My properties" |
 
-**Later (Scale plan add-on):** a branded tenant-portal entry at `{slug}.goproperty.ng` or the agency's own domain (`tenants.adeyemirealty.com`), for white-labelling only. It redirects into the same single app. Deferred until customers ask for it.
+**Later (Scale plan add-on, VPS only):** a branded tenant-portal entry at `{slug}.goproperty.ng` or the agency's own domain (`tenants.adeyemirealty.com`), for white-labelling only. It redirects into the same single app. Deferred until customers ask for it.
 
 ### Staff accounts are separate
 
@@ -90,8 +113,9 @@ Step details:
 3. **Transaction Tier:** the customer states expected yearly collections and picks a tier (§ 4). Tier 1 is instant. Tier 2/3 require documents; until approved the org works at Tier 1 limits, so signup is never blocked.
 4. **Plan & trial:** choose a subscription plan (priced per unit, [BILLING_PAYMENTS.md § 1](BILLING_PAYMENTS.md)). 14-day trial, no card required. Subscription status `trialing`.
 5. **Collections setup** (§ 3): add one or more bank accounts (name checked against the bank via Paystack account-name lookup) and/or connect the agency's own Paystack account.
-6. **Data:** Excel/CSV import (properties, units, tenants, leases, opening balances) or manual entry. Target: first bill sent within 30 minutes of signup.
-7. A progress checklist on the dashboard tracks steps 3–6 until complete.
+6. **Data:** Excel/CSV import with a dry run first — owners, properties, units, tenants, ongoing leases ("paid until"), opening balances, utilities ([DATA_IMPORT.md](DATA_IMPORT.md)) — or manual entry. Target: first bill sent within 30 minutes of signup.
+   - **Branding:** logo, colours and letterhead, with a live preview of the invoice and receipt ([BRANDING_DOCUMENTS.md](BRANDING_DOCUMENTS.md)).
+7. A progress checklist on the dashboard tracks steps 3–6 (including branding) until complete.
 
 **Tenants** never self-register. The agency invites them by SMS/WhatsApp/email link; the tenant verifies their phone by OTP and lands in `/portal`.
 **Property owners** managed by an agency are invited into the owner portal. Owners who manage their own buildings sign up as an organization of type `property_owner`.
@@ -144,15 +168,31 @@ Recorded by an agent with a mandatory note. The receipt is sent straight to the 
 - **Single-payment size:** the largest single confirmed payment.
 - **Forecast:** expected collections over the next 12 months from active leases and utility settings. GoProperty knows the rent schedule, so it can warn **before** a limit is crossed.
 
-### 5.2 Tier table (thresholds are illustrative — business to finalize)
+### 5.2 Tier table (launch values — editable)
 
 | | Tier 1 — Standard | Tier 2 — Business | Tier 3 — Enterprise |
 | --- | --- | --- | --- |
-| Annual collection volume | up to ₦30m | up to ₦300m | above ₦300m (enhanced monitoring) |
-| Largest single payment | up to ₦5m | up to ₦50m | no fixed cap; payments over ₦50m reviewed |
+| Annual collection volume (rolling 12 months) | up to **₦50 million** | up to **₦500 million** | above ₦500 million — no cap, enhanced monitoring |
+| Largest single payment | up to **₦5 million** | up to **₦50 million** | no cap; any single payment above ₦100 million is reviewed |
 | Who it suits | Individual agents, small landlords | Registered agencies | Large agencies, developers, estates |
 | Activation | Instant | Compliance review (target 2 business days) | Compliance review + call (target 5 business days) |
 | Re-verification | — | Yearly | Yearly + on major changes |
+
+**Why these numbers**
+
+- **₦5m single payment (Tier 1)** matches the MLPPA 2022 cash threshold for individuals and covers a typical annual rent for a mid-market 2–3 bedroom flat in Lagos or Abuja.
+- **₦50m a year (Tier 1)** is about 25–35 mid-market units at ₦1.5–2m a year: a realistic ceiling for an individual agent or small landlord without a registered business.
+- **₦500m a year (Tier 2)** is about 200–300 mid-market units, or around 100 premium units. That covers most registered agencies.
+- **₦50m single payment (Tier 2)** covers premium residential and most commercial lettings (offices, shops) paid annually.
+- **Tier 3** is for large portfolios, estates, developers and luxury/commercial lettings, where single annual rents of ₦20m–₦100m+ are normal. There is no hard cap, but compliance looks at it more closely.
+
+**Editing the limits**
+
+- Limits live in the `transaction_tiers` table and are edited in the console (**Compliance → Tier settings**). A `compliance-officer` proposes a change, a `super-admin` approves it (two-person rule). Each change has an effective date and is versioned and audited.
+- **Raising** a limit applies from its effective date.
+- **Lowering** a limit never restricts anyone straight away: affected organizations are notified and get 60 days to apply for an upgrade.
+- **Per-organization override:** compliance can set custom limits for one organization (e.g. a Tier 2 agency with one large commercial client), with a reason and an expiry date.
+- Required documents per tier are also editable from the same screen.
 
 ### 5.3 Requirements per tier
 

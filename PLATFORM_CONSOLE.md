@@ -1,8 +1,8 @@
-# GoProperty — Platform Console (admin.goproperty.ng)
+# GoProperty — Platform Console (`goproperty.ng/{ADMIN_PATH}`)
 
 Companion documents: [ARCHITECTURE.md](ARCHITECTURE.md) · [ONBOARDING_COMPLIANCE.md](ONBOARDING_COMPLIANCE.md) · [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) · [UX_DESIGN.md](UX_DESIGN.md)
 
-The console is a Filament panel on its own subdomain. It has a separate `staff` guard and `platform_staff` table, its own session cookie, mandatory 2FA, a short idle timeout (30 min), and an optional IP allowlist. Every action in it is audited.
+The console is a Filament 5 panel served at a **configurable, non-obvious path** (`ADMIN_PATH`, e.g. `/gp-ops-7x2k`, never `/admin`) on the main domain, which suits shared hosting. It can move to its own subdomain later by configuration only ([ONBOARDING_COMPLIANCE.md § 1](ONBOARDING_COMPLIANCE.md)). It has a separate `staff` guard and `platform_staff` table, its own session cookie (scoped to the console path), mandatory 2FA, a short idle timeout (30 min), and an optional IP allowlist. Every action in it is audited.
 
 ## 1. Staff, Roles & Designations
 
@@ -38,6 +38,17 @@ Needs a second staff member with the right role to approve:
 
 Invite by email → set password + 2FA on first login → active. Deactivation immediately ends all sessions. Staff profile: name, work email, phone, designation, department, roles, status, last login, 2FA status.
 
+## 1A. Business Settings Managed in the Console
+
+| Setting | Who edits | Who approves | Spec |
+| --- | --- | --- | --- |
+| Plans, prices, included units, features, SMS credits | `finance-admin` | — (audited; customers notified 30 days ahead) | [BILLING_PAYMENTS.md § 1](BILLING_PAYMENTS.md) |
+| Transaction Tier limits and required documents | `compliance-officer` | `super-admin` | [ONBOARDING_COMPLIANCE.md § 5.2](ONBOARDING_COMPLIANCE.md) |
+| Per-organization tier override | `compliance-officer` | — (reason + expiry required) | same |
+| Email templates | `content-manager` | — (versioned) | § 5 |
+| Backup destinations | `technical-admin` | — | § 4 |
+| Staff designations and departments | `super-admin` | — | § 1 |
+
 ## 2. System Operations Dashboard (for `technical-admin`, `super-admin`)
 
 Health at a glance, refreshed every 60 s:
@@ -45,7 +56,7 @@ Health at a glance, refreshed every 60 s:
 | Area | Widgets |
 | --- | --- |
 | App | Uptime, error rate (Sentry), p95 response time, deploy version, maintenance mode toggle |
-| Queues | Depth and wait time per queue (`default`, `notifications`, `billing`, `pdf`), failed jobs with retry/forget, Horizon link |
+| Queues | Depth and wait time per queue (`default`, `notifications`, `billing`, `pdf`, `imports`), failed jobs with retry/forget; Horizon link on VPS, read from the `jobs`/`failed_jobs` tables on shared hosting |
 | Scheduler | Last run + result of every scheduled command; heartbeat alert if a job didn't run |
 | Webhooks | Paystack: last event received, failure rate, events awaiting processing — for GoProperty's own account **and** per connected agency account; replay button |
 | Messaging | Email/SMS/WhatsApp sent, delivered, bounced, failed (24h/7d); SMS spend; provider status |
@@ -131,7 +142,7 @@ Lets support staff see exactly what a customer sees.
 - **Who:** `support-agent` and `operations-manager` (read-only); write mode needs approval by a second staff member.
 - **Customer consent:** each organization has a setting "Allow GoProperty support access", on by default with a clear explanation in Settings. Org-owners can switch it off; staff then need the org-owner to grant a time-limited access window.
 - **Start:** staff picks a user, types a reason (e.g. support ticket number). Can't impersonate other staff.
-- **Session:** maximum 30 minutes. A visible banner on every page: "GoProperty support (Ada O.) is viewing this account — End session". Hand-off from `admin.` to `app.` uses a one-time signed token valid for 60 seconds.
+- **Session:** maximum 30 minutes. A visible banner on every page: "GoProperty support (Ada O.) is viewing this account — End session". Hand-off from the staff console to the customer app uses a one-time signed token valid for 60 seconds, which starts a separate, time-limited customer-side session; the staff session cookie is never sent to customer pages.
 - **Always blocked while impersonating:** confirming/rejecting payments, voiding receipts, changing bank accounts or Paystack keys, billing transfers, changing passwords/2FA, inviting or removing members, deleting anything.
 - **Audit:** start, end, reason and every page viewed and action taken are recorded with both identities (staff + impersonated user). The org-owner gets an email summary after the session.
 

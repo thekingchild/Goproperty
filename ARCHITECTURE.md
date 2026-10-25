@@ -1,10 +1,10 @@
 # GoProperty — Architecture
 
-Companion documents: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) · [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) · [BILLING_PAYMENTS.md](BILLING_PAYMENTS.md) · [ONBOARDING_COMPLIANCE.md](ONBOARDING_COMPLIANCE.md) · [PLATFORM_CONSOLE.md](PLATFORM_CONSOLE.md) · [UX_DESIGN.md](UX_DESIGN.md) · [AGENT.md](AGENT.md)
+Companion documents: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) · [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) · [BILLING_PAYMENTS.md](BILLING_PAYMENTS.md) · [ONBOARDING_COMPLIANCE.md](ONBOARDING_COMPLIANCE.md) · [PLATFORM_CONSOLE.md](PLATFORM_CONSOLE.md) · [UX_DESIGN.md](UX_DESIGN.md) · [BRANDING_DOCUMENTS.md](BRANDING_DOCUMENTS.md) · [DATA_IMPORT.md](DATA_IMPORT.md) · [AGENT.md](AGENT.md)
 
 ## 1. System Context
 
-GoProperty is a single Laravel application serving four distinct audiences through separate route/panel areas, backed by one shared database, Redis, and a queue worker fleet.
+GoProperty is a single Laravel application serving four distinct audiences through separate route/panel areas, backed by one shared database and queue workers. It must run on **shared hosting** (Profile A) and scale up to a VPS (Profile B) by configuration only — see § 12.
 
 ```mermaid
 flowchart LR
@@ -29,14 +29,16 @@ flowchart LR
 
     subgraph Infra
         DB[(MySQL 8)]
-        RD[(Redis: cache, queues, sessions)]
-        RV[Laravel Reverb - WebSockets]
-        WK[Queue workers + scheduler]
+        RD[(Cache, queues, sessions:\ndatabase on shared hosting,\nRedis on VPS)]
+        RV[Realtime: polling,\nReverb on VPS]
+        WK[Queue worker via cron,\nHorizon on VPS]
     end
 
     subgraph External
         PAY[Paystack]
         SMS[SMS gateway - Termii]
+        WA[Agency's own WhatsApp Business API]
+        APS[Agency's own Paystack]
         MAIL[Transactional email]
         S3[Object storage - S3-compatible]
         SNT[Sentry]
@@ -51,21 +53,23 @@ flowchart LR
 | Concern | Choice | Notes |
 | --- | --- | --- |
 | Framework | Laravel 13, PHP 8.4+ | Strict types everywhere; enums for all statuses |
-| Frontend (customer + tenant) | Livewire 3 + Volt, Tailwind CSS, Alpine.js | Server-rendered, low-bandwidth friendly, natural AJAX story |
-| Frontend (platform console) | Filament 4 | Admin tables, charts, actions out of the box |
+| Frontend (customer + tenant) | Livewire 4 (built-in single-file components; no separate Volt package), Tailwind CSS 4, Alpine.js | Server-rendered, low-bandwidth friendly, natural AJAX story |
+| Frontend (platform console) | Filament 5 (Livewire 4 based) | Admin tables, charts, actions out of the box. Pin exact minor versions in Phase 0 |
 | Database | MySQL 8 | InnoDB, `utf8mb4`; money stored as integer kobo |
-| Cache / queues / sessions | Redis + Horizon | Separate queues: `default`, `notifications`, `billing`, `pdf` |
-| Realtime | Laravel Reverb | Building Group posts, comments, reactions; polling fallback |
+| Cache / queues / sessions | Shared hosting: `database` drivers, queue worker started by cron. VPS: Redis + Horizon | Separate queues: `default`, `notifications`, `billing`, `pdf`, `imports` |
+| Realtime | Shared hosting: Livewire polling. VPS: Laravel Reverb + polling fallback | Building Group posts, comments, reactions |
 | Auth | Laravel starter kit (session). `web` guard + `users` table for all customers (agency staff, owners, tenants); separate `staff` guard + `platform_staff` table for GoProperty staff. 2FA mandatory for staff, required for Tier 2/3 org-owners | Tenants are users too — no separate tenant auth system. Tenants can log in with phone + OTP |
 | Roles | spatie/laravel-permission with teams support | Roles are scoped per organization (team = organization) |
 | Media | spatie/laravel-medialibrary | Payment proofs, post images, avatars → S3-compatible storage |
 | Audit | spatie/laravel-activitylog | Every mutation on billing, leases, tickets, subscriptions |
-| PDF | Browsershot (headless Chrome) with Blade templates | Branded contracts, invoices, receipts, utility bills |
+| PDF | Driver-based: `dompdf` (pure PHP, shared hosting) or headless Chrome via Browsershot/Gotenberg (VPS) | Same table-based Blade templates for both; see [BRANDING_DOCUMENTS.md § 5](BRANDING_DOCUMENTS.md) |
+| Spreadsheets | OpenSpout / spatie/simple-excel (streaming) | Low-memory import/export ([DATA_IMPORT.md](DATA_IMPORT.md)) |
+| WhatsApp | Meta WhatsApp Cloud API, **agency's own account** (optional) | Templates fetched from the agency's account (§ 6.7) |
 | SMS | Termii (or Africa's Talking) | Nigerian routes, DND-aware |
 | Email | Mailgun / Postmark / SES | Suppression list handling required |
 | Monitoring | Laravel Pulse, Telescope (non-prod), Sentry | Queue depth, slow queries, webhook health |
 | Backups | spatie/laravel-backup + managed DB snapshots | Nightly full + hourly binlog to object storage |
-| Testing | Pest, Larastan (level 6+), Laravel Pint, GitHub Actions | Feature tests for money paths are mandatory |
+| Testing | Pest 4 (incl. browser testing), Larastan (level 6+), Laravel Pint, GitHub Actions | Feature tests for money paths are mandatory |
 | Modules | nwidart/laravel-modules | See § 8 |
 
 ## 3. Application Surfaces
@@ -73,22 +77,24 @@ flowchart LR
 | Surface | Audience | Route root | Tech |
 | --- | --- | --- | --- |
 | Marketing + signup | Public | `goproperty.ng/` | Blade + Livewire (pricing, onboarding, org signup, accept invitations, receipt verification) |
-| Customer app | Org users (agency staff, property owners managing their own buildings) | `app.goproperty.ng/o/{org-slug}` | Livewire dashboard |
-| Tenant portal | Tenants (across all agencies they rent from) | `app.goproperty.ng/portal` | Livewire (my leases, bills, payments, tickets, Building Group) |
-| Owner portal | Property owners invited by an agency (across agencies) | `app.goproperty.ng/owner` | Livewire, read-only statements |
-| Platform console | Platform owner + staff | `admin.goproperty.ng` | Filament panel, `staff` guard, own session cookie, mandatory 2FA |
+| Customer app | Org users (agency staff, property owners managing their own buildings) | `goproperty.ng/o/{org-slug}` | Livewire dashboard |
+| Tenant portal | Tenants (across all agencies they rent from) | `goproperty.ng/portal` | Livewire (my leases, bills, payments, tickets, Building Group) |
+| Owner portal | Property owners invited by an agency (across agencies) | `goproperty.ng/owner` | Livewire, read-only statements |
+| Platform console | Platform owner + staff | `goproperty.ng/{ADMIN_PATH}` (configurable secret path; can move to its own subdomain later) | Filament panel, `staff` guard, own session cookie, mandatory 2FA |
 
-**Decision: one login domain with path-based organization slugs, no subdomain per agency.** Full reasoning, login landing rules and the later white-label option are in [ONBOARDING_COMPLIANCE.md § 1](ONBOARDING_COMPLIANCE.md).
+**Decision: one domain with path-based organization slugs and a configurable staff-console path; no subdomain per agency.** Full reasoning, login landing rules and the later white-label option are in [ONBOARDING_COMPLIANCE.md § 1](ONBOARDING_COMPLIANCE.md).
 
 The `users` table holds every customer-side person. What a user can do is a function of (a) their role **within an organization**, (b) whether they are a tenant of any unit, and (c) whether they are an invited owner. GoProperty staff are **not** in `users`: they live in `platform_staff` with their own guard and can reach customer accounts only through audited impersonation ([PLATFORM_CONSOLE.md § 6](PLATFORM_CONSOLE.md)).
 
 ## 4. Multi-Tenancy Model
 
-**Decision: single database, row-level tenancy.** One `organizations` row is a tenant (the agency or the property owner's business). All customer-domain tables carry `organization_id` and resolve their scope through a central `TenantContext`.
+**Decision: single database, row-level tenancy.** Each `organizations` row (the agency or the property owner's business) is an isolated customer. All customer-domain tables carry `organization_id` and resolve their scope through a central `OrganizationContext`.
 
-- `App\Tenancy\TenantContext` — singleton holding the current organization; set by `SetTenantContext` middleware from the `{org-slug}` in the URL after checking membership (non-members get 404). Users may belong to several orgs; a switcher exists in the app shell.
+> **Naming:** in code, "tenant" always means a **renter** (`TenantProfile`). The multi-tenancy concept uses "organization" everywhere (`OrganizationContext`, `BelongsToOrganization`, `SetOrganizationContext`) to avoid confusing the two.
+
+- `App\Tenancy\OrganizationContext` — singleton holding the current organization; set by `SetOrganizationContext` middleware from the `{org-slug}` in the URL after checking membership (non-members get 404). Users may belong to several orgs; a switcher exists in the app shell.
 - The tenant and owner portals are **cross-organization by nature**: they do not set a single organization context, and instead query through an explicit "records linked to my user" path (`tenant_profiles.user_id = me`, owner links) that is policy-checked per record.
-- `App\Tenancy\BelongsToTenant` trait — boots a global scope (`where organization_id = current`) and auto-fills `organization_id` on create. Models opt in; nothing queries tenant data without it.
+- `App\Tenancy\BelongsToOrganization` trait — boots a global scope (`where organization_id = current`) and auto-fills `organization_id` on create. Models opt in; nothing queries organization data without it.
 - All unique indexes include `organization_id` (e.g. `unique(organization_id, unit_number, property_id)`).
 - Cross-org reads (Platform console, aggregate analytics) bypass the scope explicitly through dedicated read models / raw queries in the `Platform` namespace — the only place allowed to do so, guarded by platform middleware.
 - Database-level defense: every tenant-domain controller/Livewire action resolves models through the trait's scope; policies re-check membership (`user Belongs To Organization` + role).
@@ -165,7 +171,7 @@ Tenants may hold multiple active leases across buildings and orgs — every leas
 
 ### 6.5 Documents (printouts)
 
-All customer-facing documents are server-generated PDFs from branded Blade templates (org logo, colors, bank account details on invoices):
+All customer-facing documents carry the **agency's own brand** (name, logo, colours, letterhead, signature/stamp) and are available as a web page and a PDF. Branding settings, layouts and the designed invoice and receipt are specified in [BRANDING_DOCUMENTS.md](BRANDING_DOCUMENTS.md), with reference templates in `docs/design/templates/`:
 
 | Document | Trigger | Contents |
 | --- | --- | --- |
@@ -184,7 +190,14 @@ State machine: `draft → submitted → under_review → in_progress → resolve
 
 - One scheduled entry point (`php artisan reminders:dispatch`) computes due reminders for rent, utilities, lease renewals and overdue bills across all orgs, writes rows into `reminders`, and queues sends. Idempotency: unique key `(remindable, type, channel, due_offset_days)` prevents duplicates on rerun.
 - Ladder defaults: rent due at T-30, T-14, T-7, T-3, T-1, T-0 and overdue at +1, +7, +14; lease renewal alerts to agent/owner at T-60, T-30, T-7; utility due at T-3, T-0.
-- Channels: email (queued mailables, per-user preference toggles) and SMS (Termii) for tenants — SMS templates kept under 160 chars, tenant phone verification via OTP before SMS is enabled for that tenant.
+- Channels: email (queued mailables, per-user preference toggles) and SMS (Termii) for tenants — SMS templates kept under 160 chars, tenant phone verification via OTP before SMS is enabled for that tenant. SMS usage counts against the plan's monthly credits ([BILLING_PAYMENTS.md § 1.2](BILLING_PAYMENTS.md)).
+- **WhatsApp (optional, Growth plan and above):** the agency connects **its own** WhatsApp Business Platform account (Meta Cloud API): WhatsApp Business Account ID, phone number ID, permanent access token and app secret, all stored encrypted and editable only by the org-owner.
+  - GoProperty **fetches the agency's approved message templates** from Meta (`GET /{waba-id}/message_templates`), daily and on demand, and shows each with its variables and approval status.
+  - The agency **maps** each GoProperty event (bill issued, rent reminder T-7/T-1, overdue, receipt issued, ticket update, renewal notice) to one of its templates, and each template variable to a GoProperty placeholder (`{{ tenant.first_name }}`, `{{ bill.amount }}`, `{{ pay_link }}`). A preview shows the final message.
+  - Messages are sent through the Cloud API. Delivery/read statuses arrive at `/webhooks/whatsapp/{org-ulid}` (verify token + `X-Hub-Signature-256` check) and are logged in `notification_deliveries`.
+  - If a template is paused/rejected by Meta or a send fails, that event falls back to SMS, then email. Each event's channel order is configurable (e.g. WhatsApp → SMS, email always).
+  - Tenant opt-in to WhatsApp is recorded (Meta policy). Meta bills the agency directly; GoProperty does not resell WhatsApp messages.
+  - Later: become a Meta Tech Provider and offer Embedded Signup so agencies connect with a few clicks instead of copying IDs.
 - Every send lands in `notification_deliveries` (channel, status, provider ref, cost) — the platform console shows delivery health.
 
 ### 6.8 Building Group
@@ -193,12 +206,12 @@ Per-building discussion board (one group per property, auto-created):
 
 - Posts: author, sanitized rich text (limited toolbar: bold, italic, lists, links), up to 4 images each, pinned flag, moderation status.
 - Comments: one level of threading (reply-to), same sanitization, emoji reactions (fixed curated emoji set, one reaction per user per post/comment, toggle).
-- Realtime via Reverb broadcast on `group.{id}` private channel (membership-checked); Livewire components also poll every 30s as a low-bandwidth fallback and for offline catches.
+- Updates by Livewire polling every 20–30 s (works on shared hosting). On VPS hosting, Reverb broadcasts on `group.{id}` private channels (membership-checked) for instant updates, with polling kept as fallback.
 - Moderation: agents/org-admins moderate (delete/hide, pin, mute member); tenants are members only. Images validated (type, size ≤ 2 MB, dimension caps) and thumbnailed via media library.
 
 ### 6.9 Platform console (Filament)
 
-Hosted at `admin.goproperty.ng`. Sections: Customers (orgs, users, subscriptions, impersonation), Compliance (Transaction Tier applications, documents, flag queue), Billing (platform invoices, Paystack transactions, bank-transfer proof confirmations, refunds), Plans & Features (plan editor, unit tiers, feature flags per plan, per-customer overrides), Staff (roles, designations, departments), System Operations dashboard, System Analytics dashboard, Backups (DB and files separately; S3-compatible + Google Drive; verify/restore), Email templates, Audit logs, Access logs. Full specification: [PLATFORM_CONSOLE.md](PLATFORM_CONSOLE.md).
+Hosted at `goproperty.ng/{ADMIN_PATH}` (configurable; can move to its own subdomain). Sections: Customers (orgs, users, subscriptions, impersonation), Compliance (Transaction Tier applications, documents, flag queue, editable tier limits), Billing (platform invoices, Paystack transactions, bank-transfer proof confirmations, refunds), Plans & Features (plan editor and prices, unit tiers, feature flags per plan, per-customer overrides), Staff (roles, designations, departments), System Operations dashboard, System Analytics dashboard, Backups (DB and files separately; S3-compatible + Google Drive; verify/restore), Email templates, Audit logs, Access logs. Full specification: [PLATFORM_CONSOLE.md](PLATFORM_CONSOLE.md).
 
 ### 6.10 Feature enablement
 
@@ -208,9 +221,13 @@ Plans declare features via `plan_feature` (boolean + numeric limit, e.g. `ticket
 
 Every organization has a Transaction Tier (1, 2 or 3) that caps its yearly collection volume and largest single payment. Tier 2 and 3 require CAC and SCUML documents (plus more for Tier 3), reviewed by a `compliance-officer`. A daily job compares rolling 12-month volume and the 12-month forecast from active leases against the tier, and raises flags (80%, 100%, single payment over limit, MLPPA cash thresholds, possible structuring, spikes, expiring documents). Over-limit organizations get an upgrade prompt, then a 30-day grace period, then feature restrictions — tenants' bills, payments and receipts are never blocked. Full rules: [ONBOARDING_COMPLIANCE.md § 5](ONBOARDING_COMPLIANCE.md).
 
+### 6.12 Data import
+
+Agencies import owners, properties, units, tenants, **ongoing leases ("paid until")**, opening balances, utility settings and payment history from Excel/CSV. Every import starts with a **dry run** that validates and previews without saving; commit runs as a queued job in dependency order; batches can be rolled back within 7 days if unused. Imported leases never back-bill and reminders only start from the commit date. Full rules: [DATA_IMPORT.md](DATA_IMPORT.md).
+
 ## 7. Background Jobs & Scheduler
 
-Queues: `default` (webhooks, lifecycle events), `notifications` (email/SMS), `billing` (invoice generation, metering), `pdf` (document rendering). Horizon supervises all four; failures alert Sentry + platform console.
+Queues: `default` (webhooks, lifecycle events), `notifications` (email/SMS/WhatsApp), `billing` (invoice generation, metering), `pdf` (document rendering), `imports` (Excel imports). On VPS, Horizon supervises them; on shared hosting a cron-started worker processes them (§ 12). Failures alert Sentry + platform console.
 
 | Schedule | Job |
 | --- | --- |
@@ -252,7 +269,7 @@ This keeps the codebase upgradeable across Laravel versions and lets paid add-on
 - NDPA 2023 + GAID 2025 (Nigeria Data Protection Act; replaced the NDPR in Sept 2025) posture: data protection officer, breach notification within 72 hours, consent capture at signup, data export + erasure request flows (platform console tooling), retention policy documented, PII encrypted at rest where sensitive (bank accounts, IDs) via Laravel cast encryption.
 - All uploads validated (mime sniffing, size caps, no SVG), served only via signed URLs.
 - Rate limiting on auth, proof uploads, group posts, SMS triggers (SMS abuse = real money); OTP attempt limits.
-- Platform staff: separate guard, separate subdomain and cookie, mandatory 2FA, 30-min idle timeout; all platform actions audited with staff identity; two-person approval for high-risk actions.
+- Platform staff: separate guard, separate console path (or subdomain) with its own session cookie, optional IP allowlist, mandatory 2FA, 30-min idle timeout; all platform actions audited with staff identity; two-person approval for high-risk actions.
 - Login pages: rate limits + lockout, Cloudflare Turnstile after failures, no account enumeration, breached-password check, new-device alerts ([UX_DESIGN.md § 3](UX_DESIGN.md)).
 - Audit log is append-only with hash chaining; authentication/access log kept for customers and staff ([PLATFORM_CONSOLE.md § 7–8](PLATFORM_CONSOLE.md)).
 - Agency Paystack secret keys: encrypted at rest, masked in UI, changeable only by org-owners, never accessible during impersonation.
@@ -265,10 +282,10 @@ This keeps the codebase upgradeable across Laravel versions and lets paid add-on
 
 - **Pulse** (prod, sampled): request latency, slow queries, queue depth, outbound mail/SMS volume.
 - **Sentry**: exceptions with org context tag; alerts to Slack/email.
-- **Horizon**: queue throughput + failed-job triage; failed `notifications` jobs replayed manually with a log check first.
+- **Queues**: Horizon on VPS; on shared hosting the console's operations dashboard reads the `jobs`/`failed_jobs` tables. Failed `notifications` jobs replayed manually with a log check first.
 - **Webhook health panel**: last received, gaps, replay tool (idempotent handlers make replay safe).
 - **Backups**: database and files backed up as separate nightly jobs (`spatie/laravel-backup`, encrypted) to S3-compatible storage and Google Drive; managed MySQL PITR enabled; monthly automatic verify + quarterly manual restore drills on staging. Managed from the console ([PLATFORM_CONSOLE.md § 4](PLATFORM_CONSOLE.md)).
-- **DR targets (initial)**: RPO 1h (binlog), RTO 4h; documented restore runbook in `docs/runbooks/`.
+- **DR targets (initial)**: Profile A (shared hosting) RPO 24h (nightly dump; consider a second midday DB backup), RTO 8h. Profile B (VPS) RPO 1h (binlog / PITR), RTO 4h; documented restore runbook in `docs/runbooks/`.
 
 ## 12. Environments & Deployment
 
@@ -276,9 +293,29 @@ This keeps the codebase upgradeable across Laravel versions and lets paid add-on
 | --- | --- | --- |
 | local | Dev | Docker (Laravel Sail) or Herd; seeded demo org/building data |
 | staging | Pre-prod, restore drills, load tests | Paystack **test** keys, test SMS sender |
-| production | Live | Forge or Ploi provisioned VPS + managed MySQL + Redis; zero-downtime deploy |
+| production | Live | Profile A (shared hosting) or Profile B (VPS) — see below |
 
-CI (GitHub Actions) on every PR: `pint --test`, `larastan`, `pest --parallel`, plus a build of the asset bundle. Deploys: merge to `main` → auto-deploy staging; tagged release → production (migrations run with `--force`, maintenance mode for schema-breaking releases). Cloudflare in front (Nigerian latency + WAF).
+CI (GitHub Actions) on every PR: `pint --test`, `larastan`, `pest --parallel`, plus a build of the asset bundle. Deploys: merge to `main` → auto-deploy staging; tagged release → production (migrations run with `--force`, maintenance mode for schema-breaking releases). Cloudflare in front (Nigerian latency + WAF), on either profile.
+
+### 12.1 Hosting profiles
+
+The product owner may launch on shared hosting. The app is built so **every feature works on shared hosting**, and VPS-only components (Redis, Horizon, Reverb, headless Chrome) are switched on by configuration, not code changes.
+
+| Concern | Profile A — Shared hosting | Profile B — VPS (Forge / Ploi / Laravel Cloud) |
+| --- | --- | --- |
+| Minimum host requirements | PHP 8.4, MySQL 8, SSH access, Composer, cron every minute, `proc_open`/`exec` enabled (queue worker, `mysqldump`), free SSL, ≥ 2 GB RAM per account | Any small VPS (2 vCPU / 4 GB) + managed or local MySQL |
+| Queues | `database` driver; cron runs `schedule:run` every minute, which starts `queue:work --stop-when-empty --max-time=55` | Redis + Horizon, always-on workers |
+| Cache / sessions | `database` (or `file`) | Redis |
+| Realtime | Livewire polling | Reverb WebSockets + polling fallback |
+| PDF | `dompdf` | Browsershot / Gotenberg (dompdf still available) |
+| Assets | Built in CI (Vite) and deployed as files — no Node on the server | Same, or built on server |
+| Deploy | CI deploys over SSH (git pull + `composer install --no-dev` + `migrate --force` + cache rebuild), or rsync/FTP action | Zero-downtime deploys |
+| Backups | spatie/laravel-backup (needs `exec` for `mysqldump`) to S3-compatible + Google Drive; plus the host's own backups | Same + managed DB point-in-time recovery |
+| Domains | Single domain, console on secret path | Optional `app.` / ops subdomains |
+
+**Shared-hosting limits to design for:** CPU/memory caps and execution time limits (imports, PDFs and metering always run as small queued chunks), outbound email limits (always send through an API mail provider, never the host's mail), noisy neighbours (keep secrets encrypted; set the document root to `/public`).
+
+**Move to Profile B when any of these happens:** ~50 paying customers or ~5,000 units; queue wait regularly over 5 minutes; Building Group needs instant updates; PDF batches are slow; the host warns about resource use. A small VPS often costs about the same as premium shared hosting, so moving early is reasonable.
 
 ## 13. Performance Notes
 

@@ -2,12 +2,13 @@
 
 This file is the operating contract for AI coding agents (and any contributor) working in the GoProperty repository. Read it before your first task; re-read it if a task touches money, tenancy, or notifications.
 
-Baseline docs, in order: [README.md](README.md) → [ARCHITECTURE.md](ARCHITECTURE.md) → [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) → [BILLING_PAYMENTS.md](BILLING_PAYMENTS.md) → [ONBOARDING_COMPLIANCE.md](ONBOARDING_COMPLIANCE.md) → [PLATFORM_CONSOLE.md](PLATFORM_CONSOLE.md) → [UX_DESIGN.md](UX_DESIGN.md) → [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md). Where a task contradicts these documents, **stop and flag the contradiction** — do not silently improvise a third design.
+Baseline docs, in order: [README.md](README.md) → [ARCHITECTURE.md](ARCHITECTURE.md) → [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) → [BILLING_PAYMENTS.md](BILLING_PAYMENTS.md) → [ONBOARDING_COMPLIANCE.md](ONBOARDING_COMPLIANCE.md) → [PLATFORM_CONSOLE.md](PLATFORM_CONSOLE.md) → [UX_DESIGN.md](UX_DESIGN.md) → [BRANDING_DOCUMENTS.md](BRANDING_DOCUMENTS.md) → [DATA_IMPORT.md](DATA_IMPORT.md) → [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md). Where a task contradicts these documents, **stop and flag the contradiction** — do not silently improvise a third design.
 
 ## 1. Project Snapshot
 
 - **What:** GoProperty — multi-tenant property-management SaaS (Nigeria-first): buildings → units → tenants, leases, rent/utility billing with payment-proof confirmation, maintenance tickets, Building Group discussions, and a platform-owner console that bills customers per unit via Paystack or bank transfer.
-- **Stack:** Laravel 13, PHP 8.4+, MySQL 8, Redis, Livewire 3 + Volt (customer/tenant surfaces), Filament 4 (platform console), Laravel Reverb (realtime), nwidart/laravel-modules (modular monolith).
+- **Stack:** Laravel 13, PHP 8.4+, MySQL 8, Livewire 4 (customer/tenant surfaces; built-in single-file components, no Volt), Filament 5 (platform console), Pest 4, nwidart/laravel-modules (modular monolith). Redis, Horizon, Reverb and headless Chrome are **optional VPS add-ons** — the app must run on shared hosting (ARCHITECTURE.md § 12.1).
+- **Naming:** "tenant" in code always means a renter (`TenantProfile`). Multi-tenancy uses "organization": `OrganizationContext`, `BelongsToOrganization`, `SetOrganizationContext`.
 - **Money unit:** integer **kobo**, always (`*_kobo` columns). Naira only.
 
 ## 2. Environment & Commands
@@ -17,7 +18,7 @@ Assume Laravel Sail locally unless told otherwise.
 ```bash
 # Environment
 composer install && npm install
-sail up -d                      # or: php artisan serve with local MySQL/Redis
+sail up -d                      # or: php artisan serve with local MySQL
 sail artisan migrate --seed     # seeded demo org/building/lease data
 
 # Quality gate — run ALL of these before declaring any task done
@@ -26,9 +27,9 @@ sail artisan test --parallel    # Pest
 vendor/bin/phpstan              # Larastan, level 6 minimum
 
 # Long-running processes (dev)
-sail artisan queue:listen --queue=default,notifications,billing,pdf
+sail artisan queue:listen --queue=default,notifications,billing,pdf,imports
 sail artisan schedule:work
-sail artisan reverb:start
+sail artisan reverb:start         # optional: only when testing VPS-profile realtime
 
 # Modules (nwidart)
 php artisan module:make <Name>
@@ -41,7 +42,7 @@ CI runs `pint --test`, `phpstan`, and `pest --parallel` on every PR. Never merge
 
 Breaking any of these is a critical defect regardless of task size:
 
-1. **Tenancy.** Every customer-domain model uses `BelongsToTenant`. Never query tenant data without `TenantContext` set; never remove/disable a global scope without a platform-guarded, documented reason. Platform-side cross-org reads live only in `Modules\Platform` (or `App\Platform` pre-extraction).
+1. **Tenancy.** Every customer-domain model uses `BelongsToOrganization`. Never query organization data without `OrganizationContext` set; never remove/disable a global scope without a platform-guarded, documented reason. Platform-side cross-org reads live only in `Modules\Platform` (or `App\Platform` pre-extraction).
 2. **Money.** Kobo integers only. No floats, no floatval, no `->amount / 100` arithmetic outside the money helper. All money math goes through `App\Support\Money` (or the module equivalent). Currency is NGN.
 3. **Cycle math.** All lease period arithmetic goes through `Modules\Leasing\CycleCalculator`. Never hand-roll date intervals.
 4. **Authorization.** Every controller action, Livewire component, and Filament resource checks a Policy. Hiding UI is never the security control.
@@ -57,10 +58,12 @@ Breaking any of these is a critical defect regardless of task size:
 
 - **Modules:** new bounded features are new modules (`php artisan module:make`). A module's models/services/policies are private — cross-module access goes through the module's `Contracts/` interface or domain events (`PaymentConfirmed`, `LeaseActivated`, `TicketReplied`, …). No cross-module Eloquent queries or table joins.
 - **Core stays thin:** tenancy, auth, users, orgs, settings, money, documents, shared UI. If you're adding domain logic to Core, it probably belongs in a module.
-- **Surfaces:** `/app` and `/portal` are Livewire 3 (+ Volt) — do not introduce Vue/React there. `admin.goproperty.ng` is Filament (separate `staff` guard and `platform_staff` table). Marketing pages are plain Blade + Livewire forms.
+- **Surfaces:** `/o/{org-slug}`, `/portal` and `/owner` are Livewire 4 — do not introduce Vue/React there. The console at `/{ADMIN_PATH}` is Filament 5 (separate `staff` guard, `platform_staff` table and session cookie). Never hard-code the admin path or any host name; read them from config. Marketing pages are plain Blade + Livewire forms.
 - **Events over hooks:** subsystems react to domain events; don't have Billing reach into Tickets internals, etc.
-- **Queues:** everything slow (PDF, mail, SMS, webhooks processing, metering) is queued with the right queue name (`default`, `notifications`, `billing`, `pdf`) and a retry/backoff config.
-- **Documents:** generated via Browsershot + Blade templates; numbering via `document_counters` inside a transaction. Never `max(id)+1`.
+- **Queues:** everything slow (PDF, mail, SMS, WhatsApp, webhooks processing, metering, imports) is queued with the right queue name (`default`, `notifications`, `billing`, `pdf`, `imports`) and a retry/backoff config. Jobs must finish in under ~50 seconds or be split into chunks (shared-hosting workers are cron-started and time-limited).
+- **Shared-hosting compatibility:** no feature may require Redis, Horizon, Reverb, Node at runtime, or headless Chrome. Use Laravel's driver/config switches so those are enhancements on VPS only.
+- **Documents:** Blade templates rendered through the PDF driver interface (`dompdf` or Chrome); table layouts and simple CSS only so both drivers render identically ([BRANDING_DOCUMENTS.md § 5](BRANDING_DOCUMENTS.md)). Agency branding is snapshotted on each issued document. Numbering via `document_counters` inside a transaction. Never `max(id)+1`.
+- **Imports:** always dry run before commit; never back-bill imported leases; never auto-contact imported tenants ([DATA_IMPORT.md](DATA_IMPORT.md)).
 
 ## 5. Code Conventions
 

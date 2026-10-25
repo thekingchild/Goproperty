@@ -6,14 +6,17 @@ GoProperty is a multi-tenant SaaS platform for property management in Nigeria. A
 
 | Aspect | Decision |
 | --- | --- |
-| Stack | Laravel 13, PHP 8.4+, MySQL 8, Redis, Livewire 3 (+ Filament for the platform console) |
+| Stack | Laravel 13, PHP 8.4+, MySQL 8, Livewire 4, Filament 5 (platform console), Pest 4 |
+| Hosting | Runs on **shared hosting** (database queues via cron, polling, dompdf); Redis/Horizon/Reverb/headless Chrome switch on by config when moved to a VPS ([ARCHITECTURE.md § 12.1](ARCHITECTURE.md)) |
 | Tenancy | Single database, row-level scoping on `organization_id` (see [ARCHITECTURE.md](ARCHITECTURE.md)) |
-| SaaS billing | Per-block/apartment unit pricing; Paystack card payments + bank transfer with receipt confirmation |
+| SaaS billing | Per-unit plans from ₦10,000/month (Starter, 10 units) — editable; Paystack card payments + bank transfer with receipt confirmation |
 | Payments (customers) | Tenants pay the agency **directly**: bank transfer (matched from the agency's bank statement, or proof upload) or the agency's **own** Paystack account. GoProperty never receives or routes tenant money (see [ONBOARDING_COMPLIANCE.md § 0](ONBOARDING_COMPLIANCE.md)) |
-| Transaction Tiers | Tier 1 / 2 / 3 by yearly collection volume; Tier 2 & 3 need CAC + SCUML documents; system flags agencies exceeding their tier and prompts an upgrade |
-| Domains | `goproperty.ng` (marketing/signup) · `app.goproperty.ng/o/{org-slug}` (one login for agencies, owners, tenants) · `admin.goproperty.ng` (staff console). No subdomain per agency |
-| Communications | Email (transactional provider) + SMS (Termii or similar Nigerian route) |
-| Realtime | Laravel Reverb for the Building Group chat |
+| Transaction Tiers | Tier 1 (≤ ₦50m/yr) / Tier 2 (≤ ₦500m/yr) / Tier 3 (above) — editable; Tier 2 & 3 need CAC + SCUML documents; system flags agencies exceeding their tier and prompts an upgrade |
+| Domains | One domain: `goproperty.ng/login` (one login for agencies, owners, tenants) · `/o/{org-slug}` (agency workspace) · `/portal` · `/owner` · staff console on a configurable secret path. No subdomain per agency; can move to subdomains by config |
+| Branding | Agencies use their own name, logo, colours and letterhead on invoices, receipts, emails and the tenant portal |
+| Data import | Excel/CSV with dry run: owners, properties, units, tenants, ongoing leases, opening balances, utilities, payment history |
+| Communications | Email (transactional provider) + SMS (Termii) + optional WhatsApp via the agency's own WhatsApp Business API (templates fetched and mapped) |
+| Realtime | Polling on shared hosting; Laravel Reverb on VPS (Building Group) |
 | Extensibility | Modular monolith — features are self-contained modules (see [ARCHITECTURE.md § 8](ARCHITECTURE.md)) |
 
 ## Reading Order
@@ -25,7 +28,9 @@ GoProperty is a multi-tenant SaaS platform for property management in Nigeria. A
 5. **[ONBOARDING_COMPLIANCE.md](ONBOARDING_COMPLIANCE.md)** — domains & login paths, registration and subscription phase, payment collection (bank transfer + agency-owned Paystack), Transaction Tiers and compliance monitoring.
 6. **[PLATFORM_CONSOLE.md](PLATFORM_CONSOLE.md)** — staff roles & designations, operations and analytics dashboards, backups & restore, email templates, impersonation, audit and access logs.
 7. **[UX_DESIGN.md](UX_DESIGN.md)** — design principles, login pages, marketing hero, design system.
-8. **[AGENT.md](AGENT.md)** — working rules for AI coding agents (and human contributors): conventions, commands, guardrails, definition of done.
+8. **[BRANDING_DOCUMENTS.md](BRANDING_DOCUMENTS.md)** — agency branding settings and the designed invoice, receipt and other documents (reference templates in `docs/design/templates/`).
+9. **[DATA_IMPORT.md](DATA_IMPORT.md)** — Excel/CSV import with dry run, ongoing rents and opening balances.
+10. **[AGENT.md](AGENT.md)** — working rules for AI coding agents (and human contributors): conventions, commands, guardrails, definition of done.
 
 ## The Cast
 
