@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<!--
+  GoProperty — Marketing landing page, goproperty.ng (design reference)
+  Spec: UX_DESIGN.md § 4 · settings it reads: PLATFORM_CONSOLE.md § 9 (theme, images, SEO, custom code)
+  In the app this becomes plain Blade (+ Livewire for forms). Everything marked "theme." in comments
+  comes from Platform theme settings; nothing is hard-coded in the real view.
+
+  Preview helpers (design file only):
+    landing.html?hero=<image-url>            show the hero with an uploaded photo instead of the skyline art
+    landing.html?hero=<url>&overlay=0.45     ...and a different overlay opacity
+-->
+<html lang="en-NG">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- SEO — theme.seo.* (per-page title/description override the site defaults) -->
+<title>GoProperty — Rent collection and property management for Nigerian agencies</title>
+<meta name="description" content="Manage buildings, tenants, leases and utility bills in one place. Tenants pay you directly, payments are matched to your bank statement and every tenant gets a verified receipt.">
+<link rel="canonical" href="https://goproperty.ng/">
+<meta name="robots" content="index, follow">
+<meta name="theme-color" content="#0F1B44">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="GoProperty">
+<meta property="og:locale" content="en_NG">
+<meta property="og:url" content="https://goproperty.ng/">
+<meta property="og:title" content="GoProperty — Rent in. Receipts out.">
+<meta property="og:description" content="Property management for Nigerian agencies and landlords. Start a 14-day free trial — no card required.">
+<meta property="og:image" content="https://goproperty.ng/brand/og-image?v=1">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/brand/favicon?v=1" type="image/png">
+<link rel="apple-touch-icon" href="/brand/apple-touch-icon?v=1">
+<link rel="manifest" href="/site.webmanifest">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    { "@type": "Organization", "name": "GoProperty", "url": "https://goproperty.ng/", "logo": "https://goproperty.ng/brand/logo-light?v=1" },
+    { "@type": "SoftwareApplication", "name": "GoProperty", "applicationCategory": "BusinessApplication", "operatingSystem": "Web",
+      "offers": { "@type": "Offer", "price": "10000", "priceCurrency": "NGN", "description": "Starter plan, per month, up to 10 units" } }
+  ]
+}
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/theme.css">
+<link rel="stylesheet" href="assets/landing.css">
+<script>document.documentElement.classList.add('js')</script>
+<!-- theme.custom_code.head — e.g. analytics. Printed here on public pages only, never on /login or the console. -->
+</head>
+<body>
+<!-- theme.custom_code.body_start -->
+<a class="skip-link" href="#main">Skip to content</a>
+
+<!-- ============ NAV (fixed; glass bar after scrolling) ============ -->
+<div class="nav-bar" data-nav>
+  <div class="wrap nav">
+    <a class="brand" href="landing.html" aria-label="GoProperty home">
+      <!-- theme.logo_dark (logo for dark backgrounds). Fallback: generated mark + name -->
+      <svg class="brand__mark" viewBox="0 0 34 34" aria-hidden="true"><rect width="34" height="34" rx="9" fill="#fff"/><path d="M9 16.2 17 10l8 6.2V25a1 1 0 0 1-1 1h-4.5v-5.5h-5V26H10a1 1 0 0 1-1-1z" fill="var(--color-primary-700)"/><circle cx="24.5" cy="10.5" r="3" fill="var(--color-accent)"/></svg>
+      <span>GoProperty</span>
+    </a>
+    <nav class="nav__links" aria-label="Primary">
+      <a href="#product">Product</a>
+      <a href="#features">Features</a>
+      <a href="#payments">Payments</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <div class="nav__actions">
+      <a class="nav__login" href="login.html">Log in</a>
+      <a class="pill pill--login" href="login.html">Log in</a>
+      <a class="pill pill--trial" href="#start">Start free trial</a>
+      <button class="menu-btn" type="button" aria-label="Open menu" aria-haspopup="dialog" data-menu-open>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+    </div>
+  </div>
+  <dialog class="menu" aria-labelledby="menu-title" data-menu>
+    <div class="menu__head">
+      <p id="menu-title">GoProperty</p>
+      <button class="menu__close" type="button" aria-label="Close menu" data-menu-close><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    </div>
+    <nav aria-label="Menu">
+      <a href="#product">Product</a>
+      <a href="#features">Features</a>
+      <a href="#payments">Payments</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <div class="menu__ctas">
+      <a class="btn btn--primary" href="#start">Start free trial</a>
+      <a class="btn btn--ghost" href="login.html">Log in</a>
+    </div>
+  </dialog>
+</div>
+
+<!-- ============ HERO (approved) ============ -->
+<header class="site-top" data-hero>
+  <!-- theme.hero_image: when set, the photo shows with theme.hero_overlay_color / _opacity and the skyline art is hidden.
+       In Blade: <img class="bg-photo" src="…/brand/hero?v=…" srcset="…" sizes="100vw" alt="" fetchpriority="high"> -->
+  <img class="bg-photo" alt="" hidden data-hero-photo>
+  <div class="bg-overlay" aria-hidden="true"></div>
+  <div class="site-top__art" aria-hidden="true"><img src="assets/skyline.svg" alt=""></div>
+  <div class="site-top__shade" aria-hidden="true"></div>
+  <div class="nav-spacer" aria-hidden="true"></div>
+
+  <section class="wrap hero" aria-labelledby="hero-title">
+    <div>
+      <p class="badge"><span class="badge__dot" aria-hidden="true"></span>Built for Nigerian property managers</p>
+      <h1 id="hero-title" class="hero__title"><span>Rent in.</span><span>Receipts out.</span></h1>
+      <ul class="trust" aria-label="Trial terms">
+        <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5L20 7"/></svg>14-day free trial</li>
+        <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5L20 7"/></svg>No card required</li>
+        <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5L20 7"/></svg>Cancel anytime</li>
+      </ul>
+    </div>
+    <div class="hero__side">
+      <p class="hero__lede">GoProperty keeps your buildings, tenants, leases and utility bills in one place. Tenants pay you directly, and every confirmed payment gets a receipt automatically.</p>
+      <div class="hero__cta">
+        <a class="hero__button" href="#start">Start free trial
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </a>
+        <p class="hero__alt">Prefer a walkthrough? <a href="#demo">Book a demo</a></p>
+      </div>
+    </div>
+  </section>
+</header>
+
+<main id="main" tabindex="-1">
+
+  <!-- ============ FACTS ============ -->
+  <section class="facts" aria-label="GoProperty at a glance">
+    <ul class="wrap facts__grid">
+      <li><span class="fact__value">₦0</span><span class="fact__label">commission on rent — tenants pay your account directly</span></li>
+      <li><span class="fact__value">₦10,000</span><span class="fact__label">a month to start, for up to 10 units</span></li>
+      <li><span class="fact__value">Dry run</span><span class="fact__label">before any Excel import — see every row before it's saved</span></li>
+    </ul>
+  </section>
+
+  <!-- ============ WORKSPACE SHOWCASE ============ -->
+  <section class="section section--canvas" id="product" aria-labelledby="product-title">
+    <div class="wrap">
+      <div class="reveal">
+        <p class="eyebrow">The workspace</p>
+        <h2 class="h2" id="product-title">Every building, every tenant. <b>One desk.</b></h2>
+        <p class="lede">Your team starts the day on a "Today" list — payments to confirm, bills going overdue, leases ending, tickets waiting. Landlords and tenants each get their own simple view of the same records.</p>
+      </div>
+
+      <div class="showcase__tabs reveal">
+        <div class="seg" role="tablist" aria-label="Choose a view" data-tabs="view">
+          <button type="button" role="tab" aria-selected="true" aria-controls="view-agency" id="tab-agency">Agency desk</button>
+          <button type="button" role="tab" aria-selected="false" aria-controls="view-owner" id="tab-owner" tabindex="-1">Landlord view</button>
+          <button type="button" role="tab" aria-selected="false" aria-controls="view-tenant" id="tab-tenant" tabindex="-1">Tenant app</button>
+        </div>
+      </div>
+
+      <div class="stage reveal">
+        <div class="window">
+          <div class="window__bar">
+            <span class="window__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span class="window__url" data-url>goproperty.ng/o/adeyemi-realty/today</span>
+            <span class="chip chip--ok window__live">● Live</span>
+          </div>
+          <div class="app">
+            <div class="app__side" aria-hidden="true">
+              <div class="app__org"><span class="app__org-logo">AR</span>Adeyemi Realty</div>
+              <div class="app__nav">
+                <span class="is-on">Today <b>9</b></span>
+                <span>Properties</span><span>Tenants</span><span>Leases</span>
+              </div>
+              <p class="app__group">Money</p>
+              <div class="app__nav"><span>Bills</span><span>Payments <b>3</b></span><span>Bank statements</span></div>
+              <p class="app__group">People</p>
+              <div class="app__nav"><span>Tickets <b>4</b></span><span>Building Groups</span><span>Owners</span></div>
+            </div>
+
+            <!-- Agency -->
+            <div class="app__main" id="view-agency" role="tabpanel" aria-labelledby="tab-agency">
+              <p class="app__date">Monday, 26 October</p>
+              <p class="app__title">Work that needs you today</p>
+              <div class="kpis">
+                <div class="kpi kpi--accent"><span>Collected in Oct</span><strong class="num">₦18,450,000</strong></div>
+                <div class="kpi"><span>Outstanding</span><strong class="num">₦2,100,000</strong></div>
+                <div class="kpi"><span>Occupancy</span><strong class="num">94%</strong></div>
+              </div>
+              <ul class="todo">
+                <li><div class="todo__text"><strong>5 bank statement lines matched</strong><span>GTBank statement · 24/10/2026 · ready to confirm</span></div><div class="todo__act"><span class="chip chip--info">Matched</span><span class="mini-btn">Confirm</span></div></li>
+                <li><div class="todo__text"><strong>3 payment proofs uploaded</strong><span>Flat 4B Lekki Court · Block C, Unit 2 · +1 more</span></div><div class="todo__act"><span class="chip chip--warn">Waiting</span><span class="mini-btn">Review</span></div></li>
+                <li><div class="todo__text"><strong>2 rent bills overdue</strong><span>Reminders sent yesterday by email and SMS</span></div><div class="todo__act"><span class="chip chip--bad">Overdue</span><span class="mini-btn mini-btn--ghost">Open</span></div></li>
+                <li><div class="todo__text"><strong>1 lease ends in 30 days</strong><span>Mrs. Okafor · Flat 2A Adeola Heights</span></div><div class="todo__act"><span class="chip chip--muted">Renewal</span><span class="mini-btn mini-btn--ghost">Renew</span></div></li>
+              </ul>
+            </div>
+
+            <!-- Owner -->
+            <div class="app__main" id="view-owner" role="tabpanel" aria-labelledby="tab-owner" hidden>
+              <p class="app__date">Owner portal · October statement</p>
+              <p class="app__title">Adeola Heights, Ikeja</p>
+              <div class="bars" aria-label="Rent collected by month, May to October">
+                <div><i style="height:52%"></i>May</div><div><i style="height:64%"></i>Jun</div><div><i style="height:58%"></i>Jul</div>
+                <div><i style="height:76%"></i>Aug</div><div><i style="height:70%"></i>Sep</div><div><i style="height:92%"></i>Oct</div>
+              </div>
+              <table class="ledger">
+                <tr><td>Rent collected (12 units)</td><td>₦9,600,000</td></tr>
+                <tr><td>Service charge collected</td><td>₦1,140,000</td></tr>
+                <tr><td>Repairs · borehole pump</td><td>− ₦185,000</td></tr>
+                <tr><td>Management fee (7.5%)</td><td>− ₦720,000</td></tr>
+                <tr><td><b>Net to you</b></td><td>₦9,835,000</td></tr>
+              </table>
+            </div>
+
+            <!-- Tenant -->
+            <div class="app__main" id="view-tenant" role="tabpanel" aria-labelledby="tab-tenant" hidden>
+              <p class="app__date">Tenant portal · goproperty.ng/portal</p>
+              <p class="app__title">Good morning, Chidinma</p>
+              <ul class="todo">
+                <li><div class="todo__text"><strong>Rent · Nov 2026 – Oct 2027</strong><span>Due 01/11/2026 · Flat 4B Lekki Court</span></div><div class="todo__act"><span class="num"><b>₦1,800,000</b></span><span class="mini-btn">Pay</span></div></li>
+                <li><div class="todo__text"><strong>Service charge · Q4</strong><span>Paid 12/10/2026 · receipt ready</span></div><div class="todo__act"><span class="chip chip--ok">Paid</span><span class="mini-btn mini-btn--ghost">Receipt</span></div></li>
+                <li><div class="todo__text"><strong>Kitchen sink leaking</strong><span>Ticket #T-0192 · plumber visiting Thursday</span></div><div class="todo__act"><span class="chip chip--info">In progress</span></div></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- Phone overlay (changes with the tab) -->
+        <div class="phone" aria-hidden="true">
+          <div class="phone__screen">
+            <div class="phone__status"><span>9:41</span><span>●●● 4G</span></div>
+            <div class="phone__brand"><i>AR</i>Adeyemi Realty</div>
+            <div data-phone="agency owner">
+              <div class="rcpt">
+                <div class="rcpt__tick"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg></div>
+                <p class="rcpt__label">Payment confirmed</p>
+                <p class="rcpt__amt">₦1,800,000</p>
+                <span class="chip chip--ok">Verified receipt</span>
+                <dl>
+                  <div><dt>Receipt</dt><dd>RCT-ADR-000318</dd></div>
+                  <div><dt>For</dt><dd>Rent · Flat 4B</dd></div>
+                  <div><dt>Confirmed by</dt><dd>T. Bello</dd></div>
+                  <div><dt>Date</dt><dd>26/10/2026</dd></div>
+                </dl>
+              </div>
+              <span class="phone__cta">Download receipt</span>
+            </div>
+            <div data-phone="tenant" hidden>
+              <div class="tenant-actions"><span><i>₦</i>Pay a bill</span><span><i>↑</i>Upload proof</span><span><i>!</i>Report a problem</span></div>
+              <div class="tenant-bills">
+                <div class="tenant-bill"><strong>Rent <span class="num">₦1,800,000</span></strong><span>Due in 6 days</span></div>
+                <div class="tenant-bill"><strong>Water · Oct <span class="num">₦6,500</span></strong><span>Due 05/11/2026</span></div>
+                <div class="tenant-bill"><strong>Building Group</strong><span>3 new posts from your neighbours</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="showcase__caption"><span>Sample data.</span><span>Each agency's portal shows its own logo and colours.</span></p>
+    </div>
+  </section>
+
+  <!-- ============ STATEMENT BAND ============ -->
+  <section class="section section--dark" aria-labelledby="band-title">
+    <div class="wrap">
+      <h2 class="band__title reveal" id="band-title">Rent records don't belong in <s>WhatsApp chats</s> and <s>Excel sheets</s>. <b>Put them somewhere that adds up.</b></h2>
+      <ul class="band__grid reveal">
+        <li><h3>Matched, not chased</h3><p>Upload your bank statement; payments are matched to the right bills for you to confirm.</p></li>
+        <li><h3>Receipts in seconds</h3><p>The moment you confirm, the tenant gets a branded receipt with a QR code anyone can verify.</p></li>
+        <li><h3>Landlords stay informed</h3><p>Owners see income, expenses and payouts for their buildings without calling you.</p></li>
+        <li><h3>Your money, your account</h3><p>Tenants pay you directly. GoProperty never holds or splits rent.</p></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============ BENTO FEATURES ============ -->
+  <section class="section" id="features" aria-labelledby="features-title">
+    <div class="wrap">
+      <div class="reveal">
+        <p class="eyebrow">What's inside</p>
+        <h2 class="h2" id="features-title">Built for how Nigerian agencies <b>actually work.</b></h2>
+        <p class="lede">Yearly rent, service charges, caution deposits, borehole repairs and bank transfers with half-filled narrations. GoProperty was designed around them.</p>
+      </div>
+
+      <div class="bento">
+        <article class="tile tile--w4 reveal">
+          <div><h3>Bank statement matching</h3><p>Upload your statement from any Nigerian bank. Each credit is matched to the right tenant and bill; you only confirm.</p></div>
+          <div class="tile__visual">
+            <table class="match">
+              <thead><tr><th>Date</th><th class="hide-sm">Narration</th><th class="r">Amount</th><th>Match</th></tr></thead>
+              <tbody>
+                <tr><td>24/10</td><td class="desc hide-sm">TRF/OKAFOR C/RENT FLAT 2A</td><td class="r num">₦2,400,000</td><td><span class="chip chip--ok">Flat 2A · rent</span></td></tr>
+                <tr><td>24/10</td><td class="desc hide-sm">NIP/ADEBAYO T/SVC CHG</td><td class="r num">₦95,000</td><td><span class="chip chip--ok">Unit C2 · service</span></td></tr>
+                <tr><td>23/10</td><td class="desc hide-sm">TRANSFER FROM IBRAHIM M</td><td class="r num">₦1,200,000</td><td><span class="chip chip--warn">2 possible</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="tile tile--w2 tile--dark reveal">
+          <div><h3>Building Group</h3><p>A private board for each building — notices, replies and photos, without the 2 a.m. WhatsApp noise.</p></div>
+          <div class="tile__visual chat" aria-hidden="true">
+            <p><small>Estate manager</small>Water will be off 10am–12pm Saturday for tank cleaning.</p>
+            <span class="react">👍 14</span>
+            <p class="me">Thanks for the heads-up!</p>
+          </div>
+        </article>
+
+        <article class="tile tile--w2 reveal">
+          <div><h3>Leases on any cycle</h3><p>From short lets to two-year leases. Renewal reminders go out 60, 30 and 7 days before the end.</p></div>
+          <div class="tile__visual cycles" aria-hidden="true">
+            <span>Daily</span><span>Weekly</span><span>Monthly</span><span>Quarterly</span><span>6-monthly</span><span class="is-on">Yearly</span><span>2-yearly</span>
+          </div>
+        </article>
+
+        <article class="tile tile--w2 reveal">
+          <div><h3>Maintenance tickets</h3><p>Tenants report a problem with photos; you reply, assign and close — with a full history.</p></div>
+          <div class="tile__visual pipeline" aria-hidden="true">
+            <div class="done"><i></i>Submitted · Kitchen sink leaking</div>
+            <div class="done"><i></i>Under review</div>
+            <div class="now"><i></i>In progress · plumber Thursday</div>
+            <div><i></i>Resolved</div>
+          </div>
+        </article>
+
+        <article class="tile tile--w2 tile--accent reveal">
+          <div><h3>Utilities and service charge</h3><p>Bill water, power, waste and service charge alongside rent — on the same receipt trail.</p></div>
+          <div class="tile__visual utils" aria-hidden="true">
+            <span>Water<b class="num">₦6,500</b></span><span>Power<b class="num">₦21,000</b></span><span>Service<b class="num">₦95,000</b></span>
+          </div>
+        </article>
+
+        <article class="tile tile--w3 reveal">
+          <div><h3>Bring your existing book</h3><p>Import owners, units, tenants, running leases and opening balances from Excel. A dry run shows every row first; nothing is back-billed.</p></div>
+          <div class="tile__visual import" aria-hidden="true">
+            <div class="import__bar"><i style="width:91%;background:var(--success)"></i><i style="width:6%;background:var(--color-accent)"></i><i style="width:3%;background:var(--danger)"></i></div>
+            <div class="import__row"><span><b>214</b> rows ready</span><span><b>14</b> need a look</span><span><b>6</b> errors</span></div>
+          </div>
+        </article>
+
+        <article class="tile tile--w3 reveal">
+          <div><h3>Owner statements</h3><p>Monthly statements for every landlord — collected, spent, your fee and net payout — as a page and a PDF.</p></div>
+          <div class="tile__visual" aria-hidden="true">
+            <svg class="spark" viewBox="0 0 300 72" preserveAspectRatio="none"><defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3B82F6" stop-opacity=".25"/><stop offset="1" stop-color="#3B82F6" stop-opacity="0"/></linearGradient></defs><path d="M0 58 L40 50 L80 54 L120 38 L160 42 L200 26 L240 30 L300 10 L300 72 L0 72Z" fill="url(#sg)"/><path d="M0 58 L40 50 L80 54 L120 38 L160 42 L200 26 L240 30 L300 10" fill="none" stroke="#1D4ED8" stroke-width="2.5" stroke-linejoin="round"/><circle cx="300" cy="10" r="4" fill="#F59E0B"/></svg>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PAYMENTS ============ -->
+  <section class="section section--canvas" id="payments" aria-labelledby="pay-title">
+    <div class="wrap">
+      <div class="head-row reveal">
+        <div>
+          <p class="eyebrow">Payments</p>
+          <h2 class="h2" id="pay-title">Tenants pay you. <b>We keep the record straight.</b></h2>
+        </div>
+        <div class="seg" role="tablist" aria-label="Payment method" data-tabs="pay">
+          <button type="button" role="tab" aria-selected="true" data-method="bank">Bank transfer</button>
+          <button type="button" role="tab" aria-selected="false" data-method="proof" tabindex="-1">Proof upload</button>
+          <button type="button" role="tab" aria-selected="false" data-method="paystack" tabindex="-1">Your Paystack</button>
+        </div>
+      </div>
+
+      <div class="flow reveal">
+        <div class="flow__copy" aria-live="polite">
+          <h3 data-flow-title>Matched from your bank statement</h3>
+          <p data-flow-text>The tenant transfers to your account as usual. Upload the statement and GoProperty finds the bill each credit belongs to — by amount, name and narration.</p>
+          <ul class="checks" data-flow-checks>
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg>Works with every Nigerian bank's statement export</li>
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg>Unclear credits are flagged, never guessed</li>
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg>You confirm — the receipt goes out</li>
+          </ul>
+        </div>
+        <ol class="steps-v" data-flow-steps aria-label="Payment steps"></ol>
+      </div>
+
+      <ul class="flow__notes reveal">
+        <li><strong>No commission on rent</strong><span>Your subscription is the only thing you pay GoProperty.</span></li>
+        <li><strong>"Confirmed by" on every payment</strong><span>Each confirmation records who approved it, and when.</span></li>
+        <li><strong>Transaction Tiers</strong><span>Verified limits for how much each agency manages, as Nigerian rules expect.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============ REMINDERS ============ -->
+  <section class="section" aria-labelledby="remind-title">
+    <div class="wrap">
+      <div class="reveal">
+        <p class="eyebrow">Reminders</p>
+        <h2 class="h2" id="remind-title">Rent reminders that go out <b>on time, every time.</b></h2>
+        <p class="lede">Bills and reminders are sent on a schedule you set, by email, SMS or your own WhatsApp Business number. Drag to see what the tenant receives, and when.</p>
+      </div>
+      <div class="remind reveal">
+        <div class="scrub">
+          <div class="scrub__head"><span id="days-label">Days to rent due date</span><strong data-days-out>14 days before</strong></div>
+          <input class="range" type="range" min="-14" max="3" step="1" value="-14" aria-labelledby="days-label" data-days>
+          <div class="ticks" aria-hidden="true" data-ticks></div>
+          <p class="scrub__note">Example schedule: bill issued 14 days before, reminders 7 days and 1 day before, overdue notice the day after. Every step is editable per agency.</p>
+        </div>
+        <div class="msg" aria-live="polite">
+          <div class="msg__top"><span class="msg__from"><i>AR</i>Adeyemi Realty</span><span data-msg-stage>Bill issued</span></div>
+          <div class="msg__body">
+            <h4 data-msg-title>Your rent bill for Flat 4B is ready</h4>
+            <p data-msg-text>Hi Chidinma, your rent of ₦1,800,000 for Nov 2026 – Oct 2027 is due on 01/11/2026. Pay to Adeyemi Realty, GTBank 0123456789, or tap the link to pay online.</p>
+            <span class="mini-btn" data-msg-btn>View and pay</span>
+            <div class="msg__channels" data-msg-channels><span class="chip chip--info">Email</span><span class="chip chip--info">SMS</span><span class="chip chip--muted">WhatsApp</span></div>
+            <p class="msg__status">Bill status: <b data-msg-status>Unpaid · due in 14 days</b></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ BRANDED DOCUMENTS ============ -->
+  <section class="section section--canvas" aria-labelledby="docs-title">
+    <div class="wrap docs">
+      <div class="reveal">
+        <p class="eyebrow">Your brand</p>
+        <h2 class="h2" id="docs-title">Receipts with your name on them. <b>And proof they're real.</b></h2>
+        <p class="lede">Invoices, receipts and statements carry your logo, colours and letterhead. Every one has a QR code that opens a verification page — so a fake or edited receipt is caught in seconds.</p>
+        <div class="swatches" role="group" aria-label="Try an agency colour" data-swatches>
+          <button class="swatch" type="button" aria-pressed="true" style="--sw:#0E6B5C" data-brand="#0E6B5C" data-name="Adeyemi Realty" data-init="AR"><i></i>Teal</button>
+          <button class="swatch" type="button" aria-pressed="false" style="--sw:#7C2D12" data-brand="#7C2D12" data-name="Okoro &amp; Sons Estates" data-init="OS"><i></i>Brick</button>
+          <button class="swatch" type="button" aria-pressed="false" style="--sw:#4338CA" data-brand="#4338CA" data-name="Lekki Homes Ltd" data-init="LH"><i></i>Indigo</button>
+          <button class="swatch" type="button" aria-pressed="false" style="--sw:#111827" data-brand="#111827" data-name="Bello Property Co." data-init="BP"><i></i>Charcoal</button>
+        </div>
+        <div class="flip-ctrl">
+          <button class="btn btn--ghost" type="button" data-flip-btn aria-pressed="false">Scan the QR code</button>
+          <span>Flip to the page a tenant or landlord sees.</span>
+        </div>
+      </div>
+
+      <div class="flip reveal" data-flip>
+        <div class="flip__inner">
+          <div class="flip__face doc" data-doc>
+            <div class="doc__bar"></div>
+            <div class="doc__body">
+              <div class="doc__head">
+                <div class="doc__org"><span class="doc__logo" data-doc-init>AR</span><div><strong data-doc-name>Adeyemi Realty</strong><span>RC 1234567 · Ikeja, Lagos</span></div></div>
+                <p class="doc__type">RECEIPT<small>RCT-ADR-2026-000318</small></p>
+              </div>
+              <div class="doc__amount"><span>Amount received</span><strong class="num">₦1,800,000</strong></div>
+              <dl class="doc__rows">
+                <div><dt>Received from</dt><dd>Chidinma Eze</dd></div>
+                <div><dt>For</dt><dd>Rent · Flat 4B, Lekki Court · Nov 2026 – Oct 2027</dd></div>
+                <div><dt>Method</dt><dd>Bank transfer · GTBank</dd></div>
+                <div><dt>Confirmed by</dt><dd>Tunde Bello · 26/10/2026 10:42</dd></div>
+              </dl>
+              <div class="doc__foot">
+                <div class="doc__verify"><svg class="qr" viewBox="0 0 25 25" data-qr shape-rendering="crispEdges" aria-label="QR code"></svg><span>Verify at goproperty.ng/verify<b>K7M2-QX9P</b></span></div>
+                <span class="stamp">PAID</span>
+              </div>
+            </div>
+          </div>
+          <div class="flip__face flip__back doc">
+            <div class="doc__bar"></div>
+            <div class="verify-page">
+              <span class="verify-page__url">goproperty.ng/verify/K7M2-QX9P</span>
+              <div class="verify-ok"><i><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg></i><div><strong>Genuine receipt</strong>Issued by <span data-doc-name>Adeyemi Realty</span> through GoProperty</div></div>
+              <dl class="doc__rows">
+                <div><dt>Receipt</dt><dd>RCT-ADR-2026-000318</dd></div>
+                <div><dt>Amount</dt><dd>₦1,800,000</dd></div>
+                <div><dt>Date</dt><dd>26/10/2026</dd></div>
+                <div><dt>Status</dt><dd><span class="chip chip--ok">Valid</span></dd></div>
+              </dl>
+              <p style="margin:0;font-size:.8125rem;color:var(--muted)">If this receipt is ever voided, this page will say so.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PRICING ============ -->
+  <section class="section" id="pricing" aria-labelledby="pricing-title">
+    <div class="wrap">
+      <div class="reveal">
+        <p class="eyebrow">Pricing</p>
+        <h2 class="h2" id="pricing-title">Priced per unit. <b>Less than 1% of the rent.</b></h2>
+        <p class="lede">A base price that includes some units, then a small fee for each extra one. No fee on payments. Every plan starts with a 14-day free trial — no card.</p>
+      </div>
+
+      <div class="calc reveal">
+        <div>
+          <label for="units">How many units do you manage?</label>
+          <div class="calc__units"><output for="units" data-units-out>30</output><span>blocks / apartments</span></div>
+          <input class="range" id="units" type="range" min="1" max="1000" value="30" data-units>
+        </div>
+        <div class="calc__result" aria-live="polite">
+          <small>Best plan for you</small>
+          <p class="calc__price" data-calc-price>₦24,000 <span>/ month</span></p>
+          <p class="calc__meta" data-calc-meta>Starter · ₦800 per unit · plus 7.5% VAT</p>
+        </div>
+      </div>
+
+      <div class="billing-toggle reveal">
+        <div class="seg" role="tablist" aria-label="Billing period" data-tabs="period">
+          <button type="button" role="tab" aria-selected="true" data-period="month">Monthly</button>
+          <button type="button" role="tab" aria-selected="false" data-period="year" tabindex="-1">Yearly <span class="save-tag">2 months free</span></button>
+        </div>
+      </div>
+
+      <div class="plans reveal" data-plans>
+        <article class="plan" data-plan="starter">
+          <div><h3>Starter</h3><p class="plan__for">Independent agents and small landlords</p></div>
+          <p class="plan__price" data-price-month="₦10,000" data-price-year="₦100,000">₦10,000 <small>/ month</small></p>
+          <p class="plan__units">10 units included · ₦700 per extra unit</p>
+          <ul>
+            <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg>Properties, tenants, leases, bills</li>
+            <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg>Branded receipts &amp; statements</li>
+            <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg>Bank statement matching</li>
+            <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg>3 staff · 100 SMS a month</li>
+          </ul>
+          <a class="btn btn--ghost" href="#start">Start free trial</a>
+        </article>
+        <article class="plan plan--featured" data-plan="growth">
+          <span class="plan__flag">Most popular</span>
+          <div><h3>Growth</h3><p class="plan__for">Growing agencies with online payments</p></div>
+          <p class="plan__price" data-price-month="₦35,000" data-price-year="₦350,000">₦35,000 <small>/ month</small></p>
+          <p class="plan__units">50 units included · ₦500 per extra unit</p>
+          <ul>
+            <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg>Everything in Starter</li>
+            <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg>Your own Paystack for online payments</li>
+            <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg>WhatsApp notifications · Building Group</li>
+            <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg>10 staff · 500 SMS a month</li>
+          </ul>
+          <a class="btn btn--white" href="#start">Start free trial</a>
+        </article>
+        <article class="plan" data-plan="scale">
+          <div><h3>Scale</h3><p class="plan__for">Large portfolios and multi-team agencies</p></div>
+          <p class="plan__price" data-price-month="₦85,000" data-price-year="₦850,000">₦85,000 <small>/ month</small></p>
+          <p class="plan__units">200 units included · ₦350 per extra unit</p>
+          <ul>
+            <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg>Everything in Growth</li>
+            <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg>Approvals and agent-to-building assignment</li>
+            <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg>Remove "Generated with GoProperty"</li>
+            <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg>Unlimited staff · assisted import</li>
+          </ul>
+          <a class="btn btn--ghost" href="#start">Start free trial</a>
+        </article>
+        <article class="plan" data-plan="enterprise">
+          <div><h3>Enterprise</h3><p class="plan__for">Estates and portfolios of 1,000+ units</p></div>
+          <p class="plan__price" data-price-month="₦250,000" data-price-year="Custom">₦250,000 <small>/ month</small></p>
+          <p class="plan__units">Starting price · 1,000 units included</p>
+          <ul>
+            <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg>Everything in Scale</li>
+            <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg>Dedicated account manager</li>
+            <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg>Custom SMS volume</li>
+          </ul>
+          <a class="btn btn--dark" href="#demo">Talk to us</a>
+        </article>
+      </div>
+      <p class="price-note">Prices exclude 7.5% VAT. Units are blocks/apartments, counted on your billing day.</p>
+    </div>
+  </section>
+
+  <!-- ============ SECURITY ============ -->
+  <section class="section section--dark" aria-labelledby="sec-title">
+    <div class="wrap">
+      <div class="reveal">
+        <p class="eyebrow">Security</p>
+        <h2 class="h2" id="sec-title">Serious about money. <em>Serious about security.</em></h2>
+        <p class="lede">You're trusting us with tenants' details and your firm's records. Here's how we look after them.</p>
+      </div>
+      <div class="sec-grid reveal">
+        <div><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 21v-1a6 6 0 0 1 9.5-4.9"/><circle cx="9" cy="7" r="4"/><circle cx="17.5" cy="14.5" r="2.5"/><path d="M17.5 17v5M17.5 19.5H20"/></svg><h3>Passkeys and two-factor sign-in</h3><p>Sign in with Face ID or a fingerprint. Owners of larger agencies must turn on 2FA.</p></div>
+        <div><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg><h3>Bot and break-in protection</h3><p>Rate limits, lockouts and a Cloudflare challenge stop password-guessing attacks.</p></div>
+        <div><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg><h3>Every action logged</h3><p>Who confirmed a payment, who changed a lease, who signed in and from where.</p></div>
+        <div><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg><h3>Encrypted nightly backups</h3><p>Database and files backed up separately, off-site, and test-restored every month.</p></div>
+        <div><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><h3>NDPA compliant</h3><p>Built to the Nigeria Data Protection Act — tenants' data is used only to run their tenancy.</p></div>
+        <div><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v7h-7"/></svg><h3>Verifiable documents</h3><p>Every invoice and receipt can be checked by QR code, so forgeries go nowhere.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ GETTING STARTED ============ -->
+  <section class="section section--canvas" id="start" aria-labelledby="start-title">
+    <div class="wrap">
+      <div class="reveal">
+        <p class="eyebrow">Getting started</p>
+        <h2 class="h2" id="start-title">Live this week, <b>not next quarter.</b></h2>
+      </div>
+      <ol class="journey reveal">
+        <li><h3>Start your trial</h3><p>Create your agency in two minutes. No card, no sales call.</p><small>Day 1</small></li>
+        <li><h3>Import your book</h3><p>Upload owners, units, tenants and running leases from Excel — dry run first.</p><small>Day 1–2</small></li>
+        <li><h3>Add your brand</h3><p>Logo, colours, letterhead and bank accounts on every bill and receipt.</p><small>Day 2</small></li>
+        <li><h3>Send your first bills</h3><p>Tenants get bills and reminders; confirmed payments get receipts.</p><small>Day 3</small></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ============ FAQ ============ -->
+  <section class="section" id="faq" aria-labelledby="faq-title">
+    <div class="wrap faq">
+      <div class="reveal">
+        <p class="eyebrow">FAQ</p>
+        <h2 class="h2" id="faq-title">Questions agencies <b>ask us first.</b></h2>
+        <p class="lede">Something else? <a href="#help">Talk to our team</a>.</p>
+      </div>
+      <div class="faq__list reveal">
+        <details open><summary>Does GoProperty hold my tenants' money?<i aria-hidden="true"></i></summary><p>No. Tenants pay into your own bank account or your own Paystack account. GoProperty matches and records the payment and issues the receipt — it never receives, holds or splits rent.</p></details>
+        <details><summary>Can I bring my existing tenants and running leases?<i aria-hidden="true"></i></summary><p>Yes. Import owners, properties, units, tenants, ongoing leases with their "paid until" dates and opening balances from Excel or CSV. A dry run shows every row before anything is saved, and imported leases are never back-billed.</p></details>
+        <details><summary>How is the price worked out?<i aria-hidden="true"></i></summary><p>By the number of units (blocks/apartments) you manage: a base price that includes some units, plus a fee for each extra unit. Pay monthly, or yearly and get two months free. VAT is added at 7.5%.</p></details>
+        <details><summary>What happens when the free trial ends?<i aria-hidden="true"></i></summary><p>Pick a plan and pay by card (Paystack) or bank transfer. Your data stays exactly as you left it.</p></details>
+        <details><summary>Can landlords and tenants log in too?<i aria-hidden="true"></i></summary><p>Yes, with the same login page. Landlords see read-only statements for their buildings; tenants see their bills, receipts and tickets — across every agency they rent from.</p></details>
+        <details><summary>What are Transaction Tiers?<i aria-hidden="true"></i></summary><p>Limits on how much money an agency manages each year. Tier 1 is active straight away; higher tiers need your CAC and SCUML documents. We'll tell you before you get close to your limit.</p></details>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ FINAL CTA ============ -->
+  <section class="cta" aria-labelledby="cta-title">
+    <div class="cta__art" aria-hidden="true"><img src="assets/skyline.svg" alt=""></div>
+    <div class="wrap reveal">
+      <h2 id="cta-title">Your next rent cycle could be <span>the easy one.</span></h2>
+      <p>Start a 14-day free trial — no card required. Or let us walk you through it with your own data.</p>
+      <div class="cta__btns">
+        <a class="btn btn--white" href="#start">Start free trial</a>
+        <a class="btn btn--outline-light" href="#demo">Book a demo</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <div class="wrap">
+    <div class="footer__top">
+      <div class="footer__about">
+        <a class="brand" href="landing.html" aria-label="GoProperty home">
+          <!-- theme.logo_light (logo for light backgrounds) -->
+          <svg class="brand__mark" viewBox="0 0 34 34" aria-hidden="true"><rect width="34" height="34" rx="9" fill="var(--color-primary-700)"/><path d="M9 16.2 17 10l8 6.2V25a1 1 0 0 1-1 1h-4.5v-5.5h-5V26H10a1 1 0 0 1-1-1z" fill="#fff"/><circle cx="24.5" cy="10.5" r="3" fill="var(--color-accent)"/></svg>
+          <span>GoProperty</span>
+        </a>
+        <!-- theme.footer_text -->
+        <p>Property management and rent collection for Nigerian agencies, landlords and tenants.</p>
+        <!-- theme.social_links -->
+        <div class="socials">
+          <a href="#" aria-label="GoProperty on X"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.8 3h3.1l-6.8 7.8L22 21h-6.2l-4.9-6.4L5.3 21H2.2l7.3-8.3L2 3h6.4l4.4 5.8zm-1.1 16.2h1.7L7.4 4.7H5.6z"/></svg></a>
+          <a href="#" aria-label="GoProperty on LinkedIn"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4.98 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM3 9h4v12H3zM9 9h3.8v1.7h.1c.5-1 1.8-2 3.8-2 4 0 4.8 2.6 4.8 6V21h-4v-5.6c0-1.3 0-3-1.9-3s-2.1 1.4-2.1 2.9V21H9z"/></svg></a>
+          <a href="#" aria-label="GoProperty on Instagram"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor"/></svg></a>
+          <a href="#" aria-label="Chat with GoProperty on WhatsApp"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M3 21l1.7-5A8.5 8.5 0 1 1 8 19.4z"/></svg></a>
+        </div>
+      </div>
+      <div><h4>Product</h4><ul><li><a href="#features">Features</a></li><li><a href="#payments">Payments</a></li><li><a href="#pricing">Pricing</a></li><li><a href="#">For agencies</a></li><li><a href="#">For landlords</a></li></ul></div>
+      <div><h4>Company</h4><ul><li><a href="#">About</a></li><li><a href="#">News</a></li><li><a href="#">Contact</a></li><li><a href="#demo">Book a demo</a></li></ul></div>
+      <div><h4>Help</h4><ul><li><a href="#">Help centre</a></li><li><a href="#">Verify a receipt</a></li><li><a href="#">Privacy</a></li><li><a href="#">Terms</a></li></ul></div>
+    </div>
+    <div class="footer__bottom"><span>© 2026 GoProperty. All rights reserved.</span><span>Made in Lagos for Nigeria.</span></div>
+  </div>
+</footer>
+
+<script src="assets/landing.js"></script>
+<!-- theme.custom_code.body_end — e.g. chat widget. Public pages only. -->
+</body>
+</html>

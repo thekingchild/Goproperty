@@ -26,24 +26,28 @@ Companion documents: [ARCHITECTURE.md](ARCHITECTURE.md) · [ONBOARDING_COMPLIANC
 
 ### 3.1 Customer login (`goproperty.ng/login`)
 
-**Layout: split screen on desktop, single column on mobile.**
+**Layout: split screen on desktop, single column on mobile.** Visual spec: [`docs/design/templates/login.html`](docs/design/templates/login.html) (see § 5).
 
 | Area | Content |
 | --- | --- |
-| Left panel (desktop ≥ 1024 px, 50–55% width) | Brand gradient background (deep primary → slightly lighter, subtle pattern of building outlines at low opacity), GoProperty logo top-left, short headline ("Manage properties, rent and tenants — all in one place"), 3 benefit bullets with icons (Collect & match rent automatically · Instant receipts for tenants · Reports for every landlord), a floating product screenshot card (dashboard or receipt) with soft shadow, small trust line at bottom ("Bank-grade security · NDPA compliant · Made for Nigeria") |
-| Right panel | Centred card (max 420 px), logo on mobile only, heading "Welcome back", subtext "Sign in to your GoProperty account" |
-| Form | Tabs or toggle: **Email** / **Phone**. Email + password with show/hide eye icon, or phone number (+234 prefix, numeric keyboard) + "Send code" (OTP). "Remember this device" checkbox. "Forgot password?" link right-aligned. Full-width primary button "Sign in" with loading state |
-| Below form | "New to GoProperty? Start free trial" link → `goproperty.ng/signup`. Footer: © year, Privacy, Terms, Help |
+| Left panel (desktop ≥ 1024 px, 55% width, sticky full height) | Brand gradient background with the apartment skyline art at low opacity, **or the uploaded login image** with the theme overlay ([PLATFORM_CONSOLE.md § 9.2](PLATFORM_CONSOLE.md)), GoProperty logo top-left; three floating glass activity cards ("Payment confirmed", "Receipt sent", "5 statement lines matched" — decorative, hidden on short screens, theme toggle); bottom-left: short headline ("Manage properties, rent and tenants in one place"), 3 benefit bullets with icons (Collect & match rent automatically · Instant receipts for tenants · Reports for every landlord), small trust line ("Bank-grade security · NDPA compliant · Made for Nigeria"). On mobile it becomes a slim top bar with the logo and a "Start free trial" link |
+| Right panel | Top-right "New to GoProperty? [Start free trial]" (desktop). Centred form column, no card (max 400 px), heading "Welcome back", subtext "Sign in to your GoProperty account" |
+| Form | 1. **"Sign in with a passkey"** button (only when the browser supports passkeys), then a divider "or use your password". 2. **Email or phone number** (one field with a person icon; a phone number is only a login name, normalised to +234 — no SMS is sent) with `autocomplete="username webauthn"` so saved passkeys are offered in the field. 3. Password with lock icon, show/hide eye, Caps Lock warning, "Forgot password?" on the label row. 4. "Keep me signed in on this device" (30 days). 5. Turnstile slot (hidden until needed). 6. Full-width deep-navy "Sign in" button with loading state |
+| Below form | "New to GoProperty? Start free trial" (mobile only; desktop has it top-right). Footer: © year, Privacy, Terms, Help |
+| States | Default · wrong details (generic error) · bot check (Turnstile shown, button disabled until it passes) · locked (15 min, link to reset password). All four can be previewed from the design file's state bar |
+
+**No SMS codes anywhere.** SMS is paid per message, so signup, sign-in, 2FA, invitations and password reset never send one. Phone-only tenants sign in with their phone number + a password they set from their invitation link ([ONBOARDING_COMPLIANCE.md § 2](ONBOARDING_COMPLIANCE.md)).
 
 **Security behaviour (all built in, mostly invisible):**
 
-- Rate limit per email/phone and per IP; lockout after 5 failures for 15 min; Cloudflare Turnstile challenge after 3 failures.
+- Rate limit per email/phone and per IP; lockout after 5 failures for 15 min; Cloudflare Turnstile challenge after 3 failures, or on every attempt when "always" mode is on ([PLATFORM_CONSOLE.md § 9.6](PLATFORM_CONSOLE.md)). Turnstile is verified server-side and fails closed.
 - Same error for wrong email or wrong password ("Those details don't match our records"), so attackers can't discover accounts.
-- 2FA (authenticator app) required for org-owners of Tier 2/3 organizations and optional for all others; recovery codes; passkeys later.
+- **Passkeys** (WebAuthn, Fortify passkeys): passwordless sign-in from the button or the field's autofill; users add/rename/remove passkeys under Profile → Security. After any password sign-in without a passkey, a one-time prompt offers "Add a passkey for faster sign-in".
+- **2FA** (authenticator app, TOTP) with recovery codes, required for org-owners of Tier 2/3 organizations and optional for all others ([`login-2fa.html`](docs/design/templates/login-2fa.html)). A passkey sign-in already counts as two factors and skips the 2FA screen.
 - New passwords checked against breached-password lists; minimum 10 characters.
 - Session cookie `Secure`, `HttpOnly`, `SameSite=Lax`; session regenerated on login; "Log out other sessions" in profile.
 - New-device login email.
-- HTTPS only with HSTS; CSP headers; no third-party scripts on login pages except Turnstile.
+- HTTPS only with HSTS; CSP headers; no third-party scripts on login pages except Turnstile (custom code from the console is never printed on auth pages).
 
 ### 3.2 Staff login (`goproperty.ng/{ADMIN_PATH}/login`)
 
@@ -51,24 +55,67 @@ Same visual quality, but clearly different: dark neutral background, GoProperty 
 
 ### 3.3 Other auth screens (same split layout)
 
-Forgot password · Reset password · Verify email · Phone OTP entry (6 boxes, auto-advance, paste support, resend timer 60 s) · 2FA challenge · Accept invitation (shows who invited you and to which organization) · Organization picker.
+Forgot password (one field, "Email or phone number"; the same reply whatever is typed: "If an account matches, we've sent a reset link by email or WhatsApp. No email? Ask your agency for a new sign-in link.") · Reset password · Verify email · **2FA challenge** ([`login-2fa.html`](docs/design/templates/login-2fa.html): 6 code boxes with auto-advance, paste support and auto-submit; "Don't ask again on this device for 30 days"; other ways to verify — passkey, recovery code, "Lost your phone and codes? Get help") · Accept invitation (shows the agency's logo, who invited you and to which organization; set a password, optionally add a passkey; phone-only tenants see an optional "Add an email for easy password resets") · Organization picker.
 
-## 4. Marketing Hero (`goproperty.ng`)
+## 4. Marketing Landing Page (`goproperty.ng`)
 
-- **Nav bar:** logo left; links Features · Pricing · For Agencies · For Landlords · Help; right side "Log in" (text) + "Start free trial" (primary button). Collapses to hamburger on mobile.
-- **Hero, two columns on desktop:**
-  - Left: small pill badge ("Built for Nigerian property managers"), headline of up to 8 words (e.g. "Rent collection and property management, simplified"), one-sentence subheadline, two CTAs ("Start free trial" primary, "Book a demo" secondary/outline), a trust row (e.g. "14-day free trial · No card required · Cancel anytime").
-  - Right: product mock-up. Laptop dashboard with a phone overlapping it showing the tenant receipt screen. Soft glow/gradient blob behind.
-- **Directly below:** logo strip of early customers (when available) or 3 headline stats; then a 3-step "How it works" (Add properties → Send bills → Get paid & receipt automatically).
-- Background: light, with a subtle brand gradient wash at top. Large, generous spacing (hero ≥ 80 vh on desktop).
+Visual spec: [`docs/design/templates/landing.html`](docs/design/templates/landing.html) (+ `assets/landing.css`, `assets/landing.js`). Style reference for the sections below the hero: the product owner's MembersFlow landing page — editorial headings that mix regular and bold weights, product screens **rebuilt in HTML** instead of screenshots or stock photos, and small interactions that let visitors try the product. Every number on the page comes from these docs (prices from the plans table).
+
+- **Nav bar (fixed):** logo left; links Product · Features · Payments · Pricing · FAQ; right side "Log in" (text) + "Start free trial" (white pill). Floats over the hero and turns into a dark glass bar once the page scrolls. Hamburger + dialog menu on mobile.
+- **Hero (approved — keep as is):** dark brand gradient with the skyline art, or the uploaded hero image with overlay ([PLATFORM_CONSOLE.md § 9.2](PLATFORM_CONSOLE.md)). 100 svh on desktop, ~88 svh on mobile. Left: pill badge, very large two-line headline ("Rent in. / Receipts out.", second line amber), trust row. Right (bottom-aligned): lede, big white "Start free trial" pill, "Prefer a walkthrough? Book a demo".
+
+Sections, in order:
+
+| # | Section | What it does |
+| --- | --- | --- |
+| 1 | Fact strip | ₦0 commission on rent · ₦10,000/month to start · Dry run before any import |
+| 2 | **The workspace** | Browser-window mock of the agency "Today" list (KPIs + tasks) with a phone showing the tenant's verified receipt. Tabs switch between **Agency desk / Landlord view / Tenant app** |
+| 3 | Statement band (dark) | "Rent records don't belong in ~~WhatsApp chats~~ and ~~Excel sheets~~" + 4 short outcomes |
+| 4 | **Feature bento** | Mixed-size cards, each with a live mini-visual: bank statement matching (table), Building Group (chat), lease cycles, ticket pipeline, utilities, Excel import (dry-run bar), owner statements (chart) |
+| 5 | **Payments** | Tabs **Bank transfer / Proof upload / Your Paystack**; each shows a 4-step animated flow and three checks. Notes: no commission, "confirmed by" on every payment, Transaction Tiers |
+| 6 | **Reminders** | Slider "days to rent due" (−14 → +3) that shows the exact message the tenant gets at each stage and on which channels |
+| 7 | **Your brand** | Colour swatches recolour a sample agency receipt live; "Scan the QR code" flips it to the public verification page |
+| 8 | **Pricing** | Unit slider recommends the cheapest plan and shows the monthly price and per-unit cost; Monthly/Yearly toggle; 4 plan cards (Growth featured, matching plan outlined) |
+| 9 | Security (dark) | Passkeys & 2FA · bot protection · audit log · encrypted backups · NDPA · verifiable documents |
+| 10 | Getting started | 4 steps on a timeline: Start trial → Import → Brand → Send first bills |
+| 11 | FAQ | Accordion (money handling, import, pricing, trial end, landlord/tenant logins, Transaction Tiers) |
+| 12 | Final CTA (dark, skyline) | "Your next rent cycle could be the easy one." + trial and demo buttons |
+| 13 | Footer | Logo, footer text, social links (theme settings), Product / Company / Help columns |
+
+- Interactions are keyboard accessible (tabs use arrow keys), respect `prefers-reduced-motion`, and the page still reads correctly with JavaScript off (default tab content is in the HTML).
+- Sections fade up once as they enter the viewport. No autoplay video, no carousels.
+- SEO and custom-code slots in `<head>`/`<body>` follow [PLATFORM_CONSOLE.md § 9.4–9.5](PLATFORM_CONSOLE.md).
+- Testimonials and a customer-logo strip are added only when real ones exist.
 
 ## 5. Visual Reference (SocietyFlow)
 
-The product owner wants the hero and login quality to match **SocietyFlow** (`demo.societyflow.ng` and `demo.societyflow.ng/login`). Those pages could not be reached when this was written (Oct 2026). The product owner has a design running on a local server and will share it **when the project reaches the login/hero work**.
+The product owner wants the hero and login quality to match **SocietyFlow**. The reference was shared in Oct 2026 (a local build); screenshots are in [`docs/design/reference/`](docs/design/reference/README.md). The resulting GoProperty designs are [`landing.html`](docs/design/templates/landing.html), [`login.html`](docs/design/templates/login.html) and [`login-2fa.html`](docs/design/templates/login-2fa.html) in `docs/design/templates/` — open them in a browser; preview images sit next to them. **These files are the visual spec for the Blade views**; §§ 3–4 remain the functional spec.
 
-**Design checkpoint (Phase 0, before building login and hero):** whoever builds these screens — developer or AI agent — must **ask the product owner for the design reference first** (see [AGENT.md § 6](AGENT.md)). Screenshots or exports then go into `docs/design/reference/`, and the designer notes here what to borrow (layout, spacing, hierarchy, mood). Until then, §§ 3–4 are the working spec.
+### What we borrow
 
-Rule: use it as **inspiration only**. Never copy SocietyFlow's logo, illustrations, wording or exact layout. GoProperty must have its own brand.
+| Area | From SocietyFlow | In GoProperty |
+| --- | --- | --- |
+| Hero shell | Full-bleed dark hero, 100 svh on desktop (80–88 svh on mobile), nav sits on top of it | Same. Brand gradient (deep navy derived from primary) + soft light beam top-right |
+| Hero background | Photo with a dark overlay at ~60% | Default: our own SVG skyline of apartment blocks with amber lit windows (`templates/assets/skyline.svg`, ~16 KB, no photo download on slow networks). Theme "image" style swaps in an uploaded photo with the same overlay |
+| Hero type | Very large two-line headline at the bottom-left (weight 800, tight −0.04em tracking), second line a different tone | Same structure; second line in the accent colour (amber) |
+| Hero actions | Right column, bottom-aligned: one-sentence lede, one big full-width white pill button (60 px), one text line with a link under it | Same: lede → "Start free trial" pill → "Prefer a walkthrough? Book a demo" |
+| Nav | Logo left, plain white links, white pill "Log in" right; hamburger opens a dialog menu on mobile | Same; desktop shows "Log in" as text + "Start free trial" as the pill |
+| Login shell | Split screen 55/45 from 1024 px; left panel is sticky and full height; on mobile the panel shrinks to a slim top bar with the logo | Same |
+| Login panel | Photo + overlay, logo top-left, one caption bottom-left | Gradient + skyline (or uploaded photo), logo top-left; bottom-left has the theme headline, 3 benefit bullets and the trust line from § 3.1 |
+| Login form | Plain column (no card) max 400 px, centred; 26–28 px heading + one muted line; labels above inputs; "Forgot your password?" on the password label row; eye toggle in the field; full-width deep-navy button; "New to…? link" line under it | Same, including SocietyFlow's "Email or phone number" field and passkey button + divider; plus input icons, Caps Lock warning and the Turnstile slot |
+
+### What we leave out
+
+- SocietyFlow's "Try the demo as…" persona grid and demo banner (demo-only features).
+- SocietyFlow's photos, logo and wording.
+
+### Decisions this changed
+
+- No laptop/phone product mock-up inside the hero — the big type is the hero. Product screenshots move to the Features section.
+- "Book a demo" is a text link under the primary button, not a second outline button.
+- Oct 2026 (second round): sections below the hero redesigned in the MembersFlow style (§ 4); SMS codes removed everywhere (login, signup, invitations, resets); passkeys, Turnstile and the 2FA screen added (§ 3); hero and login images made replaceable, with SEO and custom-code settings modelled on SocietyFlow ([PLATFORM_CONSOLE.md § 9](PLATFORM_CONSOLE.md)).
+
+Rule: use the reference as **inspiration only**. Never copy SocietyFlow's logo, illustrations, wording or exact layout. GoProperty must have its own brand.
 
 ## 6. Design System (Phase 0)
 

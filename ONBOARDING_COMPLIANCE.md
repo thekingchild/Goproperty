@@ -89,7 +89,7 @@ GoProperty staff use a **separate guard and table** (`platform_staff`), not the 
 ```mermaid
 flowchart TD
     A[goproperty.ng → Start free trial] --> B[Create account: name, email, phone, password]
-    B --> C[Verify email link + phone OTP]
+    B --> C[Verify email by link]
     C --> D[Create organization: type, name, slug, state/LGA]
     D --> E[Choose Transaction Tier 1 / 2 / 3]
     E -->|Tier 1| F[Tier 1 active immediately]
@@ -108,7 +108,7 @@ flowchart TD
 
 Step details:
 
-1. **Account:** name, email, phone, password (checked against breached-password lists). Email verified by link; phone verified by OTP.
+1. **Account:** name, email, phone, password (checked against breached-password lists). Email verified by link. The phone number is checked for a valid Nigerian mobile format and stored as +234…, but **not verified by SMS code** — GoProperty sends no SMS during signup or sign-in (each SMS costs money). Identity for higher limits is checked through Transaction Tier documents (§ 5), not the phone.
 2. **Organization:** type (`agency`, `property_owner`, `hybrid`), display name, slug (suggested from name), state/LGA, logo (optional). CAC number optional at Tier 1.
 3. **Transaction Tier:** the customer states expected yearly collections and picks a tier (§ 4). Tier 1 is instant. Tier 2/3 require documents; until approved the org works at Tier 1 limits, so signup is never blocked.
 4. **Plan & trial:** choose a subscription plan (priced per unit, [BILLING_PAYMENTS.md § 1](BILLING_PAYMENTS.md)). 14-day trial, no card required. Subscription status `trialing`.
@@ -117,7 +117,17 @@ Step details:
    - **Branding:** logo, colours and letterhead, with a live preview of the invoice and receipt ([BRANDING_DOCUMENTS.md](BRANDING_DOCUMENTS.md)).
 7. A progress checklist on the dashboard tracks steps 3–6 (including branding) until complete.
 
-**Tenants** never self-register. The agency invites them by SMS/WhatsApp/email link; the tenant verifies their phone by OTP and lands in `/portal`.
+**Tenants** never self-register. The agency invites them, and the tenant opens the invitation link, sets a password (and can add a passkey), then lands in `/portal`. No SMS codes are involved. The agency picks how the link reaches the tenant:
+
+| Channel | Cost to GoProperty | Phone verified? |
+| --- | --- | --- |
+| **Email** | None | No (email is verified) |
+| **Agency's WhatsApp Business** (if connected, [ARCHITECTURE.md § 6.7](ARCHITECTURE.md)) | None — Meta bills the agency | **Yes**, when the tenant opens the link sent to that number |
+| **Share it yourself** — "Copy link" or "Show QR code" (scanned in person at signing or handover) | None | No, unless the agency ticks "Phone number confirmed in person" (records who confirmed it) |
+
+- Invitation links are single-use, expire after 14 days, and can be re-sent or revoked from the tenant record.
+- A tenant without email signs in with **phone number + password**. To reset a forgotten password, the link goes by the agency's WhatsApp if connected; otherwise the tenant asks the agency, which creates a one-time sign-in link from the tenant record (copy or QR, audited, expires in 24 hours). After first sign-in, phone-only tenants are invited (not forced) to add an email for self-service resets.
+- SMS bill reminders still go out as before (they count against the agency's plan SMS credits), but only to numbers that are verified or agency-confirmed (see [ARCHITECTURE.md § 6.7](ARCHITECTURE.md)).
 **Property owners** managed by an agency are invited into the owner portal. Owners who manage their own buildings sign up as an organization of type `property_owner`.
 
 ## 3. Subscription Phase (GoProperty's own billing)

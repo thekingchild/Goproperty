@@ -45,7 +45,7 @@ flowchart LR
    An error report can be downloaded as Excel with an "Error" column next to each bad row.
 4. **Commit:** only after a successful dry run. Runs as a queued job with a progress bar. Each sheet is committed in its own database transaction, in dependency order (owners → properties → units → tenants → leases → balances → utilities → history).
 5. **Report:** what was created, what was skipped and why, plus links to review imported records.
-6. **Invitations:** tenants and staff are **not** contacted automatically. After reviewing, the agency chooses "Invite tenants now" (SMS/WhatsApp/email) or later.
+6. **Invitations:** tenants and staff are **not** contacted automatically. After reviewing, the agency chooses "Invite tenants now" (email, the agency's WhatsApp, or a printable sheet of QR invitation links) or later.
 
 ### Re-running and updates
 

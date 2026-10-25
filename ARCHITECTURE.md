@@ -59,7 +59,7 @@ flowchart LR
 | Theming | Platform theme from settings → CSS variables consumed by Tailwind 4 and Filament | No asset rebuild to change colours/logos ([PLATFORM_CONSOLE.md § 9](PLATFORM_CONSOLE.md)) |
 | Cache / queues / sessions | Shared hosting: `database` drivers, queue worker started by cron. VPS: Redis + Horizon | Separate queues: `default`, `notifications`, `billing`, `pdf`, `imports` |
 | Realtime | Shared hosting: Livewire polling. VPS: Laravel Reverb + polling fallback | Building Group posts, comments, reactions |
-| Auth | Laravel starter kit (session). `web` guard + `users` table for all customers (agency staff, owners, tenants); separate `staff` guard + `platform_staff` table for GoProperty staff. 2FA mandatory for staff, required for Tier 2/3 org-owners | Tenants are users too — no separate tenant auth system. Tenants can log in with phone + OTP |
+| Auth | Laravel starter kit (session). `web` guard + `users` table for all customers (agency staff, owners, tenants); separate `staff` guard + `platform_staff` table for GoProperty staff. 2FA (TOTP + recovery codes) mandatory for staff, required for Tier 2/3 org-owners; passkeys (WebAuthn, Fortify passkeys) for everyone | Tenants are users too — no separate tenant auth system. Sign-in is email **or phone number** + password, or a passkey. No SMS codes anywhere in signup, sign-in, invitations or resets (cost) |
 | Roles | spatie/laravel-permission with teams support | Roles are scoped per organization (team = organization) |
 | Media | spatie/laravel-medialibrary | Payment proofs, post images, avatars → S3-compatible storage |
 | Audit | spatie/laravel-activitylog | Every mutation on billing, leases, tickets, subscriptions |
@@ -138,7 +138,7 @@ Rules encoded in policies, not controllers:
 ### 6.1 Organizations, invitations and billing responsibility
 
 - Signup creates an `Organization` (type `agency`, `property_owner`, or `hybrid`) plus the founding `org-owner` user. An agency may be a company (CAC number captured, KYC-lite at MVP).
-- Invitations: email + token link; the invitee picks a password on acceptance. Two kinds:
+- Invitations: token link sent by email, by the agency's WhatsApp, or shared by the agency itself (copy link / QR); the invitee picks a password on acceptance. No SMS codes ([ONBOARDING_COMPLIANCE.md § 2](ONBOARDING_COMPLIANCE.md)). Two kinds:
   1. **User invite** — a person into an org with a role.
   2. **Org invite (billing transfer)** — a property owner invites an agency, or vice versa, and offers to hand over the platform subscription bill. The invitation has `kind = org_billing_transfer`; the receiving org-owner must **accept** — only then does `subscriptions.payer_organization_id` move and the new payer's Paystack mandate/bank instructions take over. Decline or expiry leaves billing unchanged. Full state machine in [BILLING_PAYMENTS.md § 7](BILLING_PAYMENTS.md).
 - Property owners who sign up directly can be flagged `platform_covered` (the platform owner pays their subscription internally) — the "platform bills itself when the owner signs up" case.
@@ -191,7 +191,7 @@ State machine: `draft → submitted → under_review → in_progress → resolve
 
 - One scheduled entry point (`php artisan reminders:dispatch`) computes due reminders for rent, utilities, lease renewals and overdue bills across all orgs, writes rows into `reminders`, and queues sends. Idempotency: unique key `(remindable, type, channel, due_offset_days)` prevents duplicates on rerun.
 - Ladder defaults: rent due at T-30, T-14, T-7, T-3, T-1, T-0 and overdue at +1, +7, +14; lease renewal alerts to agent/owner at T-60, T-30, T-7; utility due at T-3, T-0.
-- Channels: email (queued mailables, per-user preference toggles) and SMS (Termii) for tenants — SMS templates kept under 160 chars, tenant phone verification via OTP before SMS is enabled for that tenant. SMS usage counts against the plan's monthly credits ([BILLING_PAYMENTS.md § 1.2](BILLING_PAYMENTS.md)).
+- Channels: email (queued mailables, per-user preference toggles) and SMS (Termii) for tenants — SMS templates kept under 160 chars. SMS reminders are enabled for a tenant only once their phone is **verified** (they opened an invitation or reset link sent to that number by WhatsApp) or **confirmed by the agency** in person; no OTP codes are ever sent. The first SMS to a number names the agency, and repeated delivery failures flag the number on the tenant record. SMS usage counts against the plan's monthly credits ([BILLING_PAYMENTS.md § 1.2](BILLING_PAYMENTS.md)). GoProperty sends **no SMS for signup, sign-in, 2FA, invitations or password reset**.
 - **WhatsApp (optional, Growth plan and above):** the agency connects **its own** WhatsApp Business Platform account (Meta Cloud API): WhatsApp Business Account ID, phone number ID, permanent access token and app secret, all stored encrypted and editable only by the org-owner.
   - GoProperty **fetches the agency's approved message templates** from Meta (`GET /{waba-id}/message_templates`), daily and on demand, and shows each with its variables and approval status.
   - The agency **maps** each GoProperty event (bill issued, rent reminder T-7/T-1, overdue, receipt issued, ticket update, renewal notice) to one of its templates, and each template variable to a GoProperty placeholder (`{{ tenant.first_name }}`, `{{ bill.amount }}`, `{{ pay_link }}`). A preview shows the final message.
@@ -269,9 +269,9 @@ This keeps the codebase upgradeable across Laravel versions and lets paid add-on
 
 - NDPA 2023 + GAID 2025 (Nigeria Data Protection Act; replaced the NDPR in Sept 2025) posture: data protection officer, breach notification within 72 hours, consent capture at signup, data export + erasure request flows (platform console tooling), retention policy documented, PII encrypted at rest where sensitive (bank accounts, IDs) via Laravel cast encryption.
 - All uploads validated (mime sniffing, size caps, no SVG), served only via signed URLs.
-- Rate limiting on auth, proof uploads, group posts, SMS triggers (SMS abuse = real money); OTP attempt limits.
+- Rate limiting on auth, proof uploads, group posts, SMS triggers (SMS abuse = real money); invitation and reset-link sends limited per tenant, per agency and per IP.
 - Platform staff: separate guard, separate console path (or subdomain) with its own session cookie, optional IP allowlist, mandatory 2FA, 30-min idle timeout; all platform actions audited with staff identity; two-person approval for high-risk actions.
-- Login pages: rate limits + lockout, Cloudflare Turnstile after failures, no account enumeration, breached-password check, new-device alerts ([UX_DESIGN.md § 3](UX_DESIGN.md)).
+- Login pages: passkeys, rate limits + lockout, Cloudflare Turnstile after failures (or always, by setting), no account enumeration, breached-password check, new-device alerts; no custom code on auth pages ([UX_DESIGN.md § 3](UX_DESIGN.md), [PLATFORM_CONSOLE.md § 9.6](PLATFORM_CONSOLE.md)).
 - Audit log is append-only with hash chaining; authentication/access log kept for customers and staff ([PLATFORM_CONSOLE.md § 7–8](PLATFORM_CONSOLE.md)).
 - Agency Paystack secret keys: encrypted at rest, masked in UI, changeable only by org-owners, never accessible during impersonation.
 - Compliance documents: encrypted, visible only to compliance roles, every view logged.

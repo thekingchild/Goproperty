@@ -43,7 +43,7 @@ erDiagram
 ## 1. Identity & Organizations
 
 ### users
-Customer-side people only (agency staff, owners, tenants). `name`, `email` (unique nullable — tenants may be phone-only), `phone` (unique nullable), `email_verified_at`, `phone_verified_at`, `password` (nullable for OTP-only tenants), `two_factor_secret` / `two_factor_recovery_codes` (encrypted), `preferences` (json: channel toggles), `last_active_organization_id`. Soft deletes. GoProperty staff are in `platform_staff` (§ 8), never here.
+Customer-side people only (agency staff, owners, tenants). `name`, `email` (unique nullable — tenants may be phone-only), `phone` (unique nullable), `email_verified_at`, `phone_verified_at` (set when the user opens an invitation/reset link delivered to that number by WhatsApp, or when the agency confirms it in person), `phone_verification_method` (nullable: `whatsapp_link`, `agency_confirmed`), `phone_confirmed_by_user_id` (nullable), `password` (nullable until the invitation link is used to set it), `two_factor_secret` / `two_factor_recovery_codes` (encrypted), `preferences` (json: channel toggles), `last_active_organization_id`. Soft deletes. GoProperty staff are in `platform_staff` (§ 8), never here.
 
 ### owner_profiles
 Person/company details of a **property owner** (distinct from the user record — an owner may never log in).
@@ -59,7 +59,7 @@ Person/company details of a **property owner** (distinct from the user record �
 `organization_id`, `user_id`, `role` set via spatie teams; unique `(organization_id, user_id)`. Extras: `is_default` (for org switching).
 
 ### invitations
-`organization_id`, `email`, `phone` (nullable), `role`, `kind` (`user`, `org_billing_transfer`), `target_organization_id` (for org-to-org invites), `billing_transfer_id` (nullable FK), `token` (unique), `expires_at`, `status` (`pending`, `accepted`, `declined`, `expired`, `cancelled`), `invited_by_user_id`, `accepted_at`.
+`organization_id`, `email`, `phone` (nullable), `role`, `kind` (`user`, `org_billing_transfer`), `target_organization_id` (for org-to-org invites), `billing_transfer_id` (nullable FK), `token` (unique, single use), `channel` (`email`, `whatsapp`, `link` — copy link / QR shared by the agency), `expires_at` (14 days), `opened_at`, `status` (`pending`, `accepted`, `declined`, `expired`, `cancelled`), `invited_by_user_id`, `accepted_at`. No SMS channel.
 
 ### billing_transfer_requests
 Handover of the platform subscription bill between orgs. `from_organization_id`, `to_organization_id`, `subscription_id`, `status` (`pending`, `accepted`, `declined`, `cancelled`, `completed`), `initiated_by_user_id`, `responded_by_user_id`, `responded_at`, `completed_at` (set when payer + payment method actually switch).
@@ -228,7 +228,7 @@ Two-person rule. `action` (`refund`, `production_restore`, `role_grant`, `write_
 `staff_id`, `user_id`, `organization_id`, `reason`, `mode` (`read_only`, `write`), `approval_request_id` (nullable), `started_at`, `ended_at`, `ended_reason` (`manual`, `timeout`), `ip`, `user_agent`.
 
 ### authentication_logs
-Both guards. `authenticatable_type` (`user`, `platform_staff`), `authenticatable_id` (nullable for unknown accounts), `attempted_identifier` (hashed email/phone for failed attempts), `event` (`login_success`, `login_failed`, `logout`, `2fa_passed`, `2fa_failed`, `otp_sent`, `otp_verified`, `password_reset`, `lockout`), `ip`, `user_agent`, `location`, `is_new_device`, `created_at`.
+Both guards. `authenticatable_type` (`user`, `platform_staff`), `authenticatable_id` (nullable for unknown accounts), `attempted_identifier` (hashed email/phone for failed attempts), `event` (`login_success`, `login_failed`, `passkey_login`, `logout`, `2fa_passed`, `2fa_failed`, `recovery_code_used`, `turnstile_failed`, `invitation_accepted`, `reset_link_sent`, `agency_signin_link_created`, `password_reset`, `lockout`), `ip`, `user_agent`, `location`, `is_new_device`, `created_at`.
 
 ### activity_log (extra columns)
 spatie activitylog plus `impersonator_staff_id`, `ip`, `user_agent`, `reason`, `prev_hash`, `hash` (append-only chain).
@@ -243,7 +243,10 @@ spatie activitylog plus `impersonator_staff_id`, `ip`, `user_agent`, `reason`, `
 Nightly analytics snapshot. `date`, `metric` (e.g. `mrr_kobo`, `active_orgs`, `units_total`, `collections_recorded_kobo`), `dimension` (nullable, e.g. tier, channel, state), `value`. Unique `(date, metric, dimension)`.
 
 ### settings
-`key`, `value` (json), `scope` (`global` or morph to org). Unique `(scope_type, scope_id, key)`.
+`key`, `value` (json), `scope` (`global` or morph to org). Unique `(scope_type, scope_id, key)`. Secret values (e.g. `auth.turnstile_secret_key`) are stored encrypted. Global keys and their rules are listed in [PLATFORM_CONSOLE.md § 9](PLATFORM_CONSOLE.md); drafts and published versions of theme/site/SEO keys are kept in `setting_versions` (`version`, `keys` json, `status` `draft`/`published`/`archived`, `published_by_staff_id`, `published_at`).
+
+### passkeys
+WebAuthn credentials (Fortify passkeys). `authenticatable_type` (`user`, `platform_staff`), `authenticatable_id`, `name` ("iPhone", "Work laptop"), `credential_id` (unique), `credential` (json), `last_used_at`. A user can have several; removing the last one is allowed only if they still have a password.
 
 ### backup_runs
 `type` (`db`, `files`), `filename`, `size_bytes`, `backup_destination_id`, `status` (`running`, `success`, `failed`), `verified_at` (nullable), `started_at`, `finished_at`, `triggered_by` (`schedule`, `manual`), `triggered_by_staff_id`, `notes`.

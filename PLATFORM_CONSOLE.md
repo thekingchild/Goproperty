@@ -56,7 +56,9 @@ Invite by email → set password + 2FA on first login → active. Deactivation i
 | Email templates | `content-manager` | — (versioned) | § 5 |
 | Backup destinations | `technical-admin` | — | § 4 |
 | Staff roles and permissions | `super-admin` | Second super-admin for protected permissions | § 1 |
-| Platform theme (name, logos, colours, login page) | `super-admin` or `content-manager` | — (versioned, preview first) | § 9 |
+| Platform theme, hero/login images, public website text, SEO | `super-admin` or `content-manager` | — (versioned, preview first) | § 9.2–9.4 |
+| Custom code (analytics, chat widgets) | `super-admin` (step-up) | — (audited) | § 9.5 |
+| Sign-in security (passkeys, Turnstile, 2FA rules) | `super-admin` | — (audited) | § 9.6 |
 | Console path (`ADMIN_PATH`) | `technical-admin` (via `.env` on the server) | — | § 10 |
 
 ## 2. System Operations Dashboard (for `technical-admin`, `super-admin`)
@@ -172,7 +174,7 @@ Built on spatie/laravel-activitylog with extra columns (`impersonator_id`, `ip`,
 
 ## 8. Access Logs
 
-- **Authentication log** for both customers and staff: login success/failure, logout, 2FA challenge result, password reset, lockout, OTP sent/verified. Stores IP, user agent, approximate location and the account (or attempted email).
+- **Authentication log** for both customers and staff: login success/failure (password or passkey), logout, 2FA challenge result, recovery code used, Turnstile failure, invitation accepted, reset link sent, agency-created sign-in link, password reset, lockout. Stores IP, user agent, approximate location and the account (or attempted email).
 - **Sessions:** users see their active sessions (device, location, last active) and can log out other sessions. Staff sessions are visible to `super-admin`.
 - **Alerts:** email on login from a new device. Console alerts on bursts of failed logins (possible credential stuffing).
 - **HTTP access logs** are kept at Cloudflare/nginx level for 90 days for incident investigation; they are not stored in the app database.
@@ -180,39 +182,132 @@ Built on spatie/laravel-activitylog with extra columns (`impersonator_id`, `ip`,
 
 Built on `rappasoft/laravel-authentication-log` (or equivalent) for both guards.
 
-## 9. Platform Theme (configurable)
+## 9. Platform Theme, Website & Sign-in Settings (configurable)
 
-GoProperty's own look is a **setting, not code**, so the brand can be decided or changed later without a developer. Managed in **Settings → Platform theme** by `super-admin` or `content-manager`.
+GoProperty's own look, public website, search appearance and sign-in security are **settings, not code**, so they can change without a developer or an asset rebuild. The model follows the product owner's SocietyFlow build (branding JSON + typed settings registry), with one addition: GoProperty edits are drafted and previewed before they go live.
 
-### What can be set
+Visual references: [`docs/design/templates/landing.html`](docs/design/templates/landing.html), [`login.html`](docs/design/templates/login.html), [`login-2fa.html`](docs/design/templates/login-2fa.html). Comments marked `theme.…` in those files show where each setting is used.
 
-| Group | Settings |
-| --- | --- |
-| Identity | Product name (default "GoProperty"), short name, legal company name and address (for platform invoices), support email / phone / WhatsApp |
-| Logos | Logo for light backgrounds, logo for dark backgrounds, square icon (one 512 px upload → favicon and PWA icons generated) |
-| Colours | Primary, accent, neutral tone (slate / gray / zinc / stone), success / warning / danger (defaults provided). Full 50–950 shade scales are generated from each chosen colour |
-| Typography | Font from a bundled list (Inter, Plus Jakarta Sans, Manrope, DM Sans), served locally |
-| Shape | Corner style: sharp / rounded / extra-rounded |
-| Appearance | Default light / dark / follow device |
-| Login page | Headline, sub-text, three benefit bullets, side panel style (gradient or uploaded image), trust line |
-| Emails | Header logo, footer text, social links |
+### 9.1 Console pages
 
-### Where it applies
+| Page (Settings → …) | What's on it | Who edits |
+| --- | --- | --- |
+| **Brand & appearance** | Identity, logos, favicon/icons, colours, font, corner style, landing hero image, login side image | `super-admin`, `content-manager` |
+| **Public website** | Hero and login text, announcement ribbon, footer text, social links, FAQ, legal pages | `super-admin`, `content-manager` |
+| **Search & sharing** | SEO title/description, title pattern, share image, indexing, canonical origin | `super-admin`, `content-manager` (canonical origin: `super-admin` + step-up) |
+| **Custom code** | Head / body-start / body-end scripts and custom CSS | `super-admin` only, with step-up (password + 2FA within 10 minutes) |
+| **Sign-in security** | Passkeys, Turnstile keys and mode, 2FA rules, "remember me" | `super-admin` (+ `technical-admin` read-only) |
+
+Each page is one column of cards with a live preview column on the right (desktop). Every save is audited with before/after values (`setting.updated`); secrets are shown as "•••• set" and never sent back to the browser.
+
+### 9.2 Brand & appearance
+
+| Setting (key) | Default | Rules |
+| --- | --- | --- |
+| `theme.name` / `theme.short_name` | "GoProperty" / "GoProperty" | Plain text, ≤ 120 / ≤ 30 |
+| `theme.tagline` | "Property management for Nigeria" | ≤ 160 |
+| `theme.legal_name`, `theme.address`, `theme.support_email`, `theme.support_phone`, `theme.support_whatsapp` | — | Used on platform invoices, footer and JSON-LD |
+| `theme.logo_light` | Generated text logo | PNG/JPG/WebP/SVG, ≤ 2 MB, recommend ≥ 480×120. For light backgrounds (footer, console, emails) |
+| `theme.logo_dark` | Generated (white mark) | Same rules. For dark backgrounds (hero nav, login panel) |
+| `theme.logo_mode` | `logo_with_text` | `logo_only` or `logo_with_text` (mark + product name) |
+| `theme.icon` | Generated monogram | Square PNG/WebP/SVG, ≤ 1 MB, ≥ 512×512. Generates PWA icons and apple-touch icon |
+| `theme.favicon` | From icon, else monogram | PNG/SVG/ICO, ≤ 1 MB, ≥ 48×48 |
+| `theme.color_primary` / `theme.color_accent` | `#1D4ED8` / `#F59E0B` | Hex; 50–950 scales generated. `--hero-deep` is the primary pushed darker until white text reaches 9:1 |
+| `theme.neutral` | `slate` | slate / gray / zinc / stone |
+| `theme.font` | Inter | From a bundled, self-hosted list (Inter, Plus Jakarta Sans, Manrope, DM Sans) |
+| `theme.radius` | `rounded` | sharp / rounded / extra-rounded |
+| **`theme.hero_image`** | none → brand gradient + skyline art | JPG/PNG/WebP, ≤ 5 MB, recommend 2400×1350 landscape, subject on the right (the headline sits bottom-left) |
+| `theme.hero_overlay_color` / `theme.hero_overlay_opacity` | `--hero-deep` / 60 % | Hex or "follow brand"; 0–100 |
+| **`theme.auth_image`** | none → brand gradient + skyline art | JPG/PNG/WebP, ≤ 5 MB, recommend 1200×1600 portrait (left panel is 55 % wide, full height) |
+| `theme.auth_overlay_color` / `theme.auth_overlay_opacity` | `--hero-deep` / 65 % | Hex or "follow brand"; 0–100 |
+| `theme.auth_show_activity` | on | The floating "Payment confirmed / Receipt sent" glass cards on the login panel |
+
+**Uploads (all images):**
+
+- Check the extension **and** the file's magic bytes (PNG, JPEG, WebP, ICO). SVG only for logos/icons, and rejected if it contains `<script`, `on*=` handlers, `javascript:`, `foreignObject`, `iframe`/`embed`/`object`, `<!ENTITY` or `data:` links.
+- Photos (hero, login, share image) are **re-encoded** on upload: EXIF removed, converted to WebP (quality 82), and resized to 2400 px and 1200 px wide variants for `srcset`. Shared hosting has GD/Imagick, so this needs no extra service. (SocietyFlow stores originals as-is; GoProperty converts because tenants use slow networks.)
+- Served from `/brand/{role}` with `?v={hash}` cache-busting, `Cache-Control: public, max-age=31536000, immutable`, `X-Content-Type-Options: nosniff`, and a sandbox CSP on SVGs.
+- Replacing an image deletes the old file. "Remove" falls back to the default (gradient + skyline art, or the generated logo).
+- **Photo mode** on the hero/login panel: photo → overlay at the chosen colour/opacity → a fixed bottom fade so the white headline always stays readable. The overlay preview in the console shows the real contrast of white text over the image; below 4.5:1 it warns.
+
+### 9.3 Public website
+
+| Setting | Default | Rules |
+| --- | --- | --- |
+| `site.hero_heading` / `site.hero_subheading` | "Rent in." / "Receipts out." | ≤ 40 each (two-line headline; the second line is accent-coloured) |
+| `site.hero_badge` | "Built for Nigerian property managers" | ≤ 60 |
+| `site.hero_lede` | (see landing.html) | ≤ 240, plain text |
+| `site.hero_trust` | "14-day free trial · No card required · Cancel anytime" | 3 items, ≤ 30 each |
+| `site.auth_headline` / `site.auth_benefits` / `site.auth_trustline` | (see login.html) | Headline ≤ 80; 3 benefits ≤ 50 each; trust line ≤ 80 |
+| `site.announcement` / `site.announcement_link` | off | ≤ 140; dismissible ribbon above the nav, remembered per content |
+| `site.footer_text` | "Property management and rent collection for Nigerian agencies, landlords and tenants." | ≤ 200 |
+| `site.social_links` | — | X, LinkedIn, Instagram, Facebook, YouTube, WhatsApp (URLs, https only) |
+| `site.faq` | 6 starter items | ≤ 30 items, question ≤ 140, answer sanitised HTML |
+| `site.privacy_policy`, `site.terms` | Templates | Sanitised HTML |
+
+Plain-text fields strip tags and reject `<` `>`. Prices on the landing page are read from the live plans table ([BILLING_PAYMENTS.md § 1](BILLING_PAYMENTS.md)), never typed in here.
+
+### 9.4 Search & sharing (SEO)
+
+| Setting | Default | Rules |
+| --- | --- | --- |
+| `seo.title` | `theme.name` + tagline | ≤ 70 |
+| `seo.title_pattern` | `{page} · {site}` | Must contain `{page}` |
+| `seo.description` | — | ≤ 160 recommended, ≤ 320 max, no `<>` |
+| `seo.share_image` | Generated 1200×630 brand card (logo, name, tagline, colours) | JPG/PNG/WebP ≤ 3 MB, 200–4096 px a side; re-encoded, EXIF stripped |
+| `seo.indexing_enabled` | on in production, **off on staging** | Off → `robots.txt` = `Disallow: /`, `<meta name="robots" content="noindex">`, sitemap 404 |
+| `seo.canonical_origin` | `APP_URL` | `https://host` only; `super-admin` + step-up |
+
+Output on public pages: `<title>`, description, canonical, Open Graph (`og:site_name`, `og:type`, `og:title`, `og:description`, `og:url`, `og:image` + size, `og:locale=en_NG`), `twitter:card=summary_large_image`, `theme-color`, favicon/manifest links, and JSON-LD (`Organization` + `SoftwareApplication` with the Starter price as an `Offer`). Help-centre and news articles can override title and description per page.
+
+`/robots.txt` disallows `/login`, `/o/`, `/portal`, `/owner`, `/pay/`, `/verify/` and never mentions the console path. `/sitemap.xml` lists marketing pages and published articles (cached 10 minutes). Login, 2FA, password and app pages are always `noindex, nofollow`.
+
+### 9.5 Custom code
+
+| Setting | Where it prints | Rules |
+| --- | --- | --- |
+| `custom_code.head` | End of `<head>` | ≤ 50 KB, no control characters |
+| `custom_code.body_start` | Right after `<body>` | same |
+| `custom_code.body_end` | Before `</body>` | same |
+| `custom_code.css` | `<style data-custom-css>` in `<head>` | ≤ 50 KB, must not contain `</style` |
+
+- For analytics (GA4, Meta Pixel), Search Console verification tags, chat widgets and similar. Saved raw (it's code); every change is audited with the full before/after.
+- **Public marketing pages only.** Never printed on: login, signup, 2FA, password pages, `/o/…`, `/portal`, `/owner`, `/pay/…`, `/verify/…`, the console, or any page shown to a signed-in user. This keeps third-party scripts away from passwords, tenant data and money pages (UX_DESIGN.md § 3.1). SocietyFlow lets the owner opt in to auth/member scopes; GoProperty deliberately does not.
+- **Safe mode:** `?safe=1` on any public page renders it without custom code, so a broken script can be diagnosed and removed.
+- Cached; the cache is cleared after each save.
+- The CSP on public pages allows the script hosts listed in the `custom_code.allowed_hosts` setting (default: Google Tag Manager/Analytics), so a pasted script from an unknown host is blocked until a `super-admin` adds it.
+
+### 9.6 Sign-in security
+
+| Setting | Default | Notes |
+| --- | --- | --- |
+| `auth.passkeys_enabled` | on | WebAuthn via Fortify passkeys (`laravel/passkeys` + `@laravel/passkeys`). Relying party = host of `APP_URL` |
+| `auth.turnstile_mode` | `after_failures` | `after_failures` (shows after 3 failed attempts for the account or IP in 15 min) or `always` (every login, signup, password-reset and contact form) |
+| `auth.turnstile_site_key` / `auth.turnstile_secret_key` | — | Secret encrypted. Without keys, the failure threshold becomes a 15-minute lockout instead. Server check posts `cf-turnstile-response` to Cloudflare siteverify with a 5 s timeout and **fails closed** |
+| `auth.lockout_after` / `auth.lockout_minutes` | 5 / 15 | Per identifier + IP; the generic "Those details don't match our records" message never changes |
+| `auth.remember_days` | 30 | "Keep me signed in"; not offered to accounts that must use 2FA on every sign-in |
+| `auth.trust_device_days` | 30 | "Don't ask again on this device" on the 2FA screen |
+| `auth.require_2fa_for` | Tier 2/3 org owners | Also selectable: all org owners, all agency staff |
+
+No SMS codes are used anywhere in signup, sign-in, 2FA, invitations or password reset (SMS is paid per message). A passkey sign-in counts as two factors, so it skips the 2FA screen.
+
+### 9.7 Where it applies
 
 - GoProperty's own surfaces: marketing pages, login and signup, the staff console, GoProperty emails, platform (subscription) invoices, and the "Generated with …" footer line.
 - Agency workspace and tenant portal use the platform theme for the app frame, plus the agency's logo. **Agency documents and agency bill pages always use the agency's branding** ([BRANDING_DOCUMENTS.md](BRANDING_DOCUMENTS.md)).
 
-### How it works
+### 9.8 How it works
 
-- Stored as versioned global settings (`settings`, keys `theme.*`). Edits are a **draft** with a live preview (login page, dashboard, email, invoice). **Publish** makes it live; any earlier version can be restored; "Reset to default" is always available.
-- Colours become CSS variables (`--color-primary-50` … `--color-primary-950`) output in the page `<head>`. Tailwind 4 theme tokens point at those variables, so **no asset rebuild is needed** when the theme changes. This matters on shared hosting, which has no Node on the server.
+- Stored as versioned global settings (`settings`, keys `theme.*`, `site.*`, `seo.*`, `custom_code.*`, `auth.*`; uploaded files on the media disk). Each key is declared once in a settings registry with its type, default, validation, permission and whether it is a secret or needs step-up — the console forms, validation and audit all read from that registry.
+- Brand, website and SEO edits are a **draft** with a live preview (landing hero, login page, dashboard, email, invoice, Google result, share card). **Publish** makes them live; any earlier version can be restored; "Reset to default" is always available. Custom code and sign-in security apply on save (no draft) because they are operational.
+- Colours become CSS variables (`--color-primary-50` … `--color-primary-950`, `--color-accent*`, `--hero-deep`, `--hero-deep-2`, overlay colour/opacity) printed in the page `<head>`. Tailwind 4 theme tokens point at those variables, so **no asset rebuild is needed** when the theme changes. This matters on shared hosting, which has no Node on the server.
 - Filament reads the same settings for the console colours, so the console always matches.
 - Contrast is checked against WCAG AA when saving. If text on the primary colour would be hard to read, a darker shade is used for text automatically and a warning is shown.
-- The theme is cached and the cache cleared on publish.
+- Settings are cached; the cache is cleared on publish/save.
 
-### Default theme (shipped until changed)
+### 9.9 Default theme (shipped until changed)
 
-Product name "GoProperty", primary blue `#1D4ED8`, accent amber `#F59E0B`, neutral slate, font Inter, rounded corners, light appearance, generated text logo. Treat these as placeholders.
+Product name "GoProperty", primary blue `#1D4ED8`, accent amber `#F59E0B`, neutral slate, font Inter, rounded corners, light appearance, generated text logo, gradient + skyline art on the hero and login panel. Treat these as placeholders.
 
 ## 10. Console Path
 

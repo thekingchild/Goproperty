@@ -41,9 +41,9 @@ Each phase below lists deliverables and acceptance criteria (AC). A phase is don
 - Filament platform panel shell at the configurable `ADMIN_PATH` with separate `staff` guard, `platform_staff` table and path-scoped session cookie (auth-protected, empty).
 - Route skeleton on one domain: `/`, `/login`, `/o/{org-slug}`, `/portal`, `/owner`, `/pay/{ref}`, `/verify/{code}`, `/{ADMIN_PATH}` ([ONBOARDING_COMPLIANCE.md § 1](ONBOARDING_COMPLIANCE.md)). Hosts and admin path read from config so they can move to subdomains later.
 - Design system kickoff ([UX_DESIGN.md](UX_DESIGN.md)): Tailwind theme, app shell (sidebar nav, org switcher placeholder), blank page templates for all surfaces.
-- **Design checkpoint:** before building the login pages and hero, ask the product owner for their design reference ([UX_DESIGN.md § 5](UX_DESIGN.md)).
-- **Configurable platform theme** ([PLATFORM_CONSOLE.md § 9](PLATFORM_CONSOLE.md)): theme settings → CSS variables for Tailwind 4 and Filament, default theme, draft/preview/publish.
-- **Login pages built to final quality** ([UX_DESIGN.md § 3](UX_DESIGN.md)): customer split-screen login (email/password or phone OTP), staff login with mandatory 2FA, forgot/reset password; rate limits, lockout, Turnstile, no account enumeration.
+- **Design checkpoint (done):** the approved designs are `docs/design/templates/landing.html`, `login.html` and `login-2fa.html` ([UX_DESIGN.md § 5](UX_DESIGN.md)).
+- **Configurable platform theme** ([PLATFORM_CONSOLE.md § 9](PLATFORM_CONSOLE.md)): theme settings → CSS variables for Tailwind 4 and Filament, default theme, draft/preview/publish; replaceable hero and login images; public website text, SEO and custom-code settings (§ 9.2–9.5).
+- **Login pages built to final quality** ([UX_DESIGN.md § 3](UX_DESIGN.md)): customer split-screen login (passkey, or email/phone number + password — no SMS at sign-in), 2FA challenge screen, staff login with mandatory 2FA, forgot/reset password; rate limits, lockout, Turnstile, no account enumeration. Visual spec: `docs/design/templates/login.html`, `login-2fa.html`.
 - Audit log (append-only, hash chain) and authentication/access log wired for both guards.
 - Backups baseline: nightly encrypted DB and files backups as separate jobs to S3-compatible storage + Google Drive (Shared Drive).
 - Staging environment provisioned; deploy pipeline to staging on merge.
@@ -56,7 +56,7 @@ Each phase below lists deliverables and acceptance criteria (AC). A phase is don
 ### Phase 1 — Tenancy, auth, registration, Transaction Tiers & staff console core (Weeks 3–5)
 
 **Deliverables**
-- Registration wizard ([ONBOARDING_COMPLIANCE.md § 2](ONBOARDING_COMPLIANCE.md)): account → email + phone verification → organization (type, slug) → **Transaction Tier selection** → plan + trial → collections setup → import/first property, with a progress checklist. Property-owner signup with `platform_covered` handling; first user as `org-owner`.
+- Registration wizard ([ONBOARDING_COMPLIANCE.md § 2](ONBOARDING_COMPLIANCE.md)): account → email verification by link (no SMS) → organization (type, slug) → **Transaction Tier selection** → plan + trial → collections setup → import/first property, with a progress checklist. Property-owner signup with `platform_covered` handling; first user as `org-owner`.
 - Transaction Tier applications: document upload (CAC, SCUML, IDs, proof of address, beneficial owners for Tier 3), compliance review queue in the console, approve/reject/more-info, document expiry tracking.
 - Organization switcher for multi-org users; per-org role assignment via spatie teams.
 - Invitations (email + token): user invites with roles; invite acceptance sets password and joins org.
@@ -90,7 +90,7 @@ Each phase below lists deliverables and acceptance criteria (AC). A phase is don
 ### Phase 3 — Leasing & the customer money loop (Weeks 8–11) — *the heart*
 
 **Deliverables**
-- Tenant profiles (with user accounts for portal access, phone OTP verification).
+- Tenant profiles (with user accounts for portal access). Invitations by email, agency WhatsApp, or copy link / QR; phone verified by opening a WhatsApp-delivered link or confirmed by the agency — no SMS codes. Agency-created one-time sign-in link for phone-only tenants who forget their password.
 - Lease engine: `CycleCalculator` (daily → biennial), lease CRUD with draft/reserve → active → renew/terminate, renewal referencing, deposit handling, contract PDF generation (via the PDF driver interface, branded template with signature blocks).
 - Rent billing: scheduler job generating rent bills from leases using `next_billing_date`; bill numbering.
 - **Branded documents** ([BRANDING_DOCUMENTS.md](BRANDING_DOCUMENTS.md)): invoice and receipt built from `docs/design/templates/`, three layouts, web + PDF views, QR verification codes, amount in words, branding snapshot per document, public `/verify/{code}` page and branded `/pay/{reference}` page.
@@ -125,7 +125,7 @@ Each phase below lists deliverables and acceptance criteria (AC). A phase is don
 
 **Deliverables**
 - Reminder engine (`reminders:dispatch`) with dedupe keys; rent/utilities/lease-renewal ladders; overdue ladder.
-- SMS via Termii (tenant OTP + bill reminders); per-user channel preferences; `notification_deliveries` log with provider refs and cost.
+- SMS via Termii (bill reminders only, to verified/agency-confirmed numbers — no OTP); per-user channel preferences; `notification_deliveries` log with provider refs and cost.
 - Email template system ([PLATFORM_CONSOLE.md § 5](PLATFORM_CONSOLE.md)): database templates with whitelisted placeholders (never Blade), versions + rollback, live preview, test send, categories, org branding, bounce/complaint suppression.
 - Platform console: delivery health dashboard (failure rates, SMS spend).
 - SMS credits per plan (monthly allowance, in-app top-up, ledger).

@@ -77,7 +77,7 @@ Breaking any of these is a critical defect regardless of task size:
 
 ## 6. Task Workflow
 
-0. **Design checkpoint.** Before building the login pages or the marketing hero, **stop and ask the product owner for the design reference** — they have a design running locally that they will share at that point ([UX_DESIGN.md § 5](UX_DESIGN.md)). Do not finalize those screens without it.
+0. **Design checkpoint (done Oct 2026).** The product owner's SocietyFlow reference is captured in `docs/design/reference/`, and the approved GoProperty designs are `docs/design/templates/landing.html`, `login.html` and `login-2fa.html` ([UX_DESIGN.md § 5](UX_DESIGN.md)). Build the landing page and login pages to match those files; ask the product owner before departing from them.
 1. **Locate the phase** the task belongs to in [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md); if the task isn't covered by a phase or module in the docs, say so before coding.
 2. **Plan the shape** (models/migrations/module/events/policies) in one short paragraph in the PR description before writing code for anything non-trivial.
 3. **Implement** following § 3–5. Small commits, imperative subjects (`Add payment confirmation policy`).
