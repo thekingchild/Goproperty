@@ -1,12 +1,15 @@
 # Design References
 
-Save visual references here so they survive if the source site goes offline.
+Visual references for the login pages and marketing hero.
 
-## Needed
+## Status: waiting for the product owner
 
-- `societyflow-hero-desktop.png` — full-page screenshot of the SocietyFlow marketing hero (`demo.societyflow.ng`)
-- `societyflow-hero-mobile.png` — same, at phone width
-- `societyflow-login-desktop.png` — SocietyFlow login page (`demo.societyflow.ng/login`)
-- `societyflow-login-mobile.png` — same, at phone width
+The product owner has a SocietyFlow-style design running on a local server. They will share it **when the project reaches the login/hero work** (Phase 0 design checkpoint — see [UX_DESIGN.md § 5](../../../UX_DESIGN.md) and [AGENT.md § 6](../../../AGENT.md)).
 
-These are inspiration for layout, spacing and quality level only. Never copy another product's logo, illustrations or wording. See [UX_DESIGN.md § 5](../../../UX_DESIGN.md).
+At that point, ask the product owner for it and save here:
+
+- `hero-desktop.png`, `hero-mobile.png`
+- `login-desktop.png`, `login-mobile.png`
+- any exported assets or notes they provide
+
+Use references for layout, spacing and quality level only. Never copy another product's logo, illustrations or wording.

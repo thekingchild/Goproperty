@@ -35,12 +35,14 @@ Each phase below lists deliverables and acceptance criteria (AC). A phase is don
 
 **Deliverables**
 - Laravel 13 project (Livewire 4 starter kit), PHP 8.4, MySQL 8, Filament 5, Pest 4; Sail for local dev. Exact versions pinned.
-- **Hosting profiles** ([ARCHITECTURE.md § 12.1](ARCHITECTURE.md)): config switches for queue/cache/session drivers, realtime (polling vs Reverb) and PDF driver (`dompdf` vs Chrome). Shared-hosting deploy pipeline (CI builds assets, deploys over SSH, runs migrations); cron-started queue worker. CI also runs the test suite with the shared-hosting profile.
+- **Hosting profiles** ([ARCHITECTURE.md § 12.1](ARCHITECTURE.md), runbook [docs/runbooks/shared-hosting.md](docs/runbooks/shared-hosting.md)): config switches for queue/cache/session drivers, realtime (polling vs Reverb) and PDF driver (`dompdf` vs Chrome). Shared-hosting deploy pipeline (CI builds assets, deploys over SSH, runs migrations); cron-started queue worker. CI also runs the test suite with the shared-hosting profile, on both MySQL 8 and MariaDB 10.6+. Staging runs on the same kind of cPanel/Plesk account as production.
 - CI: GitHub Actions running Pint, Larastan (level 6), Pest; branch protection on `main`.
 - Module skeleton (nwidart/laravel-modules) with a `Core` area: tenancy trait (`BelongsToOrganization`) + `OrganizationContext` + middleware, base enums, money helper (kobo), settings store, activity log wiring.
 - Filament platform panel shell at the configurable `ADMIN_PATH` with separate `staff` guard, `platform_staff` table and path-scoped session cookie (auth-protected, empty).
 - Route skeleton on one domain: `/`, `/login`, `/o/{org-slug}`, `/portal`, `/owner`, `/pay/{ref}`, `/verify/{code}`, `/{ADMIN_PATH}` ([ONBOARDING_COMPLIANCE.md § 1](ONBOARDING_COMPLIANCE.md)). Hosts and admin path read from config so they can move to subdomains later.
 - Design system kickoff ([UX_DESIGN.md](UX_DESIGN.md)): Tailwind theme, app shell (sidebar nav, org switcher placeholder), blank page templates for all surfaces.
+- **Design checkpoint:** before building the login pages and hero, ask the product owner for their design reference ([UX_DESIGN.md § 5](UX_DESIGN.md)).
+- **Configurable platform theme** ([PLATFORM_CONSOLE.md § 9](PLATFORM_CONSOLE.md)): theme settings → CSS variables for Tailwind 4 and Filament, default theme, draft/preview/publish.
 - **Login pages built to final quality** ([UX_DESIGN.md § 3](UX_DESIGN.md)): customer split-screen login (email/password or phone OTP), staff login with mandatory 2FA, forgot/reset password; rate limits, lockout, Turnstile, no account enumeration.
 - Audit log (append-only, hash chain) and authentication/access log wired for both guards.
 - Backups baseline: nightly encrypted DB and files backups as separate jobs to S3-compatible storage + Google Drive (Shared Drive).
@@ -59,7 +61,7 @@ Each phase below lists deliverables and acceptance criteria (AC). A phase is don
 - Organization switcher for multi-org users; per-org role assignment via spatie teams.
 - Invitations (email + token): user invites with roles; invite acceptance sets password and joins org.
 - Org settings: profile, bank accounts (encrypted, name-checked), **branding** ([BRANDING_DOCUMENTS.md § 1](BRANDING_DOCUMENTS.md)): logo, colours with contrast check, letterhead, signature/stamp, prefixes, notes, layout choice, live invoice/receipt preview.
-- Platform console: customers list (orgs, users, statuses, tier), org suspend/reactivate actions, staff management with roles, designations and departments + 2FA enforcement, two-person approvals ([PLATFORM_CONSOLE.md § 1](PLATFORM_CONSOLE.md)).
+- Platform console: customers list (orgs, users, statuses, tier), org suspend/reactivate actions, staff management with configurable roles (default set + custom roles from a permission catalogue) + 2FA enforcement, two-person approvals ([PLATFORM_CONSOLE.md § 1](PLATFORM_CONSOLE.md)).
 - Impersonation with reason, consent setting, 30-minute limit, banner, blocked money actions, and full audit ([PLATFORM_CONSOLE.md § 6](PLATFORM_CONSOLE.md)).
 
 **AC**
@@ -201,7 +203,7 @@ Each phase below lists deliverables and acceptance criteria (AC). A phase is don
 - [ ] Written legal opinion on the no-funds-flow model received
 - [ ] Transaction Tier thresholds and document lists configured; compliance officer trained on the review queue
 - [ ] Backups landing in both S3-compatible storage and Google Drive; one console-driven restore to staging verified
-- [ ] All staff accounts have 2FA; designations and roles reviewed
+- [ ] All staff accounts have 2FA; roles and permissions reviewed; at least two super-admins
 - [ ] VAT line matches company's registration status (BILLING_PAYMENTS § 10)
 - [ ] Support inbox + escalation runbook live
 - [ ] Smoke-test script green on production
@@ -252,9 +254,7 @@ Ordered by expected demand in the Nigerian market:
 ## 8. Immediate Next Steps (this week)
 
 1. Confirm the open decisions in [BILLING_PAYMENTS.md § 10](BILLING_PAYMENTS.md) and the follow-up questions raised in the handoff notes (pricing bands, SMS provider choice, hosting budget).
-2. Finalize brand (name check "GoProperty", logo, color system) — Phase 0 design work depends on it.
-3. Save SocietyFlow hero and login screenshots (desktop + mobile) into `docs/design/reference/` as the visual reference ([UX_DESIGN.md § 5](UX_DESIGN.md)).
-4. Set Transaction Tier thresholds and document list ([ONBOARDING_COMPLIANCE.md § 5](ONBOARDING_COMPLIANCE.md)); get a written legal opinion on the no-funds-flow model and confirm the agency-owned-Paystack setup with Paystack.
-5. Decide the staff designations and departments list for the console.
-6. Provision accounts: Paystack (test), Termii (test), object storage (live media + separate backup provider), Google Workspace Shared Drive for backups, Cloudflare (Turnstile), Sentry; register `goproperty.ng` and choose hosting: a shared host meeting the requirements in [ARCHITECTURE.md § 12.1](ARCHITECTURE.md) (PHP 8.4, MySQL 8, SSH, Composer, cron every minute, `exec` allowed), or a small VPS with Forge/Ploi. Pick a secret `ADMIN_PATH`.
-7. Kick off Phase 0; use [AGENT.md](AGENT.md) as the working contract for anyone (human or AI) writing code.
+2. Brand is a setting, not a blocker: start with the default theme and change it in the console later ([PLATFORM_CONSOLE.md § 9](PLATFORM_CONSOLE.md)). The SocietyFlow-style design reference is requested from the product owner at the Phase 0 design checkpoint.
+3. Get a written legal opinion on the no-funds-flow model and confirm the agency-owned-Paystack setup with Paystack. (Tier limits are set and editable — [ONBOARDING_COMPLIANCE.md § 5.2](ONBOARDING_COMPLIANCE.md).)
+4. Provision accounts: Paystack (test), Termii (test), object storage (live media + separate backup provider), Google Workspace Shared Drive for backups, Cloudflare (Turnstile), Sentry; register `goproperty.ng` and choose hosting: a shared host meeting the requirements in [ARCHITECTURE.md § 12.1](ARCHITECTURE.md) (PHP 8.4, MySQL 8, SSH, Composer, cron every minute, `exec` allowed), or a small VPS with Forge/Ploi. Hosting decision: **cPanel or Plesk shared hosting** — check the host against [docs/runbooks/shared-hosting.md § 1](docs/runbooks/shared-hosting.md) before buying. (`ADMIN_PATH` is generated by the installer.)
+5. Kick off Phase 0; use [AGENT.md](AGENT.md) as the working contract for anyone (human or AI) writing code.

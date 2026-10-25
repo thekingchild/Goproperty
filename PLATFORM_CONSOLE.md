@@ -2,16 +2,24 @@
 
 Companion documents: [ARCHITECTURE.md](ARCHITECTURE.md) · [ONBOARDING_COMPLIANCE.md](ONBOARDING_COMPLIANCE.md) · [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) · [UX_DESIGN.md](UX_DESIGN.md)
 
-The console is a Filament 5 panel served at a **configurable, non-obvious path** (`ADMIN_PATH`, e.g. `/gp-ops-7x2k`, never `/admin`) on the main domain, which suits shared hosting. It can move to its own subdomain later by configuration only ([ONBOARDING_COMPLIANCE.md § 1](ONBOARDING_COMPLIANCE.md)). It has a separate `staff` guard and `platform_staff` table, its own session cookie (scoped to the console path), mandatory 2FA, a short idle timeout (30 min), and an optional IP allowlist. Every action in it is audited.
+The console is a Filament 5 panel served at a **configurable, non-obvious path** (`ADMIN_PATH`, default `gp-control` plus a random suffix from the installer, never `/admin` — see § 10) on the main domain, which suits shared hosting. It can move to its own subdomain later by configuration only ([ONBOARDING_COMPLIANCE.md § 1](ONBOARDING_COMPLIANCE.md)). It has a separate `staff` guard and `platform_staff` table, its own session cookie (scoped to the console path), mandatory 2FA, a short idle timeout (30 min), and an optional IP allowlist. Every action in it is audited.
 
-## 1. Staff, Roles & Designations
+## 1. Staff & Configurable Roles
 
-Two separate ideas:
+Staff access is controlled only by **roles** (spatie permissions on the `staff` guard). There are no separate job titles: the role names describe what people do. A person can hold more than one role.
 
-- **Designation** = job title shown on the staff profile and in audit logs (e.g. "Head of Operations", "Finance Officer"). Picked from a managed list (`staff_designations`), grouped by **department**. Designations grant nothing.
-- **Role** = what the person can do (spatie permissions on the `staff` guard). A person can hold more than one role.
+### Configurable roles
 
-### Roles
+- GoProperty ships with the **default roles** below, but they are not hard-coded. A `super-admin` can, in **Staff → Roles**:
+  - create new roles (e.g. "Regional Support Lead") by ticking permissions from the permission catalogue;
+  - rename roles and change their permissions;
+  - deactivate roles that are no longer used (staff holding them must be moved first).
+- **Permission catalogue:** permissions are defined in code per console area and action (e.g. `customers.view`, `customers.suspend`, `tiers.approve`, `refunds.create`, `backups.restore_staging`, `impersonate.read_only`, `templates.edit`). New features add permissions, never roles.
+- **Protected permissions** — impersonation write mode, production restore approval, role management, data purge — can only be added to a role by a `super-admin` and are still subject to the two-person rules below.
+- The `super-admin` role itself can't be edited or deleted, and at least two active super-admins must exist.
+- Every role and permission change is audited and shown in the staff's profile history.
+
+### Default roles
 
 | Role | Can do | Cannot do |
 | --- | --- | --- |
@@ -36,7 +44,7 @@ Needs a second staff member with the right role to approve:
 
 ### Staff lifecycle
 
-Invite by email → set password + 2FA on first login → active. Deactivation immediately ends all sessions. Staff profile: name, work email, phone, designation, department, roles, status, last login, 2FA status.
+Invite by email → set password + 2FA on first login → active. Deactivation immediately ends all sessions. Staff profile: name, work email, phone, roles, status, last login, 2FA status, IP allowlist (optional).
 
 ## 1A. Business Settings Managed in the Console
 
@@ -47,7 +55,9 @@ Invite by email → set password + 2FA on first login → active. Deactivation i
 | Per-organization tier override | `compliance-officer` | — (reason + expiry required) | same |
 | Email templates | `content-manager` | — (versioned) | § 5 |
 | Backup destinations | `technical-admin` | — | § 4 |
-| Staff designations and departments | `super-admin` | — | § 1 |
+| Staff roles and permissions | `super-admin` | Second super-admin for protected permissions | § 1 |
+| Platform theme (name, logos, colours, login page) | `super-admin` or `content-manager` | — (versioned, preview first) | § 9 |
+| Console path (`ADMIN_PATH`) | `technical-admin` (via `.env` on the server) | — | § 10 |
 
 ## 2. System Operations Dashboard (for `technical-admin`, `super-admin`)
 
@@ -169,3 +179,45 @@ Built on spatie/laravel-activitylog with extra columns (`impersonator_id`, `ip`,
 - Retention: 1 year in the app.
 
 Built on `rappasoft/laravel-authentication-log` (or equivalent) for both guards.
+
+## 9. Platform Theme (configurable)
+
+GoProperty's own look is a **setting, not code**, so the brand can be decided or changed later without a developer. Managed in **Settings → Platform theme** by `super-admin` or `content-manager`.
+
+### What can be set
+
+| Group | Settings |
+| --- | --- |
+| Identity | Product name (default "GoProperty"), short name, legal company name and address (for platform invoices), support email / phone / WhatsApp |
+| Logos | Logo for light backgrounds, logo for dark backgrounds, square icon (one 512 px upload → favicon and PWA icons generated) |
+| Colours | Primary, accent, neutral tone (slate / gray / zinc / stone), success / warning / danger (defaults provided). Full 50–950 shade scales are generated from each chosen colour |
+| Typography | Font from a bundled list (Inter, Plus Jakarta Sans, Manrope, DM Sans), served locally |
+| Shape | Corner style: sharp / rounded / extra-rounded |
+| Appearance | Default light / dark / follow device |
+| Login page | Headline, sub-text, three benefit bullets, side panel style (gradient or uploaded image), trust line |
+| Emails | Header logo, footer text, social links |
+
+### Where it applies
+
+- GoProperty's own surfaces: marketing pages, login and signup, the staff console, GoProperty emails, platform (subscription) invoices, and the "Generated with …" footer line.
+- Agency workspace and tenant portal use the platform theme for the app frame, plus the agency's logo. **Agency documents and agency bill pages always use the agency's branding** ([BRANDING_DOCUMENTS.md](BRANDING_DOCUMENTS.md)).
+
+### How it works
+
+- Stored as versioned global settings (`settings`, keys `theme.*`). Edits are a **draft** with a live preview (login page, dashboard, email, invoice). **Publish** makes it live; any earlier version can be restored; "Reset to default" is always available.
+- Colours become CSS variables (`--color-primary-50` … `--color-primary-950`) output in the page `<head>`. Tailwind 4 theme tokens point at those variables, so **no asset rebuild is needed** when the theme changes. This matters on shared hosting, which has no Node on the server.
+- Filament reads the same settings for the console colours, so the console always matches.
+- Contrast is checked against WCAG AA when saving. If text on the primary colour would be hard to read, a darker shade is used for text automatically and a warning is shown.
+- The theme is cached and the cache cleared on publish.
+
+### Default theme (shipped until changed)
+
+Product name "GoProperty", primary blue `#1D4ED8`, accent amber `#F59E0B`, neutral slate, font Inter, rounded corners, light appearance, generated text logo. Treat these as placeholders.
+
+## 10. Console Path
+
+- The console URL is `https://{domain}/{ADMIN_PATH}`. **Default: `gp-control`**, but the installer (`php artisan goproperty:install`) writes a unique value such as `gp-control-k7m2qx` (random suffix) into `.env`, so no two installations share a guessable path.
+- Rules: lowercase letters, numbers and hyphens, 8–40 characters. Reserved words are rejected (`admin`, `login`, `o`, `portal`, `owner`, `pay`, `verify`, `api`, `webhooks`, `storage`, `build`).
+- In production, if `ADMIN_PATH` is still the bare default `gp-control`, the operations dashboard shows a red warning and a daily email reminds `technical-admin` to change it.
+- To change it: edit `ADMIN_PATH` in `.env`, then run `php artisan config:cache`. Staff are told the new address; the old path returns a plain 404.
+- The path is the first thing staff bookmark. Never put it in public docs, emails to customers, `robots.txt` or support macros.

@@ -64,15 +64,15 @@ Forgot password · Reset password · Verify email · Phone OTP entry (6 boxes, a
 
 ## 5. Visual Reference (SocietyFlow)
 
-The product owner wants the hero and login quality to match **SocietyFlow** (`demo.societyflow.ng` and `demo.societyflow.ng/login`). When this document was written (Oct 2026) those pages could not be reached from the build environment (domain did not resolve), so they are **not yet captured**.
+The product owner wants the hero and login quality to match **SocietyFlow** (`demo.societyflow.ng` and `demo.societyflow.ng/login`). Those pages could not be reached when this was written (Oct 2026). The product owner has a design running on a local server and will share it **when the project reaches the login/hero work**.
 
-**Action for the product owner:** save full-page screenshots (desktop and mobile) of the SocietyFlow hero and login page into `docs/design/reference/` (e.g. `societyflow-hero-desktop.png`, `societyflow-login-mobile.png`) so the reference survives if the site goes offline. The designer then notes what to borrow (layout, spacing, hierarchy, mood) in this section.
+**Design checkpoint (Phase 0, before building login and hero):** whoever builds these screens — developer or AI agent — must **ask the product owner for the design reference first** (see [AGENT.md § 6](AGENT.md)). Screenshots or exports then go into `docs/design/reference/`, and the designer notes here what to borrow (layout, spacing, hierarchy, mood). Until then, §§ 3–4 are the working spec.
 
 Rule: use it as **inspiration only**. Never copy SocietyFlow's logo, illustrations, wording or exact layout. GoProperty must have its own brand.
 
 ## 6. Design System (Phase 0)
 
-- Tailwind CSS theme tokens: primary, accent, neutral scale, success/warning/danger, plus light and dark variants.
-- Font: one modern sans-serif with good numerals (e.g. Inter or Plus Jakarta Sans), served locally.
+- Theme tokens come from the **configurable platform theme** ([PLATFORM_CONSOLE.md § 9](PLATFORM_CONSOLE.md)): primary, accent, neutral scale, success/warning/danger, light and dark variants, font, corner style — all CSS variables, so the theme can change without rebuilding assets.
+- Font: chosen in the theme from bundled sans-serifs with good numerals (default Inter), served locally.
 - Components: buttons, inputs (with ₦ and +234 prefixes), status badges (bill/lease/ticket/tier), cards, tables that become cards on mobile, empty states with a clear next step, toasts, modals, bottom sheets on mobile.
-- Brand: final name check, logo and colour palette are open decisions ([IMPLEMENTATION_PLAN.md § 8](IMPLEMENTATION_PLAN.md)).
+- Brand: product name, logos and colours are theme settings. The shipped default (blue `#1D4ED8`, amber accent, Inter) is a placeholder that can be replaced in the console at any time.

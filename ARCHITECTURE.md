@@ -28,7 +28,7 @@ flowchart LR
     TE --> TP
 
     subgraph Infra
-        DB[(MySQL 8)]
+        DB[(MySQL 8 / MariaDB 10.6+)]
         RD[(Cache, queues, sessions:\ndatabase on shared hosting,\nRedis on VPS)]
         RV[Realtime: polling,\nReverb on VPS]
         WK[Queue worker via cron,\nHorizon on VPS]
@@ -55,7 +55,8 @@ flowchart LR
 | Framework | Laravel 13, PHP 8.4+ | Strict types everywhere; enums for all statuses |
 | Frontend (customer + tenant) | Livewire 4 (built-in single-file components; no separate Volt package), Tailwind CSS 4, Alpine.js | Server-rendered, low-bandwidth friendly, natural AJAX story |
 | Frontend (platform console) | Filament 5 (Livewire 4 based) | Admin tables, charts, actions out of the box. Pin exact minor versions in Phase 0 |
-| Database | MySQL 8 | InnoDB, `utf8mb4`; money stored as integer kobo |
+| Database | MySQL 8 or MariaDB 10.6+ | InnoDB, `utf8mb4`; money stored as integer kobo. CI runs the test suite on both, because cPanel/Plesk hosts often provide MariaDB |
+| Theming | Platform theme from settings → CSS variables consumed by Tailwind 4 and Filament | No asset rebuild to change colours/logos ([PLATFORM_CONSOLE.md § 9](PLATFORM_CONSOLE.md)) |
 | Cache / queues / sessions | Shared hosting: `database` drivers, queue worker started by cron. VPS: Redis + Horizon | Separate queues: `default`, `notifications`, `billing`, `pdf`, `imports` |
 | Realtime | Shared hosting: Livewire polling. VPS: Laravel Reverb + polling fallback | Building Group posts, comments, reactions |
 | Auth | Laravel starter kit (session). `web` guard + `users` table for all customers (agency staff, owners, tenants); separate `staff` guard + `platform_staff` table for GoProperty staff. 2FA mandatory for staff, required for Tier 2/3 org-owners | Tenants are users too — no separate tenant auth system. Tenants can log in with phone + OTP |
@@ -102,7 +103,7 @@ The `users` table holds every customer-side person. What a user can do is a func
 
 ## 5. Roles & Permissions Matrix
 
-Platform side (spatie roles on the `staff` guard; full matrix, designations and two-person rules in [PLATFORM_CONSOLE.md § 1](PLATFORM_CONSOLE.md)):
+Platform side (spatie roles on the `staff` guard; default roles, custom roles and two-person rules in [PLATFORM_CONSOLE.md § 1](PLATFORM_CONSOLE.md)):
 
 | Role | Capabilities (summary) |
 | --- | --- |
@@ -211,7 +212,7 @@ Per-building discussion board (one group per property, auto-created):
 
 ### 6.9 Platform console (Filament)
 
-Hosted at `goproperty.ng/{ADMIN_PATH}` (configurable; can move to its own subdomain). Sections: Customers (orgs, users, subscriptions, impersonation), Compliance (Transaction Tier applications, documents, flag queue, editable tier limits), Billing (platform invoices, Paystack transactions, bank-transfer proof confirmations, refunds), Plans & Features (plan editor and prices, unit tiers, feature flags per plan, per-customer overrides), Staff (roles, designations, departments), System Operations dashboard, System Analytics dashboard, Backups (DB and files separately; S3-compatible + Google Drive; verify/restore), Email templates, Audit logs, Access logs. Full specification: [PLATFORM_CONSOLE.md](PLATFORM_CONSOLE.md).
+Hosted at `goproperty.ng/{ADMIN_PATH}` (configurable; can move to its own subdomain). Sections: Customers (orgs, users, subscriptions, impersonation), Compliance (Transaction Tier applications, documents, flag queue, editable tier limits), Billing (platform invoices, Paystack transactions, bank-transfer proof confirmations, refunds), Plans & Features (plan editor and prices, unit tiers, feature flags per plan, per-customer overrides), Staff (configurable roles and permissions), Platform theme, System Operations dashboard, System Analytics dashboard, Backups (DB and files separately; S3-compatible + Google Drive; verify/restore), Email templates, Audit logs, Access logs. Full specification: [PLATFORM_CONSOLE.md](PLATFORM_CONSOLE.md).
 
 ### 6.10 Feature enablement
 
@@ -303,7 +304,8 @@ The product owner may launch on shared hosting. The app is built so **every feat
 
 | Concern | Profile A — Shared hosting | Profile B — VPS (Forge / Ploi / Laravel Cloud) |
 | --- | --- | --- |
-| Minimum host requirements | PHP 8.4, MySQL 8, SSH access, Composer, cron every minute, `proc_open`/`exec` enabled (queue worker, `mysqldump`), free SSL, ≥ 2 GB RAM per account | Any small VPS (2 vCPU / 4 GB) + managed or local MySQL |
+| Control panel | **cPanel or Plesk** (product owner's choice). Step-by-step setup and deploys: [docs/runbooks/shared-hosting.md](docs/runbooks/shared-hosting.md) | Forge / Ploi / Laravel Cloud |
+| Minimum host requirements | PHP 8.4 (web + CLI), MySQL 8 or MariaDB 10.6+, SSH access, cron **every minute**, `proc_open`/`exec` enabled (queue worker, `mysqldump`), document root settable to `/public`, free SSL, ≥ 2 GB RAM per account. Composer/Node not needed on the server (CI builds) | Any small VPS (2 vCPU / 4 GB) + managed or local MySQL |
 | Queues | `database` driver; cron runs `schedule:run` every minute, which starts `queue:work --stop-when-empty --max-time=55` | Redis + Horizon, always-on workers |
 | Cache / sessions | `database` (or `file`) | Redis |
 | Realtime | Livewire polling | Reverb WebSockets + polling fallback |

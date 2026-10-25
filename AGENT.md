@@ -7,7 +7,7 @@ Baseline docs, in order: [README.md](README.md) → [ARCHITECTURE.md](ARCHITECTU
 ## 1. Project Snapshot
 
 - **What:** GoProperty — multi-tenant property-management SaaS (Nigeria-first): buildings → units → tenants, leases, rent/utility billing with payment-proof confirmation, maintenance tickets, Building Group discussions, and a platform-owner console that bills customers per unit via Paystack or bank transfer.
-- **Stack:** Laravel 13, PHP 8.4+, MySQL 8, Livewire 4 (customer/tenant surfaces; built-in single-file components, no Volt), Filament 5 (platform console), Pest 4, nwidart/laravel-modules (modular monolith). Redis, Horizon, Reverb and headless Chrome are **optional VPS add-ons** — the app must run on shared hosting (ARCHITECTURE.md § 12.1).
+- **Stack:** Laravel 13, PHP 8.4+, MySQL 8 **or MariaDB 10.6+** (shared hosts often use MariaDB — avoid database features only one of them supports), Livewire 4 (customer/tenant surfaces; built-in single-file components, no Volt), Filament 5 (platform console), Pest 4, nwidart/laravel-modules (modular monolith). Redis, Horizon, Reverb and headless Chrome are **optional VPS add-ons** — the app must run on shared hosting (ARCHITECTURE.md § 12.1).
 - **Naming:** "tenant" in code always means a renter (`TenantProfile`). Multi-tenancy uses "organization": `OrganizationContext`, `BelongsToOrganization`, `SetOrganizationContext`.
 - **Money unit:** integer **kobo**, always (`*_kobo` columns). Naira only.
 
@@ -61,6 +61,7 @@ Breaking any of these is a critical defect regardless of task size:
 - **Surfaces:** `/o/{org-slug}`, `/portal` and `/owner` are Livewire 4 — do not introduce Vue/React there. The console at `/{ADMIN_PATH}` is Filament 5 (separate `staff` guard, `platform_staff` table and session cookie). Never hard-code the admin path or any host name; read them from config. Marketing pages are plain Blade + Livewire forms.
 - **Events over hooks:** subsystems react to domain events; don't have Billing reach into Tickets internals, etc.
 - **Queues:** everything slow (PDF, mail, SMS, WhatsApp, webhooks processing, metering, imports) is queued with the right queue name (`default`, `notifications`, `billing`, `pdf`, `imports`) and a retry/backoff config. Jobs must finish in under ~50 seconds or be split into chunks (shared-hosting workers are cron-started and time-limited).
+- **Theme:** never hard-code GoProperty colours, logos or the product name in views. Use the platform theme tokens and settings ([PLATFORM_CONSOLE.md § 9](PLATFORM_CONSOLE.md)); agency documents use agency branding.
 - **Shared-hosting compatibility:** no feature may require Redis, Horizon, Reverb, Node at runtime, or headless Chrome. Use Laravel's driver/config switches so those are enhancements on VPS only.
 - **Documents:** Blade templates rendered through the PDF driver interface (`dompdf` or Chrome); table layouts and simple CSS only so both drivers render identically ([BRANDING_DOCUMENTS.md § 5](BRANDING_DOCUMENTS.md)). Agency branding is snapshotted on each issued document. Numbering via `document_counters` inside a transaction. Never `max(id)+1`.
 - **Imports:** always dry run before commit; never back-bill imported leases; never auto-contact imported tenants ([DATA_IMPORT.md](DATA_IMPORT.md)).
@@ -76,6 +77,7 @@ Breaking any of these is a critical defect regardless of task size:
 
 ## 6. Task Workflow
 
+0. **Design checkpoint.** Before building the login pages or the marketing hero, **stop and ask the product owner for the design reference** — they have a design running locally that they will share at that point ([UX_DESIGN.md § 5](UX_DESIGN.md)). Do not finalize those screens without it.
 1. **Locate the phase** the task belongs to in [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md); if the task isn't covered by a phase or module in the docs, say so before coding.
 2. **Plan the shape** (models/migrations/module/events/policies) in one short paragraph in the PR description before writing code for anything non-trivial.
 3. **Implement** following § 3–5. Small commits, imperative subjects (`Add payment confirmation policy`).

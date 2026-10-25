@@ -59,7 +59,7 @@ Design reference: [`docs/design/templates/receipt.html`](docs/design/templates/r
 3. **Received from:** tenant, phone, property, lease.
 4. **Payment details:** method, date paid, account paid into (masked), bank narration / Paystack reference, how it was confirmed (statement match, Paystack, proof reviewed, cash).
 5. **Applied to:** each invoice and amount applied; outstanding balance after payment; credit balance.
-6. **Confirmed by:** staff name, designation, date/time (WAT); signature/stamp line.
+6. **Confirmed by:** name of the agency user who confirmed it (or "Automatically — Paystack" / "Statement match"), date/time (WAT); signature/stamp line.
 7. **Verify box:** QR code and short code. The verification page shows the agency name, amount, date and whether the receipt is valid or **voided**. This stops fake or edited receipts.
 8. Statement that it was issued electronically and sent to the tenant by SMS/WhatsApp/email.
 

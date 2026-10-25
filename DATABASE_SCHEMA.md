@@ -1,6 +1,6 @@
 # GoProperty — Database Schema
 
-Design baseline for MySQL 8. Conventions:
+Design baseline for MySQL 8, also compatible with MariaDB 10.6+ (common on cPanel/Plesk shared hosting). Conventions:
 
 - Money is **integer kobo** (`_kobo` suffix). Never floats.
 - All statuses are PHP backed enums persisted as strings; values listed here.
@@ -216,10 +216,10 @@ Ledger of SMS credits. `organization_id`, `credits` (+ allowance/purchase, − u
 ## 8. Platform Operations
 
 ### platform_staff
-GoProperty staff (separate `staff` guard). `name`, `email` (unique), `phone`, `password`, `two_factor_secret` / `two_factor_recovery_codes` (encrypted, required), `staff_designation_id`, `department_id`, `status` (`invited`, `active`, `deactivated`), `ip_allowlist` (json, nullable), `last_login_at`. Roles via spatie on the `staff` guard.
+GoProperty staff (separate `staff` guard). `name`, `email` (unique), `phone`, `password`, `two_factor_secret` / `two_factor_recovery_codes` (encrypted, required), `status` (`invited`, `active`, `deactivated`), `ip_allowlist` (json, nullable), `last_login_at`. Roles via spatie on the `staff` guard.
 
-### departments / staff_designations
-`departments`: `name`. `staff_designations`: `department_id`, `title` (e.g. "Finance Officer"), `active`. Designations are job titles only and grant no permissions.
+### Staff roles & permissions
+spatie `roles` / `permissions` / `role_has_permissions` / `model_has_roles` on the `staff` guard. Extra columns on `roles`: `is_default` (shipped role), `is_protected` (`super-admin`, not editable), `description`, `active`. Permissions are seeded from code (one catalogue); roles are data and editable in the console.
 
 ### approval_requests
 Two-person rule. `action` (`refund`, `production_restore`, `role_grant`, `write_impersonation`, `data_purge`), `subject` (morph), `requested_by_staff_id`, `approved_by_staff_id`, `status` (`pending`, `approved`, `rejected`, `expired`), `reason`, `decided_at`.

@@ -36,7 +36,7 @@ The only money GoProperty itself receives is its **own subscription fee** (see [
 
 ### The staff console path
 
-- The path comes from configuration (`ADMIN_PATH` in `.env`), e.g. `/gp-ops-7x2k`. It is **never** `/admin`, `/administrator` or `/dashboard`, and is not linked from the public site or `robots.txt`.
+- The path comes from configuration (`ADMIN_PATH` in `.env`), default `gp-control` with a random suffix added by the installer, e.g. `/gp-control-k7m2qx` ([PLATFORM_CONSOLE.md § 10](PLATFORM_CONSOLE.md)). It is **never** `/admin`, `/administrator` or `/dashboard`, and is not linked from the public site or `robots.txt`.
 - A hidden path only cuts automated bot traffic; it is **not** the security control. The real controls are:
   - a separate `staff` guard and `platform_staff` table;
   - a **separate session cookie** (`gp_staff_session`, `Path=/{ADMIN_PATH}`, `Secure`, `HttpOnly`, `SameSite=Strict`), set by panel middleware before the session starts, so customer and staff sessions never mix even on one domain;
@@ -50,7 +50,7 @@ The only money GoProperty itself receives is its **own subscription fee** (see [
 | Setting | Launch (shared hosting) | Later (VPS) |
 | --- | --- | --- |
 | `APP_URL` | `https://goproperty.ng` | `https://app.goproperty.ng` |
-| `ADMIN_PATH` / `ADMIN_DOMAIN` | `/gp-ops-7x2k` / empty | empty / `ops.goproperty.ng` (also a non-obvious name) |
+| `ADMIN_PATH` / `ADMIN_DOMAIN` | `gp-control-k7m2qx` / empty | empty / `ops.goproperty.ng` (also a non-obvious name) |
 
 Filament panels support both `->path()` and `->domain()`. Old URLs redirect permanently to the new location, so links in already-sent emails keep working.
 
