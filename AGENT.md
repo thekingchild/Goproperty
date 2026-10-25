@@ -2,7 +2,7 @@
 
 This file is the operating contract for AI coding agents (and any contributor) working in the GoProperty repository. Read it before your first task; re-read it if a task touches money, tenancy, or notifications.
 
-Baseline docs, in order: [README.md](README.md) → [ARCHITECTURE.md](ARCHITECTURE.md) → [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) → [BILLING_PAYMENTS.md](BILLING_PAYMENTS.md) → [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md). Where a task contradicts these documents, **stop and flag the contradiction** — do not silently improvise a third design.
+Baseline docs, in order: [README.md](README.md) → [ARCHITECTURE.md](ARCHITECTURE.md) → [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) → [BILLING_PAYMENTS.md](BILLING_PAYMENTS.md) → [ONBOARDING_COMPLIANCE.md](ONBOARDING_COMPLIANCE.md) → [PLATFORM_CONSOLE.md](PLATFORM_CONSOLE.md) → [UX_DESIGN.md](UX_DESIGN.md) → [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md). Where a task contradicts these documents, **stop and flag the contradiction** — do not silently improvise a third design.
 
 ## 1. Project Snapshot
 
@@ -47,14 +47,17 @@ Breaking any of these is a critical defect regardless of task size:
 4. **Authorization.** Every controller action, Livewire component, and Filament resource checks a Policy. Hiding UI is never the security control.
 5. **State machines.** Lease, ticket, payment, subscription, and billing-transfer states change only through their service classes (`LeaseService`, `TicketService`, `PaymentService`, `SubscriptionService`, `BillingTransferService`) — never by mass-assignment or direct attribute writes from controllers/jobs.
 6. **Idempotency.** Webhook handlers, reminder dispatch, bill generation, and metering jobs must be safe to re-run (unique keys / locks / first-or-create by natural key). New queued job ⇒ think replay.
-7. **No data destruction.** No hard deletes of org, tenant, bill, payment, or subscription data. Soft deletes + status transitions only. Purge paths exist solely in the NDPR erasure tooling.
-8. **Migrations.** Append-only. Never edit a merged migration; write a new one. Every migration reversible (`down()`), and every new table with tenant rows carries `organization_id` + composite indexes per DATABASE_SCHEMA.md.
+7. **No data destruction.** No hard deletes of org, tenant, bill, payment, or subscription data. Soft deletes + status transitions only. Purge paths exist solely in the NDPA erasure tooling.
+8. **No funds flow.** GoProperty never receives, holds, splits or routes tenant money. Tenant payments go to the organization's own bank account or the organization's own Paystack account. The only Paystack account GoProperty owns is for its own subscription income. See ONBOARDING_COMPLIANCE.md § 0.
+9. **Impersonation limits.** While a staff member impersonates a user, money actions, bank/Paystack settings, billing transfers, credential changes, membership changes and deletes are blocked by policy, and every action is audited with both identities. See PLATFORM_CONSOLE.md § 6.
+10. **Templates are data, not code.** Database-stored email/SMS templates are rendered with whitelisted placeholders only — never through Blade or `eval`.
+11. **Migrations.** Append-only. Never edit a merged migration; write a new one. Every migration reversible (`down()`), and every new table with tenant rows carries `organization_id` + composite indexes per DATABASE_SCHEMA.md.
 
 ## 4. Architecture Rules
 
 - **Modules:** new bounded features are new modules (`php artisan module:make`). A module's models/services/policies are private — cross-module access goes through the module's `Contracts/` interface or domain events (`PaymentConfirmed`, `LeaseActivated`, `TicketReplied`, …). No cross-module Eloquent queries or table joins.
 - **Core stays thin:** tenancy, auth, users, orgs, settings, money, documents, shared UI. If you're adding domain logic to Core, it probably belongs in a module.
-- **Surfaces:** `/app` and `/portal` are Livewire 3 (+ Volt) — do not introduce Vue/React there. `/platform` is Filament 4. Marketing pages are plain Blade + Livewire forms.
+- **Surfaces:** `/app` and `/portal` are Livewire 3 (+ Volt) — do not introduce Vue/React there. `admin.goproperty.ng` is Filament (separate `staff` guard and `platform_staff` table). Marketing pages are plain Blade + Livewire forms.
 - **Events over hooks:** subsystems react to domain events; don't have Billing reach into Tickets internals, etc.
 - **Queues:** everything slow (PDF, mail, SMS, webhooks processing, metering) is queued with the right queue name (`default`, `notifications`, `billing`, `pdf`) and a retry/backoff config.
 - **Documents:** generated via Browsershot + Blade templates; numbering via `document_counters` inside a transaction. Never `max(id)+1`.
@@ -66,7 +69,7 @@ Breaking any of these is a critical defect regardless of task size:
 - Validation: Form Requests for controllers, `rules()` methods for Livewire; validate every upload (mime sniff, size caps); never trust client-visible-only constraints.
 - Tests: Pest. Feature tests for anything touching money, tenancy, or state machines — including the negative paths (unauthorized role, cross-tenant ID, replayed webhook, over-settled bill).
 - No PII in logs. Bank account numbers and IDs are encrypted casts. Log channels get org/user context via Sentry tags, not message contents.
-- Comments explain constraints (why), not mechanics (what). If a doc in this repo constrains the code, reference the doc section, e.g. `// See BILLING_PAYMENTS.md § 6: acceptance moves the payer`.
+- Comments explain constraints (why), not mechanics (what). If a doc in this repo constrains the code, reference the doc section, e.g. `// See BILLING_PAYMENTS.md § 7: acceptance moves the payer`.
 
 ## 6. Task Workflow
 

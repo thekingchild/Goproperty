@@ -1,6 +1,6 @@
 # GoProperty — Architecture
 
-Companion documents: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) · [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) · [BILLING_PAYMENTS.md](BILLING_PAYMENTS.md) · [AGENT.md](AGENT.md)
+Companion documents: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) · [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) · [BILLING_PAYMENTS.md](BILLING_PAYMENTS.md) · [ONBOARDING_COMPLIANCE.md](ONBOARDING_COMPLIANCE.md) · [PLATFORM_CONSOLE.md](PLATFORM_CONSOLE.md) · [UX_DESIGN.md](UX_DESIGN.md) · [AGENT.md](AGENT.md)
 
 ## 1. System Context
 
@@ -56,7 +56,7 @@ flowchart LR
 | Database | MySQL 8 | InnoDB, `utf8mb4`; money stored as integer kobo |
 | Cache / queues / sessions | Redis + Horizon | Separate queues: `default`, `notifications`, `billing`, `pdf` |
 | Realtime | Laravel Reverb | Building Group posts, comments, reactions; polling fallback |
-| Auth | Laravel starter kit (session), single `users` table, one guard, role-based areas; 2FA for platform staff | Tenants are users too — no separate tenant auth system |
+| Auth | Laravel starter kit (session). `web` guard + `users` table for all customers (agency staff, owners, tenants); separate `staff` guard + `platform_staff` table for GoProperty staff. 2FA mandatory for staff, required for Tier 2/3 org-owners | Tenants are users too — no separate tenant auth system. Tenants can log in with phone + OTP |
 | Roles | spatie/laravel-permission with teams support | Roles are scoped per organization (team = organization) |
 | Media | spatie/laravel-medialibrary | Payment proofs, post images, avatars → S3-compatible storage |
 | Audit | spatie/laravel-activitylog | Every mutation on billing, leases, tickets, subscriptions |
@@ -72,18 +72,22 @@ flowchart LR
 
 | Surface | Audience | Route root | Tech |
 | --- | --- | --- | --- |
-| Marketing + signup | Public | `/` | Blade + Livewire (pricing, onboarding, org signup, accept invitations) |
-| Customer app | Org users (agency staff, property owners) | `/app` | Livewire 3 dashboard |
-| Tenant portal | Tenants | `/portal` | Livewire 3 (my leases, bills, payments, tickets, Building Group) |
-| Platform console | Platform owner + staff | `/platform` | Filament 4 panel with its own middleware + 2FA |
+| Marketing + signup | Public | `goproperty.ng/` | Blade + Livewire (pricing, onboarding, org signup, accept invitations, receipt verification) |
+| Customer app | Org users (agency staff, property owners managing their own buildings) | `app.goproperty.ng/o/{org-slug}` | Livewire dashboard |
+| Tenant portal | Tenants (across all agencies they rent from) | `app.goproperty.ng/portal` | Livewire (my leases, bills, payments, tickets, Building Group) |
+| Owner portal | Property owners invited by an agency (across agencies) | `app.goproperty.ng/owner` | Livewire, read-only statements |
+| Platform console | Platform owner + staff | `admin.goproperty.ng` | Filament panel, `staff` guard, own session cookie, mandatory 2FA |
 
-A single `users` table holds everyone. What a user can do is a function of (a) their role **within an organization** and (b) whether they are a tenant of any unit. Platform staff live in the spatie `web`-guard team `null` (the "platform" team) and are the only ones who can reach `/platform` (enforced by middleware + policy).
+**Decision: one login domain with path-based organization slugs, no subdomain per agency.** Full reasoning, login landing rules and the later white-label option are in [ONBOARDING_COMPLIANCE.md § 1](ONBOARDING_COMPLIANCE.md).
+
+The `users` table holds every customer-side person. What a user can do is a function of (a) their role **within an organization**, (b) whether they are a tenant of any unit, and (c) whether they are an invited owner. GoProperty staff are **not** in `users`: they live in `platform_staff` with their own guard and can reach customer accounts only through audited impersonation ([PLATFORM_CONSOLE.md § 6](PLATFORM_CONSOLE.md)).
 
 ## 4. Multi-Tenancy Model
 
 **Decision: single database, row-level tenancy.** One `organizations` row is a tenant (the agency or the property owner's business). All customer-domain tables carry `organization_id` and resolve their scope through a central `TenantContext`.
 
-- `App\Tenancy\TenantContext` — singleton holding the current organization; set by `SetTenantContext` middleware from the authenticated user's **active organization** (users may belong to several orgs; a switcher exists in the app shell).
+- `App\Tenancy\TenantContext` — singleton holding the current organization; set by `SetTenantContext` middleware from the `{org-slug}` in the URL after checking membership (non-members get 404). Users may belong to several orgs; a switcher exists in the app shell.
+- The tenant and owner portals are **cross-organization by nature**: they do not set a single organization context, and instead query through an explicit "records linked to my user" path (`tenant_profiles.user_id = me`, owner links) that is policy-checked per record.
 - `App\Tenancy\BelongsToTenant` trait — boots a global scope (`where organization_id = current`) and auto-fills `organization_id` on create. Models opt in; nothing queries tenant data without it.
 - All unique indexes include `organization_id` (e.g. `unique(organization_id, unit_number, property_id)`).
 - Cross-org reads (Platform console, aggregate analytics) bypass the scope explicitly through dedicated read models / raw queries in the `Platform` namespace — the only place allowed to do so, guarded by platform middleware.
@@ -92,14 +96,18 @@ A single `users` table holds everyone. What a user can do is a function of (a) t
 
 ## 5. Roles & Permissions Matrix
 
-Platform side (spatie roles on the platform team):
+Platform side (spatie roles on the `staff` guard; full matrix, designations and two-person rules in [PLATFORM_CONSOLE.md § 1](PLATFORM_CONSOLE.md)):
 
-| Role | Capabilities |
+| Role | Capabilities (summary) |
 | --- | --- |
-| `super-admin` | Everything, including destructive ops and settings |
-| `billing-admin` | Plans, subscriptions, invoices, bank-transfer confirmation, refunds |
-| `support` | Customer lookup, ticket-level help, subscription read, resend invoices |
-| `analyst` | Reports and dashboards, read-only |
+| `super-admin` | Everything, including staff management and production restore approval |
+| `operations-manager` | Customers, suspend/reactivate, grace extensions |
+| `compliance-officer` | Transaction Tier reviews, compliance documents and flags |
+| `finance-admin` | Plans, platform invoices, bank-transfer confirmation, refunds |
+| `support-agent` | Customer lookup, read-only impersonation, resend emails/invoices |
+| `technical-admin` | Operations dashboard, queues, webhooks, backups |
+| `content-manager` | Email templates, marketing content |
+| `analyst` | Analytics, read-only, no PII |
 
 Customer side (per-organization roles):
 
@@ -125,7 +133,7 @@ Rules encoded in policies, not controllers:
 - Signup creates an `Organization` (type `agency`, `property_owner`, or `hybrid`) plus the founding `org-owner` user. An agency may be a company (CAC number captured, KYC-lite at MVP).
 - Invitations: email + token link; the invitee picks a password on acceptance. Two kinds:
   1. **User invite** — a person into an org with a role.
-  2. **Org invite (billing transfer)** — a property owner invites an agency, or vice versa, and offers to hand over the platform subscription bill. The invitation carries `offers_billing = true`; the receiving org-owner must **accept** — only then does `subscriptions.payer_organization_id` move and the new payer's Paystack mandate/bank instructions take over. Decline or expiry leaves billing unchanged. Full state machine in [BILLING_PAYMENTS.md § 6](BILLING_PAYMENTS.md).
+  2. **Org invite (billing transfer)** — a property owner invites an agency, or vice versa, and offers to hand over the platform subscription bill. The invitation has `kind = org_billing_transfer`; the receiving org-owner must **accept** — only then does `subscriptions.payer_organization_id` move and the new payer's Paystack mandate/bank instructions take over. Decline or expiry leaves billing unchanged. Full state machine in [BILLING_PAYMENTS.md § 7](BILLING_PAYMENTS.md).
 - Property owners who sign up directly can be flagged `platform_covered` (the platform owner pays their subscription internally) — the "platform bills itself when the owner signs up" case.
 
 ### 6.2 Property hierarchy and allocations
@@ -145,11 +153,15 @@ Tenants may hold multiple active leases across buildings and orgs — every leas
 
 - **Rent bills** are generated by the scheduler from active leases: a job runs daily, finds leases whose `next_due_date` is within the invoice-lead window (default 7 days), and creates a `Bill (type=rent)` with line items, then advances `next_due_date`.
 - **Utility billing**: org-defined utility types (security, water, electricity, waste…) each with default amount and cycle. Per-unit settings override defaults (e.g. prepaid electricity metered per reading — a `utility_readings` table supports metered utilities; flat utilities skip readings). Bills generate the same way rent bills do, with their own cycles independent of the lease cycle.
-- **Payments**: offline-first. The tenant (or agent on their behalf) records a payment against a bill with method `bank_transfer`/`cash`/`pos`; for bank transfer the tenant uploads proof (image/PDF) from the portal. An `agent`/`org-admin` reviews and **confirms** or **rejects** (with reason). On confirmation:
+- **Payments — GoProperty never touches the money.** Tenants pay the organization directly through channels the organization owns ([ONBOARDING_COMPLIANCE.md § 4](ONBOARDING_COMPLIANCE.md)):
+  - **Bank transfer** to the org's verified account, with the bill's unique `payment_reference` in the narration. Confirmed by **bank statement import + matching** (reference → high-confidence match; amount + name → suggested match; agent confirms) or, as fallback, by tenant **proof upload** reviewed by an agent.
+  - **Org's own Paystack account** (optional): webhook to `/webhooks/paystack/{org-ulid}`, verified with that org's secret key and by server-side transaction fetch, then auto-confirmed. Bills above the org's online-payment cap show bank details only.
+  - **Cash / POS** recorded by an agent; receipt sent straight to the tenant.
+  One incoming payment can be allocated across several bills (`payment_allocations`); any excess becomes tenant credit. An `agent`/`org-admin` **confirms** or **rejects** (with reason) anything not auto-confirmed. On confirmation:
   1. bill status recomputes (`paid`, `partially_paid`, stays `overdue`);
   2. a numbered **receipt** is generated (PDF, Browsershot) and emailed/linked to the tenant;
   3. activity log entry + notification to tenant.
-- Overdue handling: a daily job flags `overdue` bills and triggers the reminder ladder (§ 6.7). Late fees are a post-MVP module (see [IMPLEMENTATION_PLAN.md § 9](IMPLEMENTATION_PLAN.md)).
+- Overdue handling: a daily job flags `overdue` bills and triggers the reminder ladder (§ 6.7). Late fees are a post-MVP module (see [IMPLEMENTATION_PLAN.md § 7](IMPLEMENTATION_PLAN.md)).
 
 ### 6.5 Documents (printouts)
 
@@ -186,11 +198,15 @@ Per-building discussion board (one group per property, auto-created):
 
 ### 6.9 Platform console (Filament)
 
-Sections: Customers (orgs, users, subscriptions), Billing (platform invoices, Paystack transactions, bank-transfer proof confirmations, refunds), Plans & Features (plan editor, unit tiers, feature flags per plan, per-customer overrides), Staff & Roles, Operations (Pulse dashboards, failed jobs, webhook log, reminder health), Backups (run/list/restore request), Reports (MRR, ARPU, churn, unit growth, customer performance leaderboard, aggregate sales/expenses), Audit log.
+Hosted at `admin.goproperty.ng`. Sections: Customers (orgs, users, subscriptions, impersonation), Compliance (Transaction Tier applications, documents, flag queue), Billing (platform invoices, Paystack transactions, bank-transfer proof confirmations, refunds), Plans & Features (plan editor, unit tiers, feature flags per plan, per-customer overrides), Staff (roles, designations, departments), System Operations dashboard, System Analytics dashboard, Backups (DB and files separately; S3-compatible + Google Drive; verify/restore), Email templates, Audit logs, Access logs. Full specification: [PLATFORM_CONSOLE.md](PLATFORM_CONSOLE.md).
 
 ### 6.10 Feature enablement
 
 Plans declare features via `plan_feature` (boolean + numeric limit, e.g. `tickets.limit = 500/org/mo`, `building_group = true`). `Feature::enabled('building_group', $organization)` consults plan → per-customer override (`organization_feature_overrides`) → default. UI hides entry points; policies deny the routes; both, always.
+
+### 6.11 Transaction Tiers & compliance monitoring
+
+Every organization has a Transaction Tier (1, 2 or 3) that caps its yearly collection volume and largest single payment. Tier 2 and 3 require CAC and SCUML documents (plus more for Tier 3), reviewed by a `compliance-officer`. A daily job compares rolling 12-month volume and the 12-month forecast from active leases against the tier, and raises flags (80%, 100%, single payment over limit, MLPPA cash thresholds, possible structuring, spikes, expiring documents). Over-limit organizations get an upgrade prompt, then a 30-day grace period, then feature restrictions — tenants' bills, payments and receipts are never blocked. Full rules: [ONBOARDING_COMPLIANCE.md § 5](ONBOARDING_COMPLIANCE.md).
 
 ## 7. Background Jobs & Scheduler
 
@@ -202,8 +218,12 @@ Queues: `default` (webhooks, lifecycle events), `notifications` (email/SMS), `bi
 | Daily 00:25 | `reminders:dispatch` — reminder ladder computation + send |
 | Daily 01:00 | `bills:flag-overdue` |
 | Daily 02:00 | `leases:expire-and-flag` — end-date transitions, renewal nudges |
-| On 1st of month 03:00 | `saas:meter-units` — unit count ledger per org + platform invoice generation (see [BILLING_PAYMENTS.md § 4](BILLING_PAYMENTS.md)) |
-| Nightly | `backup:run` (DB + media manifest) |
+| On 1st of month 03:00 | `saas:meter-units` — unit count ledger per org + platform invoice generation (see [BILLING_PAYMENTS.md § 3](BILLING_PAYMENTS.md)) |
+| Daily 03:30 | `compliance:evaluate-tiers` — rolling volume, forecast, flags, grace/restriction transitions |
+| Daily 04:00 | `metrics:snapshot` — nightly platform analytics summary (`daily_platform_metrics`) |
+| Nightly 01:30 | `backup:run --only-db` — encrypted DB dump to S3-compatible + Google Drive |
+| Nightly 02:30 | `backup:run --only-files` — media/documents sync to backup storage |
+| Monthly | `backup:verify` — restore latest DB dump to a temporary database and check integrity |
 | Hourly | `saas:poll-paystack-pending` — reconciliation fallback for missed webhooks |
 
 All jobs are queued, retryable (backoff), idempotent (unique locks), and log to the audit trail where they mutate money data.
@@ -222,16 +242,21 @@ This keeps the codebase upgradeable across Laravel versions and lets paid add-on
 
 ## 9. Storage & Media
 
-- S3-compatible object storage (e.g. Cloudflare R2 / DO Spaces) for: payment proofs, Building Group images, generated PDFs, backup archives. Private bucket; access via short-lived signed URLs only.
+- S3-compatible object storage (e.g. Cloudflare R2 / DO Spaces) for: payment proofs, bank statements, compliance documents (separate, stricter bucket), Building Group images, generated PDFs. Private buckets; access via short-lived signed URLs only.
+- Backups go to a **different** provider/account than live media (S3-compatible) plus Google Drive as secondary — see [PLATFORM_CONSOLE.md § 4](PLATFORM_CONSOLE.md).
 - Media library handles conversions (thumbnails, max-dimension variants) and integrity (checksums).
 - Local disk only for runtime temp (PDF rendering scratch).
 
 ## 10. Security & Compliance
 
-- NDPR (Nigeria Data Protection Regulation) posture: consent capture at signup, data export + erasure request flows (platform console tooling), retention policy documented, PII encrypted at rest where sensitive (bank accounts, IDs) via Laravel cast encryption.
+- NDPA 2023 + GAID 2025 (Nigeria Data Protection Act; replaced the NDPR in Sept 2025) posture: data protection officer, breach notification within 72 hours, consent capture at signup, data export + erasure request flows (platform console tooling), retention policy documented, PII encrypted at rest where sensitive (bank accounts, IDs) via Laravel cast encryption.
 - All uploads validated (mime sniffing, size caps, no SVG), served only via signed URLs.
 - Rate limiting on auth, proof uploads, group posts, SMS triggers (SMS abuse = real money); OTP attempt limits.
-- Platform staff: mandatory 2FA; all platform actions audited with staff identity.
+- Platform staff: separate guard, separate subdomain and cookie, mandatory 2FA, 30-min idle timeout; all platform actions audited with staff identity; two-person approval for high-risk actions.
+- Login pages: rate limits + lockout, Cloudflare Turnstile after failures, no account enumeration, breached-password check, new-device alerts ([UX_DESIGN.md § 3](UX_DESIGN.md)).
+- Audit log is append-only with hash chaining; authentication/access log kept for customers and staff ([PLATFORM_CONSOLE.md § 7–8](PLATFORM_CONSOLE.md)).
+- Agency Paystack secret keys: encrypted at rest, masked in UI, changeable only by org-owners, never accessible during impersonation.
+- Compliance documents: encrypted, visible only to compliance roles, every view logged.
 - Webhook endpoints: Paystack signature verification, raw-body logging to `webhook_log`, 2xx fast-ack then process on queue.
 - Policies on every model action; Livewire components rely on the same policies (never on hidden UI).
 - Passwords: bcrypt/argon2id defaults; session fixation protection; HTTPS enforced HSTS.
@@ -242,7 +267,7 @@ This keeps the codebase upgradeable across Laravel versions and lets paid add-on
 - **Sentry**: exceptions with org context tag; alerts to Slack/email.
 - **Horizon**: queue throughput + failed-job triage; failed `notifications` jobs replayed manually with a log check first.
 - **Webhook health panel**: last received, gaps, replay tool (idempotent handlers make replay safe).
-- **Backups**: nightly `spatie/laravel-backup` (DB dump + encrypted) to object storage with 30-day rotation; managed MySQL PITR enabled; quarterly restore drills on staging (calendar item, not a hope).
+- **Backups**: database and files backed up as separate nightly jobs (`spatie/laravel-backup`, encrypted) to S3-compatible storage and Google Drive; managed MySQL PITR enabled; monthly automatic verify + quarterly manual restore drills on staging. Managed from the console ([PLATFORM_CONSOLE.md § 4](PLATFORM_CONSOLE.md)).
 - **DR targets (initial)**: RPO 1h (binlog), RTO 4h; documented restore runbook in `docs/runbooks/`.
 
 ## 12. Environments & Deployment

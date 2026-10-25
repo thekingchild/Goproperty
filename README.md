@@ -9,7 +9,9 @@ GoProperty is a multi-tenant SaaS platform for property management in Nigeria. A
 | Stack | Laravel 13, PHP 8.4+, MySQL 8, Redis, Livewire 3 (+ Filament for the platform console) |
 | Tenancy | Single database, row-level scoping on `organization_id` (see [ARCHITECTURE.md](ARCHITECTURE.md)) |
 | SaaS billing | Per-block/apartment unit pricing; Paystack card payments + bank transfer with receipt confirmation |
-| Payments (customers) | Bank transfer to the agency/owner's account; tenant uploads proof; agent confirms; receipt is generated |
+| Payments (customers) | Tenants pay the agency **directly**: bank transfer (matched from the agency's bank statement, or proof upload) or the agency's **own** Paystack account. GoProperty never receives or routes tenant money (see [ONBOARDING_COMPLIANCE.md § 0](ONBOARDING_COMPLIANCE.md)) |
+| Transaction Tiers | Tier 1 / 2 / 3 by yearly collection volume; Tier 2 & 3 need CAC + SCUML documents; system flags agencies exceeding their tier and prompts an upgrade |
+| Domains | `goproperty.ng` (marketing/signup) · `app.goproperty.ng/o/{org-slug}` (one login for agencies, owners, tenants) · `admin.goproperty.ng` (staff console). No subdomain per agency |
 | Communications | Email (transactional provider) + SMS (Termii or similar Nigerian route) |
 | Realtime | Laravel Reverb for the Building Group chat |
 | Extensibility | Modular monolith — features are self-contained modules (see [ARCHITECTURE.md § 8](ARCHITECTURE.md)) |
@@ -20,11 +22,14 @@ GoProperty is a multi-tenant SaaS platform for property management in Nigeria. A
 2. **[ARCHITECTURE.md](ARCHITECTURE.md)** — system architecture, tenancy model, role matrix, key subsystems (tickets, Building Group, reminders, documents), module system.
 3. **[DATABASE_SCHEMA.md](DATABASE_SCHEMA.md)** — full data model: tables, key columns, enums, relationships, integrity rules.
 4. **[BILLING_PAYMENTS.md](BILLING_PAYMENTS.md)** — SaaS pricing model, unit metering, Paystack integration, bank-transfer workflow, dunning and the billing-responsibility transfer flow.
-5. **[AGENT.md](AGENT.md)** — working rules for AI coding agents (and human contributors): conventions, commands, guardrails, definition of done.
+5. **[ONBOARDING_COMPLIANCE.md](ONBOARDING_COMPLIANCE.md)** — domains & login paths, registration and subscription phase, payment collection (bank transfer + agency-owned Paystack), Transaction Tiers and compliance monitoring.
+6. **[PLATFORM_CONSOLE.md](PLATFORM_CONSOLE.md)** — staff roles & designations, operations and analytics dashboards, backups & restore, email templates, impersonation, audit and access logs.
+7. **[UX_DESIGN.md](UX_DESIGN.md)** — design principles, login pages, marketing hero, design system.
+8. **[AGENT.md](AGENT.md)** — working rules for AI coding agents (and human contributors): conventions, commands, guardrails, definition of done.
 
 ## The Cast
 
-- **Platform owner** — runs the SaaS. Manages customers, plans, billing and renewals, feature flags, backups, monitoring, analytics and reports. Has staff with role-based admin access.
+- **Platform owner** — runs the SaaS. Manages customers, plans, billing and renewals, Transaction Tier reviews, feature flags, backups, monitoring, analytics and reports. Has staff with designations (job titles) and role-based admin access.
 - **Agent / agency** — the typical paying customer. Manages buildings, blocks/apartments, tenants, leases, utility bills, tickets and Building Groups on behalf of property owners.
 - **Property owner** — owns the buildings. May sign up directly (platform bill can be subsidised/covered, or transferred to an invited agent once accepted).
 - **Tenant** — occupies one or more allocated apartments, pays rent and utilities, uploads payment proofs, raises maintenance tickets, participates in the Building Group.

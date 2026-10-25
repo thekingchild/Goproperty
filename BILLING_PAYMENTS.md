@@ -1,6 +1,8 @@
 # GoProperty — SaaS Billing & Payments
 
-How GoProperty charges its customers (agencies / property owners) and how those charges are collected. Customer-side money flows (rent, utilities, receipts) are covered in [ARCHITECTURE.md § 6.4](ARCHITECTURE.md) and [DATABASE_SCHEMA.md § 4](DATABASE_SCHEMA.md).
+How GoProperty charges its customers (agencies / property owners) and how those charges are collected. Customer-side money flows (rent, utilities, receipts) are covered in [ONBOARDING_COMPLIANCE.md § 4](ONBOARDING_COMPLIANCE.md), [ARCHITECTURE.md § 6.4](ARCHITECTURE.md) and [DATABASE_SCHEMA.md § 4](DATABASE_SCHEMA.md).
+
+> **Revenue model: subscription only.** GoProperty earns from its own subscription invoices, paid by Paystack (card) or manual bank transfer. It takes **no fee on tenant payments** and never receives, holds or splits tenant money — tenants pay agencies directly ([ONBOARDING_COMPLIANCE.md § 0](ONBOARDING_COMPLIANCE.md)). The GoProperty Paystack account is used only for GoProperty's own subscription income.
 
 > **Why custom billing instead of Laravel Spark/Cashier:** Spark and Cashier speak Stripe/Paddle, neither of which is practical for Nigerian Naira collection. GoProperty implements a small, purpose-built billing layer around Paystack + manual bank transfer. It is deliberately boring: invoices, payments, webhooks, a ledger — no recurring-charge magic we don't control.
 
@@ -23,6 +25,7 @@ The spec: billing is based on the number of **blocks/apartments (units)**, not b
 - **Mid-cycle unit changes (MVP policy):** no proration. Adding units changes what is counted at the *next* billing day; removing units likewise. This is simple, explainable, and avoids credit-note machinery in v1. Proration is a listed post-MVP refinement.
 - VAT: 7.5% Nigerian VAT added as a separate line on every platform invoice.
 - Currency: **NGN only** at launch; amounts stored in kobo.
+- **Plans vs Transaction Tiers:** the plan (priced per unit) and the Transaction Tier (how much money the agency may manage, based on verification — [ONBOARDING_COMPLIANCE.md § 5](ONBOARDING_COMPLIANCE.md)) are independent. Automation features (bank statement matching, own-Paystack connection) may be used as plan differentiators; that is an open pricing decision (§ 10).
 
 ## 2. Subscription Lifecycle
 
@@ -42,7 +45,7 @@ cancelled ◀──(owner cancels / non-payment)── suspended ◀──(grace
 | `past_due` | Invoice open past `due_date` | 7-day grace, prominent banner |
 | `grace` | Final 7 days before suspension | Read-only warnings, data intact |
 | `suspended` | Unpaid beyond grace | Login blocked to write actions; data retained; export tooling available; auto-reminder every 14 days |
-| `cancelled` | Terminated | Data retained 90 days, then NDPR-governed purge |
+| `cancelled` | Terminated | Data retained 90 days, then NDPA-governed purge |
 
 - Payment methods the customer can keep on file: Paystack card authorization (auto-charge attempt on invoice issue) or bank transfer (manual, see § 5).
 - **Suspension is reversible and non-destructive.** No data deletion ever happens automatically.
@@ -96,7 +99,7 @@ For customers who prefer transfer, or when card charge fails:
 
 1. Invoice shows GoProperty's settlement account + the invoice number as required narration.
 2. Customer (org owner) uploads proof (image/PDF) against the invoice from `/app/billing` → `platform_payments` row `pending` with proof.
-3. Platform `billing-admin` reviews in the console: confirms (invoice → paid, subscription → active, confirmation email) or rejects with reason (customer notified, may re-upload).
+3. Platform `finance-admin` reviews in the console: confirms (invoice → paid, subscription → active, confirmation email) or rejects with reason (customer notified, may re-upload).
 4. Every confirmation records `confirmed_by_user_id` + timestamp in the audit log. There is **no auto-confirmation** of manual proofs in v1; DVA (§ 4.1) is the scaling path.
 
 ## 6. Dunning & Retries
@@ -108,7 +111,7 @@ For customers who prefer transfer, or when card charge fails:
 | 7 days past due | Grace warning daily (email), banner escalates |
 | 14 days past due (grace end) | Suspend: write-actions blocked; SMS + email to owner; features gated by middleware |
 | Every 14 days suspended | Reminder re-send |
-| 90 days suspended | Mark `cancelled`; data purge timer starts (NDPR tooling handles erasure) |
+| 90 days suspended | Mark `cancelled`; data purge timer starts (NDPA tooling handles erasure) |
 
 Reactivation: any confirmed payment covering open invoices returns the subscription to `active` immediately (webhook or manual confirmation — same code path).
 
@@ -133,7 +136,7 @@ Rules:
 
 ## 8. Refunds & Credit Notes
 
-- Paystack refunds via API, only by `billing-admin`, always tied to a `platform_payment`, audit-logged, invoice returns to `open` unless a credit note replaces it.
+- Paystack refunds via API, only by `finance-admin` (second approval above the two-person threshold — [PLATFORM_CONSOLE.md § 1](PLATFORM_CONSOLE.md)), always tied to a `platform_payment`, audit-logged, invoice returns to `open` unless a credit note replaces it.
 - Overpayment / goodwill: create a credit note (post-MVP table `credit_notes`; MVP handles by adjusting the next invoice manually with an audit note).
 
 ## 9. Reports Feeding Off This Data
@@ -146,3 +149,7 @@ Rules:
 2. Whether trial is 14 days, and whether trials require a card.
 3. VAT registration status of the platform company (affects invoice compliance lines).
 4. DVA provider timing: Paystack DVA at launch vs manual confirmation only (recommend: launch manual, add DVA in the first quarter after launch).
+5. Transaction Tier thresholds (annual volume and single-payment limits — [ONBOARDING_COMPLIANCE.md § 5.2](ONBOARDING_COMPLIANCE.md)) and whether any plan is required for Tier 3.
+6. Whether bank statement matching and own-Paystack connection are included in all plans or reserved for higher plans.
+7. Free tier (e.g. up to 5 units) — yes or no.
+8. Corporate customers deducting withholding tax: accept payment net of WHT on upload of the WHT credit note.
