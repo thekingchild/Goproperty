@@ -52,7 +52,7 @@ Breaking any of these is a critical defect regardless of task size:
 8. **No funds flow.** GoProperty never receives, holds, splits or routes tenant money. Tenant payments go to the organization's own bank account or the organization's own Paystack account. The only Paystack account GoProperty owns is for its own subscription income. See ONBOARDING_COMPLIANCE.md § 0.
 9. **Impersonation limits.** While a staff member impersonates a user, money actions, bank/Paystack settings, billing transfers, credential changes, membership changes and deletes are blocked by policy, and every action is audited with both identities. See PLATFORM_CONSOLE.md § 6.
 10. **Templates are data, not code.** Database-stored email/SMS templates are rendered with whitelisted placeholders only — never through Blade or `eval`.
-11. **Migrations.** Append-only. Never edit a merged migration; write a new one. Every migration reversible (`down()`), and every new table with tenant rows carries `organization_id` + composite indexes per DATABASE_SCHEMA.md.
+11. **Migrations.** Append-only. Never edit a merged migration; write a new one. Every migration reversible (`down()`), safe to run on an empty database, and doing one schema change where possible (the installer resumes from the `migrations` table and the CI install drill must pass — [INSTALLER.md § 6](INSTALLER.md)). Every new table with tenant rows carries `organization_id` + composite indexes per DATABASE_SCHEMA.md.
 
 ## 4. Architecture Rules
 

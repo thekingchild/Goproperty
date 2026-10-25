@@ -18,8 +18,8 @@ Each phase below lists deliverables and acceptance criteria (AC). A phase is don
 
 | Phase | Name | Weeks | Milestone |
 | --- | --- | --- | --- |
-| 0 | Foundation, tooling, login pages & backups baseline | 1–2 | M0 |
-| 1 | Tenancy, auth, registration, Transaction Tiers & staff console core | 3–5 | M1 |
+| 0 | Foundation, tooling, installer core, login pages & backups baseline | 1–2 | M0 |
+| 1 | Tenancy, auth, registration, Transaction Tiers, staff console core & web installer | 3–5 | M1 |
 | 2 | Properties, units, owners & import (part 1) | 6–8 | M2 |
 | 3 | Leasing, branded documents & the customer money loop + import (part 2) | 9–12 | M3 |
 | 4 | Maintenance tickets | 13 | M4 |
@@ -35,8 +35,14 @@ Each phase below lists deliverables and acceptance criteria (AC). A phase is don
 
 **Deliverables**
 - Laravel 13 project (Livewire 4 starter kit), PHP 8.4, MySQL 8, Filament 5, Pest 4; Sail for local dev. Exact versions pinned.
-- **Hosting profiles** ([ARCHITECTURE.md § 12.1](ARCHITECTURE.md), runbook [docs/runbooks/shared-hosting.md](docs/runbooks/shared-hosting.md)): config switches for queue/cache/session drivers, realtime (polling vs Reverb) and PDF driver (`dompdf` vs Chrome). Shared-hosting deploy pipeline (CI builds assets, deploys over SSH, runs migrations); cron-started queue worker. CI also runs the test suite with the shared-hosting profile, on both MySQL 8 and MariaDB 10.6+. Staging runs on the same kind of cPanel/Plesk account as production.
+- **Hosting profiles** ([ARCHITECTURE.md § 12.1](ARCHITECTURE.md), runbook [docs/runbooks/shared-hosting.md](docs/runbooks/shared-hosting.md)): config switches for queue/cache/session drivers, realtime (polling vs Reverb) and PDF driver (`dompdf` vs Chrome). Shared-hosting deploy pipeline (CI builds assets, deploys over SSH, runs migrations); scheduler and queue run **in-process** from the one cron line (no `exec`/`proc_open`, [INSTALLER.md § 8](INSTALLER.md)). CI also runs the test suite with the shared-hosting profile, on both MySQL 8 and MariaDB 10.6+. Staging runs on the same kind of cPanel/Plesk account as production.
 - CI: GitHub Actions running Pint, Larastan (level 6), Pest; branch protection on `main`.
+- **Installer core** ([INSTALLER.md](INSTALLER.md)) — built now so staging and every later phase are installed the same way production will be:
+  - Release package built by CI on each tag: zip with `vendor/` + built assets, `preferred` and `split` (public_html) layouts, `SHA256SUMS`, `VERSION`, PHP-version guard, package verifier (`goproperty:verify-package`).
+  - Installation markers (lock file + `installation_state` row + checkpoint, fail-closed), `AwaitApplicationKey` middleware, "being set up" 503 for public routes until finalized, `/install` 404 afterwards.
+  - Shared services used by both installers: requirements checker, atomic `.env` writer, DB connection probe, batched migration runner, idempotent seeders, finalizer (generates the `ADMIN_PATH` suffix).
+  - CLI: `goproperty:setup-token`, `goproperty:install` (interactive + `--no-interaction`), `goproperty:check-installation`.
+  - **Install drill in CI:** build → verify → unpack split layout → install under shared-host limits (`max_execution_time=30`, `exec`/`proc_open` disabled) on MySQL 8 and MariaDB 10.6; schema must match a plain `migrate`.
 - Module skeleton (nwidart/laravel-modules) with a `Core` area: tenancy trait (`BelongsToOrganization`) + `OrganizationContext` + middleware, base enums, money helper (kobo), settings store, activity log wiring.
 - Filament platform panel shell at the configurable `ADMIN_PATH` with separate `staff` guard, `platform_staff` table and path-scoped session cookie (auth-protected, empty).
 - Route skeleton on one domain: `/`, `/login`, `/o/{org-slug}`, `/portal`, `/owner`, `/pay/{ref}`, `/verify/{code}`, `/{ADMIN_PATH}` ([ONBOARDING_COMPLIANCE.md § 1](ONBOARDING_COMPLIANCE.md)). Hosts and admin path read from config so they can move to subdomains later.
@@ -46,12 +52,13 @@ Each phase below lists deliverables and acceptance criteria (AC). A phase is don
 - **Login pages built to final quality** ([UX_DESIGN.md § 3](UX_DESIGN.md)): customer split-screen login (passkey, or email/phone number + password — no SMS at sign-in), 2FA challenge screen, staff login with mandatory 2FA, forgot/reset password; rate limits, lockout, Turnstile, no account enumeration. Visual spec: `docs/design/templates/login.html`, `login-2fa.html`.
 - Audit log (append-only, hash chain) and authentication/access log wired for both guards.
 - Backups baseline: nightly encrypted DB and files backups as separate jobs to S3-compatible storage + Google Drive (Shared Drive).
-- Staging environment provisioned; deploy pipeline to staging on merge.
+- Staging environment provisioned **with the installer** (CLI path); deploy pipeline to staging on merge.
 
 **Acceptance criteria**
 - `composer ci` runs lint + static analysis + tests locally and in CI.
 - A seeded demo user can log in and see empty shells of all three surfaces.
 - Tenancy trait enforced by a Larastan rule or test that fails when a scoped model is queried without context in test setup.
+- CI produces a verified release zip; the install drill passes on both databases; a fresh copy with no `APP_KEY` redirects to `/install` without touching the database or writing error logs.
 
 ### Phase 1 — Tenancy, auth, registration, Transaction Tiers & staff console core (Weeks 3–5)
 
@@ -63,6 +70,7 @@ Each phase below lists deliverables and acceptance criteria (AC). A phase is don
 - Org settings: profile, bank accounts (encrypted, name-checked), **branding** ([BRANDING_DOCUMENTS.md § 1](BRANDING_DOCUMENTS.md)): logo, colours with contrast check, letterhead, signature/stamp, prefixes, notes, layout choice, live invoice/receipt preview.
 - Platform console: customers list (orgs, users, statuses, tier), org suspend/reactivate actions, staff management with configurable roles (default set + custom roles from a permission catalogue) + 2FA enforcement, two-person approvals ([PLATFORM_CONSOLE.md § 1](PLATFORM_CONSOLE.md)).
 - Impersonation with reason, consent setting, 30-minute limit, banner, blocked money actions, and full audit ([PLATFORM_CONSOLE.md § 6](PLATFORM_CONSOLE.md)).
+- **Web installer wizard** ([INSTALLER.md § 4–5](INSTALLER.md)) on the auth-page shell: unlock by setup token **or file check** (no SSH), session-bound grant renewed per step, server check, site & database (auto-created `.env`), batched migrations with progress bar and resume, email + S3 storage tests, first super-admin with **2FA enrolled in the wizard**, finish screen (console path, detected cron line, live cron heartbeat check, installation record, next-steps checklist). The install drill walks the wizard over HTTP.
 
 **AC**
 - Two orgs created; user in both can switch; data never crosses orgs ( Pest tests probe cross-tenant access on every Phase-1 model).
@@ -71,6 +79,7 @@ Each phase below lists deliverables and acceptance criteria (AC). A phase is don
 - Impersonating staff cannot confirm a payment or view bank/Paystack keys (tested); the org-owner receives the session summary email.
 - Visiting `/o/{slug}` of an org you don't belong to returns 404.
 - Suspending an org in the console blocks its users' write actions within one request.
+- Web install drill (file-check unlock, TOTP enrolment, finish) passes on MySQL 8 and MariaDB 10.6; after finish `/install` is 404 and no HTTP route can reset or re-run installation (tested).
 
 ### Phase 2 — Properties, units & owners (Weeks 6–7)
 
@@ -186,13 +195,16 @@ Each phase below lists deliverables and acceptance criteria (AC). A phase is don
 - Load test (k6) on hot paths: dashboard, bills list, group feed; fix N+1/cache gaps.
 - Backup + restore drill on staging from production-like data; runbook written (`docs/runbooks/`).
 - Seed production demo org; monitoring/alerting wired (Sentry → Slack, queue-depth alerts); launch checklist executed.
+- **Installer & upgrades, final:** console **System → Version** page (current/latest version, pending migrations, last backup; read-only — no in-app code download), authenticated batched "run pending migrations" step for no-SSH upgrades, upgrade drill in CI (previous release → new), runbooks `docs/runbooks/install.md`, `install-recovery.md`, `upgrade.md`, and the owner's install guide with SSH and no-SSH variants for cPanel and Plesk.
 
 **AC**
 - Restore drill achieves stated RPO/RTO (§ 11 ARCHITECTURE.md) and the runbook is followed verbatim by someone other than the author.
 - Launch checklist (below) fully ticked.
+- Real installs on a cPanel and a Plesk account (one with SSH, one without) follow the owner's guide word for word; one zip upgrade + rollback rehearsed on staging.
 
 ## 4. Launch Checklist
 
+- [ ] Production installed from the signed release zip through the installer; checksum verified; `/install` returns 404; installation record (with `APP_KEY`) stored offline in two places
 - [ ] Production env vars audited (no test keys, mail/SMS senders verified)
 - [ ] Paystack live keys + webhook live-verified; test charge + refund executed live with a small amount
 - [ ] Termii live sender ID approved; DND-template path verified
@@ -212,6 +224,7 @@ Each phase below lists deliverables and acceptance criteria (AC). A phase is don
 
 - **Pest feature tests are the backbone.** Money paths (leasing, bills, payments, receipts, SaaS billing) require end-to-end coverage before merge — no exceptions.
 - Unit tests for pure logic (`CycleCalculator`, pricing math, dunning ladder); time-travel via Carbon for all scheduler logic.
+- Installer: install drill and upgrade drill in CI under shared-host limits on MySQL and MariaDB ([INSTALLER.md § 12](INSTALLER.md)).
 - Browser tests (Laravel Dusk or Pest v4 browser plugin) for the five golden journeys: signup→org, lease→receipt, ticket lifecycle, group interaction, platform invoice payment.
 - Cross-tenant security tests generated per model (trait-enforced) — the suite fails if a scoped model is added without scope tests.
 - Staging rehearsals for: Paystack webhooks (CLI replay), SMS delivery, backup restore.
@@ -232,6 +245,7 @@ Each phase below lists deliverables and acceptance criteria (AC). A phase is don
 | R11 | Staff misuse of impersonation or backups | Privacy breach | Consent setting, reason required, read-only default, banner, owner email summary, two-person rules, signed expiring backup downloads |
 | R12 | Shared hosting limits (CPU, memory, execution time, disabled `exec`, mail limits) | Slow queues, failed backups/imports, outages | Requirements checklist before choosing a host; chunked queued jobs; API mail provider; dompdf; monitoring of queue wait; clear triggers to move to VPS (ARCHITECTURE.md § 12.1) |
 | R13 | Imported data is wrong (bad balances, wrong "paid until") | Wrong bills sent to tenants, trust lost | Mandatory dry run, review summary, no auto-contact of tenants, 7-day rollback, opening balances shown separately on statements |
+| R14 | Installer taken over on a fresh upload, or an install/upgrade fails half-way on a shared host | Site hijack, or a broken production with no developer to hand | Host-control unlock (token or file check), HTTPS + same-origin + rate limit, fail-closed markers, batched resumable migrations, "empty and retry" for fresh installs, backups before every upgrade, CI install + upgrade drills under shared-host limits ([INSTALLER.md](INSTALLER.md)) |
 | R8 | Low-end devices/2G users abandon portal | Adoption | Livewire server-rendered UI, image caps, polling fallback, performance budget in CI (Lighthouse check on portal pages) |
 
 ## 7. Post-Launch Module Backlog (expansion via the module system)
@@ -256,5 +270,5 @@ Ordered by expected demand in the Nigerian market:
 1. Confirm the open decisions in [BILLING_PAYMENTS.md § 10](BILLING_PAYMENTS.md) and the follow-up questions raised in the handoff notes (pricing bands, SMS provider choice, hosting budget).
 2. Brand is a setting, not a blocker: start with the default theme and change it in the console later ([PLATFORM_CONSOLE.md § 9](PLATFORM_CONSOLE.md)). The SocietyFlow-style design reference is requested from the product owner at the Phase 0 design checkpoint.
 3. Get a written legal opinion on the no-funds-flow model and confirm the agency-owned-Paystack setup with Paystack. (Tier limits are set and editable — [ONBOARDING_COMPLIANCE.md § 5.2](ONBOARDING_COMPLIANCE.md).)
-4. Provision accounts: Paystack (test), Termii (test), object storage (live media + separate backup provider), Google Workspace Shared Drive for backups, Cloudflare (Turnstile), Sentry; register `goproperty.ng` and choose hosting: a shared host meeting the requirements in [ARCHITECTURE.md § 12.1](ARCHITECTURE.md) (PHP 8.4, MySQL 8, SSH, Composer, cron every minute, `exec` allowed), or a small VPS with Forge/Ploi. Hosting decision: **cPanel or Plesk shared hosting** — check the host against [docs/runbooks/shared-hosting.md § 1](docs/runbooks/shared-hosting.md) before buying. (`ADMIN_PATH` is generated by the installer.)
+4. Provision accounts: Paystack (test), Termii (test), object storage (live media + separate backup provider), Google Workspace Shared Drive for backups, Cloudflare (Turnstile), Sentry; register `goproperty.ng` and choose hosting: a shared host meeting the requirements in [ARCHITECTURE.md § 12.1](ARCHITECTURE.md) (PHP 8.4, MySQL 8 or MariaDB 10.6+, cron every minute; SSH helpful but not required — [INSTALLER.md](INSTALLER.md)), or a small VPS with Forge/Ploi. Hosting decision: **cPanel or Plesk shared hosting** — check the host against [docs/runbooks/shared-hosting.md § 1](docs/runbooks/shared-hosting.md) before buying. (`ADMIN_PATH` is generated by the installer — [INSTALLER.md § 5](INSTALLER.md).)
 5. Kick off Phase 0; use [AGENT.md](AGENT.md) as the working contract for anyone (human or AI) writing code.

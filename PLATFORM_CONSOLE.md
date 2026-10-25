@@ -67,9 +67,9 @@ Health at a glance, refreshed every 60 s:
 
 | Area | Widgets |
 | --- | --- |
-| App | Uptime, error rate (Sentry), p95 response time, deploy version, maintenance mode toggle |
+| App | Uptime, error rate (Sentry), p95 response time, deploy version, maintenance mode toggle. **System → Version**: current and latest release, pending migrations, last backup, and (no-SSH upgrades) a `super-admin`-only batched "run pending migrations" step — no in-app code download ([INSTALLER.md § 10](INSTALLER.md)) |
 | Queues | Depth and wait time per queue (`default`, `notifications`, `billing`, `pdf`, `imports`), failed jobs with retry/forget; Horizon link on VPS, read from the `jobs`/`failed_jobs` tables on shared hosting |
-| Scheduler | Last run + result of every scheduled command; heartbeat alert if a job didn't run |
+| Scheduler | Last run + result of every scheduled command; in-process queue tick heartbeat; alert if a job didn't run. Shows the cron line built from the detected PHP CLI path (owner/technical-admin only) |
 | Webhooks | Paystack: last event received, failure rate, events awaiting processing — for GoProperty's own account **and** per connected agency account; replay button |
 | Messaging | Email/SMS/WhatsApp sent, delivered, bounced, failed (24h/7d); SMS spend; provider status |
 | Backups | Last DB backup, last files backup, per destination, size, success/failure, next scheduled run |
@@ -311,7 +311,7 @@ Product name "GoProperty", primary blue `#1D4ED8`, accent amber `#F59E0B`, neutr
 
 ## 10. Console Path
 
-- The console URL is `https://{domain}/{ADMIN_PATH}`. **Default: `gp-control`**, but the installer (`php artisan goproperty:install`) writes a unique value such as `gp-control-k7m2qx` (random suffix) into `.env`, so no two installations share a guessable path.
+- The console URL is `https://{domain}/{ADMIN_PATH}`. **Default: `gp-control`**, but the installer (web wizard or `php artisan goproperty:install`, [INSTALLER.md](INSTALLER.md)) writes a unique value such as `gp-control-k7m2qx` (random suffix) into `.env`, so no two installations share a guessable path.
 - Rules: lowercase letters, numbers and hyphens, 8–40 characters. Reserved words are rejected (`admin`, `login`, `o`, `portal`, `owner`, `pay`, `verify`, `api`, `webhooks`, `storage`, `build`).
 - In production, if `ADMIN_PATH` is still the bare default `gp-control`, the operations dashboard shows a red warning and a daily email reminds `technical-admin` to change it.
 - To change it: edit `ADMIN_PATH` in `.env`, then run `php artisan config:cache`. Staff are told the new address; the old path returns a plain 404.

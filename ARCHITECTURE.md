@@ -305,13 +305,13 @@ The product owner may launch on shared hosting. The app is built so **every feat
 | Concern | Profile A — Shared hosting | Profile B — VPS (Forge / Ploi / Laravel Cloud) |
 | --- | --- | --- |
 | Control panel | **cPanel or Plesk** (product owner's choice). Step-by-step setup and deploys: [docs/runbooks/shared-hosting.md](docs/runbooks/shared-hosting.md) | Forge / Ploi / Laravel Cloud |
-| Minimum host requirements | PHP 8.4 (web + CLI), MySQL 8 or MariaDB 10.6+, SSH access, cron **every minute**, `proc_open`/`exec` enabled (queue worker, `mysqldump`), document root settable to `/public`, free SSL, ≥ 2 GB RAM per account. Composer/Node not needed on the server (CI builds) | Any small VPS (2 vCPU / 4 GB) + managed or local MySQL |
-| Queues | `database` driver; cron runs `schedule:run` every minute, which starts `queue:work --stop-when-empty --max-time=55` | Redis + Horizon, always-on workers |
+| Minimum host requirements | PHP 8.4 (web + CLI), MySQL 8 or MariaDB 10.6+, cron **every minute**, document root settable to `/public` (or the `split` package layout for `public_html`), free SSL, ≥ 2 GB RAM per account. SSH is helpful but not required; `proc_open`/`exec` optional (only `mysqldump` uses them; a pure-PHP dumper is the fallback). Composer/Node not needed on the server (release zip includes `vendor/` and built assets). Installed with the web or CLI installer ([INSTALLER.md](INSTALLER.md)) | Any small VPS (2 vCPU / 4 GB) + managed or local MySQL |
+| Queues | `database` driver; cron runs `schedule:run` every minute, and an in-process tick drains the queue within a ~45 s budget (per-lane caps, overlap lock, heartbeat) — no `exec`/`proc_open` ([INSTALLER.md § 8](INSTALLER.md)) | Redis + Horizon, always-on workers |
 | Cache / sessions | `database` (or `file`) | Redis |
 | Realtime | Livewire polling | Reverb WebSockets + polling fallback |
 | PDF | `dompdf` | Browsershot / Gotenberg (dompdf still available) |
 | Assets | Built in CI (Vite) and deployed as files — no Node on the server | Same, or built on server |
-| Deploy | CI deploys over SSH (git pull + `composer install --no-dev` + `migrate --force` + cache rebuild), or rsync/FTP action | Zero-downtime deploys |
+| Deploy | First install: release zip + installer ([INSTALLER.md](INSTALLER.md)). Updates: CI uploads the built release over SSH and runs `migrate --force` + cache rebuild; without SSH, the zip upgrade runbook ([INSTALLER.md § 10](INSTALLER.md)) | Zero-downtime deploys |
 | Backups | spatie/laravel-backup (needs `exec` for `mysqldump`) to S3-compatible + Google Drive; plus the host's own backups | Same + managed DB point-in-time recovery |
 | Domains | Single domain, console on secret path | Optional `app.` / ops subdomains |
 
