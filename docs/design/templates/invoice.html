@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<!--
+  GoProperty — Agency-branded invoice (design reference)
+  Sample data only. In the app this becomes a Blade view; values marked {{ }} in comments
+  come from the organization's branding settings and the bill.
+  Layout uses tables + simple CSS only (no flexbox/grid/CSS variables) so the same
+  template renders in dompdf (shared hosting) and headless Chrome (VPS).
+  Brand colours below (#0E6B5C primary, #F2F7F6 tint) are injected per organization.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Invoice INV-ADR-2027-000142</title>
+<style>
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e5e7eb; font-family: Inter, "DejaVu Sans", Arial, sans-serif; color: #0f172a; font-size: 12px; line-height: 1.45; }
+  .page { width: 794px; min-height: 1123px; margin: 0 auto; background: #ffffff; position: relative; }
+  .topbar { height: 8px; background: #0E6B5C; }
+  .wrap { padding: 28px 48px 54px 48px; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { vertical-align: top; padding: 0; }
+  .muted { color: #64748b; }
+  .small { font-size: 10.5px; }
+  .label { font-size: 9.5px; letter-spacing: 1.2px; text-transform: uppercase; color: #64748b; font-weight: 600; }
+  .org-name { font-size: 19px; font-weight: 700; color: #0f172a; margin: 0 0 4px 0; }
+  .doc-title { font-size: 30px; font-weight: 800; letter-spacing: 3px; color: #0E6B5C; text-align: right; margin: 0; }
+  .meta td { padding: 3px 0; font-size: 11.5px; }
+  .meta td.k { color: #64748b; text-align: right; padding-right: 12px; }
+  .meta td.v { text-align: right; font-weight: 600; }
+  .badge { display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 10px; font-weight: 700; letter-spacing: 1px; }
+  .badge-unpaid { background: #FEF3C7; color: #92400E; }
+  .rule { height: 1px; background: #e2e8f0; margin: 18px 0; }
+  .card { background: #F2F7F6; border-radius: 10px; padding: 12px 16px; }
+  .party-name { font-size: 14px; font-weight: 700; margin: 4px 0 2px 0; }
+  .items th { background: #0E6B5C; color: #ffffff; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; font-weight: 600; padding: 10px 12px; text-align: left; }
+  .items th.r, .items td.r { text-align: right; }
+  .items td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-size: 12px; }
+  .items tr.alt td { background: #fafbfc; }
+  .item-desc { font-weight: 600; }
+  .totals td { padding: 4px 12px; font-size: 12px; }
+  .totals td.k { color: #64748b; text-align: right; }
+  .totals td.v { text-align: right; width: 150px; font-weight: 600; }
+  .due-box { background: #0E6B5C; color: #ffffff; border-radius: 10px; padding: 14px 16px; }
+  .due-box .label { color: #cfe7e2; }
+  .due-amount { font-size: 26px; font-weight: 800; margin-top: 2px; }
+  .pay td { padding: 4px 0; font-size: 12px; }
+  .pay td.k { color: #64748b; width: 120px; }
+  .pay td.v { font-weight: 600; }
+  .ref { font-family: "DejaVu Sans Mono", Menlo, monospace; font-size: 15px; font-weight: 700; letter-spacing: 2px; color: #0E6B5C; background: #ffffff; border: 1.5px dashed #0E6B5C; border-radius: 6px; padding: 5px 10px; display: inline-block; }
+  .online { border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 16px; }
+  .btn { display: inline-block; background: #0E6B5C; color: #ffffff; text-decoration: none; font-weight: 700; padding: 8px 14px; border-radius: 6px; font-size: 11.5px; }
+  .notes { font-size: 10.5px; color: #475569; }
+  .footer { position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 48px; border-top: 1px solid #e2e8f0; font-size: 9.5px; color: #94a3b8; }
+  .sig-line { border-top: 1px solid #94a3b8; width: 180px; margin-top: 24px; padding-top: 4px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="topbar"></div>
+  <div class="wrap">
+
+    <!-- Header: agency letterhead + document meta -->
+    <table>
+      <tr>
+        <td style="width:58%">
+          <table><tr>
+            <td style="width:64px">
+              <!-- {{ org.logo }} — placeholder monogram when no logo uploaded -->
+              <svg width="54" height="54" viewBox="0 0 54 54" xmlns="http://www.w3.org/2000/svg"><rect width="54" height="54" rx="12" fill="#0E6B5C"/><path d="M13 36 L27 17 L41 36" fill="none" stroke="#fff" stroke-width="3.2" stroke-linejoin="round"/><rect x="22" y="28" width="10" height="9" fill="#F2B53A"/></svg>
+            </td>
+            <td style="padding-left:12px">
+              <p class="org-name">Adeyemi Realty Ltd</p>
+              <div class="muted small">14 Admiralty Way, Lekki Phase 1, Lagos</div>
+              <div class="muted small">RC 1234567 · +234 803 000 0000</div>
+              <div class="muted small">accounts@adeyemirealty.ng · adeyemirealty.ng</div>
+            </td>
+          </tr></table>
+        </td>
+        <td style="width:42%">
+          <p class="doc-title">INVOICE</p>
+          <table class="meta" style="margin-top:8px">
+            <tr><td class="k">Invoice no.</td><td class="v">INV-ADR-2027-000142</td></tr>
+            <tr><td class="k">Issue date</td><td class="v">01/11/2026</td></tr>
+            <tr><td class="k">Due date</td><td class="v">31/12/2026</td></tr>
+            <tr><td class="k">Status</td><td class="v"><span class="badge badge-unpaid">UNPAID</span></td></tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+
+    <div class="rule"></div>
+
+    <!-- Parties -->
+    <table>
+      <tr>
+        <td style="width:49%" class="card">
+          <div class="label">Billed to</div>
+          <div class="party-name">Chiamaka Okafor</div>
+          <div class="muted small">+234 812 345 6789</div>
+          <div class="muted small">chiamaka.okafor@example.com</div>
+        </td>
+        <td style="width:2%"></td>
+        <td style="width:49%" class="card">
+          <div class="label">Property</div>
+          <div class="party-name">Palm Court Apartments — Flat 3B</div>
+          <div class="muted small">22 Fola Osibo Road, Lekki Phase 1, Lagos</div>
+          <div class="muted small">Lease LS-ADR-2024-0031 · Annual</div>
+        </td>
+      </tr>
+    </table>
+
+    <!-- Line items -->
+    <table class="items" style="margin-top:18px">
+      <tr>
+        <th style="width:46%">Description</th>
+        <th style="width:30%">Period</th>
+        <th class="r" style="width:24%">Amount (₦)</th>
+      </tr>
+      <tr>
+        <td><div class="item-desc">Rent — 2 bedroom flat</div><div class="muted small">Annual rent, renewal year 3</div></td>
+        <td>01/01/2027 – 31/12/2027</td>
+        <td class="r">2,500,000.00</td>
+      </tr>
+      <tr class="alt">
+        <td><div class="item-desc">Service charge</div><div class="muted small">Cleaning, generator, common areas</div></td>
+        <td>01/01/2027 – 31/12/2027</td>
+        <td class="r">350,000.00</td>
+      </tr>
+      <tr>
+        <td><div class="item-desc">Security levy</div></td>
+        <td>01/01/2027 – 31/12/2027</td>
+        <td class="r">60,000.00</td>
+      </tr>
+      <tr class="alt">
+        <td><div class="item-desc">Waste management (LAWMA)</div></td>
+        <td>01/01/2027 – 31/12/2027</td>
+        <td class="r">24,000.00</td>
+      </tr>
+    </table>
+
+    <!-- Totals + amount due -->
+    <table style="margin-top:10px">
+      <tr>
+        <td style="width:50%"></td>
+        <td style="width:50%">
+          <table class="totals">
+            <tr><td class="k">Subtotal</td><td class="v">₦2,934,000.00</td></tr>
+            <tr><td class="k">Credit applied</td><td class="v">− ₦34,000.00</td></tr>
+            <tr><td class="k">Paid to date</td><td class="v">₦0.00</td></tr>
+          </table>
+          <div class="due-box" style="margin-top:8px">
+            <table><tr>
+              <td><div class="label">Amount due</div><div class="due-amount">₦2,900,000.00</div></td>
+              <td style="text-align:right; vertical-align:middle; font-size:11px; color:#cfe7e2">Due by<br><b style="color:#fff; font-size:13px">31 Dec 2026</b></td>
+            </tr></table>
+          </div>
+        </td>
+      </tr>
+    </table>
+
+    <!-- How to pay -->
+    <table style="margin-top:18px">
+      <tr>
+        <td style="width:58%" class="card">
+          <div class="label" style="margin-bottom:6px">Pay by bank transfer</div>
+          <table class="pay">
+            <tr><td class="k">Bank</td><td class="v">Guaranty Trust Bank</td></tr>
+            <tr><td class="k">Account name</td><td class="v">Adeyemi Realty Ltd</td></tr>
+            <tr><td class="k">Account number</td><td class="v" style="font-size:14px; letter-spacing:1px">0123456789</td></tr>
+            <tr><td class="k" style="padding-top:8px">Narration</td><td class="v" style="padding-top:8px"><span class="ref">GP-7KQ2M</span></td></tr>
+          </table>
+          <div class="small muted" style="margin-top:8px">Put the reference <b>GP-7KQ2M</b> in your transfer narration so your payment is matched and receipted automatically.</div>
+        </td>
+        <td style="width:2%"></td>
+        <td style="width:40%" class="online">
+          <div class="label" style="margin-bottom:6px">Or pay online</div>
+          <div class="small muted" style="margin-bottom:10px">Card, transfer or USSD via the agency's secure Paystack checkout. Shown only when the agency has connected Paystack and the amount is within its online limit.</div>
+          <a class="btn" href="#">Pay ₦2,900,000 online</a>
+          <div class="small muted" style="margin-top:8px">pay.goproperty.ng/b/GP-7KQ2M</div>
+        </td>
+      </tr>
+    </table>
+
+    <!-- Notes + verification -->
+    <table style="margin-top:18px">
+      <tr>
+        <td style="width:62%" class="notes">
+          <div class="label" style="margin-bottom:4px">Notes</div>
+          <!-- {{ org.document_settings.invoice_footer }} -->
+          Rent is payable in advance in line with your tenancy agreement. Please notify us of any payment by replying to your reminder message or uploading proof on your tenant portal. Thank you for staying with us.
+          <div class="sig-line small muted">For: Adeyemi Realty Ltd</div>
+        </td>
+        <td style="width:38%; text-align:right">
+          <table style="width:auto; margin-left:auto"><tr>
+            <td style="padding-right:10px; text-align:right; vertical-align:middle" class="small muted">Scan to verify<br>this invoice<br><b style="color:#0f172a">INV-7KQ2M</b></td>
+            <td><svg xmlns="http://www.w3.org/2000/svg" width="87" height="87" class="segno"><path transform="scale(3)" class="qrline" stroke="#0f172a" d="M0 0.5h7m1 0h2m4 0h1m4 0h2m1 0h7m-29 1h1m5 0h1m1 0h2m1 0h4m1 0h1m1 0h1m3 0h1m5 0h1m-29 1h1m1 0h3m1 0h1m5 0h2m2 0h1m3 0h1m1 0h1m1 0h3m1 0h1m-29 1h1m1 0h3m1 0h1m1 0h1m2 0h1m2 0h4m1 0h1m2 0h1m1 0h3m1 0h1m-29 1h1m1 0h3m1 0h1m5 0h3m1 0h2m1 0h2m1 0h1m1 0h3m1 0h1m-29 1h1m5 0h1m2 0h1m3 0h2m3 0h3m1 0h1m5 0h1m-29 1h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7m-21 1h5m2 0h1m1 0h3m-20 1h1m1 0h2m1 0h3m1 0h1m3 0h1m1 0h5m2 0h1m2 0h1m1 0h2m-29 1h1m1 0h1m1 0h1m2 0h3m5 0h2m2 0h6m3 0h1m-29 1h1m1 0h1m3 0h2m6 0h1m1 0h1m3 0h5m1 0h2m-28 1h2m1 0h1m3 0h3m1 0h1m1 0h1m1 0h1m4 0h2m6 0h1m-28 1h1m2 0h1m1 0h1m3 0h1m1 0h1m2 0h3m1 0h1m3 0h1m1 0h2m-27 1h1m2 0h3m1 0h3m1 0h1m1 0h3m3 0h1m1 0h2m3 0h3m-28 1h3m1 0h3m2 0h1m1 0h1m1 0h1m4 0h1m2 0h1m3 0h3m-27 1h1m1 0h1m2 0h3m2 0h2m1 0h2m2 0h3m2 0h1m2 0h1m-28 1h4m2 0h1m1 0h2m1 0h2m2 0h1m2 0h4m2 0h2m1 0h1m-25 1h1m1 0h1m1 0h1m2 0h1m1 0h2m1 0h2m6 0h1m1 0h3m-28 1h1m1 0h1m1 0h1m1 0h2m1 0h3m3 0h1m1 0h1m2 0h1m2 0h1m2 0h1m-24 1h3m1 0h2m1 0h1m1 0h1m2 0h3m2 0h2m2 0h1m1 0h1m-26 1h1m2 0h6m1 0h1m1 0h1m3 0h2m1 0h7m-19 1h2m2 0h6m1 0h2m3 0h5m-29 1h7m1 0h2m1 0h3m3 0h1m1 0h2m1 0h1m1 0h2m1 0h1m-28 1h1m5 0h1m1 0h2m5 0h1m2 0h1m1 0h1m3 0h2m-26 1h1m1 0h3m1 0h1m3 0h1m1 0h1m1 0h1m2 0h2m1 0h5m1 0h1m-27 1h1m1 0h3m1 0h1m1 0h3m1 0h3m1 0h1m3 0h2m1 0h3m2 0h1m-29 1h1m1 0h3m1 0h1m1 0h1m2 0h2m4 0h2m2 0h1m1 0h1m2 0h1m1 0h1m-29 1h1m5 0h1m3 0h1m3 0h2m3 0h3m1 0h1m1 0h1m1 0h1m-28 1h7m1 0h2m2 0h4m1 0h4m1 0h1m4 0h1"/></svg></td>
+          </tr></table>
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="footer">
+    <table><tr>
+      <td>Adeyemi Realty Ltd · Invoice INV-ADR-2027-000142 · Page 1 of 1</td>
+      <td style="text-align:right">Generated with GoProperty · goproperty.ng/verify</td>
+    </tr></table>
+  </div>
+</div>
+</body>
+</html>

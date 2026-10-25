@@ -1,28 +1,77 @@
 # GoProperty — SaaS Billing & Payments
 
-How GoProperty charges its customers (agencies / property owners) and how those charges are collected. Customer-side money flows (rent, utilities, receipts) are covered in [ARCHITECTURE.md § 6.4](ARCHITECTURE.md) and [DATABASE_SCHEMA.md § 4](DATABASE_SCHEMA.md).
+How GoProperty charges its customers (agencies / property owners) and how those charges are collected. Customer-side money flows (rent, utilities, receipts) are covered in [ONBOARDING_COMPLIANCE.md § 4](ONBOARDING_COMPLIANCE.md), [ARCHITECTURE.md § 6.4](ARCHITECTURE.md) and [DATABASE_SCHEMA.md § 4](DATABASE_SCHEMA.md).
+
+> **Revenue model: subscription only.** GoProperty earns from its own subscription invoices, paid by Paystack (card) or manual bank transfer. It takes **no fee on tenant payments** and never receives, holds or splits tenant money — tenants pay agencies directly ([ONBOARDING_COMPLIANCE.md § 0](ONBOARDING_COMPLIANCE.md)). The GoProperty Paystack account is used only for GoProperty's own subscription income.
 
 > **Why custom billing instead of Laravel Spark/Cashier:** Spark and Cashier speak Stripe/Paddle, neither of which is practical for Nigerian Naira collection. GoProperty implements a small, purpose-built billing layer around Paystack + manual bank transfer. It is deliberately boring: invoices, payments, webhooks, a ledger — no recurring-charge magic we don't control.
 
 ## 1. Pricing Model (per block/apartment)
 
-The spec: billing is based on the number of **blocks/apartments (units)**, not buildings. Recommended shape:
+Billing is based on the number of **blocks/apartments (units)**, not buildings: a base price that includes some units, plus a fee per extra unit. Monthly or annual. VAT is added on top.
 
-**Base plan + per-unit overage, monthly or annual:**
+### 1.1 Launch prices (editable in the console)
 
-| Plan | Base price (illustrative) | Included units | Per extra unit / month |
+| Plan | Base / month | Units included | Each extra unit / month | Annual (pay 10 months, get 12) |
+| --- | --- | --- | --- | --- |
+| **Starter** | ₦10,000 | 10 | ₦700 | ₦100,000 / year base |
+| **Growth** | ₦35,000 | 50 | ₦500 | ₦350,000 / year base |
+| **Scale** | ₦85,000 | 200 | ₦350 | ₦850,000 / year base |
+| **Enterprise** | from ₦250,000 | 1,000 | custom | custom contract |
+
+Examples (before 7.5% VAT):
+
+| Agency | Plan | Monthly | Per unit |
 | --- | --- | --- | --- |
-| Starter | ₦15,000 / month | 10 | ₦800 |
-| Growth | ₦40,000 / month | 50 | ₦600 |
-| Scale | ₦90,000 / month | 200 | ₦450 |
-| Enterprise | negotiated | negotiated | negotiated |
+| 8 units | Starter | ₦10,000 | ₦1,250 |
+| 30 units | Starter | ₦24,000 | ₦800 |
+| 60 units | Growth | ₦40,000 | ₦667 |
+| 250 units | Scale | ₦102,500 | ₦410 |
 
-- Prices are **illustrative placeholders** — to be finalized by the business before Phase 7.
-- Annual plans get ~2 months free (`annual_discount_percent`).
-- **Metering rule:** on the monthly billing day, count the org's units with `status != unavailable` and not soft-deleted, subtract `included_units`, floor at zero → `counted_units`. Bill `base_price + counted_units × unit_price`.
+**Why these prices**
+
+- Per unit, the cost is ₦400–₦1,250 a month, under 1% of a typical ₦1.5m–₦3m annual rent. It's a small fraction of what agencies earn per unit (typically 5–10% of rent in management fees, plus first-year agency fees), so the value case is easy to make.
+- Each plan becomes more expensive than the next one up just before its limit (Starter at 50 units = ₦38,000 vs Growth ₦35,000; Growth at 200 units = ₦110,000 vs Scale ₦85,000), so customers are nudged to upgrade without a hard cutoff.
+- Annual billing (2 months free) suits how Nigerian businesses budget, matches the yearly rent cycle, and protects against price changes from inflation.
+- **No free plan at launch:** a 14-day full trial without a card instead. Free plans bring support load without revenue. Revisit 6 months after launch.
+
+### 1.2 What each plan includes
+
+| Feature | Starter | Growth | Scale | Enterprise |
+| --- | :-: | :-: | :-: | :-: |
+| Properties, units, tenants, leases, bills | ✓ | ✓ | ✓ | ✓ |
+| Agency-branded invoices, receipts, statements ([BRANDING_DOCUMENTS.md](BRANDING_DOCUMENTS.md)) | ✓ | ✓ | ✓ | ✓ |
+| Tenant portal + owner portal & statements | ✓ | ✓ | ✓ | ✓ |
+| Bank transfer with statement matching + proof upload | ✓ | ✓ | ✓ | ✓ |
+| Excel import (dry run) & export ([DATA_IMPORT.md](DATA_IMPORT.md)) | ✓ | ✓ | ✓ | ✓ |
+| Maintenance tickets, email reminders | ✓ | ✓ | ✓ | ✓ |
+| Staff users | 3 | 10 | Unlimited | Unlimited |
+| SMS credits included / month | 100 | 500 | 2,000 | Custom |
+| Agency's own Paystack (online payments) | — | ✓ | ✓ | ✓ |
+| WhatsApp notifications (agency's own WhatsApp Business API) | — | ✓ | ✓ | ✓ |
+| Building Group | — | ✓ | ✓ | ✓ |
+| Agent ↔ building assignment, approval workflows | — | — | ✓ | ✓ |
+| Remove "Generated with GoProperty" from documents | — | — | ✓ | ✓ |
+| Assisted data import by GoProperty staff | — | — | ✓ | ✓ |
+| Support | Email | Email + chat | Priority + onboarding call | Dedicated manager |
+
+- **SMS:** included credits reset monthly. Extra SMS bundles are bought in-app (priced in the console, e.g. ₦6 per SMS page). WhatsApp messages are billed by Meta directly to the agency's own WhatsApp Business account, so GoProperty doesn't resell them.
+- **Transaction Tier is separate from plan.** Any plan can be on any tier.
+
+### 1.3 Changing prices
+
+- Plans, prices, included units, features and SMS credits are edited by `finance-admin` in the console (`plans`, `plan_feature` tables).
+- Existing customers keep their price until their next renewal, and get 30 days' notice by email and in-app banner. Customers can be "grandfathered" on an old price.
+- Every change is versioned and audited.
+
+### 1.4 Billing rules
+
+- Annual plans: 2 months free (`annual_discount_percent` ≈ 16.67%).
+- **Metering rule:** on the billing day, count **all of the org's units that are not soft-deleted and whose property is not archived**, regardless of occupancy or the `unavailable` status (so marking units unavailable can't be used to reduce the bill). Subtract `included_units`, floor at zero → `counted_units`. Bill `base_price + counted_units × unit_price`.
 - **Mid-cycle unit changes (MVP policy):** no proration. Adding units changes what is counted at the *next* billing day; removing units likewise. This is simple, explainable, and avoids credit-note machinery in v1. Proration is a listed post-MVP refinement.
 - VAT: 7.5% Nigerian VAT added as a separate line on every platform invoice.
 - Currency: **NGN only** at launch; amounts stored in kobo.
+- **Plans vs Transaction Tiers:** the plan (priced per unit) and the Transaction Tier (how much money the agency may manage, based on verification — [ONBOARDING_COMPLIANCE.md § 5](ONBOARDING_COMPLIANCE.md)) are independent.
 
 ## 2. Subscription Lifecycle
 
@@ -42,7 +91,7 @@ cancelled ◀──(owner cancels / non-payment)── suspended ◀──(grace
 | `past_due` | Invoice open past `due_date` | 7-day grace, prominent banner |
 | `grace` | Final 7 days before suspension | Read-only warnings, data intact |
 | `suspended` | Unpaid beyond grace | Login blocked to write actions; data retained; export tooling available; auto-reminder every 14 days |
-| `cancelled` | Terminated | Data retained 90 days, then NDPR-governed purge |
+| `cancelled` | Terminated | Data retained 90 days, then NDPA-governed purge |
 
 - Payment methods the customer can keep on file: Paystack card authorization (auto-charge attempt on invoice issue) or bank transfer (manual, see § 5).
 - **Suspension is reversible and non-destructive.** No data deletion ever happens automatically.
@@ -96,7 +145,7 @@ For customers who prefer transfer, or when card charge fails:
 
 1. Invoice shows GoProperty's settlement account + the invoice number as required narration.
 2. Customer (org owner) uploads proof (image/PDF) against the invoice from `/app/billing` → `platform_payments` row `pending` with proof.
-3. Platform `billing-admin` reviews in the console: confirms (invoice → paid, subscription → active, confirmation email) or rejects with reason (customer notified, may re-upload).
+3. Platform `finance-admin` reviews in the console: confirms (invoice → paid, subscription → active, confirmation email) or rejects with reason (customer notified, may re-upload).
 4. Every confirmation records `confirmed_by_user_id` + timestamp in the audit log. There is **no auto-confirmation** of manual proofs in v1; DVA (§ 4.1) is the scaling path.
 
 ## 6. Dunning & Retries
@@ -108,7 +157,7 @@ For customers who prefer transfer, or when card charge fails:
 | 7 days past due | Grace warning daily (email), banner escalates |
 | 14 days past due (grace end) | Suspend: write-actions blocked; SMS + email to owner; features gated by middleware |
 | Every 14 days suspended | Reminder re-send |
-| 90 days suspended | Mark `cancelled`; data purge timer starts (NDPR tooling handles erasure) |
+| 90 days suspended | Mark `cancelled`; data purge timer starts (NDPA tooling handles erasure) |
 
 Reactivation: any confirmed payment covering open invoices returns the subscription to `active` immediately (webhook or manual confirmation — same code path).
 
@@ -133,7 +182,7 @@ Rules:
 
 ## 8. Refunds & Credit Notes
 
-- Paystack refunds via API, only by `billing-admin`, always tied to a `platform_payment`, audit-logged, invoice returns to `open` unless a credit note replaces it.
+- Paystack refunds via API, only by `finance-admin` (second approval above the two-person threshold — [PLATFORM_CONSOLE.md § 1](PLATFORM_CONSOLE.md)), always tied to a `platform_payment`, audit-logged, invoice returns to `open` unless a credit note replaces it.
 - Overpayment / goodwill: create a credit note (post-MVP table `credit_notes`; MVP handles by adjusting the next invoice manually with an audit note).
 
 ## 9. Reports Feeding Off This Data
@@ -142,7 +191,11 @@ Rules:
 
 ## 10. Open Decisions for the Business
 
-1. Final plan prices, included-unit bands and per-unit rates (§ 1 placeholders).
+1. ~~Final plan prices~~ — set in § 1.1 (editable).
 2. Whether trial is 14 days, and whether trials require a card.
 3. VAT registration status of the platform company (affects invoice compliance lines).
 4. DVA provider timing: Paystack DVA at launch vs manual confirmation only (recommend: launch manual, add DVA in the first quarter after launch).
+5. ~~Transaction Tier thresholds~~ — set in [ONBOARDING_COMPLIANCE.md § 5.2](ONBOARDING_COMPLIANCE.md) (editable).
+6. ~~Which plans get automation~~ — statement matching on all plans; own Paystack and WhatsApp from Growth (§ 1.2).
+7. ~~Free tier~~ — no free plan at launch; 14-day trial (§ 1.1). Revisit after 6 months.
+8. Corporate customers deducting withholding tax: accept payment net of WHT on upload of the WHT credit note.
