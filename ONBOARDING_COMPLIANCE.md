@@ -112,7 +112,7 @@ Step details:
 2. **Organization:** type (`agency`, `property_owner`, `hybrid`), display name, slug (suggested from name), state/LGA, logo (optional). CAC number optional at Tier 1.
 3. **Transaction Tier:** the customer states expected yearly collections and picks a tier (§ 4). Tier 1 is instant. Tier 2/3 require documents; until approved the org works at Tier 1 limits, so signup is never blocked.
 4. **Plan & trial:** choose a subscription plan (priced per unit, [BILLING_PAYMENTS.md § 1](BILLING_PAYMENTS.md)). 14-day trial, no card required. Subscription status `trialing`.
-5. **Collections setup** (§ 3): add one or more bank accounts (name checked against the bank via Paystack account-name lookup) and/or connect the agency's own Paystack account.
+5. **Collections setup** (§ 4): add one or more bank accounts (name checked against the bank via Paystack account-name lookup) and/or connect the agency's own Paystack account.
 6. **Data:** Excel/CSV import with a dry run first — owners, properties, units, tenants, ongoing leases ("paid until"), opening balances, utilities ([DATA_IMPORT.md](DATA_IMPORT.md)) — or manual entry. Target: first bill sent within 30 minutes of signup.
    - **Branding:** logo, colours and letterhead, with a live preview of the invoice and receipt ([BRANDING_DOCUMENTS.md](BRANDING_DOCUMENTS.md)).
 7. A progress checklist on the dashboard tracks steps 3–6 (including branding) until complete.
