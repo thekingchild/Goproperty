@@ -22,7 +22,7 @@ GoProperty is a multi-tenant SaaS platform for property management in Nigeria. A
 
 ## Reading Order
 
-1. **[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)** — phased build plan, milestones, team assumptions, risks. Start here.
+1. **[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)** — phased build plan split into numbered tasks (P00-01 …), milestones, team assumptions, risks. Start here; current status of every task is in **[docs/PROGRESS.md](docs/PROGRESS.md)**.
 2. **[ARCHITECTURE.md](ARCHITECTURE.md)** — system architecture, tenancy model, role matrix, key subsystems (tickets, Building Group, reminders, documents), module system.
 3. **[DATABASE_SCHEMA.md](DATABASE_SCHEMA.md)** — full data model: tables, key columns, enums, relationships, integrity rules.
 4. **[BILLING_PAYMENTS.md](BILLING_PAYMENTS.md)** — SaaS pricing model, unit metering, Paystack integration, bank-transfer workflow, dunning and the billing-responsibility transfer flow.

@@ -78,12 +78,13 @@ Breaking any of these is a critical defect regardless of task size:
 ## 6. Task Workflow
 
 0. **Design checkpoint (done Oct 2026).** The product owner's SocietyFlow reference is captured in `docs/design/reference/`, and the approved GoProperty designs are `docs/design/templates/landing.html`, `login.html` and `login-2fa.html` ([UX_DESIGN.md § 5](UX_DESIGN.md)). Build the landing page and login pages to match those files; ask the product owner before departing from them.
-1. **Locate the phase** the task belongs to in [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md); if the task isn't covered by a phase or module in the docs, say so before coding.
+1. **Locate the task ID** (`P03-07` etc.) in [IMPLEMENTATION_PLAN.md § 3](IMPLEMENTATION_PLAN.md) and read [docs/PROGRESS.md](docs/PROGRESS.md) for current state. Resume the `In progress` task before starting another; otherwise take the earliest task whose dependencies are complete. Set it to `In progress` in both files before coding. If the work isn't covered by a task, say so before coding.
 2. **Plan the shape** (models/migrations/module/events/policies) in one short paragraph in the PR description before writing code for anything non-trivial.
 3. **Implement** following § 3–5. Small commits, imperative subjects (`Add payment confirmation policy`).
 4. **Verify:** full quality gate (§ 2), plus manual smoke of affected journeys if UI changed.
 5. **Update docs:** any change to schema, billing semantics, or architecture gets a same-PR edit to the relevant `.md` file. Docs drift is treated as a bug.
 6. **Definition of done:** lint clean, static analysis clean, tests green including new coverage, docs updated, no TODO left in money/tenancy code (TODOs elsewhere require a tracking comment).
+7. **Mark it complete** ([IMPLEMENTATION_PLAN.md § 3.1](IMPLEMENTATION_PLAN.md)): when every acceptance criterion in the task's row passes, in the same commit set its ID cell to `**Complete (YYYY-MM-DD)**`, add a ledger entry to [docs/PROGRESS.md](docs/PROGRESS.md) (what was delivered, tests and results, follow-ups, next task), and update the board there. When it is the phase's last task and the exit criteria pass, mark the phase heading and the § 2 Status column complete too. Never mark a task complete with a failing or skipped acceptance criterion — use `Blocked` or `In review` and say why.
 
 ## 7. Absolute Prohibitions
 

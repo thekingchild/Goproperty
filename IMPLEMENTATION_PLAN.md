@@ -1,6 +1,6 @@
 # GoProperty — Implementation Plan
 
-Companion documents: [ARCHITECTURE.md](ARCHITECTURE.md) · [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) · [BILLING_PAYMENTS.md](BILLING_PAYMENTS.md) · [ONBOARDING_COMPLIANCE.md](ONBOARDING_COMPLIANCE.md) · [PLATFORM_CONSOLE.md](PLATFORM_CONSOLE.md) · [UX_DESIGN.md](UX_DESIGN.md) · [BRANDING_DOCUMENTS.md](BRANDING_DOCUMENTS.md) · [DATA_IMPORT.md](DATA_IMPORT.md) · [AGENT.md](AGENT.md)
+Companion documents: [ARCHITECTURE.md](ARCHITECTURE.md) · [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) · [BILLING_PAYMENTS.md](BILLING_PAYMENTS.md) · [ONBOARDING_COMPLIANCE.md](ONBOARDING_COMPLIANCE.md) · [PLATFORM_CONSOLE.md](PLATFORM_CONSOLE.md) · [UX_DESIGN.md](UX_DESIGN.md) · [BRANDING_DOCUMENTS.md](BRANDING_DOCUMENTS.md) · [DATA_IMPORT.md](DATA_IMPORT.md) · [AGENT.md](AGENT.md) · [docs/PROGRESS.md](docs/PROGRESS.md)
 
 ## 1. Team & Timeline Assumptions
 
@@ -12,195 +12,213 @@ Companion documents: [ARCHITECTURE.md](ARCHITECTURE.md) · [DATABASE_SCHEMA.md](
 | Solo-dev scenario | Double every phase duration ≈ 11–12 months |
 | Sequencing principle | Money paths (tenancy → leasing → bills → receipts → SaaS billing) are built early and hardened continuously; collaboration features (Building Group) come last so they can't destabilize billing |
 
-Each phase below lists deliverables and acceptance criteria (AC). A phase is done when all ACs pass on staging, not when code is pushed.
+Each phase below is split into numbered tasks (`P00-01`, `P00-02`, …). Each task has its deliverable and its acceptance criteria (AC). A task is done when its ACs pass, not when code is pushed; a phase is done when every task is done and the phase exit criteria pass on staging.
 
 ## 2. Phase Overview
 
-| Phase | Name | Weeks | Milestone |
-| --- | --- | --- | --- |
-| 0 | Foundation, tooling, installer core, login pages & backups baseline | 1–2 | M0 |
-| 1 | Tenancy, auth, registration, Transaction Tiers, staff console core & web installer | 3–5 | M1 |
-| 2 | Properties, units, owners & import (part 1) | 6–8 | M2 |
-| 3 | Leasing, branded documents & the customer money loop + import (part 2) | 9–12 | M3 |
-| 4 | Maintenance tickets | 13 | M4 |
-| 5 | Reminders, notifications, email templates & WhatsApp | 14–15 | M5 |
-| 6 | SaaS billing, compliance monitoring & full platform console | 16–18 | M6 |
-| 7 | Building Group | 19 | M7 |
-| 8 | Reports, operations & analytics dashboards | 20 | M8 |
-| 9 | Hardening, NDPA & launch | 21–23 | M9 (Launch) |
+| Phase | Name | Weeks | Milestone | Status |
+| --- | --- | --- | --- | --- |
+| PRE | Decisions and accounts before coding | 0 | — | In progress |
+| P00 | Foundation, tooling, installer core, login pages & backups baseline | 1–2 | M0 | Not started |
+| P01 | Tenancy, auth, registration, Transaction Tiers, staff console core & web installer | 3–5 | M1 | Not started |
+| P02 | Properties, units, owners & import (part 1) | 6–8 | M2 | Not started |
+| P03 | Leasing, branded documents & the customer money loop + import (part 2) | 9–12 | M3 | Not started |
+| P04 | Maintenance tickets | 13 | M4 | Not started |
+| P05 | Reminders, notifications, email templates & WhatsApp | 14–15 | M5 | Not started |
+| P06 | SaaS billing, compliance monitoring & full platform console | 16–18 | M6 | Not started |
+| P07 | Building Group | 19 | M7 | Not started |
+| P08 | Reports, operations & analytics dashboards | 20 | M8 | Not started |
+| P09 | Hardening, NDPA & launch | 21–23 | M9 (Launch) | Not started |
 
-## 3. Phase Details
+## 3. Work Packages
 
-### Phase 0 — Foundation, tooling, login pages & backups baseline (Weeks 1–2)
+### 3.1 How tasks are tracked
 
-**Deliverables**
-- Laravel 13 project (Livewire 4 starter kit), PHP 8.4, MySQL 8, Filament 5, Pest 4; Sail for local dev. Exact versions pinned.
-- **Hosting profiles** ([ARCHITECTURE.md § 12.1](ARCHITECTURE.md), runbook [docs/runbooks/shared-hosting.md](docs/runbooks/shared-hosting.md)): config switches for queue/cache/session drivers, realtime (polling vs Reverb) and PDF driver (`dompdf` vs Chrome). Shared-hosting deploy pipeline (CI builds assets, deploys over SSH, runs migrations); scheduler and queue run **in-process** from the one cron line (no `exec`/`proc_open`, [INSTALLER.md § 8](INSTALLER.md)). CI also runs the test suite with the shared-hosting profile, on both MySQL 8 and MariaDB 10.6+. Staging runs on the same kind of cPanel/Plesk account as production.
-- CI: GitHub Actions running Pint, Larastan (level 6), Pest; branch protection on `main`.
-- **Installer core** ([INSTALLER.md](INSTALLER.md)) — built now so staging and every later phase are installed the same way production will be:
-  - Release package built by CI on each tag: zip with `vendor/` + built assets, `preferred` and `split` (public_html) layouts, `SHA256SUMS`, `VERSION`, PHP-version guard, package verifier (`goproperty:verify-package`).
-  - Installation markers (lock file + `installation_state` row + checkpoint, fail-closed), `AwaitApplicationKey` middleware, "being set up" 503 for public routes until finalized, `/install` 404 afterwards.
-  - Shared services used by both installers: requirements checker, atomic `.env` writer, DB connection probe, batched migration runner, idempotent seeders, finalizer (generates the `ADMIN_PATH` suffix).
-  - CLI: `goproperty:setup-token`, `goproperty:install` (interactive + `--no-interaction`), `goproperty:check-installation`.
-  - **Install drill in CI:** build → verify → unpack split layout → install under shared-host limits (`max_execution_time=30`, `exec`/`proc_open` disabled) on MySQL 8 and MariaDB 10.6; schema must match a plain `migrate`.
-- Module skeleton (nwidart/laravel-modules) with a `Core` area: tenancy trait (`BelongsToOrganization`) + `OrganizationContext` + middleware, base enums, money helper (kobo), settings store, activity log wiring.
-- Filament platform panel shell at the configurable `ADMIN_PATH` with separate `staff` guard, `platform_staff` table and path-scoped session cookie (auth-protected, empty).
-- Route skeleton on one domain: `/`, `/login`, `/o/{org-slug}`, `/portal`, `/owner`, `/pay/{ref}`, `/verify/{code}`, `/{ADMIN_PATH}` ([ONBOARDING_COMPLIANCE.md § 1](ONBOARDING_COMPLIANCE.md)). Hosts and admin path read from config so they can move to subdomains later.
-- Design system kickoff ([UX_DESIGN.md](UX_DESIGN.md)): Tailwind theme, app shell (sidebar nav, org switcher placeholder), blank page templates for all surfaces.
-- **Design checkpoint (done):** the approved designs are `docs/design/templates/landing.html`, `login.html` and `login-2fa.html` ([UX_DESIGN.md § 5](UX_DESIGN.md)).
-- **Configurable platform theme** ([PLATFORM_CONSOLE.md § 9](PLATFORM_CONSOLE.md)): theme settings → CSS variables for Tailwind 4 and Filament, default theme, draft/preview/publish; replaceable hero and login images; public website text, SEO and custom-code settings (§ 9.2–9.5).
-- **Login pages built to final quality** ([UX_DESIGN.md § 3](UX_DESIGN.md)): customer split-screen login (passkey, or email/phone number + password — no SMS at sign-in), 2FA challenge screen, staff login with mandatory 2FA, forgot/reset password; rate limits, lockout, Turnstile, no account enumeration. Visual spec: `docs/design/templates/login.html`, `login-2fa.html`.
-- Audit log (append-only, hash chain) and authentication/access log wired for both guards.
-- Backups baseline: nightly encrypted DB and files backups as separate jobs to S3-compatible storage + Google Drive (Shared Drive).
-- Staging environment provisioned **with the installer** (CLI path); deploy pipeline to staging on merge.
+- **Status lives in two places, kept in step:** the task's ID cell in the tables below, and the ledger in [docs/PROGRESS.md](docs/PROGRESS.md) (what was done, tests run, evidence, what is next).
+- **Status values:** `Not started` · `In progress` · `Blocked` (with reason) · `In review` · `Complete (YYYY-MM-DD)`. Write the status in bold after the ID, e.g. `P00-01 — **Complete (2026-11-03)**`.
+- **Marking a task complete:** only when every AC in its row passes and the quality gate in [AGENT.md § 2](AGENT.md) is green. In the same commit: (1) set the ID cell to `**Complete (date)**`, (2) add the ledger entry in `docs/PROGRESS.md`, (3) when it is the phase's last task and the exit criteria pass, mark the phase heading and the § 2 Status column `Complete (date)`.
+- **Order:** work the earliest task whose dependencies are complete. Finish or hand off the `In progress` task before starting another.
+- **Changing scope:** split a large task into sub-IDs (`P03-10a`, `P03-10b`) in `docs/PROGRESS.md` rather than renumbering. New work gets the next free ID in its phase; never reuse an ID.
 
-**Acceptance criteria**
-- `composer ci` runs lint + static analysis + tests locally and in CI.
-- A seeded demo user can log in and see empty shells of all three surfaces.
-- Tenancy trait enforced by a Larastan rule or test that fails when a scoped model is queried without context in test setup.
-- CI produces a verified release zip; the install drill passes on both databases; a fresh copy with no `APP_KEY` redirects to `/install` without touching the database or writing error logs.
+### PRE — Decisions and accounts before coding — In progress
 
-### Phase 1 — Tenancy, auth, registration, Transaction Tiers & staff console core (Weeks 3–5)
+From § 8. These are product-owner tasks, not code.
 
-**Deliverables**
-- Registration wizard ([ONBOARDING_COMPLIANCE.md § 2](ONBOARDING_COMPLIANCE.md)): account → email verification by link (no SMS) → organization (type, slug) → **Transaction Tier selection** → plan + trial → collections setup → import/first property, with a progress checklist. Property-owner signup with `platform_covered` handling; first user as `org-owner`.
-- Transaction Tier applications: document upload (CAC, SCUML, IDs, proof of address, beneficial owners for Tier 3), compliance review queue in the console, approve/reject/more-info, document expiry tracking.
-- Organization switcher for multi-org users; per-org role assignment via spatie teams.
-- Invitations (email + token): user invites with roles; invite acceptance sets password and joins org.
-- Org settings: profile, bank accounts (encrypted, name-checked), **branding** ([BRANDING_DOCUMENTS.md § 1](BRANDING_DOCUMENTS.md)): logo, colours with contrast check, letterhead, signature/stamp, prefixes, notes, layout choice, live invoice/receipt preview.
-- Platform console: customers list (orgs, users, statuses, tier), org suspend/reactivate actions, staff management with configurable roles (default set + custom roles from a permission catalogue) + 2FA enforcement, two-person approvals ([PLATFORM_CONSOLE.md § 1](PLATFORM_CONSOLE.md)).
-- Impersonation with reason, consent setting, 30-minute limit, banner, blocked money actions, and full audit ([PLATFORM_CONSOLE.md § 6](PLATFORM_CONSOLE.md)).
-- **Web installer wizard** ([INSTALLER.md § 4–5](INSTALLER.md)) on the auth-page shell: unlock by setup token **or file check** (no SSH), session-bound grant renewed per step, server check, site & database (auto-created `.env`), batched migrations with progress bar and resume, email + S3 storage tests, first super-admin with **2FA enrolled in the wizard**, finish screen (console path, detected cron line, live cron heartbeat check, installation record, next-steps checklist). The install drill walks the wizard over HTTP.
+| ID | Deliverable | Acceptance |
+| --- | --- | --- |
+| PRE-01 — **Not started** | Confirm the open decisions in [BILLING_PAYMENTS.md § 10](BILLING_PAYMENTS.md) and the handoff follow-ups (pricing bands, SMS provider, hosting budget) | Each decision written into the relevant doc |
+| PRE-02 — **Not started** | Written legal opinion on the no-funds-flow model; agency-owned Paystack setup confirmed with Paystack | Opinion and Paystack confirmation on file |
+| PRE-03 — **Not started** | Provision test/dev accounts: Paystack (test), Termii (test), object storage (live media + separate backup provider), Google Workspace Shared Drive, Cloudflare Turnstile, Sentry | Credentials stored in the team's secret store, never in the repo |
+| PRE-04 — **Not started** | Register `goproperty.ng`; buy cPanel or Plesk shared hosting checked against [docs/runbooks/shared-hosting.md § 1](docs/runbooks/shared-hosting.md) | Host passes every § 1 check; staging and production accounts exist |
+| PRE-05 — **Complete (2026-10-25)** | Design checkpoint: SocietyFlow reference captured, GoProperty designs approved ([UX_DESIGN.md § 5](UX_DESIGN.md)) | `docs/design/templates/landing.html`, `login.html`, `login-2fa.html` committed |
 
-**AC**
-- Two orgs created; user in both can switch; data never crosses orgs ( Pest tests probe cross-tenant access on every Phase-1 model).
-- Invited user with role `agent` sees only what § 5 of ARCHITECTURE.md grants.
-- A Tier 2 application with missing SCUML cannot be submitted; an approved one changes the org's tier and is audited.
-- Impersonating staff cannot confirm a payment or view bank/Paystack keys (tested); the org-owner receives the session summary email.
-- Visiting `/o/{slug}` of an org you don't belong to returns 404.
-- Suspending an org in the console blocks its users' write actions within one request.
-- Web install drill (file-check unlock, TOTP enrolment, finish) passes on MySQL 8 and MariaDB 10.6; after finish `/install` is 404 and no HTTP route can reset or re-run installation (tested).
+### P00 — Foundation, tooling, login pages & backups baseline (Weeks 1–2) — Not started
 
-### Phase 2 — Properties, units & owners (Weeks 6–7)
+Depends on: PRE-03 (test accounts) for P00-12 and P00-13; PRE-04 for P00-13.
 
-**Deliverables**
-- Owner profiles (person/company), buildings CRUD with amenities/photos, units CRUD (types, rent/service defaults, status board), bulk unit creation (e.g. "10 identical flats").
-- Agent↔building assignment (optional narrowing) and unit filters/lists with server-side pagination.
-- Org-to-org invitation flow UI: property owner invites agency; agency sees invite inbox; **billing transfer accept screen** with explicit amount (state machine in BILLING_PAYMENTS § 7) — the accept path can be fully wired later, but the invite + accept/decline record lands now.
-- Media library integration (photos, thumbnails) on S3-compatible storage with signed URLs.
-- **Data import, part 1** ([DATA_IMPORT.md](DATA_IMPORT.md)): import engine (streaming reader, column mapping with saved mappings, downloadable template, **dry run** with error/warning report, queued commit, batch rollback within 7 days, `external_ref` upserts) for owners, properties, units and tenants. Excel/CSV export of every list.
+| ID | Deliverable | Acceptance |
+| --- | --- | --- |
+| P00-01 — **Not started** | Laravel 13 project (Livewire 4 starter kit), PHP 8.4, MySQL 8, Filament 5, Pest 4; Sail for local dev. Exact versions pinned | Fresh clone installs and boots; resolved versions recorded in `docs/PROGRESS.md` |
+| P00-02 — **Not started** | CI: GitHub Actions running Pint, Larastan (level 6), Pest, on MySQL 8 and MariaDB 10.6+; branch protection on `main` | `composer ci` runs lint + static analysis + tests locally and in CI; both database jobs green |
+| P00-03 — **Not started** | **Hosting profiles** ([ARCHITECTURE.md § 12.1](ARCHITECTURE.md), [docs/runbooks/shared-hosting.md](docs/runbooks/shared-hosting.md)): config switches for queue/cache/session drivers, realtime (polling vs Reverb) and PDF driver (`dompdf` vs Chrome). Scheduler and queue run **in-process** from one cron line (no `exec`/`proc_open`, [INSTALLER.md § 8](INSTALLER.md)). Shared-hosting deploy pipeline (CI builds assets, deploys over SSH, runs migrations) | CI runs the full suite with the shared-hosting profile; cron-started worker processes a job with `exec`/`proc_open` disabled |
+| P00-04 — **Not started** | **Release package** ([INSTALLER.md](INSTALLER.md)): zip built by CI on each tag with `vendor/` + built assets, `preferred` and `split` (public_html) layouts, `SHA256SUMS`, `VERSION`, PHP-version guard, `goproperty:verify-package` | CI produces a release zip that `goproperty:verify-package` passes; a tampered file fails verification |
+| P00-05 — **Not started** | **Installer core services:** installation markers (lock file + `installation_state` row + checkpoint, fail-closed), `AwaitApplicationKey` middleware, "being set up" 503 until finalized, `/install` 404 afterwards; requirements checker, atomic `.env` writer, DB connection probe, batched migration runner, idempotent seeders, finalizer (generates the `ADMIN_PATH` suffix) | A fresh copy with no `APP_KEY` redirects to `/install` without touching the database or writing error logs; any one marker present keeps the installer closed |
+| P00-06 — **Not started** | **Installer CLI + install drill:** `goproperty:setup-token`, `goproperty:install` (interactive + `--no-interaction`), `goproperty:check-installation`; CI drill: build → verify → unpack split layout → install under shared-host limits (`max_execution_time=30`, `exec`/`proc_open` disabled) | Install drill passes on MySQL 8 and MariaDB 10.6; resulting schema matches a plain `migrate` |
+| P00-07 — **Not started** | Module skeleton (nwidart/laravel-modules) with a `Core` area: `BelongsToOrganization` trait + `OrganizationContext` + middleware, base enums, money helper (kobo), settings store, activity log wiring | A Larastan rule or test fails when a scoped model is queried without context; money helper unit-tested |
+| P00-08 — **Not started** | Filament platform panel shell at the configurable `ADMIN_PATH` (separate `staff` guard, `platform_staff` table, path-scoped session cookie). Route skeleton on one domain: `/`, `/login`, `/o/{org-slug}`, `/portal`, `/owner`, `/pay/{ref}`, `/verify/{code}`, `/{ADMIN_PATH}` ([ONBOARDING_COMPLIANCE.md § 1](ONBOARDING_COMPLIANCE.md)); hosts and admin path from config | Panel is auth-protected and empty; customer session cannot reach it; a seeded demo user can log in and see empty shells of all three surfaces |
+| P00-09 — **Not started** | Design system ([UX_DESIGN.md](UX_DESIGN.md)): Tailwind theme, app shell (sidebar nav, org switcher placeholder), blank page templates for all surfaces. **Configurable platform theme** ([PLATFORM_CONSOLE.md § 9](PLATFORM_CONSOLE.md)): theme settings → CSS variables for Tailwind 4 and Filament, default theme, draft/preview/publish; replaceable hero and login images; public website text, SEO and custom-code settings (§ 9.2–9.5). Landing page built from `docs/design/templates/landing.html` | Landing page matches the approved template at mobile and desktop; changing and publishing a theme colour updates both the customer app and Filament; draft does not leak to the public site |
+| P00-10 — **Not started** | **Login pages to final quality** ([UX_DESIGN.md § 3](UX_DESIGN.md)): customer split-screen login (passkey, or email/phone number + password — no SMS at sign-in), 2FA challenge, staff login with mandatory 2FA, forgot/reset password; rate limits, lockout, Turnstile, no account enumeration. Visual spec: `login.html`, `login-2fa.html` | Pages match the templates; tests cover rate limit, lockout, identical responses for unknown vs known accounts, staff cannot sign in without 2FA |
+| P00-11 — **Not started** | Audit log (append-only, hash chain) and authentication/access log wired for both guards | Tampering with a row breaks chain verification (tested); logins and failures recorded for both guards |
+| P00-12 — **Not started** | Backups baseline: nightly encrypted DB and files backups as separate jobs to S3-compatible storage + Google Drive (Shared Drive) | Both jobs run on schedule and land encrypted in both destinations; a backup decrypts and restores locally |
+| P00-13 — **Not started** | Staging provisioned **with the installer** (CLI path); deploy pipeline to staging on merge | Staging installed via `goproperty:install`; a merge to `main` deploys to staging automatically |
 
-**AC**
-- Creating 10 units in one bulk action; unit statuses drive occupancy counts on the building page.
-- Cross-org access tests pass (unit of org B not addressable by org A user via ID guessing).
-- Branding settings actually render on a sample document page.
-- Dry run of a 2,000-row workbook saves nothing and returns exact errors per row; commit then creates exactly the previewed records; re-importing the same file creates no duplicates; rollback removes the batch.
+**Phase exit:** all P00 tasks complete; the install drill and CI are green on both databases.
 
-### Phase 3 — Leasing & the customer money loop (Weeks 8–11) — *the heart*
+### P01 — Tenancy, auth, registration, Transaction Tiers, staff console core & web installer (Weeks 3–5) — Not started
 
-**Deliverables**
-- Tenant profiles (with user accounts for portal access). Invitations by email, agency WhatsApp, or copy link / QR; phone verified by opening a WhatsApp-delivered link or confirmed by the agency — no SMS codes. Agency-created one-time sign-in link for phone-only tenants who forget their password.
-- Lease engine: `CycleCalculator` (daily → biennial), lease CRUD with draft/reserve → active → renew/terminate, renewal referencing, deposit handling, contract PDF generation (via the PDF driver interface, branded template with signature blocks).
-- Rent billing: scheduler job generating rent bills from leases using `next_billing_date`; bill numbering.
-- **Branded documents** ([BRANDING_DOCUMENTS.md](BRANDING_DOCUMENTS.md)): invoice and receipt built from `docs/design/templates/`, three layouts, web + PDF views, QR verification codes, amount in words, branding snapshot per document, public `/verify/{code}` page and branded `/pay/{reference}` page.
-- Utility billing: utility types, per-unit settings, flat + metered (readings) utilities, utility bill PDF.
-- Payment collection ([ONBOARDING_COMPLIANCE.md § 4](ONBOARDING_COMPLIANCE.md)): org bank accounts with Paystack account-name check; unique `payment_reference` per bill; **bank statement import (CSV/XLSX) with matching** and one-tap/bulk confirm; **agency-owned Paystack connection** (encrypted keys, per-org webhook, verify-by-fetch, auto-confirm, online-payment cap); proof upload fallback with duplicate-image detection; cash/POS with direct-to-tenant receipt.
-- Payments loop: payment allocations across bills, tenant credit for excess, confirm/reject with reason, receipt PDF with sequential numbering and QR verification code, receipt void with second approver, notifications on every transition.
-- Tenant portal: my units, my bills, pay-instructions, upload proof, receipts, documents.
-- Expenses recording (category, property/unit linkage, receipt upload) — minimal now, reporting in Phase 8.
-- **Data import, part 2:** ongoing leases with **paid until** (no back-billing), opening balances (as `opening_balance` bills), tenant credits, deposits held, utility settings, optional payment history; tenant invitations only on request after review.
+Depends on: P00.
 
-**AC**
-- End-to-end integration test: create building → 3 units → tenant → lease (annual) → scheduler generates invoice → payment + proof upload → confirmation → receipt number sequence increments → tenant portal shows receipt. Also weekly and semi-annual cycles.
-- `CycleCalculator` property-based tests: period end always = start + cycle − 1 day across leap years and month-length edges.
-- Overpayment beyond bill balance goes to tenant credit and is applied to the next bill; voided bills accept nothing.
-- Invoice and receipt render identically (visual diff) with `dompdf` and Chrome drivers, on one A4 page for up to 8 line items.
-- Importing a lease that started in 2023 with "paid until" 31/12/2026 creates no past bills, and the first generated bill covers the period starting 01/01/2027; no reminders are sent for past dates.
-- Concurrent confirmations of the same bill cannot over-settle (locked transaction test).
-- Statement import: re-uploading the same statement creates no duplicate lines; a credit with the bill reference is matched with high confidence; one credit split across two bills settles both.
-- Agency Paystack webhook signed with the wrong org's key is rejected; replayed webhook creates one payment.
+| ID | Deliverable | Acceptance |
+| --- | --- | --- |
+| P01-01 — **Not started** | Organization switcher for multi-org users; per-org role assignment via spatie teams | Two orgs created; a user in both can switch; data never crosses orgs (Pest tests probe cross-tenant access on every Phase-1 model); visiting `/o/{slug}` of an org you don't belong to returns 404 |
+| P01-02 — **Not started** | Registration wizard ([ONBOARDING_COMPLIANCE.md § 2](ONBOARDING_COMPLIANCE.md)): account → email verification by link (no SMS) → organization (type, slug) → **Transaction Tier selection** → plan + trial → collections setup → import/first property, with a progress checklist. Property-owner signup with `platform_covered` handling; first user as `org-owner` | A new signup reaches the dashboard as `org-owner`; leaving mid-wizard resumes at the same step; property-owner signup sets `platform_covered` |
+| P01-03 — **Not started** | Transaction Tier applications: document upload (CAC, SCUML, IDs, proof of address, beneficial owners for Tier 3), compliance review queue in the console, approve/reject/more-info, document expiry tracking | A Tier 2 application with missing SCUML cannot be submitted; an approved one changes the org's tier and is audited |
+| P01-04 — **Not started** | Invitations (email + token): invite with roles; acceptance sets password and joins org | An invited user with role `agent` sees only what [ARCHITECTURE.md § 5](ARCHITECTURE.md) grants; expired/used tokens rejected |
+| P01-05 — **Not started** | Org settings: profile, bank accounts (encrypted, name-checked), **branding** ([BRANDING_DOCUMENTS.md § 1](BRANDING_DOCUMENTS.md)): logo, colours with contrast check, letterhead, signature/stamp, prefixes, notes, layout choice, live invoice/receipt preview | Bank numbers encrypted at rest; low-contrast colours rejected; preview reflects unsaved changes |
+| P01-06 — **Not started** | Platform console: customers list (orgs, users, statuses, tier), org suspend/reactivate | Suspending an org blocks its users' write actions within one request; reactivating restores them |
+| P01-07 — **Not started** | Console staff management: configurable roles (default set + custom roles from a permission catalogue), 2FA enforcement, two-person approvals ([PLATFORM_CONSOLE.md § 1](PLATFORM_CONSOLE.md)) | A two-person action cannot be approved by its requester; staff without 2FA are forced to enrol |
+| P01-08 — **Not started** | Impersonation with reason, consent setting, 30-minute limit, banner, blocked money actions and full audit ([PLATFORM_CONSOLE.md § 6](PLATFORM_CONSOLE.md)) | Impersonating staff cannot confirm a payment or view bank/Paystack keys (tested); the org-owner receives the session summary email |
+| P01-09 — **Not started** | **Web installer wizard** ([INSTALLER.md § 4–5](INSTALLER.md)) on the auth-page shell: unlock by setup token **or file check**, session-bound grant renewed per step, server check, site & database (auto-created `.env`), batched migrations with progress bar and resume, email + S3 storage tests, first super-admin with **2FA enrolled in the wizard**, finish screen (console path, detected cron line, live cron heartbeat, installation record, next steps). The install drill walks the wizard over HTTP | Web install drill (file-check unlock, TOTP enrolment, finish) passes on MySQL 8 and MariaDB 10.6; after finish `/install` is 404 and no HTTP route can reset or re-run installation (tested) |
 
-### Phase 4 — Maintenance tickets (Week 12)
+**Phase exit:** all P01 tasks complete; cross-tenant tests cover every Phase-1 model.
 
-**Deliverables**
-- Ticket lifecycle (draft → submitted → under_review → in_progress → resolved → closed, reopen), categories, priority, assignment, threaded replies with attachments, tenant "confirm resolution / reopen", status history.
-- Agent + tenant views (inbox by status), notification on transitions, ticket from lease context.
+### P02 — Properties, units, owners & import part 1 (Weeks 6–8) — Not started
 
-**AC**
-- Tenant can reopen a resolved ticket; staff see internal notes the tenant never sees (enforced server-side).
-- Status transitions invalid per state machine are rejected (tested).
+Depends on: P01.
 
-### Phase 5 — Reminders, notifications, email templates & WhatsApp (Weeks 14–15)
+| ID | Deliverable | Acceptance |
+| --- | --- | --- |
+| P02-01 — **Not started** | Owner profiles (person/company); buildings CRUD with amenities and photos | Cross-org access tests pass for owners and buildings |
+| P02-02 — **Not started** | Units CRUD (types, rent/service defaults, status board); bulk unit creation (e.g. "10 identical flats") | Creating 10 units in one bulk action works; unit statuses drive occupancy counts on the building page |
+| P02-03 — **Not started** | Agent↔building assignment (optional narrowing); unit filters and lists with server-side pagination | A unit of org B is not addressable by an org A user via ID guessing; a narrowed agent sees only assigned buildings |
+| P02-04 — **Not started** | Org-to-org invitation UI: property owner invites agency; agency invite inbox; **billing transfer accept screen** with explicit amount (state machine in [BILLING_PAYMENTS.md § 7](BILLING_PAYMENTS.md)) — invite + accept/decline record lands now, payer switch in P06-06 | Invite, accept and decline are recorded through `BillingTransferService`; invalid transitions rejected |
+| P02-05 — **Not started** | Media library (photos, thumbnails) on S3-compatible storage with signed URLs | Uploads validated (mime sniff, size); signed URLs expire; another org's media is not reachable |
+| P02-06 — **Not started** | **Import engine** ([DATA_IMPORT.md](DATA_IMPORT.md)): streaming reader, column mapping with saved mappings, downloadable template, **dry run** with error/warning report, queued commit, batch rollback within 7 days, `external_ref` upserts — for owners, properties, units and tenants | Dry run of a 2,000-row workbook saves nothing and returns exact errors per row; commit creates exactly the previewed records; re-importing the same file creates no duplicates; rollback removes the batch |
+| P02-07 — **Not started** | Excel/CSV export of every list | Every list page exports; exports respect the current filters and org scope |
 
-**Deliverables**
-- Reminder engine (`reminders:dispatch`) with dedupe keys; rent/utilities/lease-renewal ladders; overdue ladder.
-- SMS via Termii (bill reminders only, to verified/agency-confirmed numbers — no OTP); per-user channel preferences; `notification_deliveries` log with provider refs and cost.
-- Email template system ([PLATFORM_CONSOLE.md § 5](PLATFORM_CONSOLE.md)): database templates with whitelisted placeholders (never Blade), versions + rollback, live preview, test send, categories, org branding, bounce/complaint suppression.
-- Platform console: delivery health dashboard (failure rates, SMS spend).
-- SMS credits per plan (monthly allowance, in-app top-up, ledger).
-- **WhatsApp (optional, agency's own Business API)** ([ARCHITECTURE.md § 6.7](ARCHITECTURE.md)): connection settings, template sync from Meta, event → template mapping with variable mapping and preview, sending via Cloud API, status webhooks, tenant opt-in, fallback to SMS/email, per-event channel order.
+**Phase exit:** all P02 tasks complete; branding settings (P01-05) render on a sample document page.
 
-**AC**
-- Time-travel tests (Carbon::setTestNow) prove exact send days and zero duplicates across reruns.
-- SMS template stays under 160 chars; failed provider sends retry with backoff then surface in the health dashboard.
-- A WhatsApp template paused by Meta disables its mapping on next sync and that event falls back to SMS; a status webhook with a bad signature is rejected.
+### P03 — Leasing, branded documents & the customer money loop + import part 2 (Weeks 9–12) — *the heart* — Not started
 
-### Phase 6 — SaaS billing, compliance monitoring & full platform console (Weeks 16–18)
+Depends on: P02.
 
-**Deliverables**
-- Plans with launch prices and feature matrix ([BILLING_PAYMENTS.md § 1](BILLING_PAYMENTS.md)), editable in the console with versioning and 30-day customer notice; plan features + limits, trial, subscription lifecycle states and gating middleware.
-- Monthly metering + platform invoice generation + VAT line; Paystack integration (checkout, stored authorization, auto-charge, webhooks with verify-by-fetch, webhook log + replay); bank transfer proof upload + platform-staff confirmation flow; dunning ladder + suspension gating.
-- Billing responsibility transfer completion (switch payer on acceptance; new payer payment-method enrolment).
-- Platform console full build: customers, subscriptions, invoices, payments (Paystack + manual confirmations), refunds, feature overrides, staff audit, audit-log and access-log viewers.
-- Tier settings screen: editable tier limits and documents (two-person approval, effective dates, versions), per-organization overrides.
-- Transaction Tier monitoring ([ONBOARDING_COMPLIANCE.md § 5.4–5.5](ONBOARDING_COMPLIANCE.md)): daily `compliance:evaluate-tiers`, volume snapshots, flags (80%/100%/single-over/cash threshold/structuring/spike/document expiry), upgrade prompts, 30-day grace, restriction, compliance flag queue.
-- Backups console ([PLATFORM_CONSOLE.md § 4](PLATFORM_CONSOLE.md)): destinations, run now, list/download, verify, restore to staging, production restore with two-person approval.
-- Marketing/pricing page + plan checkout for new orgs.
+| ID | Deliverable | Acceptance |
+| --- | --- | --- |
+| P03-01 — **Not started** | Tenant profiles with user accounts for portal access. Invitations by email, agency WhatsApp, or copy link / QR; phone verified by opening a WhatsApp-delivered link or confirmed by the agency — no SMS codes. Agency-created one-time sign-in link for phone-only tenants | Each invite channel produces a working one-time link; used/expired links rejected |
+| P03-02 — **Not started** | `CycleCalculator` (daily → biennial) | Property-based tests: period end always = start + cycle − 1 day across leap years and month-length edges |
+| P03-03 — **Not started** | Lease engine via `LeaseService`: lease CRUD with draft/reserve → active → renew/terminate, renewal referencing, deposit handling, contract PDF (PDF driver interface, branded template with signature blocks) | Invalid lease transitions rejected; renewal links to the previous lease; contract PDF renders with both drivers |
+| P03-04 — **Not started** | Rent billing: scheduler job generating rent bills from leases using `next_billing_date`; bill numbering via `document_counters` | Rerunning the job creates no duplicate bills; numbers are gap-free under concurrency |
+| P03-05 — **Not started** | **Branded documents** ([BRANDING_DOCUMENTS.md](BRANDING_DOCUMENTS.md)): invoice and receipt from `docs/design/templates/`, three layouts, web + PDF views, QR verification codes, amount in words, branding snapshot per document, public `/verify/{code}` and branded `/pay/{reference}` pages | Invoice and receipt render identically (visual diff) with `dompdf` and Chrome, on one A4 page for up to 8 line items; changing branding later does not change issued documents |
+| P03-06 — **Not started** | Utility billing: utility types, per-unit settings, flat + metered (readings) utilities, utility bill PDF | Metered bill = (current − previous reading) × rate in kobo; flat utilities bill each cycle |
+| P03-07 — **Not started** | Collection setup ([ONBOARDING_COMPLIANCE.md § 4](ONBOARDING_COMPLIANCE.md)): org bank accounts with Paystack account-name check; unique `payment_reference` per bill; **bank statement import (CSV/XLSX) with matching** and one-tap/bulk confirm | Re-uploading the same statement creates no duplicate lines; a credit with the bill reference is matched with high confidence; one credit split across two bills settles both |
+| P03-08 — **Not started** | **Agency-owned Paystack connection**: encrypted keys, per-org webhook, verify-by-fetch, auto-confirm, online-payment cap | A webhook signed with the wrong org's key is rejected; a replayed webhook creates one payment; keys hidden during impersonation |
+| P03-09 — **Not started** | Proof upload fallback with duplicate-image detection; cash/POS with direct-to-tenant receipt | Same image uploaded twice is flagged; cash payment sends the receipt to the tenant |
+| P03-10 — **Not started** | Payments loop via `PaymentService`: allocations across bills, tenant credit for excess, confirm/reject with reason, receipt PDF with sequential numbering and QR code, receipt void with second approver, notifications on every transition | Overpayment goes to tenant credit and is applied to the next bill; voided bills accept nothing; concurrent confirmations of the same bill cannot over-settle (locked transaction test); void needs a second approver |
+| P03-11 — **Not started** | Tenant portal: my units, my bills, pay instructions, upload proof, receipts, documents | Tenant sees only their own leases/bills; portal usable at 360px width |
+| P03-12 — **Not started** | Expenses recording (category, property/unit linkage, receipt upload) — reporting comes in P08 | Expenses scoped to org; receipt upload validated |
+| P03-13 — **Not started** | **Data import, part 2:** ongoing leases with **paid until** (no back-billing), opening balances (as `opening_balance` bills), tenant credits, deposits held, utility settings, optional payment history; tenant invitations only on request after review | Importing a lease that started in 2023 with "paid until" 31/12/2026 creates no past bills; the first generated bill covers the period from 01/01/2027; no reminders for past dates; no tenant contacted automatically |
 
-**AC**
-- Paystack sandbox end-to-end: invoice → charge → webhook → paid → active; failed charge → retry ladder → past_due → grace → suspended (write-blocked) → pay → reactivated.
-- Webhook replay (same event twice) produces one payment record; forged-signature webhook is dropped and logged.
-- Accepting a billing transfer in UI moves `payer_organization_id` and next invoice routes to the new payer.
-- Suspension blocks every write surface (spot-check list of 10 actions in tests).
-- Time-travel test: an org crossing 80% and 100% of its tier gets exactly one flag each; after 30 days without an application it becomes restricted, yet tenants can still view bills, upload proofs and receive receipts.
-- Backup verify restores the latest dump into a temporary database successfully; production restore cannot start without a second approver.
+**Phase exit:** all P03 tasks complete; end-to-end integration test passes: building → 3 units → tenant → lease (annual) → scheduler generates invoice → payment + proof upload → confirmation → receipt number increments → tenant portal shows receipt. Same for weekly and semi-annual cycles.
 
-### Phase 7 — Building Group (Week 19)
+### P04 — Maintenance tickets (Week 13) — Not started
 
-**Deliverables**
-- Per-building group (auto-created), membership sync from leases, posts/comments/reactions, rich text (limited toolbar, sanitized), images (validated + thumbnails), polling updates (shared hosting) with Reverb realtime on VPS, moderation (pin/hide/mute), report-abuse.
+Depends on: P03-01 (tenants) and P03-03 (leases).
 
-**AC**
-- Two browser sessions see a post/comment/reaction within 30 s by polling (shared-hosting profile) and within 1 s via Reverb (VPS profile).
-- XSS suite: script/iframe/onload payloads in rich text are neutralized; uploads of disallowed types rejected.
-- Hidden/removed posts vanish for members but remain for moderators with an audit trail.
+| ID | Deliverable | Acceptance |
+| --- | --- | --- |
+| P04-01 — **Not started** | Ticket lifecycle via `TicketService`: draft → submitted → under_review → in_progress → resolved → closed, reopen; categories, priority, assignment, status history | Transitions invalid per the state machine are rejected (tested); tenant can reopen a resolved ticket |
+| P04-02 — **Not started** | Threaded replies with attachments; staff internal notes; tenant "confirm resolution / reopen" | Staff see internal notes the tenant never sees (enforced server-side) |
+| P04-03 — **Not started** | Agent and tenant views (inbox by status), notification on transitions, ticket from lease context | Each transition notifies the right party once |
 
-### Phase 8 — Reports, operations & analytics dashboards (Week 20)
+**Phase exit:** all P04 tasks complete.
 
-**Deliverables**
-- Customer app dashboards: occupancy, collections vs billed, arrears aging, upcoming renewals, expenses by category, per-building performance; date-range filters; CSV + PDF export.
-- System Analytics dashboard ([PLATFORM_CONSOLE.md § 3](PLATFORM_CONSOLE.md)): MRR/ARR, signups and trial conversion, churn, unit growth, tier distribution, recorded collections by channel, customer leaderboard — from nightly `daily_platform_metrics`.
-- System Operations dashboard ([PLATFORM_CONSOLE.md § 2](PLATFORM_CONSOLE.md)): queues, scheduler heartbeat, webhooks (own + per agency), messaging, backups, storage, security; alerts to Slack/email.
-- Cached aggregates for dashboards; report queries documented for the read-replica config.
+### P05 — Reminders, notifications, email templates & WhatsApp (Weeks 14–15) — Not started
 
-**AC**
-- Arrears aging buckets (0–30/31–60/61–90/90+) reconcile against a hand-computed fixture org.
-- Every report has a feature test with seeded edge data (voided bills excluded, refunds netted).
+Depends on: P03.
 
-### Phase 9 — Hardening, NDPA & launch (Weeks 21–23)
+| ID | Deliverable | Acceptance |
+| --- | --- | --- |
+| P05-01 — **Not started** | Reminder engine (`reminders:dispatch`) with dedupe keys; rent/utilities/lease-renewal ladders; overdue ladder | Time-travel tests (`Carbon::setTestNow`) prove exact send days and zero duplicates across reruns |
+| P05-02 — **Not started** | SMS via Termii (bill reminders only, to verified/agency-confirmed numbers — no OTP); per-user channel preferences; `notification_deliveries` log with provider refs and cost | SMS template stays under 160 chars; failed sends retry with backoff then surface in the health dashboard; unverified numbers never texted |
+| P05-03 — **Not started** | SMS credits per plan (monthly allowance, in-app top-up, ledger) | Sending stops at zero credit; ledger balances to allowance + top-ups − sends |
+| P05-04 — **Not started** | Email template system ([PLATFORM_CONSOLE.md § 5](PLATFORM_CONSOLE.md)): database templates with whitelisted placeholders (never Blade), versions + rollback, live preview, test send, categories, org branding, bounce/complaint suppression | Blade/PHP in a template renders as plain text; rollback restores the previous version; suppressed addresses are skipped |
+| P05-05 — **Not started** | Platform console: delivery health dashboard (failure rates, SMS spend) | Dashboard figures match the `notification_deliveries` log for a fixture |
+| P05-06 — **Not started** | **WhatsApp (optional, agency's own Business API)** ([ARCHITECTURE.md § 6.7](ARCHITECTURE.md)): connection settings, template sync from Meta, event → template mapping with variable mapping and preview, Cloud API sending, status webhooks, tenant opt-in, fallback to SMS/email, per-event channel order | A template paused by Meta disables its mapping on next sync and that event falls back to SMS; a status webhook with a bad signature is rejected |
 
-**Deliverables**
-- Security review: policy coverage sweep, rate-limit audit, upload validation audit, dependency audit, session/2FA checks; external pen-test if budget allows.
-- NDPA 2023 + GAID 2025: data protection officer named, breach response plan (72-hour notification), consent records, data-export tooling (per tenant/org), erasure request workflow with 90-day retention enforcement, privacy policy + terms pages.
-- Load test (k6) on hot paths: dashboard, bills list, group feed; fix N+1/cache gaps.
-- Backup + restore drill on staging from production-like data; runbook written (`docs/runbooks/`).
-- Seed production demo org; monitoring/alerting wired (Sentry → Slack, queue-depth alerts); launch checklist executed.
-- **Installer & upgrades, final:** console **System → Version** page (current/latest version, pending migrations, last backup; read-only — no in-app code download), authenticated batched "run pending migrations" step for no-SSH upgrades, upgrade drill in CI (previous release → new), runbooks `docs/runbooks/install.md`, `install-recovery.md`, `upgrade.md`, and the owner's install guide with SSH and no-SSH variants for cPanel and Plesk.
+**Phase exit:** all P05 tasks complete.
 
-**AC**
-- Restore drill achieves stated RPO/RTO (§ 11 ARCHITECTURE.md) and the runbook is followed verbatim by someone other than the author.
-- Launch checklist (below) fully ticked.
-- Real installs on a cPanel and a Plesk account (one with SSH, one without) follow the owner's guide word for word; one zip upgrade + rollback rehearsed on staging.
+### P06 — SaaS billing, compliance monitoring & full platform console (Weeks 16–18) — Not started
+
+Depends on: P05 (dunning notifications) and P01 (console core).
+
+| ID | Deliverable | Acceptance |
+| --- | --- | --- |
+| P06-01 — **Not started** | Plans with launch prices and feature matrix ([BILLING_PAYMENTS.md § 1](BILLING_PAYMENTS.md)), editable in the console with versioning and 30-day customer notice; features + limits, trial, subscription lifecycle states via `SubscriptionService`, gating middleware | Price change cannot take effect before 30 days' notice; over-limit actions blocked by middleware |
+| P06-02 — **Not started** | Monthly metering + platform invoice generation + VAT line | Rerunning metering creates one invoice per org per period; VAT matches [BILLING_PAYMENTS.md § 10](BILLING_PAYMENTS.md) |
+| P06-03 — **Not started** | Platform Paystack: checkout, stored authorization, auto-charge, webhooks with verify-by-fetch, webhook log + replay | Sandbox end-to-end: invoice → charge → webhook → paid → active. Same event twice produces one payment; forged-signature webhook is dropped and logged |
+| P06-04 — **Not started** | Bank transfer proof upload + platform-staff confirmation flow | Proof alone never marks an invoice paid; confirmation is audited |
+| P06-05 — **Not started** | Dunning ladder + suspension gating | Failed charge → retry ladder → past_due → grace → suspended (write-blocked) → pay → reactivated; suspension blocks every write surface (spot-check list of 10 actions in tests) |
+| P06-06 — **Not started** | Billing responsibility transfer completion: switch payer on acceptance; new payer payment-method enrolment | Accepting a billing transfer in the UI moves `payer_organization_id` and the next invoice routes to the new payer |
+| P06-07 — **Not started** | Platform console full build: customers, subscriptions, invoices, payments (Paystack + manual), refunds, feature overrides, staff audit, audit-log and access-log viewers | Every page policy-checked per staff role; refunds need the configured approval |
+| P06-08 — **Not started** | Tier settings screen: editable tier limits and documents (two-person approval, effective dates, versions), per-organization overrides | A limit change needs a second approver and applies from its effective date |
+| P06-09 — **Not started** | Transaction Tier monitoring ([ONBOARDING_COMPLIANCE.md § 5.4–5.5](ONBOARDING_COMPLIANCE.md)): daily `compliance:evaluate-tiers`, volume snapshots, flags (80%/100%/single-over/cash threshold/structuring/spike/document expiry), upgrade prompts, 30-day grace, restriction, compliance flag queue | Time-travel: an org crossing 80% and 100% gets exactly one flag each; after 30 days without an application it becomes restricted, yet tenants can still view bills, upload proofs and receive receipts |
+| P06-10 — **Not started** | Backups console ([PLATFORM_CONSOLE.md § 4](PLATFORM_CONSOLE.md)): destinations, run now, list/download, verify, restore to staging, production restore with two-person approval | Backup verify restores the latest dump into a temporary database; production restore cannot start without a second approver |
+| P06-11 — **Not started** | Marketing/pricing page + plan checkout for new orgs | Pricing page reads live plan data; checkout starts a subscription in sandbox |
+
+**Phase exit:** all P06 tasks complete.
+
+### P07 — Building Group (Week 19) — Not started
+
+Depends on: P03 (leases drive membership).
+
+| ID | Deliverable | Acceptance |
+| --- | --- | --- |
+| P07-01 — **Not started** | Per-building group (auto-created), membership sync from leases | Ending a lease removes the tenant from the group; a new lease adds them |
+| P07-02 — **Not started** | Posts, comments, reactions; rich text (limited toolbar, sanitized); images (validated + thumbnails) | XSS suite: script/iframe/onload payloads neutralized; disallowed upload types rejected |
+| P07-03 — **Not started** | Polling updates (shared hosting) with Reverb realtime on VPS | Two browser sessions see a post/comment/reaction within 30 s by polling (shared-hosting profile) and within 1 s via Reverb (VPS profile) |
+| P07-04 — **Not started** | Moderation (pin/hide/mute), report-abuse | Hidden/removed posts vanish for members but remain for moderators with an audit trail |
+
+**Phase exit:** all P07 tasks complete.
+
+### P08 — Reports, operations & analytics dashboards (Week 20) — Not started
+
+Depends on: P03, P06.
+
+| ID | Deliverable | Acceptance |
+| --- | --- | --- |
+| P08-01 — **Not started** | Customer dashboards: occupancy, collections vs billed, arrears aging, upcoming renewals, expenses by category, per-building performance; date-range filters; CSV + PDF export | Arrears aging buckets (0–30/31–60/61–90/90+) reconcile against a hand-computed fixture org; every report has a feature test with seeded edge data (voided bills excluded, refunds netted) |
+| P08-02 — **Not started** | System Analytics dashboard ([PLATFORM_CONSOLE.md § 3](PLATFORM_CONSOLE.md)): MRR/ARR, signups and trial conversion, churn, unit growth, tier distribution, recorded collections by channel, customer leaderboard — from nightly `daily_platform_metrics` | Metrics match a fixture; nightly job is idempotent |
+| P08-03 — **Not started** | System Operations dashboard ([PLATFORM_CONSOLE.md § 2](PLATFORM_CONSOLE.md)): queues, scheduler heartbeat, webhooks (own + per agency), messaging, backups, storage, security; alerts to Slack/email | A stopped scheduler raises an alert within the configured window |
+| P08-04 — **Not started** | Cached aggregates for dashboards; report queries documented for the read-replica config | Dashboards load from cache; cache invalidates on relevant writes |
+
+**Phase exit:** all P08 tasks complete.
+
+### P09 — Hardening, NDPA & launch (Weeks 21–23) — Not started
+
+Depends on: P00–P08.
+
+| ID | Deliverable | Acceptance |
+| --- | --- | --- |
+| P09-01 — **Not started** | Security review: policy coverage sweep, rate-limit audit, upload validation audit, dependency audit, session/2FA checks; external pen-test if budget allows | No open critical/high findings |
+| P09-02 — **Not started** | NDPA 2023 + GAID 2025: data protection officer named, breach response plan (72-hour notification), consent records, data export (per tenant/org), erasure workflow with 90-day retention enforcement, privacy policy + terms pages | Export contains all of a tenant's data and nothing of others; erasure completes within retention rules |
+| P09-03 — **Not started** | Load test (k6) on hot paths: dashboard, bills list, group feed; fix N+1/cache gaps | Hot paths meet the agreed latency budget on the shared-hosting profile |
+| P09-04 — **Not started** | Backup + restore drill on staging from production-like data; runbook in `docs/runbooks/` | Drill achieves the RPO/RTO in [ARCHITECTURE.md § 11](ARCHITECTURE.md); the runbook is followed verbatim by someone other than the author |
+| P09-05 — **Not started** | Seed production demo org; monitoring/alerting (Sentry → Slack, queue-depth alerts) | A test error reaches Slack; queue-depth alert fires in a drill |
+| P09-06 — **Not started** | **Upgrades:** console **System → Version** page (current/latest version, pending migrations, last backup; read-only), authenticated batched "run pending migrations" for no-SSH upgrades, upgrade drill in CI (previous release → new) | Upgrade drill passes on both databases; one zip upgrade + rollback rehearsed on staging |
+| P09-07 — **Not started** | Runbooks `docs/runbooks/install.md`, `install-recovery.md`, `upgrade.md`; owner's install guide with SSH and no-SSH variants for cPanel and Plesk | Real installs on a cPanel and a Plesk account (one with SSH, one without) follow the guide word for word |
+| P09-08 — **Not started** | Launch checklist (§ 4) executed | Every box in § 4 ticked |
+
+**Phase exit:** all P09 tasks complete — launch.
 
 ## 4. Launch Checklist
 
@@ -266,6 +284,8 @@ Ordered by expected demand in the Nigerian market:
 (Tenant online payments via the agency's own Paystack and WhatsApp notifications moved into the MVP.)
 
 ## 8. Immediate Next Steps (this week)
+
+Items 1, 3 and 4 are tracked as tasks PRE-01 to PRE-04 in § 3.
 
 1. Confirm the open decisions in [BILLING_PAYMENTS.md § 10](BILLING_PAYMENTS.md) and the follow-up questions raised in the handoff notes (pricing bands, SMS provider choice, hosting budget).
 2. Brand is a setting, not a blocker: start with the default theme and change it in the console later ([PLATFORM_CONSOLE.md § 9](PLATFORM_CONSOLE.md)). The SocietyFlow-style design reference is requested from the product owner at the Phase 0 design checkpoint.
