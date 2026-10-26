@@ -48,7 +48,21 @@ final class CronLine
 
     public function line(string $basePath): string
     {
-        return '* * * * * '.self::quote($this->phpBinary()).' '.self::quote(rtrim($basePath, '/').'/artisan').' schedule:run >> /dev/null 2>&1';
+        return '* * * * * '.self::quote($this->phpBinary()).' '.self::quote(self::stablePath($basePath).'/artisan').' schedule:run >> /dev/null 2>&1';
+    }
+
+    /**
+     * In the deploy layout (releases/<name>/ beside shared/), cron must run
+     * current/artisan: release folders are replaced and pruned on deploys
+     * (docs/runbooks/shared-hosting.md § 2).
+     */
+    public static function stablePath(string $basePath): string
+    {
+        $basePath = rtrim($basePath, '/');
+        $releases = dirname($basePath);
+        $app = dirname($releases);
+
+        return basename($releases) === 'releases' && is_dir($app.'/shared') ? $app.'/current' : $basePath;
     }
 
     private static function quote(string $value): string

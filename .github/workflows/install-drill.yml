@@ -1,9 +1,10 @@
 # Install drill (INSTALLER.md § 12, P00-06): builds the release package,
 # installs its split layout with `goproperty:install` under shared-host
 # limits (max_execution_time=30, exec/proc_open disabled), checks the site,
-# and compares the schema with a plain `migrate`. Runs nightly, on pull
-# requests that touch migrations or the installer, by hand, and before every
-# release (release.yml).
+# and compares the schema with a plain `migrate`; then the deploy drill
+# (P00-13): first install into the releases/shared layout, upgrades and
+# refusals. Runs nightly, on pull requests that touch migrations, the
+# installer or the deploy scripts, by hand, and before every release.
 name: Install drill
 
 on:
@@ -16,6 +17,7 @@ on:
       - 'app/Installer/**'
       - 'app/Console/Commands/InstallCommand.php'
       - 'scripts/release/**'
+      - 'scripts/deploy/**'
   workflow_dispatch:
   workflow_call:
 
@@ -98,3 +100,11 @@ jobs:
 
       - name: Install drill
         run: scripts/release/install-drill.sh "$RUNNER_TEMP/dist/goproperty-0.0.0-drill.${GITHUB_RUN_NUMBER}.zip"
+
+      - name: Build deploy archive
+        run: scripts/deploy/build-release.sh "$RUNNER_TEMP/release.tar.gz"
+
+      # First install into the deploy layout, upgrade, a failing release, a
+      # failed pre-deploy backup and pruning (P00-13, docs/runbooks/shared-hosting.md).
+      - name: Deploy drill
+        run: scripts/deploy/deploy-drill.sh "$RUNNER_TEMP/release.tar.gz"

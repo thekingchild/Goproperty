@@ -8,8 +8,9 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 - **In progress:** none
 - **In review:** P00-03 (hosting profiles), P00-04 (release package) and P00-06 (installer CLI + install drill): done and verified locally; each needs one green run in GitHub Actions (CI for P00-03, a tagged Release for P00-04, the Install drill on MySQL 8 and MariaDB 10.6 for P00-06) once Actions starts jobs. P00-12 (backups): built and drilled locally; needs one real run to an S3-compatible bucket and a Google Shared Drive (PRE-03 accounts)
-- **Next task:** P00-13 (staging installed with the installer, deploy pipeline); PRE-01 to PRE-04 continue with the product owner
+- **Next task:** P01-01 (organization switcher, roles per organization); PRE-01 to PRE-04 continue with the product owner
 - **Blocked:** P00-02: GitHub Actions jobs are not being given a runner (account-level), and branch protection on `main` needs a repo admin. This also holds P00-03's CI check, P00-04's release run and P00-06's install drill
+- **Blocked:** P00-13 (staging): the deploy scripts, the deploy on merge and the deploy drill are built and drilled locally; it needs a staging host (PRE-04) and working Actions runners (P00-02)
 
 ## Board
 
@@ -31,6 +32,46 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 ## Ledger (newest first)
 
 Each entry: task ID and status, date, what was delivered, tests run and results, follow-ups, next task.
+
+### P00-13 — Blocked (2026-10-26): staging install and deploy on merge, built and drilled locally
+
+**Status:** Blocked. Everything that can be built without a server is done and drilled on one machine. The AC needs a real staging host (PRE-04, with the product owner) and GitHub Actions starting jobs (P00-02).
+
+**To close it:**
+1. Create the staging hosting account (PRE-04) with SSH, PHP 8.4 and an empty MySQL/MariaDB database.
+2. In GitHub, create the `staging` environment with the variables `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_PATH`, `DEPLOY_PHP` (and `DEPLOY_PORT` if not 22) and the secret `DEPLOY_SSH_KEY` ([shared-hosting.md § 3](runbooks/shared-hosting.md)).
+3. Build a deploy archive and run `scripts/deploy/first-install.sh` over SSH, which runs `goproperty:install` (runbook § 2 step 4). Add the cron line it prints.
+4. Add the two backup destinations there and do P00-12's real backup run.
+5. Merge a change to `main`; the Deploy workflow deploys staging. Check `/up`, the login pages and that `current` points at the new release. Then mark P00-13 Complete.
+
+**Delivered:**
+- **First install into the deploy layout:** `scripts/deploy/first-install.sh` unpacks a deploy archive into `releases/<name>/`, links `.env` to `shared/.env` (mode 600) and `storage/` to `shared/storage/`, runs `goproperty:install` with any options after `--`, checks that the key was written to the shared file, and only then points `current` at the release. It refuses to run if `current` already exists.
+- **Installer fixes for that layout:**
+  - `AtomicFile` now follows symlinks before its write-and-rename, so the installer writes `shared/.env` instead of replacing the release's `.env` link with a file the next deploy would lose.
+  - `CronLine` prints `<app>/current/artisan schedule:run` when the app runs from `releases/<name>` next to `shared/`, so the cron line survives deploys.
+- **Deploy on merge:** `.github/workflows/deploy.yml` now runs on every push to `main` and deploys `staging`; production stays a manual run. Until the `staging` environment has `DEPLOY_HOST`, a push run ends with a warning instead of failing. Runs per environment are serialised.
+- **Backup before migrating (optional):** with the environment variable `DEPLOY_BACKUP_FIRST=1` (meant for production), `remote-deploy.sh` runs `goproperty:backup-run db` before migrations. A failed backup stops the deploy and the live release stays.
+- **Deploy drill:** `scripts/deploy/deploy-drill.sh` runs under shared-host limits (30 s, 256 MB, `exec`/`proc_open`/`pcntl` off):
+  1. first install via `first-install.sh` and `goproperty:install`, then checks for the link, `APP_KEY`, `ADMIN_PATH`, mode 600, the install lock, the cron line, and the site, `/login` and the console login over HTTP;
+  2. an upgrade that keeps `shared/.env` byte for byte;
+  3. a release with a failing migration, which never goes live;
+  4. `BACKUP_FIRST=1` without a destination, which stops the deploy;
+  5. pruning to `KEEP_RELEASES=2`.
+
+  The Install drill workflow now also builds a deploy archive and runs this drill, and runs on pull requests that touch `scripts/deploy/`.
+- **Docs:** [shared-hosting.md](runbooks/shared-hosting.md) § 2 (first install with the script), § 3 (deploy on merge, `DEPLOY_BACKUP_FIRST`) and § 4 (backups now use the pure-PHP dumper and `goproperty:backup-destination:add`; the old text still said `mysqldump` via `exec`).
+
+**Tests and evidence (local, MariaDB 11.4.12):**
+- `composer ci`: Pint passed, Larastan 0 errors, Pest **823 passed, 1 skipped (2,813 assertions)**. New: writing `.env` through a symlink, and the cron line in the releases layout.
+- Deploy drill: passed, all five steps.
+- Release `0.13.0-rc.1` (65 MB) built; the verify drill and the install drill passed (schema identical, 186 columns and tables).
+- `deploy.yml` and `install-drill.yml` parse as valid YAML. Neither has run in GitHub, because Actions has no runners yet (P00-02).
+
+**Follow-ups:**
+- HSTS where staging and production terminate HTTPS (from P00-10a).
+- Give the `production` environment a required reviewer when it is created.
+
+**Next:** P01-01 (organization switcher, roles per organization). P00-13 and P00-12 close when staging exists.
 
 ### P00-12 — In review (2026-10-26): P00-12b files backup, Google Drive destination, our own dumper
 

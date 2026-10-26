@@ -9,6 +9,7 @@
 #
 # Usage: remote-deploy.sh <app-dir> <archive.tar.gz> <release-name> [php-binary]
 # Env:   MAINTENANCE=1     maintenance mode around migrations (schema-breaking releases)
+#        BACKUP_FIRST=1    back up the database before migrating; a failed backup stops the deploy
 #        KEEP_RELEASES=5   releases kept for rollback
 set -Eeuo pipefail
 
@@ -23,6 +24,7 @@ release=$3
 php=${4:-php}
 keep=${KEEP_RELEASES:-5}
 maintenance=${MAINTENANCE:-0}
+backup_first=${BACKUP_FIRST:-0}
 down=0
 
 fail() {
@@ -69,6 +71,13 @@ artisan() {
 # Refuse a release whose hosting settings cannot work together, before
 # anything changes (ARCHITECTURE.md § 12.1).
 artisan goproperty:hosting
+
+# A restorable copy of the data from just before this release's migrations
+# (INSTALLER.md § 10, docs/runbooks/restore.md).
+if [ "$backup_first" = 1 ]; then
+    echo "Backing up the database before migrating"
+    artisan goproperty:backup-run db
+fi
 
 if [ "$maintenance" = 1 ]; then
     artisan down --retry=60

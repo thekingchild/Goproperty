@@ -35,3 +35,16 @@ it('writes the full cron line, quoting odd paths', function () {
         ->toBe('* * * * * /opt/plesk/php/8.4/bin/php /var/www/vhosts/goproperty.ng/goproperty/artisan schedule:run >> /dev/null 2>&1')
         ->and($cron->line('/home/my site/app'))->toContain("'/home/my site/app/artisan'");
 });
+
+it('runs current/artisan in the deploy layout, not a release folder', function () {
+    $root = sys_get_temp_dir().'/gp-cron-'.bin2hex(random_bytes(4));
+    mkdir($root.'/releases/20261027-abc', 0700, true);
+    mkdir($root.'/shared', 0700, true);
+
+    $cron = new CronLine(fn (): bool => false, '/usr/bin/php');
+
+    expect($cron->line($root.'/releases/20261027-abc'))->toBe("* * * * * /usr/bin/php {$root}/current/artisan schedule:run >> /dev/null 2>&1")
+        ->and($cron->line($root.'/plain'))->toContain($root.'/plain/artisan');
+
+    exec('rm -rf '.escapeshellarg($root));
+});

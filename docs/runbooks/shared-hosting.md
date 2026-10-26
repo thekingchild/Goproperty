@@ -50,7 +50,13 @@ Composer and Node on the server are **not** required: the release zip already co
    - Open `https://your-domain/install` and unlock it: **with SSH** run `php artisan goproperty:setup-token` and paste the token; **without SSH** create `storage/app/install-unlock.txt` containing the phrase the page shows.
    - Follow the wizard: server check → site & database → build the database → email & file storage tests → first super-admin with 2FA → finish (console path, cron line, live cron check, installation record).
    - Or, over SSH: `php artisan goproperty:install` (same steps, non-interactive mode available).
-   The installer writes `.env`, `APP_KEY` and the `ADMIN_PATH` suffix, runs migrations and seeders, and caches config, routes and views.
+   - **Staging and any server deployed by the Deploy workflow** (the deploy layout of step 2): install with `scripts/deploy/first-install.sh` instead, from a deploy archive (`scripts/deploy/build-release.sh`, or the artifact of a Deploy run). It unpacks `releases/<name>/`, links its `.env` to `shared/.env` and `storage/` to `shared/storage/`, runs `goproperty:install` there (pass its options after `--`, or answer its questions), and points `current` at it:
+     ```
+     scp release.tar.gz USER@HOST:goproperty/upload.tar.gz
+     ssh USER@HOST 'bash -s -- goproperty goproperty/upload.tar.gz 20261027000000-first /opt/cpanel/ea-php84/root/usr/bin/php' < scripts/deploy/first-install.sh
+     ```
+     Add `-- --env=production --url=https://staging.goproperty.ng …` for a non-interactive install (`php artisan goproperty:install --help` lists the options; passwords come from files).
+   The installer writes `.env`, `APP_KEY` and the `ADMIN_PATH` suffix, runs migrations and seeders, and caches config, routes and views. In the deploy layout it writes through `.env` to `shared/.env`, and the cron line it prints runs `current/artisan`, which survives deploys. `scripts/deploy/deploy-drill.sh` rehearses all of this on one machine (CI runs it with the install drill).
    Media and documents live in S3-compatible storage, so `storage:link` is not needed (some hosts block symlinks inside `public/`).
 5. **Cron (every minute)** — one entry only:
    - cPanel *Cron Jobs*: `* * * * * /opt/cpanel/ea-php84/root/usr/bin/php /home/USER/goproperty/current/artisan schedule:run >> /dev/null 2>&1`
@@ -63,7 +69,7 @@ Composer and Node on the server are **not** required: the release zip already co
 
 ## 3. Every deploy
 
-The **Deploy** workflow ([`.github/workflows/deploy.yml`](../../.github/workflows/deploy.yml)) does the heavy work so the server only receives files. Start it from **Actions → Deploy → Run workflow**, pick `staging` or `production`, and tick *maintenance* only for schema-breaking releases. (P00-13 adds the automatic staging deploy on every merge to `main`.)
+The **Deploy** workflow ([`.github/workflows/deploy.yml`](../../.github/workflows/deploy.yml)) does the heavy work so the server only receives files. **Every merge to `main` deploys staging.** Until the `staging` environment has its settings, that run skips with a warning instead of failing. Production is started from **Actions → Deploy → Run workflow**: pick `production`, and tick *maintenance* only for schema-breaking releases. Give the `production` environment a required reviewer.
 
 1. It runs the full quality gate (MySQL **and** MariaDB, the `CI` workflow).
 2. `scripts/deploy/build-release.sh` builds `<timestamp>-<sha>.tar.gz` (with `scripts/release/stage.sh`, shared with the release zip): tracked files, `composer install --no-dev --optimize-autoloader`, `npm ci && npm run build`; tests, docs, dev config and `storage/` are left out.
@@ -71,6 +77,7 @@ The **Deploy** workflow ([`.github/workflows/deploy.yml`](../../.github/workflow
    ```
    unpack to releases/<name>/, link shared/.env and shared/storage
    php artisan goproperty:hosting      # stop here if the hosting settings cannot work together
+   php artisan goproperty:backup-run db  # only with DEPLOY_BACKUP_FIRST=1; a failed backup stops the deploy
    php artisan down --retry=60         # only with "maintenance" ticked
    php artisan migrate --force
    php artisan config:cache && route:cache && view:cache && event:cache   # in the new release, before it is live
@@ -95,6 +102,7 @@ The **Deploy** workflow ([`.github/workflows/deploy.yml`](../../.github/workflow
 | `DEPLOY_KNOWN_HOSTS` | variable | the host's line from `ssh-keyscan -p PORT HOST`, checked against the fingerprint the host shows in its panel |
 | `APP_URL` | variable | `https://staging.goproperty.ng` |
 | `DEPLOY_SSH_KEY` | **secret** | private key of a deploy-only key pair; add the public key under cPanel *SSH Access → Manage Keys* or the Plesk SSH user |
+| `DEPLOY_BACKUP_FIRST` | variable (optional) | `1` on production: back up the database before each deploy's migrations (needs a backup destination) |
 
 The first install still uses the installer ([INSTALLER.md](../../INSTALLER.md)), which creates `shared/.env`; the deploy script refuses to run without it.
 
@@ -102,7 +110,7 @@ The first install still uses the installer ([INSTALLER.md](../../INSTALLER.md)),
 
 ## 4. Backups on shared hosting
 
-- Nightly DB and files backups go to S3-compatible storage and Google Drive ([PLATFORM_CONSOLE.md § 4](../../PLATFORM_CONSOLE.md)). They need `mysqldump` via `exec`. If the host disables it, switch the dumper to the pure-PHP fallback (`DB_DUMPER=php`), which is slower but works anywhere.
+- Nightly DB and files backups go to S3-compatible storage and Google Drive ([PLATFORM_CONSOLE.md § 4](../../PLATFORM_CONSOLE.md)). They run inside the cron's PHP process with a pure-PHP dumper (`BACKUP_DUMPER=php`, the default), so they work where `exec` is disabled; `BACKUP_DUMPER=mysqldump` uses the binary where the host allows it. Add destinations with `php artisan goproperty:backup-destination:add`; restore with [restore.md](restore.md).
 - Also keep the host's own daily backups switched on (cPanel *JetBackup* / Plesk *Backup Manager*) as a second line.
 - Shared hosting has no point-in-time recovery: target RPO is 24 h. Add a midday DB backup to bring it to 12 h.
 

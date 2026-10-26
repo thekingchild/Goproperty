@@ -108,3 +108,21 @@ it('keeps mode 0600 when rewriting', function () {
 
     expect(substr(sprintf('%o', fileperms($this->dir.'/.env')), -4))->toBe('0600');
 });
+
+it('writes through a .env symlink to the shared file, as deployed releases use', function () {
+    $root = sys_get_temp_dir().'/gp-env-link-'.Str::random(6);
+    mkdir($root.'/shared', 0700, true);
+    mkdir($root.'/releases/one', 0700, true);
+    symlink('../../shared/.env', $root.'/releases/one/.env');
+
+    $env = new EnvironmentFile($root.'/releases/one/.env', null);
+    $env->set(['APP_KEY' => 'base64:abc', 'DB_DATABASE' => 'goproperty']);
+    $env->set(['DB_DATABASE' => 'goproperty_staging']);
+
+    expect(is_link($root.'/releases/one/.env'))->toBeTrue()
+        ->and((string) file_get_contents($root.'/shared/.env'))->toBe("APP_KEY=base64:abc\nDB_DATABASE=goproperty_staging\n")
+        ->and(decoct(fileperms($root.'/shared/.env') & 0777))->toBe('600')
+        ->and(glob($root.'/releases/one/.*tmp*') ?: [])->toBe([]);
+
+    File::deleteDirectory($root);
+});

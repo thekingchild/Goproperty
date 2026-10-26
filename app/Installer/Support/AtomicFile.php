@@ -9,11 +9,16 @@ use RuntimeException;
 /**
  * Writes a file so readers see the old contents or the new, never half of
  * either: temp file in the same folder → fsync → rename (INSTALLER.md § 4).
+ *
+ * A symlink is followed and its target written: on a deployed server each
+ * release's `.env` links to `shared/.env` (docs/runbooks/shared-hosting.md
+ * § 2), and renaming over the link would leave the shared file behind.
  */
 final class AtomicFile
 {
     public static function write(string $path, string $contents, int $mode = 0600): void
     {
+        $path = self::resolve($path);
         $directory = dirname($path);
 
         if (! is_dir($directory) && ! @mkdir($directory, 0755, true) && ! is_dir($directory)) {
@@ -50,5 +55,21 @@ final class AtomicFile
 
             throw new RuntimeException("Cannot replace {$path}.");
         }
+    }
+
+    /** Follows symlinks (also dangling ones) to the file that really holds the contents. */
+    private static function resolve(string $path): string
+    {
+        for ($hops = 0; $hops < 10 && is_link($path); $hops++) {
+            $target = readlink($path);
+
+            if ($target === false) {
+                break;
+            }
+
+            $path = str_starts_with($target, '/') ? $target : dirname($path).'/'.$target;
+        }
+
+        return $path;
     }
 }

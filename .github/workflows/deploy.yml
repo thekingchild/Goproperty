@@ -1,11 +1,14 @@
 # Shared-hosting deploy over SSH (docs/runbooks/shared-hosting.md § 3): the
 # quality gate on every database, then a release with production vendor/ and
 # built assets is uploaded, migrated and switched live. The server needs
-# neither Composer nor Node. Started by hand for now; P00-13 deploys staging
-# on every merge to main.
+# neither Composer nor Node. Every merge to main deploys staging (P00-13);
+# production is started by hand and should require a reviewer on its
+# GitHub environment.
 name: Deploy
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       environment:
@@ -24,7 +27,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: deploy-${{ inputs.environment }}
+  # A push has no inputs: it is a staging deploy.
+  group: deploy-${{ inputs.environment || 'staging' }}
   cancel-in-progress: false
 
 jobs:
@@ -33,12 +37,12 @@ jobs:
     uses: ./.github/workflows/ci.yml
 
   deploy:
-    name: Deploy to ${{ inputs.environment }}
+    name: Deploy to ${{ inputs.environment || 'staging' }}
     needs: ci
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     # Settings live on the GitHub environment (docs/runbooks/shared-hosting.md § 3).
-    environment: ${{ inputs.environment }}
+    environment: ${{ inputs.environment || 'staging' }}
 
     env:
       DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
@@ -49,25 +53,36 @@ jobs:
       DEPLOY_KNOWN_HOSTS: ${{ vars.DEPLOY_KNOWN_HOSTS }}
       APP_URL: ${{ vars.APP_URL }}
       MAINTENANCE: ${{ inputs.maintenance && '1' || '0' }}
+      # Set DEPLOY_BACKUP_FIRST=1 on an environment (production) to back up before migrating.
+      BACKUP_FIRST: ${{ vars.DEPLOY_BACKUP_FIRST || '0' }}
 
     steps:
       - name: Check deploy settings
+        id: settings
         run: |
           missing=()
           for name in DEPLOY_HOST DEPLOY_USER DEPLOY_PATH DEPLOY_KNOWN_HOSTS APP_URL; do
             [ -n "${!name}" ] || missing+=("$name")
           done
           if [ ${#missing[@]} -gt 0 ]; then
+            # Until staging exists (PRE-04), a merge must not turn red: skip with a warning.
+            if [ "$GITHUB_EVENT_NAME" = push ] && [ -z "$DEPLOY_HOST" ]; then
+              echo "::warning::Staging is not set up yet (no DEPLOY_HOST on the staging environment); skipping the deploy."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
             echo "::error::Set these variables on the GitHub environment: ${missing[*]}"
             exit 1
           fi
 
       - name: Checkout code
+        if: steps.settings.outputs.skip != 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Setup PHP
+        if: steps.settings.outputs.skip != 'true'
         uses: shivammathur/setup-php@4424c9aab975b57bd706ee5a39c6b4334d6e4f60 # 2.40.0
         with:
           php-version: '8.4'
@@ -76,18 +91,21 @@ jobs:
           coverage: none
 
       - name: Setup Node
+        if: steps.settings.outputs.skip != 'true'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
           cache: npm
 
       - name: Build release
+        if: steps.settings.outputs.skip != 'true'
         run: |
           release="$(date -u +%Y%m%d%H%M%S)-${GITHUB_SHA::7}"
           echo "RELEASE=$release" >> "$GITHUB_ENV"
           scripts/deploy/build-release.sh "$RUNNER_TEMP/$release.tar.gz"
 
       - name: Configure SSH
+        if: steps.settings.outputs.skip != 'true'
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
         run: |
@@ -100,6 +118,7 @@ jobs:
           chmod 600 "$HOME/.ssh/known_hosts"
 
       - name: Upload and switch release
+        if: steps.settings.outputs.skip != 'true'
         run: |
           opts=(-i "$HOME/.ssh/deploy_key" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
           target="$DEPLOY_USER@$DEPLOY_HOST"
@@ -108,11 +127,12 @@ jobs:
           scp "${opts[@]}" -P "$DEPLOY_PORT" "$RUNNER_TEMP/$RELEASE.tar.gz" "$target:$archive"
 
           # The script runs from stdin; arguments are shell-quoted for the remote side.
-          printf -v remote 'MAINTENANCE=%q bash -s -- %q %q %q %q' \
-            "$MAINTENANCE" "$DEPLOY_PATH" "$archive" "$RELEASE" "$DEPLOY_PHP"
+          printf -v remote 'MAINTENANCE=%q BACKUP_FIRST=%q bash -s -- %q %q %q %q' \
+            "$MAINTENANCE" "$BACKUP_FIRST" "$DEPLOY_PATH" "$archive" "$RELEASE" "$DEPLOY_PHP"
           ssh "${opts[@]}" -p "$DEPLOY_PORT" "$target" "$remote" < scripts/deploy/remote-deploy.sh
 
       - name: Health check
+        if: steps.settings.outputs.skip != 'true'
         run: curl --fail --silent --show-error --retry 5 --retry-delay 3 --retry-all-errors "${APP_URL%/}/up" > /dev/null
 
       - name: Remove SSH key
