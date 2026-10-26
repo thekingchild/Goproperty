@@ -127,3 +127,36 @@ it('never restores into the site\'s own database', function () {
         ->expectsOutputToContain('Refusing to restore into the site\'s own database')
         ->assertFailed();
 });
+
+it('keeps awkward data intact through a dump and restore', function () {
+    DB::statement('CREATE TABLE backup_drill_samples (id INT PRIMARY KEY, label TEXT NULL, payload BLOB NULL, amount BIGINT NULL, doubled INT AS (id * 2) VIRTUAL) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
+
+    $rows = [
+        [1, "two\nlines; and a 'quote' \"double\" \\ backslash;", random_bytes(64), 125000050],
+        [2, "ends with a semicolon;\n", "\x00\x01\xff binary\n", -1],
+        [3, 'Tọ́lá — ₦2,400,000 🏠', null, null],
+        [4, null, '', 0],
+    ];
+
+    foreach ($rows as [$id, $label, $payload, $amount]) {
+        DB::table('backup_drill_samples')->insert(['id' => $id, 'label' => $label, 'payload' => $payload, 'amount' => $amount]);
+    }
+
+    try {
+        BackupDestination::query()->create(['name' => 'Drill folder', 'driver' => 'local', 'config' => ['root' => $this->folder], 'applies_to' => 'both']);
+        $this->artisan('goproperty:backup-run', ['type' => 'db'])->assertSuccessful();
+        $this->artisan('goproperty:backup-restore', ['source' => 'latest', '--database' => $this->restoreDb, '--force' => true])->assertSuccessful();
+
+        $restored = DB::connection()->select('SELECT id, label, payload, amount, doubled FROM `'.$this->restoreDb.'`.backup_drill_samples ORDER BY id');
+
+        foreach ($rows as $i => [$id, $label, $payload, $amount]) {
+            expect($restored[$i]->id)->toBe($id)
+                ->and($restored[$i]->label)->toBe($label)
+                ->and($restored[$i]->payload)->toBe($payload)
+                ->and($restored[$i]->amount)->toBe($amount)
+                ->and($restored[$i]->doubled)->toBe($id * 2);
+        }
+    } finally {
+        DB::statement('DROP TABLE IF EXISTS backup_drill_samples');
+    }
+});

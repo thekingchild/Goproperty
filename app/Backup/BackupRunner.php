@@ -8,7 +8,9 @@ use App\Models\PlatformStaff;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use InvalidArgumentException;
 use Spatie\Backup\BackupDestination\BackupDestinationFactory;
 use Spatie\Backup\Config\Config as BackupConfig;
@@ -64,7 +66,10 @@ final readonly class BackupRunner
         }
 
         $this->useDumper();
-        $config = $this->configFor($type, array_values($destinations->map(fn (BackupDestination $destination): string => $destination->diskName())->all()));
+        // Spatie empties its temporary folder when a job starts: give each run
+        // its own, so a manual run cannot wipe the nightly one's zip.
+        $temporary = storage_path('app/backup-temp/'.$type.'-'.Str::random(12));
+        $config = $this->configFor($type, $temporary, array_values($destinations->map(fn (BackupDestination $destination): string => $destination->diskName())->all()));
 
         $succeeded = [];
         $failed = [];
@@ -106,14 +111,16 @@ final readonly class BackupRunner
         }
 
         $this->cleanUp($config);
+        File::deleteDirectory($temporary);
 
         return $runs->values();
     }
 
     /** @param  list<string>  $disks */
-    private function configFor(string $type, array $disks): BackupConfig
+    private function configFor(string $type, string $temporary, array $disks): BackupConfig
     {
         $data = (array) $this->config->get('backup');
+        $data['backup']['temporary_directory'] = $temporary;
         $data['backup']['name'] = 'goproperty-'.$type;
         $data['backup']['destination']['disks'] = $disks;
         $data['backup']['password'] = $this->password->get();

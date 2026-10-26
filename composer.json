@@ -12,7 +12,6 @@
     "require": {
         "php": "^8.4.1",
         "dompdf/dompdf": "~3.1.6",
-        "druidfi/mysqldump-php": "^2.0",
         "filament/filament": "~5.10.3",
         "laravel/fortify": "~1.41.0",
         "laravel/framework": "~13.38.0",

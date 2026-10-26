@@ -6,8 +6,8 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 ## Current state
 
-- **In progress:** P00-12 (backups baseline), split into P00-12a database backup and restore (done), P00-12b files backup and Google Drive
-- **In review:** P00-03 (hosting profiles), P00-04 (release package) and P00-06 (installer CLI + install drill): done and verified locally; each needs one green run in GitHub Actions (CI for P00-03, a tagged Release for P00-04, the Install drill on MySQL 8 and MariaDB 10.6 for P00-06) once Actions starts jobs
+- **In progress:** none
+- **In review:** P00-03 (hosting profiles), P00-04 (release package) and P00-06 (installer CLI + install drill): done and verified locally; each needs one green run in GitHub Actions (CI for P00-03, a tagged Release for P00-04, the Install drill on MySQL 8 and MariaDB 10.6 for P00-06) once Actions starts jobs. P00-12 (backups): built and drilled locally; needs one real run to an S3-compatible bucket and a Google Shared Drive (PRE-03 accounts)
 - **Next task:** P00-13 (staging installed with the installer, deploy pipeline); PRE-01 to PRE-04 continue with the product owner
 - **Blocked:** P00-02: GitHub Actions jobs are not being given a runner (account-level), and branch protection on `main` needs a repo admin. This also holds P00-03's CI check, P00-04's release run and P00-06's install drill
 
@@ -32,6 +32,52 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 Each entry: task ID and status, date, what was delivered, tests run and results, follow-ups, next task.
 
+### P00-12 — In review (2026-10-26): P00-12b files backup, Google Drive destination, our own dumper
+
+**Status:** In review. Everything is built and drilled locally. The AC "land encrypted in both destinations" still needs one real run against a real S3-compatible bucket and a Google Workspace Shared Drive. Their accounts are PRE-03, with the product owner.
+
+**To close it:**
+1. Add both destinations with `goproperty:backup-destination:add` (staging, P00-13).
+2. Run `goproperty:backup-run db` and `goproperty:backup-run files`.
+3. See both zips in each place.
+4. Run `goproperty:backup-restore latest --database=…`.
+
+**Delivered (12b):**
+- **Files backup:** a separate nightly job at 02:30, encrypted the same way, of `storage/app/brand`, `private` and `public`. It has its own backup name, so retention never mixes it with database backups.
+- **Google Drive destination:**
+  - **Built:** `App\Backup\GoogleDrive\DriveClient` (a service-account JWT signed RS256 for an access token; list, folders, resumable uploads in 8 MiB chunks, download, delete with a fallback to trash) and `GoogleDriveAdapter`, a Flysystem adapter that maps paths onto folders in a Shared Drive. Registered as the `google_drive` disk driver.
+  - **Why our own:** the community adapter and `google/apiclient` require Guzzle 6/7, while this Laravel 13 app uses Guzzle 8. The Google SDK is also very large.
+- **Destination commands** (the console screen is P06-10):
+  - `goproperty:backup-destination:add` takes S3 options or a Drive service-account JSON file. Secrets come from files or a hidden prompt, never the command line. It writes, reads and deletes a test file, and **switches the destination off if that fails**.
+  - Also `:list`, with the last database and files backup per destination, and `:test`, with `--disable`/`--enable`.
+- **Our own dumper:**
+  - **Why:** `druidfi/mysqldump-php` turned out to be **GPL-3.0**. Bundling it in the release zip would have put copyleft terms on GoProperty, and it also shipped a `.env.mysql` file that the package check rightly refused.
+  - **Replacement:** `App\Backup\PdoMySqlDump`, a consistent snapshot (`START TRANSACTION WITH CONSISTENT SNAPSHOT`). Rows stream unbuffered into multi-row INSERTs of about 1 MB; non-UTF-8 bytes go as hex, so a statement never spans lines; generated columns are skipped.
+  - **Licence check:** every package is now MIT, Apache-2.0 or BSD, apart from LGPL dompdf (fine as a library), dual-licensed nette, and the paid Flux licence.
+- **Concurrent runs:** each run now uses its own temporary folder. Spatie empties a shared one at the start, so a manual run could have wiped the nightly run's zip; the parallel test suite found this.
+- **Docs:** DATABASE_SCHEMA.md `backup_destinations`, and PLATFORM_CONSOLE.md § 4 on the Drive adapter.
+
+**Tests and evidence (local, MariaDB 11.4.12):**
+- `composer ci`: Pint passed, Larastan 0 errors, Pest **822 tests / 2,807 assertions**, and **six consecutive full parallel runs passed**. New: 6 in `tests/Feature/Backup/GoogleDriveAndFilesTest.php` against an in-memory Drive v3 fake (`tests/Support/FakeGoogleDrive.php`), and a round-trip drill.
+- **Google Drive:**
+  - **Sign-in:** the JWT is verified with the service account's public key, and one token serves many requests.
+  - **Files:** folders are created once, a re-upload replaces the old file, and read, size, date, list and delete work.
+  - **Large files:** a 700 KB file goes up in three 256 KB resumable chunks.
+  - **Full run:** a database backup goes to Drive and is downloaded and decrypted again; a 403 from Drive is recorded as a failed run with Google's message.
+- **Files backup:** the scheduled `backup-files` event (`30 2 * * *`) produced one AES-256 zip containing an uploaded brand file, unreadable without the password and readable with it.
+- **Commands:** add (S3 and Drive), list, check, switch off; a Drive without access is saved switched off; a bad key file is refused.
+- **Round trip:** line breaks, quotes, a `;` at the end of a line, emoji and Yoruba diacritics, binary with NUL bytes, NULL, an empty blob, BIGINT and a generated column all come back identical after a dump and restore.
+- **Drills:** release `0.12.0-rc.3` (62 MB) built, the verify drill passed and the install drill passed (schema identical, 186 columns and tables).
+
+**Follow-ups:**
+- One real run to S3 and to a Shared Drive (above). Then mark P00-12 Complete.
+- **Spec gaps:**
+  - The files backup is a full encrypted zip each night, not the spec's incremental sync with a weekly manifest. That is fine at launch size; revisit when media grows, e.g. by mirroring media to a second S3 provider as § 4 suggests.
+  - The "config snapshot" in § 4 is covered by the database backup (settings, plans).
+- Console screens for destinations, run now, download, verify and restore to staging: P06-10. Alerts on failed backups: P08-03.
+
+**Next:** P00-13 (staging installed with the installer, deploy pipeline). The real backup run belongs there too.
+
 ### P00-12a — Complete (2026-10-26): database backup, encryption, restore and verify
 
 P00-12 is split into sub-tasks (IMPLEMENTATION_PLAN.md § 3.1): **12a** the database backup, its encryption, restore and verify; **12b** the files backup, the Google Drive destination and adding destinations from the command line. P00-12 is marked complete when both are done.
@@ -39,10 +85,10 @@ P00-12 is split into sub-tasks (IMPLEMENTATION_PLAN.md § 3.1): **12a** the data
 **Delivered:**
 - **Dependencies:**
   - `spatie/laravel-backup` 10.3 does the packaging, AES-256 zip encryption, copying and retention.
-  - `druidfi/mysqldump-php` 2.0 is a pure-PHP dumper over PDO.
+  - **Dumper:** first `druidfi/mysqldump-php`, replaced in 12b by our own `App\\Backup\\PdoMySqlDump` because that library is GPL-3.0.
   - `league/flysystem-aws-s3-v3` 3.35 provides the S3 destination. The AWS SDK is trimmed to S3 by its official Composer cleanup (`extra.aws/aws-sdk-php`), so `vendor/` grew by about 7 MB and 700 files.
 - **No `exec`, `proc_open` or signals** (`App\Backup\BackupRunner`):
-  - **Dump:** spatie's dumper factory uses `PhpMySqlDumper` instead of `mysqldump`, as ARCHITECTURE.md § 12 asks. `BACKUP_DUMPER=mysqldump` switches back where a host allows it.
+  - **Dump:** spatie's dumper factory uses `PhpMySqlDumper` (pure PHP) instead of `mysqldump`, as ARCHITECTURE.md § 12 asks. `BACKUP_DUMPER=mysqldump` switches back where a host allows it.
   - **In-process:** the job runs inside the scheduler's PHP process rather than through `backup:run`, which needs `pcntl`, and the zip step gets the per-run config.
   - **Encryption:** every zip is AES-256 encrypted. The password is `BACKUP_ARCHIVE_PASSWORD`, or is derived from `APP_KEY` (HMAC); `goproperty:backup-password` prints it for a hand restore. The zip is re-opened after writing (`verify_backup`).
 - **Destinations** (`backup_destinations`, DATABASE_SCHEMA.md § 8):

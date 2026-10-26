@@ -4,37 +4,21 @@ declare(strict_types=1);
 
 namespace App\Backup;
 
-use Druidfi\Mysqldump\Mysqldump;
+use PDO;
 use Spatie\DbDumper\Databases\MySql;
 
 /**
- * Dumps MySQL/MariaDB in PHP over PDO (druidfi/mysqldump-php), so backups
- * work on shared hosts that disable exec and proc_open (ARCHITECTURE.md
- * § 12). Plugged into spatie/laravel-backup in place of mysqldump.
+ * Plugs App\Backup\PdoMySqlDump into spatie/laravel-backup in place of the
+ * mysqldump binary, so backups work on shared hosts without exec.
  */
 final class PhpMySqlDumper extends MySql
 {
     public function dumpToFile(string $dumpFile): void
     {
         $dsn = $this->socket !== ''
-            ? sprintf('mysql:unix_socket=%s;dbname=%s', $this->socket, $this->dbName)
-            : sprintf('mysql:host=%s;port=%d;dbname=%s', $this->host, $this->port, $this->dbName);
+            ? sprintf('mysql:unix_socket=%s;dbname=%s;charset=utf8mb4', $this->socket, $this->dbName)
+            : sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4', $this->host, $this->port, $this->dbName);
 
-        $dumper = new Mysqldump($dsn, $this->userName, $this->password, [
-            'add-drop-table' => true,
-            'single-transaction' => true,
-            'lock-tables' => false,
-            'add-locks' => false,
-            'default-character-set' => 'utf8mb4',
-            'hex-blob' => true,
-            'routines' => false,
-            'events' => false,
-            'skip-definer' => true,
-            'skip-dump-date' => false,
-            'include-tables' => $this->includeTables,
-            'exclude-tables' => $this->excludeTables,
-        ]);
-
-        $dumper->start($dumpFile);
+        (new PdoMySqlDump(new PDO($dsn, $this->userName, $this->password)))->toFile($dumpFile, array_values($this->includeTables), array_values($this->excludeTables));
     }
 }

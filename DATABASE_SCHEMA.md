@@ -240,7 +240,7 @@ spatie activitylog (v5: `log_name`, `description`, `subject`, `event`, `causer`,
 `email_templates`: `key` (unique, e.g. `bill.issued`), `category` (`security`, `transactional`, `reminder`, `marketing`), `allowed_placeholders` (json), `current_version_id`, `active`. `email_template_versions`: `email_template_id`, `subject`, `body_markdown`, `version`, `created_by_staff_id`, `created_at`.
 
 ### backup_destinations
-`name`, `driver` (`s3`, `google_drive`), `config` (encrypted json), `applies_to` (`db`, `files`, `both`), `active`.
+`name`, `driver` (`s3`, `google_drive`; `local` only outside production, for drills), `config` (encrypted json: S3 bucket/endpoint/keys, or the Google service account key with `shared_drive_id` and optional `folder_id`), `applies_to` (`db`, `files`, `both`), `active`. Added with `goproperty:backup-destination:add` until the console screen (P06-10).
 
 ### daily_platform_metrics
 Nightly analytics snapshot. `date`, `metric` (e.g. `mrr_kobo`, `active_orgs`, `units_total`, `collections_recorded_kobo`), `dimension` (nullable, e.g. tier, channel, state), `value`. Unique `(date, metric, dimension)`.

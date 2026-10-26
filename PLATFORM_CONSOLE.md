@@ -106,7 +106,7 @@ DB and files run as **separate jobs** with separate configs (spatie/laravel-back
 ### Destinations
 
 - **Primary: S3-compatible storage** (Cloudflare R2 / DigitalOcean Spaces / Wasabi / Backblaze B2). A different provider or account from the live media bucket, so one compromised account can't delete both.
-- **Secondary: Google Drive** via a Flysystem Google Drive adapter. Caveat: Google service accounts have no storage of their own, so use a **Shared Drive** (Google Workspace) or OAuth credentials of a dedicated GoProperty Google account. Drive is best for DB dumps. Large media is better mirrored to a second S3-compatible provider (e.g. with rclone).
+- **Secondary: Google Drive** via the app's own Flysystem adapter over the Drive v3 API (`App\Backup\GoogleDrive`; the community adapter needs a Guzzle version this app does not use). Caveat: Google service accounts have no storage of their own, so use a **Shared Drive** (Google Workspace) or OAuth credentials of a dedicated GoProperty Google account. Drive is best for DB dumps. Large media is better mirrored to a second S3-compatible provider (e.g. with rclone).
 - Destinations are configured in the console by `technical-admin`. Credentials are stored encrypted and never shown after saving.
 
 ### Console actions
