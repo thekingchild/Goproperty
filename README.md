@@ -48,6 +48,22 @@ GoProperty is a multi-tenant SaaS platform for property management in Nigeria. A
 - **Maintenance ticket** — draft → submitted → under review → in progress → resolved → closed, with threaded replies between tenant and agent/owner.
 - **Building Group** — a per-building discussion board with realtime posts, replies, emojis, light rich text and images.
 
+## Local Development
+
+Requires Docker (for [Laravel Sail](https://laravel.com/docs/sail)), PHP 8.4 and Composer on the host for the first install, and Node 22+.
+
+```bash
+cp .env.example .env
+composer install
+./vendor/bin/sail up -d                  # PHP 8.4, MySQL 8.4, Mailpit (http://localhost:8025)
+./vendor/bin/sail artisan key:generate
+./vendor/bin/sail artisan migrate --seed # demo login: test@example.com / password
+npm ci && npm run build                  # or: npm run dev
+./vendor/bin/sail composer test          # Pint + Larastan + Pest
+```
+
+Without Sail, point `DB_HOST` in `.env` at a local MySQL 8 / MariaDB 10.6+ server and create a `testing` database for the test suite. More commands are in [AGENT.md § 2](AGENT.md).
+
 ## Status
 
-Design phase. No code yet. The documents in this repository are the implementation baseline; changes to the data model or billing semantics should be reflected here first.
+Phase 0 in progress: the application skeleton (P00-01) is in place. Task status is tracked in [docs/PROGRESS.md](docs/PROGRESS.md). The documents in this repository are the implementation baseline; changes to the data model or billing semantics should be reflected here first.
