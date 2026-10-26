@@ -4,10 +4,7 @@ declare(strict_types=1);
 
 namespace App\Auth\SignIn;
 
-use App\Settings\SettingsStore;
 use Closure;
-use Illuminate\Auth\SessionGuard;
-use Illuminate\Contracts\Auth\Factory as Auth;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\MessageBag;
@@ -37,8 +34,6 @@ final readonly class GuardSignIn
     public function __construct(
         private SignInSecurity $security,
         private Turnstile $turnstile,
-        private SettingsStore $settings,
-        private Auth $auth,
         private FailedAttempt $attempt,
     ) {}
 
@@ -59,8 +54,6 @@ final readonly class GuardSignIn
 
             return $this->refuse($request, self::CHECK_FAILED);
         }
-
-        $this->rememberFor($request);
 
         // Fortify's pipeline turns a failed attempt into a redirect, so the
         // failure is read from its Failed event (see FortifyServiceProvider).
@@ -102,16 +95,5 @@ final readonly class GuardSignIn
         $request->session()->flashInput($request->only('identifier', 'remember'));
 
         return redirect()->route('login');
-    }
-
-    /** "Keep me signed in" lasts auth.remember_days (§ 9.6), not Laravel's default. */
-    private function rememberFor(Request $request): void
-    {
-        $guard = $this->auth->guard('web');
-        $days = $this->settings->get('auth.remember_days');
-
-        if ($guard instanceof SessionGuard && $request->boolean('remember')) {
-            $guard->setRememberDuration((is_int($days) ? $days : 30) * 24 * 60);
-        }
     }
 }

@@ -6,7 +6,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 ## Current state
 
-- **In progress:** P00-10 (login pages to final quality), split into P00-10a customer sign-in (done), P00-10b 2FA challenge and other auth screens, P00-10c staff login with mandatory 2FA
+- **In progress:** P00-10 (login pages to final quality), split into P00-10a customer sign-in (done), P00-10b 2FA challenge and other auth screens (done), P00-10c staff login with mandatory 2FA
 - **In review:** P00-03 (hosting profiles), P00-04 (release package) and P00-06 (installer CLI + install drill): done and verified locally; each needs one green run in GitHub Actions (CI for P00-03, a tagged Release for P00-04, the Install drill on MySQL 8 and MariaDB 10.6 for P00-06) once Actions starts jobs
 - **Next task:** P00-11 (audit log and access log); PRE-01 to PRE-04 continue with the product owner
 - **Blocked:** P00-02: GitHub Actions jobs are not being given a runner (account-level), and branch protection on `main` needs a repo admin. This also holds P00-03's CI check, P00-04's release run and P00-06's install drill
@@ -31,6 +31,46 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 ## Ledger (newest first)
 
 Each entry: task ID and status, date, what was delivered, tests run and results, follow-ups, next task.
+
+### P00-10b — Complete (2026-10-26): 2FA challenge and the other sign-in screens
+
+**Delivered:**
+- **2FA challenge from `docs/design/templates/login-2fa.html`:**
+  - **Code entry:** six boxes with auto-advance, backspace, arrow keys, paste and auto-submit. Without the script it is one plain code field.
+  - **Account shown masked:** "t•••@domain", or "+234 ••• 4567" for a phone-only account.
+  - **Wrong code:** "Codes change every 30 seconds…".
+  - **Other ways to verify:** a recovery code (each works once); a passkey, shown only when the account has one; and "Lost your phone and codes? Get help", shown when a support email is set.
+  - **Panel:** the template's text, and no activity cards.
+- **"Don't ask again on this device for N days"** (`auth.trust_device_days`, 30):
+  - **Devices table:** a new `user_devices` table stores the SHA-256 of a random token kept in an encrypted HttpOnly cookie (`gp_device`).
+  - **Skipping:** `RedirectIfTwoFactorNeeded` skips the challenge only for that browser and that account, until the date passes.
+  - **Trusting:** it is set only when ticked (`TwoFactorLoginResponse`).
+- **New-device email:** every customer sign-in records the browser. A browser new to an account that has signed in before gets "New sign-in to your … account" with time (Lagos), browser, IP and a reset-password button. Email only; no SMS.
+- **Remember me:** `auth.remember_days` now applies on every sign-in route (password, 2FA, passkey) through `RememberDuration`.
+- **Forgot password:**
+  - **Same reply:** one "Email or phone number" field, and the same reply for any input: "If an account matches, we've sent a reset link by email. No email? Ask your agency for a new sign-in link."
+  - **Delivery:** the link goes to the account's email, also when found by phone. Phone-only accounts get nothing sent.
+  - **Route:** Fortify's email-only route, which told whether an address exists, is replaced, and it is throttled to 6 a minute.
+  - **Wording:** UX_DESIGN.md § 3.3 says "by email or WhatsApp". WhatsApp delivery does not exist yet, so the reply says email only until the notification module adds it.
+- **Reset password, verify email and confirm password** now use the same split layout and security policy.
+- **Password rule:** new customer passwords must be at least 10 characters, as in UX_DESIGN.md § 3.1, and in production not on a breached-password list. This replaces the starter kit's 12 characters with mixed case and symbols. The staff installer keeps its 12-character rule.
+- **Tests:** the test case now resets all scoped services before each request, as production does.
+
+**Tests and evidence (local, MariaDB 11.4.12):**
+- `composer ci`: Pint passed, Larastan 0 errors, Pest **765 tests / 2,437 assertions** (14 new in `tests/Feature/Auth/TwoFactorAndRecoveryTest.php`; the kit's reset tests now post `identifier`).
+  - **2FA:** the challenge page content, a wrong code and then the right one, a single-use recovery code.
+  - **Trusted browser:** skips the challenge for 10 configured days, while another browser is challenged; it is not trusted unless ticked.
+  - **New-device email:** sent only for a new browser on an account that already has one.
+  - **Forgot password:** the same reply for five kinds of input; the email goes to the right account; phone-only accounts get nothing.
+  - **Other pages:** every page renders with the policy, the 10-character rule holds, and a remembered 2FA sign-in lasts 30 days.
+- **In the browser (1440 px):** every element of the 2FA page matches `login-2fa.html` in size, font and colour. It sits 60 px lower because this test account had no passkey or support email, so those two options were hidden. Signing in with a test account and typing a real code one digit at a time auto-submitted and opened the dashboard.
+
+**Follow-ups:**
+- "Add a passkey for faster sign-in" one-time prompt after a password sign-in, and "Log out other sessions" in the profile (UX_DESIGN.md § 3.1): with the profile pages (P01).
+- WhatsApp reset links for phone-only tenants: notification module.
+- HSTS: set where HTTPS is terminated (staging/production, P00-13).
+
+**Next:** P00-10c (staff sign-in with mandatory 2FA, Sign-in security console page).
 
 ### P00-10a — Complete (2026-10-26): customer sign-in page and its security
 

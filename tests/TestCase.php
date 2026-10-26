@@ -7,7 +7,6 @@ namespace Tests;
 use App\Installer\InstallationMarkers;
 use App\Installer\InstallationRecord;
 use App\Installer\InstallStage;
-use App\Theme\ThemeContext;
 use Illuminate\Cache\DatabaseStore;
 use Illuminate\Foundation\Testing\DatabaseTruncation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -36,9 +35,10 @@ abstract class TestCase extends BaseTestCase
     }
 
     /**
-     * Each request starts on the published theme, as in production, where
-     * the scoped theme context never outlives a request: a console preview
-     * or a theme read before a publish does not carry over to the next call.
+     * Each request starts with fresh scoped services, as in production,
+     * where they never outlive a request: a console preview, a theme read
+     * before a publish, or a device token issued during sign-in does not
+     * carry over to the next call.
      *
      * @param  array<string, mixed>  $parameters
      * @param  array<string, mixed>  $cookies
@@ -47,7 +47,7 @@ abstract class TestCase extends BaseTestCase
      */
     public function call($method, $uri, $parameters = [], $cookies = [], $files = [], $server = [], $content = null)
     {
-        $this->app->forgetInstance(ThemeContext::class);
+        $this->app->forgetScopedInstances();
 
         return parent::call($method, $uri, $parameters, $cookies, $files, $server, $content);
     }

@@ -6,8 +6,9 @@
 
     Slots: $panel (panel text; defaults to site.auth_*), $top (top-right of
     the form column, desktop), $mobileLink (beside the logo on mobile).
+    :activity="false" leaves out the floating activity cards.
 --}}
-@props(['title', 'panel' => null, 'top' => null, 'mobileLink' => null])
+@props(['title', 'panel' => null, 'top' => null, 'mobileLink' => null, 'activity' => true])
 @php
     // Tells SignInPageHeaders to send this page's security policy.
     request()->attributes->set(\App\Http\Middleware\SignInPageHeaders::ATTRIBUTE, true);
@@ -47,7 +48,7 @@
       {{ $mobileLink }}
     @endif
 
-    @if ($theme->get('theme.auth_show_activity') !== false)
+    @if ($activity && $theme->get('theme.auth_show_activity') !== false)
       {{-- Decorative; hidden on short screens. --}}
       <div class="auth-float" aria-hidden="true">
         <div class="glass"><span class="glass__icon glass__icon--ok"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg></span><div><strong>Payment confirmed</strong><span>Flat 2A · ₦2,400,000</span></div></div>

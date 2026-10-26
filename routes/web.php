@@ -2,10 +2,12 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\BrandAssetController;
 use App\Http\Controllers\Marketing\MarketingController;
 use App\Http\Controllers\Marketing\SeoController;
 use App\Http\Middleware\PublicPageHeaders;
+use App\Http\Middleware\SignInPageHeaders;
 use App\Theme\BrandAssets;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -39,6 +41,12 @@ Route::middleware(PublicPageHeaders::class)->controller(MarketingController::cla
     Route::get('privacy', 'privacy')->name('privacy');
     Route::get('terms', 'terms')->name('terms');
 });
+
+// "Forgot password" takes an email or phone number and never reveals an
+// account (UX_DESIGN.md § 3.3); it replaces Fortify's email-only route.
+Route::post('forgot-password', PasswordResetLinkController::class)
+    ->middleware(['guest:web', 'throttle:6,1', SignInPageHeaders::class])
+    ->name('password.email');
 
 // Cacheable files: no session, no cookies.
 Route::withoutMiddleware([StartSession::class, ShareErrorsFromSession::class, EncryptCookies::class, AddQueuedCookiesToResponse::class, PreventRequestForgery::class])->group(function () {

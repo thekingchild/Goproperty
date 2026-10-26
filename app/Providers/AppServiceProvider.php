@@ -63,14 +63,11 @@ class AppServiceProvider extends ServiceProvider
             app()->isProduction(),
         );
 
-        Password::defaults(fn (): ?Password => app()->isProduction()
-            ? Password::min(12)
-                ->mixedCase()
-                ->letters()
-                ->numbers()
-                ->symbols()
-                ->uncompromised()
-            : null,
+        // New customer passwords (UX_DESIGN.md § 3.1): at least 10
+        // characters, and in production not on a breached-password list.
+        Password::defaults(fn (): Password => app()->isProduction()
+            ? Password::min(10)->uncompromised()
+            : Password::min(10),
         );
     }
 }

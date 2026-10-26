@@ -16,8 +16,8 @@ test('new users can register', function () {
     $this->post(route('register.store'), [
         'name' => 'John Doe',
         'email' => 'test@example.com',
-        'password' => 'password',
-        'password_confirmation' => 'password',
+        'password' => 'long-password',
+        'password_confirmation' => 'long-password',
     ])
         ->assertSessionHasNoErrors()
         ->assertRedirect(route('dashboard', absolute: false));

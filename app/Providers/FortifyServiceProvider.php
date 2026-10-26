@@ -6,10 +6,16 @@ namespace App\Providers;
 
 use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
+use App\Auth\Devices\KnownDevices;
 use App\Auth\SignIn\FailedAttempt;
 use App\Auth\SignIn\FindUser;
 use App\Auth\SignIn\GuardSignIn;
+use App\Auth\SignIn\RedirectIfTwoFactorNeeded;
+use App\Auth\SignIn\TwoFactorLoginResponse;
+use App\Models\User;
+use App\Notifications\NewDeviceSignIn;
 use Illuminate\Auth\Events\Failed;
+use Illuminate\Auth\Events\Login;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
@@ -18,7 +24,7 @@ use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Laravel\Fortify\Actions\AttemptToAuthenticate;
 use Laravel\Fortify\Actions\PrepareAuthenticatedSession;
-use Laravel\Fortify\Actions\RedirectIfTwoFactorAuthenticatable;
+use Laravel\Fortify\Contracts\TwoFactorLoginResponse as TwoFactorLoginResponseContract;
 use Laravel\Fortify\Features;
 use Laravel\Fortify\Fortify;
 
@@ -30,6 +36,8 @@ class FortifyServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->scoped(FailedAttempt::class);
+        $this->app->scoped(KnownDevices::class);
+        $this->app->singleton(TwoFactorLoginResponseContract::class, TwoFactorLoginResponse::class);
     }
 
     /**
@@ -61,10 +69,24 @@ class FortifyServiceProvider extends ServiceProvider
             }
         });
 
+        // Each customer sign-in records the browser; a new one gets an email
+        // when the account has signed in elsewhere before (UX_DESIGN.md § 3.1).
+        Event::listen(Login::class, function (Login $event): void {
+            if ($event->guard !== config('fortify.guard') || ! $event->user instanceof User) {
+                return;
+            }
+
+            [$device, $new] = app(KnownDevices::class)->signedIn(app('request'), $event->user);
+
+            if ($new && $event->user->email !== null && $event->user->devices()->count() > 1) {
+                $event->user->notify(new NewDeviceSignIn($device));
+            }
+        });
+
         // Lockout, bot check and the generic error wrap Fortify's own steps.
         Fortify::authenticateThrough(fn (): array => array_values(array_filter([
             GuardSignIn::class,
-            Features::enabled(Features::twoFactorAuthentication()) ? RedirectIfTwoFactorAuthenticatable::class : null,
+            Features::enabled(Features::twoFactorAuthentication()) ? RedirectIfTwoFactorNeeded::class : null,
             AttemptToAuthenticate::class,
             PrepareAuthenticatedSession::class,
         ])));

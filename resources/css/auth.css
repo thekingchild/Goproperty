@@ -155,3 +155,13 @@ label, .label { font-size: .875rem; font-weight: 600; color: var(--ink-2); }
 .auth-foot a:hover { text-decoration: underline; }
 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } .spinner { animation: spin 1.5s linear infinite !important; } }
+
+/* ---------- App additions ---------- */
+/* 2FA: one plain code field until the script turns it into six boxes. */
+.otp-fieldset { border: 0; margin: 0; padding: 0; }
+.otp-fieldset legend { margin-bottom: .5rem; }
+.input--code { padding-left: .875rem; letter-spacing: .5em; font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.input--mono { font-family: var(--font-mono); letter-spacing: .06em; }
+.auth-heading p + p { margin-top: 0; }
+button.link { padding: 0; border: 0; background: none; font: inherit; font-weight: 600; font-size: .875rem; color: var(--color-primary-700); cursor: pointer; }
+.switch button.link { font-size: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 4px; }
