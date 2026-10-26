@@ -21,10 +21,10 @@ composer install && npm install
 sail up -d                      # or: php artisan serve with local MySQL
 sail artisan migrate --seed     # seeded demo org/building/lease data
 
-# Quality gate — run ALL of these before declaring any task done
-sail pint --dirty               # or: vendor/bin/pint
-sail artisan test --parallel    # Pest
-vendor/bin/phpstan              # Larastan, level 6 minimum
+# Quality gate — must pass before declaring any task done
+sail composer ci                # Pint --test + Larastan (level 7; 6 minimum) + Pest --parallel
+sail composer lint              # fix code style (Pint)
+sail composer test              # Pest only
 
 # Long-running processes (dev)
 sail artisan queue:listen --queue=default,notifications,billing,pdf,imports
@@ -36,7 +36,7 @@ php artisan module:make <Name>
 php artisan module:migrate <Name>
 ```
 
-CI runs `pint --test`, `phpstan`, and `pest --parallel` on every PR. Never merge red.
+CI runs `composer ci` on every push, once each on MySQL 8.0/8.4 and MariaDB 10.6/11.4 ([docs/runbooks/ci.md](docs/runbooks/ci.md)). Never merge red.
 
 ## 3. Non-Negotiable Invariants
 

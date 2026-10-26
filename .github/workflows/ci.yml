@@ -1,0 +1,113 @@
+# Quality gate: Pint, Larastan and Pest via `composer ci` (AGENT.md § 2),
+# once per supported database. cPanel/Plesk hosts often run MariaDB, so both
+# engines are tested at their oldest and newest supported LTS versions
+# (ARCHITECTURE.md § 2, docs/runbooks/ci.md).
+name: CI
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: CI (${{ matrix.name }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: MySQL 8.0
+            image: mysql:8.0
+            connection: mysql
+            health: mysqladmin ping -h 127.0.0.1 -ppassword
+          - name: MySQL 8.4
+            image: mysql:8.4
+            connection: mysql
+            health: mysqladmin ping -h 127.0.0.1 -ppassword
+          - name: MariaDB 10.6
+            image: mariadb:10.6
+            connection: mariadb
+            health: healthcheck.sh --connect --innodb_initialized
+          - name: MariaDB 11.4
+            image: mariadb:11.4
+            connection: mariadb
+            health: healthcheck.sh --connect --innodb_initialized
+
+    services:
+      database:
+        image: ${{ matrix.image }}
+        env:
+          # The MariaDB image accepts the MYSQL_* names too.
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_DATABASE: testing
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="${{ matrix.health }}"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    env:
+      DB_CONNECTION: ${{ matrix.connection }}
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_DATABASE: testing
+      DB_USERNAME: root
+      DB_PASSWORD: password
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@4424c9aab975b57bd706ee5a39c6b4334d6e4f60 # 2.40.0
+        with:
+          php-version: '8.4'
+          extensions: bcmath, gd, intl, mbstring, pdo_mysql, zip
+          tools: composer:v2
+          coverage: none
+
+      - name: Get Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Composer packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ runner.os }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Build assets
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
+      - name: Prepare application
+        run: |
+          cp .env.example .env
+          php artisan key:generate --ansi
+
+      - name: Run quality gate
+        run: composer ci

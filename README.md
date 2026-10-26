@@ -59,7 +59,7 @@ composer install
 ./vendor/bin/sail artisan key:generate
 ./vendor/bin/sail artisan migrate --seed # demo login: test@example.com / password
 npm ci && npm run build                  # or: npm run dev
-./vendor/bin/sail composer test          # Pint + Larastan + Pest
+./vendor/bin/sail composer ci            # Pint + Larastan + Pest (same as CI)
 ```
 
 Without Sail, point `DB_HOST` in `.env` at a local MySQL 8 / MariaDB 10.6+ server and create a `testing` database for the test suite. More commands are in [AGENT.md § 2](AGENT.md).

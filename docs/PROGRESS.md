@@ -6,7 +6,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 ## Current state
 
-- **In progress:** none
+- **In progress:** P00-02 (CI on MySQL and MariaDB)
 - **Next task:** P00-02 (CI on MySQL 8 and MariaDB 10.6+); PRE-01 to PRE-04 continue with the product owner
 - **Blocked:** none
 
