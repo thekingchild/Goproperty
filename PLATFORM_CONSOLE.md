@@ -151,12 +151,21 @@ Monthly automatic restore test to staging; a quarterly manual drill is recorded 
 
 Lets support staff see exactly what a customer sees.
 
-- **Who:** `support-agent` and `operations-manager` (read-only); write mode needs approval by a second staff member.
-- **Customer consent:** each organization has a setting "Allow GoProperty support access", on by default with a clear explanation in Settings. Org-owners can switch it off; staff then need the org-owner to grant a time-limited access window.
+- **Who:** controlled only by staff permissions from the catalogue (§ 1), checked by policy on every start:
+  - `impersonate.read_only` — default roles `support-agent`, `operations-manager` and `super-admin`.
+  - `impersonate.write` — a protected permission (only a `super-admin` can add it to a role); each write-mode session also needs approval by a second staff member (two-person rule, § 1).
+  - `impersonation.view_log` — read the impersonation log below; default roles `super-admin`, `operations-manager` and `compliance-officer`.
+  Staff without the permission do not see the action, and a direct request is refused and recorded. Granting or removing these permissions is a role change and is audited like any other (§ 1).
+- **No customer consent and no customer notification:** organizations have no setting to allow or refuse support access, and GoProperty does not email or notify the organization or the impersonated user about a session. Control sits on GoProperty's side: the permissions above, a mandatory reason, the 30-minute limit, the blocked actions and the audit trail. The customer terms of service and privacy notice state that GoProperty support may view accounts to give support and to monitor the service.
 - **Start:** staff picks a user, types a reason (e.g. support ticket number). Can't impersonate other staff.
 - **Session:** maximum 30 minutes. A visible banner on every page: "GoProperty support (Ada O.) is viewing this account — End session". Hand-off from the staff console to the customer app uses a one-time signed token valid for 60 seconds, which starts a separate, time-limited customer-side session; the staff session cookie is never sent to customer pages.
 - **Always blocked while impersonating:** confirming/rejecting payments, voiding receipts, changing bank accounts or Paystack keys, billing transfers, changing passwords/2FA, inviting or removing members, deleting anything.
-- **Audit:** start, end, reason and every page viewed and action taken are recorded with both identities (staff + impersonated user). The org-owner gets an email summary after the session.
+- **Audit trail (GoProperty side):**
+  - Every session is a row in `impersonation_sessions` (staff, user, organization, reason, mode, approval, start, end and how it ended).
+  - Session start, end (manual or timeout), each page viewed, each action taken and each blocked or refused attempt are written to the hash-chained audit log (§ 7) with both identities: the impersonated user as causer and the staff member in `impersonator_staff_id`, plus the session ID, organization, IP and user agent.
+  - **Console → Customers → Impersonation log** (permission `impersonation.view_log`): every session, filterable by staff member, organization, user, mode and date; a session page shows the reason, approval and the full timeline of pages and actions. Viewing the log is itself audited.
+  - Active sessions show on the Operations dashboard (§ 2, Security row) and a `super-admin` can end any of them.
+  - The trail is kept for the audit-log retention period (§ 7) and is not shown in the customer app.
 
 Implementation: `lab404/laravel-impersonate` (or the Filament impersonate plugin) wrapped in GoProperty's own guard and policy checks.
 
