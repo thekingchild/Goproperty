@@ -46,4 +46,23 @@ return [
     'migrations_per_batch' => 5,
     'batch_seconds' => 20,
 
+    /*
+    |--------------------------------------------------------------------------
+    | Web installer (INSTALLER.md § 4–5)
+    |--------------------------------------------------------------------------
+    |
+    | The unlock phrase for the file check is valid for 30 minutes; unlock
+    | attempts are limited per IP address. The grant lasts 60 minutes from
+    | the last completed step. The wizard's session is an encrypted file
+    | session of its own, since the database does not exist yet.
+    |
+    */
+
+    'challenge_minutes' => 30,
+    'unlock_attempts' => 5,
+    'unlock_decay_minutes' => 15,
+    'grant_minutes' => 60,
+    'session_cookie' => 'gp_install_session',
+    'session_files' => storage_path('framework/sessions'),
+
 ];

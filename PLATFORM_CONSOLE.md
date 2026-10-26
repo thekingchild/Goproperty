@@ -69,7 +69,7 @@ Health at a glance, refreshed every 60 s:
 | --- | --- |
 | App | Uptime, error rate (Sentry), p95 response time, deploy version, maintenance mode toggle. **System → Version**: current and latest release, pending migrations, last backup, and (no-SSH upgrades) a `super-admin`-only batched "run pending migrations" step — no in-app code download ([INSTALLER.md § 10](INSTALLER.md)) |
 | Queues | Depth and wait time per queue (`default`, `notifications`, `billing`, `pdf`, `imports`), failed jobs with retry/forget; Horizon link on VPS, read from the `jobs`/`failed_jobs` tables on shared hosting |
-| Scheduler | Last run + result of every scheduled command; in-process queue tick heartbeat; alert if a job didn't run. Shows the cron line built from the detected PHP CLI path (owner/technical-admin only) |
+| Scheduler | Last run + result of every scheduled command; in-process queue tick heartbeat; alert if a job didn't run. Shows the cron line built from the detected PHP CLI path (owner/technical-admin only). The heartbeats are also served as JSON at `/{ADMIN_PATH}/system/heartbeat` (permission `system.status`), which the installer's finish screen polls for its live cron check |
 | Webhooks | Paystack: last event received, failure rate, events awaiting processing — for GoProperty's own account **and** per connected agency account; replay button |
 | Messaging | Email/SMS/WhatsApp sent, delivered, bounced, failed (24h/7d); SMS spend; provider status |
 | Backups | Last DB backup, last files backup, per destination, size, success/failure, next scheduled run |

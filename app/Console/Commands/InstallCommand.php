@@ -98,10 +98,11 @@ final class InstallCommand extends Command
                 });
             }
 
-            $steps->createSuperAdmin($adminName, $adminEmail, $adminPassword);
+            $staff = $steps->createSuperAdmin($adminName, $adminEmail, $adminPassword);
             $this->components->twoColumnDetail('First super-admin', $adminEmail);
 
             $result = $steps->finalize($environment);
+            $auditWarning = $steps->recordInstallation($staff, 'cli');
             $record = $steps->writeInstallationRecord($result, $site, $database);
         } catch (ValidationException $exception) {
             foreach ($exception->validator->errors()->all() as $message) {
@@ -132,7 +133,7 @@ final class InstallCommand extends Command
             $this->components->warn('Email was not tested. Run the install with --mail-test next time, or send one from the console.');
         }
 
-        foreach ($result->warnings as $warning) {
+        foreach ([...$result->warnings, ...array_filter([$auditWarning])] as $warning) {
             $this->components->warn($warning);
         }
 

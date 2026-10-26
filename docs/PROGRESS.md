@@ -6,9 +6,9 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 ## Current state
 
-- **In progress:** P01-09 (web installer wizard) and P01-07 (console staff roles); P01-02 (registration wizard) starts when P01-09 lands. Each task is built in its own worktree and reviewed before it merges
-- **In review:** P00-03 (hosting profiles), P00-04 (release package) and P00-06 (installer CLI + install drill): done and verified locally; each needs one green run in GitHub Actions (CI for P00-03, a tagged Release for P00-04, the Install drill on MySQL 8 and MariaDB 10.6 for P00-06) once Actions starts jobs. P00-12 (backups): built and drilled locally; needs one real run to an S3-compatible bucket and a Google Shared Drive (PRE-03 accounts)
-- **Next task:** P01-02 and P01-07 in parallel; PRE-01 to PRE-04 continue with the product owner
+- **In progress:** P01-07 (console staff roles) and P01-02 (registration wizard) Each task is built in its own worktree and reviewed before it merges
+- **In review:** P01-09 (web installer wizard): done and verified locally on MariaDB 11.4; the Install drill on MySQL 8 and MariaDB 10.6 waits on GitHub Actions. P00-03 (hosting profiles), P00-04 (release package) and P00-06 (installer CLI + install drill): done and verified locally; each needs one green run in GitHub Actions (CI for P00-03, a tagged Release for P00-04, the Install drill on MySQL 8 and MariaDB 10.6 for P00-06) once Actions starts jobs. P00-12 (backups): built and drilled locally; needs one real run to an S3-compatible bucket and a Google Shared Drive (PRE-03 accounts)
+- **Next task:** P01-04, P01-05 and P01-06 once P01-02 and P01-07 land; PRE-01 to PRE-04 continue with the product owner
 - **Blocked:** P00-02: GitHub Actions jobs are not being given a runner (account-level), and branch protection on `main` needs a repo admin. This also holds P00-03's CI check, P00-04's release run and P00-06's install drill
 - **Blocked:** P00-13 (staging): the deploy scripts, the deploy on merge and the deploy drill are built and drilled locally; it needs a staging host (PRE-04) and working Actions runners (P00-02)
 
@@ -32,6 +32,90 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 ## Ledger (newest first)
 
 Each entry: task ID and status, date, what was delivered, tests run and results, follow-ups, next task.
+
+### P01-09 — In review (2026-10-26): web installer wizard
+
+**Status:** In review. Everything is built and drilled locally on MariaDB 11.4.12, and every test passes. The AC names MySQL 8 and MariaDB 10.6, which only GitHub Actions can run, and Actions has no runners yet (P00-02). Same situation as P00-06.
+
+**To close it:** once Actions starts jobs, run **Install drill** by hand (or let the nightly run). Confirm all four database jobs pass (MySQL 8.0/8.4, MariaDB 10.6/11.4); each now walks the web wizard too. Then mark P01-09 complete.
+
+**Delivered** ([INSTALLER.md § 4–5](../INSTALLER.md)):
+- **First screen and unlock** (`GET /install`, `POST /install/unlock/token|file`). These run before `APP_KEY` exists, with no session, cookie or CSRF.
+  - **Setup token:** checked with `SetupToken::verify()`.
+  - **File check** (`App\Installer\Web\UnlockChallenge`): a `GP-UNLOCK XXXX-XXXX-XXXX` phrase, valid 30 minutes. Only hashes are stored, and the 20 most recent phrases stay valid, so a reload doesn't break a file already made. The file is read from `storage/app/install-unlock.txt`. A byte-order mark, CRLF and lower case are tolerated; symlinks and files over 512 bytes are refused. The file is deleted on success.
+  - **Checks on each unlock post:** same-origin (`Origin`, or `Sec-Fetch-Site: same-origin` plus a matching `Referer`), HTTPS except on local hosts (with AutoSSL / Let's Encrypt advice), and 5 attempts per IP per 15 minutes. Attempts are counted in a `flock`ed file with hashed IPs (`UnlockAttempts`).
+  - **On success:** `.env` is created from `.env.example` with a key (`InstallationSteps::ensureApplicationKey`), `APP_DEBUG=false` is written, and the encrypted file session starts in the same request.
+- **Session and grant:**
+  - **Session:** the wizard has its own encrypted file session (`gp_install_session`, path `/install`, Strict, Secure on https; `InstallerSession`). `InstallerWebStack` builds the cookie, session and CSRF middleware only once a key exists, so a key-less request never fails at terminate.
+  - **Grant** (`InstallerGrant`): a token in the session and its hash in `install.grant`, so there is one grant at a time and a new unlock ends the old browser's access.
+  - **Rotation:** the first use swaps both the token and the session ID.
+  - **Lifetime:** 60 minutes from the last completed step. Each step and each migration batch renews it; viewing pages does not. On expiry the owner unlocks again in the browser, and nothing is lost.
+- **Steps** (`App\Http\Controllers\Install\*`, `WizardProgress`): steps open in order. Progress is read from the markers, the `migrations` table and the staff table, so a lost session or a re-unlock resumes. Only "server check seen" and "email/storage skipped" live in the session. If `.env`'s database stops matching the checkpoint, every step shows "Install stopped" (409).
+  1. **Server check:** the detailed report, grouped. Passing checks are collapsed; failures show cPanel and Plesk fixes. Blocking failures stop the install.
+  2. **Site & database:** "Test connection" writes nothing; "Save" goes through `configureSite` (probe, `.env`, checkpoint). Passwords are never echoed; if left empty later, the saved one is kept.
+  3. **Build:** one batch per request (`InstallationSteps::migrateBatch()`, new) with a `<progress>` bar ("5 of 17") that continues by itself. After the last batch, `seed()` runs. A failed migration offers "Empty the database and start this step again" (`FreshDatabaseReset`, typed database name).
+  4. **Email & storage:**
+     - **Email:** SMTP presets for Postmark, Mailgun and SES, or any SMTP host, then a test email. It must succeed or be skipped.
+     - **Storage** (`StorageSettings`, `StorageProbe`): S3-compatible. It writes, reads back and deletes a file, and writes `AWS_*` only after that test passes. Errors are explained with the keys removed. Storage can also be skipped.
+  5. **First super-admin:** created with the shared `createSuperAdmin`, which holds the P01-07 hook comment for the `super-admin` role. 2FA is enrolled in the wizard (`TwoFactorEnrolment`):
+     - a QR code, manual key and `otpauth` link, confirmed with a 6-digit code;
+     - stored the way Filament stores it (secret encrypted, 8 recovery codes hashed);
+     - the codes are shown once with Download, Copy and a required "I've saved my recovery codes" tick.
+     - Resuming with the same email and password works; another account is refused.
+  6. **Finish:**
+     - The `Finalizer` runs (cleanup checkpoint first, `ADMIN_PATH`, secrets removed, lock and row, caches).
+     - The install is written to the audit log (`InstallationSteps::recordInstallation`, `log_name` `installer`, version, `via`, IP). The CLI now does this too.
+     - **Console handover** (`ConsoleHandover`): a database session under `gp_staff_session` with the console's flags, logged as a staff sign-in. Not done when `ADMIN_DOMAIN` is set.
+     - **Finish screen**, shown once as the reply to the post:
+       - the console URL ("Bookmark this");
+       - the detected cron line, with cPanel and Plesk steps;
+       - a live cron check polling the new console route `/{ADMIN_PATH}/system/heartbeat` (`SchedulerHeartbeatController`, permission `system.status`, added to the interim `ConsolePermissions`);
+       - the installation record as a one-time download (with `APP_KEY`; the web install leaves no copy on the server);
+       - next steps (anything skipped, Paystack, Termii, Turnstile, backups, theme, Cloudflare, `APP_DEBUG` confirmed off).
+- **Views:** plain PHP (`resources/views/installer/layout.php`, `steps/*.php`) on the login page's split shell, ported to the static `public/install.css`. A brand panel with a vertical step list (`aria-current="step"`) becomes a "Step 3 of 7" bar on phones. Checked in the browser at desktop and 360 px.
+- **`ArtisanOptimizer`:** puts the application back as the facade root and container instance after `config:cache`, which boots a second app and leaves the facades pointing at it. Harmless at the end of a command, but the web finish keeps working in the same request.
+- **Install drill** (`scripts/release/install-drill.sh`): after the CLI install, a second split layout is installed by walking the wizard with `curl` against `php -S`, under the same shared-host limits:
+  - file-check unlock, then the migrations one batch per request;
+  - a test email to a new local SMTP sink (`scripts/release/smtp-sink.php`), with storage skipped;
+  - TOTP enrolment (a code from the package's own Google2FA) and the 8 recovery codes;
+  - finish, checking the console path, cron line and record with `APP_KEY`;
+  - the handed-over console session, and the heartbeat turning fresh after one `schedule:run`;
+  - `/install` and the wizard routes return 404, `check-installation` passes, and `audit-verify` passes.
+
+  Both schemas are compared with a plain migrate. `install-drill.yml` now also runs on changes to installer controllers, middleware, routes, views and `install.css`.
+- **Docs:**
+  - INSTALLER.md § 3, § 4 (phrase handling, attempts file, installer session, grant mechanics, `APP_DEBUG` at unlock), § 5 (plain PHP views, step order and resume, batch settings, storage written after its test and skippable, 2FA storage, audit entry, handover, record download), § 7 and § 12.
+  - [install-recovery.md](runbooks/install-recovery.md): new § 5 on the web installer, and the record that was never downloaded.
+  - PLATFORM_CONSOLE.md § 2 (the heartbeat endpoint) and AGENT.md § 2.
+
+**Tests and evidence (local, MariaDB 11.4.12):**
+- Orchestrator's review run after merging P01-01 into the branch: `composer ci` Pint passed, Larastan 0 errors, Pest **917 tests: 916 passed, 1 skipped, 5,377 assertions**. The `BackupRunnerTest` flake noted below came from the shared backup temp folder that P01-01 fixed.
+- `composer ci`: Pint passed, Larastan 0 errors, Pest **878 tests: 877 passed, 1 skipped, 5,131 assertions**. 54 tests are new:
+  - `tests/Feature/Installer/WebUnlockTest.php` (23)
+  - `WebInstallWizardTest.php` (10)
+  - `NoHttpRecoveryTest.php` (7)
+  - `tests/Feature/Console/SchedulerHeartbeatTest.php` (4)
+  - `tests/Unit/StorageSettingsTest.php` (10)
+
+  `tests/Support/InstallerBrowser.php` is a cookie-carrying test browser that drops in-memory sessions between requests.
+- **AC: web install drill (file-check unlock, TOTP enrolment, finish):**
+  - **In Pest:** `WebInstallWizardTest` › "installs GoProperty over HTTP, the same as the command line" uses a real throwaway database, a file-check unlock, a real test email over SMTP and TOTP enrolment. After finish it checks the same `.env` values, markers, staff, audit entry and schema as a plain migrate. "hands the owner a signed-in console session…" opens the console dashboard and heartbeat with the handed-over cookie.
+  - **Drill:** on freshly built packages `goproperty-0.19.0-rc.1` and `rc.2`, `install-drill.sh` passed every step, CLI and web. Batches ran in 0–1 s, the finish took 5 s under `max_execution_time=30`, and both schemas were identical to a plain migrate (186 columns and tables). The release drill (`verify-drill.sh`) also passed on rc.2.
+  - **Local caveat, as in P00-06:** this PHP has no `intl`, so the local run used a scratch copy of the script that drops `intl` from the unpacked checker (restored before `verify-package`). The repository script and the zip were unchanged.
+  - **Not run here:** MySQL 8 and MariaDB 10.6 (GitHub Actions only, blocked by P00-02).
+- **AC: after finish `/install` is 404 and no HTTP route can reset or re-run installation:**
+  - `NoHttpRecoveryTest`: every installer route has `EnsureInstallerOpen` first. With valid unlock proofs present, every installer route and method returns 404 with no cookie and changes nothing. Each single marker (lock, row, cleanup checkpoint) closes them all.
+  - It also checks that no route outside `/install` injects installer services or uses an installer controller, and that no web-reachable code (`app/Http`, `app/Livewire`, `app/Platform`, views, routes) mentions the installer services or the install, finish, migrate or wipe commands.
+  - The walk-through test and the drill also show 404 after a real finish.
+- **Flaky, unrelated:** `BackupRunnerTest` › "reports each destination after a manual run" failed once in the first parallel run (exit 1 instead of 0). It passed 3 times on its own and in 3 later full parallel runs, including the final `composer ci`. The dumper's queries are scoped to the current database, so the new scratch-database tests should not affect it.
+
+**Follow-ups:**
+- P01-07: assign `super-admin` in `InstallationSteps::createSuperAdmin` (comment in place). Move `system.status` into the permission catalogue (`technical-admin`, `super-admin`).
+- `ConsolePanelProvider` and `ConsolePermissions` gained one line each, which may conflict with P01-07 and P01-08 edits to the same files.
+- The command-line install still does not ask for S3 storage (INSTALLER.md § 7); the wizard tests it.
+- The upgrade drill (previous release → new) remains open (INSTALLER.md § 12).
+
+**Next:** P01-01 to P01-08 continue. P01-09 closes with P00-06 once the Install drill workflow runs.
 
 ### P01-01 — Complete (2026-10-26): organization switcher, roles per organization (spatie teams)
 

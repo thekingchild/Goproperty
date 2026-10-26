@@ -1,7 +1,10 @@
-# Install drill (INSTALLER.md § 12, P00-06): builds the release package,
-# installs its split layout with `goproperty:install` under shared-host
-# limits (max_execution_time=30, exec/proc_open disabled), checks the site,
-# and compares the schema with a plain `migrate`; then the deploy drill
+# Install drill (INSTALLER.md § 12, P00-06, P01-09): builds the release
+# package, installs its split layout twice under shared-host limits
+# (max_execution_time=30, exec/proc_open disabled): with `goproperty:install`,
+# and by walking the web wizard over HTTP (file-check unlock, batched
+# migrations, test email, TOTP enrolment, finish, console handover, live
+# cron heartbeat, /install closed). Checks both sites and compares both
+# schemas with a plain `migrate`; then the deploy drill
 # (P00-13): first install into the releases/shared layout, upgrades and
 # refusals. Runs nightly, on pull requests that touch migrations, the
 # installer or the deploy scripts, by hand, and before every release.
@@ -16,6 +19,12 @@ on:
       - 'database/seeders/**'
       - 'app/Installer/**'
       - 'app/Console/Commands/InstallCommand.php'
+      - 'app/Http/Controllers/Install/**'
+      - 'app/Http/Middleware/Installer/**'
+      - 'app/Http/Middleware/EnsureInstallerOpen.php'
+      - 'routes/install.php'
+      - 'resources/views/installer/**'
+      - 'public/install.css'
       - 'scripts/release/**'
       - 'scripts/deploy/**'
   workflow_dispatch:

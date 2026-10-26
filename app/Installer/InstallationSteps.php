@@ -10,6 +10,7 @@ use App\Installer\Database\ProbeResult;
 use App\Installer\Finishing\Finalizer;
 use App\Installer\Finishing\FinalizeResult;
 use App\Installer\Migrations\BatchedMigrator;
+use App\Installer\Migrations\BatchResult;
 use App\Installer\Migrations\MigrationProgress;
 use App\Installer\Support\AtomicFile;
 use App\Models\PlatformStaff;
@@ -153,29 +154,49 @@ final class InstallationSteps
      */
     public function buildDatabase(?Closure $progress = null): MigrationProgress
     {
-        $this->recordStage(InstallStage::Migrating);
-
         do {
-            $batch = $this->migrator->runBatch();
+            $batch = $this->migrateBatch();
 
             if ($batch->failed()) {
                 throw new InstallationException("Migration {$batch->failedMigration} failed: {$batch->error} "
                     .'Run the install again to retry. If it fails again on a new install, empty the database and start this step again (INSTALLER.md § 6).');
             }
 
-            // The first batch creates installation_state.
-            $this->recordStage(InstallStage::Migrating);
-
             if ($progress !== null) {
                 $progress($batch->progress);
             }
         } while (! $batch->progress->finished());
 
-        $seeder = $this->app->make(InstallSeeder::class);
-        $seeder->setContainer($this->app)->__invoke();
-        Log::channel('install')->info('Database built and seeded', ['migrations' => $batch->progress->total]);
+        $this->seed();
 
         return $batch->progress;
+    }
+
+    /**
+     * Step 4, one request's worth: a batch of migrations (the web wizard
+     * posts one batch per request, each well inside shared hosts' time
+     * limits). A failed batch is returned, not thrown, so the wizard can
+     * offer to empty the database (INSTALLER.md § 6).
+     */
+    public function migrateBatch(): BatchResult
+    {
+        $this->recordStage(InstallStage::Migrating);
+        $batch = $this->migrator->runBatch();
+
+        // The first batch creates installation_state.
+        if (! $batch->failed()) {
+            $this->recordStage(InstallStage::Migrating);
+        }
+
+        return $batch;
+    }
+
+    /** Step 4's end: the idempotent install seeders, safe to run again. */
+    public function seed(): void
+    {
+        $seeder = $this->app->make(InstallSeeder::class);
+        $seeder->setContainer($this->app)->__invoke();
+        Log::channel('install')->info('Database built and seeded', ['migrations' => $this->migrator->progress()->total]);
     }
 
     /** Step 5: writes SMTP settings and switches them into this process. */
@@ -228,11 +249,36 @@ final class InstallationSteps
     }
 
     /**
+     * Step 5: S3-compatible file storage. The bucket is tested (write, read,
+     * delete) before anything is written, so a typo never lands in `.env`.
+     *
+     * @throws InstallationException
+     */
+    public function configureStorage(EnvironmentFile $environment, StorageSettings $storage): void
+    {
+        $this->app->make(StorageProbe::class)->test($storage);
+
+        $environment->set($storage->environment());
+        $this->config->set('filesystems.disks.s3', array_merge((array) $this->config->get('filesystems.disks.s3'), [
+            'key' => $storage->accessKey,
+            'secret' => $storage->secret(),
+            'region' => $storage->region,
+            'bucket' => $storage->bucket,
+            'endpoint' => $storage->endpoint !== '' ? $storage->endpoint : null,
+            'use_path_style_endpoint' => $storage->pathStyle,
+        ]));
+
+        Log::channel('install')->info('File storage tested and saved');
+    }
+
+    /**
      * Step 6: the first staff account. Refused if any staff account exists,
      * except the same email and password again (resuming after a timeout).
-     * 2FA is enrolled at first console sign-in (INSTALLER.md § 7).
+     * The web wizard enrols 2FA right after this step (INSTALLER.md § 5); the
+     * command-line install leaves it to the first console sign-in (§ 7).
      *
      * @throws ValidationException
+     * @throws InstallationException
      */
     public function createSuperAdmin(string $name, string $email, #[SensitiveParameter] string $password): PlatformStaff
     {
@@ -257,6 +303,11 @@ final class InstallationSteps
             'status' => StaffStatus::Active,
         ]);
 
+        // Staff roles arrive with P01-07: give this account the `super-admin`
+        // role here (for example $staff->assignRole('super-admin') on the
+        // staff guard), so the CLI and the web wizard both grant it. Until
+        // then every active staff member holds the console permissions
+        // (App\Platform\Console\ConsolePermissions).
         $this->recordStage(InstallStage::OwnerReady);
         Log::channel('install')->info('First staff account created');
 
@@ -290,14 +341,23 @@ final class InstallationSteps
     /**
      * The installation record (§ 5): written once, mode 0600, for the owner to
      * store offline. Without APP_KEY, encrypted data cannot be read after a
-     * restore. Returns the file's path.
+     * restore. Returns the file's path. (The web wizard offers the same text
+     * as a one-time download instead of leaving it on the server.)
      */
     public function writeInstallationRecord(FinalizeResult $result, SiteSettings $site, DatabaseSettings $database): string
     {
         $path = $this->markers->path('record');
+
+        AtomicFile::write($path, $this->installationRecord($result, $site, $database), 0600);
+
+        return $path;
+    }
+
+    public function installationRecord(FinalizeResult $result, SiteSettings $site, DatabaseSettings $database): string
+    {
         $key = $this->config->get('app.key');
 
-        AtomicFile::write($path, implode("\n", [
+        return implode("\n", [
             'GoProperty installation record',
             '',
             'Store this file offline in two places, then delete it from the server.',
@@ -311,9 +371,31 @@ final class InstallationSteps
             'Database:       '.$database->database.' on '.$database->host.':'.$database->port,
             'APP_KEY:        '.(is_string($key) ? $key : ''),
             '',
-        ]), 0600);
+        ]);
+    }
 
-        return $path;
+    /**
+     * Finish, step 6 (INSTALLER.md § 5): the install in the audit log, with
+     * who, when, the version and (on the web) the IP address. A failure here
+     * does not undo a finished install; it is returned as a warning.
+     */
+    public function recordInstallation(?PlatformStaff $by, string $via): ?string
+    {
+        try {
+            $entry = activity('installer')->event('installed')->withProperties(['version' => AppVersion::current(), 'via' => $via]);
+
+            if ($by !== null) {
+                $entry->causedBy($by);
+            }
+
+            $entry->log('GoProperty '.AppVersion::current().' installed');
+        } catch (Throwable $exception) {
+            Log::channel('install')->error('The installation could not be written to the audit log', ['error' => $exception->getMessage()]);
+
+            return 'The installation could not be written to the audit log ('.$exception->getMessage().').';
+        }
+
+        return null;
     }
 
     /**

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers\Filament;
 
+use App\Http\Controllers\Console\SchedulerHeartbeatController;
 use App\Http\Controllers\Console\ThemePreviewController;
 use App\Http\Middleware\StaffIdleTimeout;
 use App\Http\Middleware\StaffIpAllowlist;
@@ -92,6 +93,9 @@ final class ConsolePanelProvider extends PanelProvider
 
                     // "Stay signed in" on the idle warning: the request itself is the activity.
                     Route::get('session/ping', fn () => response()->noContent())->name('session-ping');
+
+                    // Scheduler and queue-tick heartbeats, polled by the installer's finish screen.
+                    Route::get('system/heartbeat', SchedulerHeartbeatController::class)->name('system-heartbeat');
                 });
             })
             ->discoverResources(in: app_path('Platform/Filament/Resources'), for: 'App\\Platform\\Filament\\Resources')
