@@ -60,11 +60,11 @@ step "Verify both unpacked layouts"
 (cd "$split" && "$php" artisan goproperty:verify-package)
 
 step "A changed file fails"
-cp "$preferred/public/favicon.svg" "$work/favicon.svg"
-echo "<!-- changed -->" >> "$preferred/public/favicon.svg"
-expect_failure "public/favicon.svg does not match its SHA256SUMS checksum" \
+cp "$preferred/public/images/skyline.svg" "$work/skyline.svg"
+echo "<!-- changed -->" >> "$preferred/public/images/skyline.svg"
+expect_failure "public/images/skyline.svg does not match its SHA256SUMS checksum" \
     "$php" "$preferred/artisan" goproperty:verify-package
-cp "$work/favicon.svg" "$preferred/public/favicon.svg"
+cp "$work/skyline.svg" "$preferred/public/images/skyline.svg"
 
 step "An added file fails"
 echo '<?php echo 1;' > "$public_html/added.php"
@@ -73,13 +73,13 @@ expect_failure "public/added.php is not listed in SHA256SUMS" \
 rm "$public_html/added.php"
 
 step "A changed zip entry fails"
-mkdir -p "$work/tampered/preferred/goproperty/public"
+mkdir -p "$work/tampered/preferred/goproperty/public/images"
 cp "$zip.sha256" "$work/tampered/" 2>/dev/null || true
 cp "$zip" "$work/tampered/"
-echo "<!-- changed -->" >> "$work/favicon.svg"
-cp "$work/favicon.svg" "$work/tampered/preferred/goproperty/public/favicon.svg"
-(cd "$work/tampered" && zip -q "$(basename "$zip")" preferred/goproperty/public/favicon.svg)
-expect_failure "preferred: public/favicon.svg does not match its SHA256SUMS checksum" \
+echo "<!-- changed -->" >> "$work/skyline.svg"
+cp "$work/skyline.svg" "$work/tampered/preferred/goproperty/public/images/skyline.svg"
+(cd "$work/tampered" && zip -q "$(basename "$zip")" preferred/goproperty/public/images/skyline.svg)
+expect_failure "preferred: public/images/skyline.svg does not match its SHA256SUMS checksum" \
     "$php" "$preferred/artisan" goproperty:verify-package "$work/tampered/$(basename "$zip")"
 if [ -f "$zip.sha256" ]; then
     expect_failure "does not match $(basename "$zip").sha256" \

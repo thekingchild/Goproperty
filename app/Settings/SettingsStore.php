@@ -58,6 +58,7 @@ final class SettingsStore
      * The value as it would be stored: HTML fields cleaned, then checked
      * against the definition's type and rules.
      *
+     * @throws InvalidArgumentException when the value has the wrong type
      * @throws ValidationException
      */
     public function validated(string $key, mixed $value): mixed

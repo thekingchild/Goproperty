@@ -102,7 +102,8 @@ it('publishes the draft as a numbered, audited version', function () {
         ->and($this->themes->published()->primary())->toBe('#0f766e')
         ->and(app(SettingsStore::class)->get('site.hero_heading'))->toBe('Rent sorted.')
         ->and(Activity::query()->where('log_name', 'settings')->pluck('properties')->pluck('key')->all())->toEqualCanonicalizing(['theme.color_primary', 'site.hero_heading'])
-        ->and(Activity::query()->where('log_name', 'theme')->sole()->causer?->is($this->staff))->toBeTrue();
+        ->and(Activity::query()->where('log_name', 'theme')->where('event', 'published')->sole()->causer?->is($this->staff))->toBeTrue()
+        ->and(Activity::query()->where('log_name', 'theme')->where('event', 'draft_saved')->sole()->properties['changes'])->toHaveKeys(['theme.color_primary', 'site.hero_heading']);
 });
 
 it('archives the previous version and can restore it', function () {

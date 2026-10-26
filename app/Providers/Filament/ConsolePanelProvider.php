@@ -6,6 +6,7 @@ namespace App\Providers\Filament;
 
 use App\Http\Controllers\Console\ThemePreviewController;
 use App\Platform\Console\ConsoleRequests;
+use App\Theme\BrandAssets;
 use App\Theme\ThemeContext;
 use Filament\FontProviders\LocalFontProvider;
 use Filament\Http\Middleware\Authenticate;
@@ -60,6 +61,10 @@ final class ConsolePanelProvider extends PanelProvider
             ->authGuard('staff')
             // The console follows the published platform theme (PLATFORM_CONSOLE.md § 9.7).
             ->brandName(fn (): string => app(ThemeContext::class)->current()->name().' console')
+            ->brandLogo(fn (): ?string => app(BrandAssets::class)->url(app(ThemeContext::class)->current(), 'logo-light'))
+            ->darkModeBrandLogo(fn (): ?string => app(BrandAssets::class)->url(app(ThemeContext::class)->current(), 'logo-dark'))
+            ->brandLogoHeight('2rem')
+            ->favicon(fn (): string => app(BrandAssets::class)->faviconUrl(app(ThemeContext::class)->current()))
             ->colors(fn (): array => ['primary' => app(ThemeContext::class)->current()->primaryPalette()])
             ->font(fn (): string => app(ThemeContext::class)->current()->fontFamily(), provider: LocalFontProvider::class)
             ->renderHook(PanelsRenderHook::HEAD_END, fn (): string => Blade::render('<x-theme-styles />'))

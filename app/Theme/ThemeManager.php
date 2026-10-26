@@ -114,18 +114,53 @@ final class ThemeManager
     public function saveDraft(array $changes, ?PlatformStaff $by = null): array
     {
         $values = $this->draftValues() ?? $this->publishedValues();
+        $audit = [];
 
         foreach ($changes as $key => $value) {
             if (! $this->isVersioned($key)) {
                 throw new InvalidArgumentException("{$key} is not drafted with the theme; it applies on save.");
             }
 
-            $values[$key] = $this->settings->validated($key, $value);
+            $value = $this->settings->validated($key, $value);
+
+            if (($values[$key] ?? null) !== $value) {
+                $audit[$key] = ['old' => $values[$key] ?? null, 'new' => $value];
+            }
+
+            $values[$key] = $value;
         }
 
         $this->writeDraft($values, $by);
 
+        // Every save is audited with before and after (PLATFORM_CONSOLE.md § 9.1).
+        if ($audit !== []) {
+            $log = activity('theme')->event('draft_saved')->withProperties(['changes' => $audit]);
+
+            if ($by !== null) {
+                $log->causedBy($by);
+            }
+
+            $log->log('theme draft saved: '.implode(', ', array_keys($audit)));
+        }
+
         return $values;
+    }
+
+    /**
+     * Every set of values still in use: the published theme, the draft and
+     * each stored version (so brand images they name are kept).
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function valueSets(): array
+    {
+        $sets = [$this->publishedValues()];
+
+        foreach ($this->connection()->table(self::TABLE)->get(['keys']) as $row) {
+            $sets[] = $this->decode($row->keys ?? null);
+        }
+
+        return $sets;
     }
 
     /** Starts a draft from an earlier published version. */

@@ -2,10 +2,17 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\BrandAssetController;
 use App\Http\Controllers\Marketing\MarketingController;
 use App\Http\Controllers\Marketing\SeoController;
 use App\Http\Middleware\PublicPageHeaders;
+use App\Theme\BrandAssets;
+use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
+use Illuminate\Cookie\Middleware\EncryptCookies;
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
+use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Route;
+use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 /*
 |--------------------------------------------------------------------------
@@ -33,8 +40,17 @@ Route::middleware(PublicPageHeaders::class)->controller(MarketingController::cla
     Route::get('terms', 'terms')->name('terms');
 });
 
-Route::get('robots.txt', [SeoController::class, 'robots'])->name('robots');
-Route::get('sitemap.xml', [SeoController::class, 'sitemap'])->name('sitemap');
+// Cacheable files: no session, no cookies.
+Route::withoutMiddleware([StartSession::class, ShareErrorsFromSession::class, EncryptCookies::class, AddQueuedCookiesToResponse::class, PreventRequestForgery::class])->group(function () {
+    Route::get('robots.txt', [SeoController::class, 'robots'])->name('robots');
+    Route::get('sitemap.xml', [SeoController::class, 'sitemap'])->name('sitemap');
+
+    // Platform brand images (PLATFORM_CONSOLE.md § 9.2).
+    Route::get('brand/{role}', BrandAssetController::class)
+        ->whereIn('role', [...array_keys(BrandAssets::ROLES), 'apple-touch-icon'])
+        ->name('brand.asset');
+    Route::redirect('favicon.ico', '/brand/favicon');
+});
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::view('dashboard', 'dashboard')->name('dashboard');

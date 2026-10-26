@@ -41,7 +41,7 @@
 @endif
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="{{ $site->favicon() }}">
-<link rel="apple-touch-icon" href="{{ asset('apple-touch-icon.png') }}">
+<link rel="apple-touch-icon" href="{{ route('brand.asset', 'apple-touch-icon') }}">
 @if ($schema)
 <script type="application/ld+json">{!! json_encode($site->structuredData(), $json) !!}</script>
 @endif

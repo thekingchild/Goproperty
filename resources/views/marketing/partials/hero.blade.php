@@ -3,10 +3,13 @@
     site.* settings. With theme.hero_image the photo shows under the overlay
     and the skyline art is hidden (PLATFORM_CONSOLE.md § 9.2).
 --}}
-@php($heroPhoto = Route::has('brand.asset') && $theme->string('theme.hero_image') !== '')
-<header @class(['site-top', 'has-photo' => $heroPhoto]) data-hero>
-  @if ($heroPhoto)
-    <img class="bg-photo" src="{{ route('brand.asset', 'hero') }}" alt="" fetchpriority="high">
+@php
+    $assets = app(\App\Theme\BrandAssets::class);
+    $heroPhoto = $assets->url($theme, 'hero');
+@endphp
+<header @class(['site-top', 'has-photo' => $heroPhoto !== null]) data-hero>
+  @if ($heroPhoto !== null)
+    <img class="bg-photo" src="{{ $heroPhoto }}" srcset="{{ $assets->srcset($theme, 'hero') }}" sizes="100vw" alt="" fetchpriority="high">
   @endif
   <div class="bg-overlay" aria-hidden="true"></div>
   <div class="site-top__art" aria-hidden="true"><img src="{{ asset('images/skyline.svg') }}" alt=""></div>

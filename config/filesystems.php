@@ -40,6 +40,15 @@ return [
             'report' => false,
         ],
 
+        // Platform brand images (PLATFORM_CONSOLE.md § 9.2): private, served
+        // through /brand/{role} by App\Http\Controllers\BrandAssetController.
+        'brand' => [
+            'driver' => 'local',
+            'root' => storage_path('app/brand'),
+            'throw' => true,
+            'report' => false,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace App\Marketing;
 
 use App\Settings\SettingsStore;
+use App\Theme\BrandAssets;
 use App\Theme\Theme;
 use App\Theme\ThemeContext;
 use Illuminate\Contracts\Auth\Factory as Auth;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
 
 /**
  * What the public marketing pages print from the settings
@@ -28,6 +28,7 @@ final readonly class PublicSite
         private Config $config,
         private Auth $auth,
         private Request $request,
+        private BrandAssets $assets,
     ) {}
 
     public function theme(): Theme
@@ -94,17 +95,16 @@ final readonly class PublicSite
         return $this->indexing() && ! $this->isPreview() ? 'index, follow' : 'noindex, nofollow';
     }
 
-    /** The uploaded share image, or the generated brand card, once the brand routes exist (P00-09c). */
+    /** The uploaded share image (no image yet: no og:image). */
     public function shareImage(): ?string
     {
-        return Route::has('brand.asset') ? route('brand.asset', 'share-image') : null;
+        return $this->assets->url($this->theme(), 'share-image');
     }
 
+    /** The uploaded favicon, else the icon, else the generated mark. */
     public function favicon(): string
     {
-        return Route::has('brand.asset') && $this->theme()->string('theme.favicon') !== ''
-            ? route('brand.asset', 'favicon')
-            : asset('favicon.svg');
+        return $this->assets->faviconUrl($this->theme());
     }
 
     /**
@@ -120,12 +120,12 @@ final readonly class PublicSite
         return [
             '@context' => 'https://schema.org',
             '@graph' => [
-                array_filter([
+                [
                     '@type' => 'Organization',
                     'name' => $theme->name(),
                     'url' => $this->origin().'/',
-                    'logo' => Route::has('brand.asset') ? route('brand.asset', 'logo-light') : null,
-                ]),
+                    'logo' => $this->assets->url($theme, 'logo-light') ?? route('brand.asset', 'logo-light'),
+                ],
                 [
                     '@type' => 'SoftwareApplication',
                     'name' => $theme->name(),

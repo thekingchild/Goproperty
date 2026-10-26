@@ -6,7 +6,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 ## Current state
 
-- **In progress:** P00-09 (design system and platform theme), split into P00-09a theme engine (done), P00-09b landing page (done), P00-09c console settings pages
+- **In progress:** none
 - **In review:** P00-03 (hosting profiles), P00-04 (release package) and P00-06 (installer CLI + install drill): done and verified locally; each needs one green run in GitHub Actions (CI for P00-03, a tagged Release for P00-04, the Install drill on MySQL 8 and MariaDB 10.6 for P00-06) once Actions starts jobs
 - **Next task:** P00-10 (login pages to final quality); PRE-01 to PRE-04 continue with the product owner
 - **Blocked:** P00-02: GitHub Actions jobs are not being given a runner (account-level), and branch protection on `main` needs a repo admin. This also holds P00-03's CI check, P00-04's release run and P00-06's install drill
@@ -16,7 +16,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | Phase | Tasks | Complete | Status |
 | --- | --- | --- | --- |
 | PRE | 5 | 1 | In progress |
-| P00 | 13 | 4 | In progress |
+| P00 | 13 | 5 | In progress |
 | P01 | 9 | 0 | Not started |
 | P02 | 7 | 0 | Not started |
 | P03 | 13 | 0 | Not started |
@@ -26,11 +26,64 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | P07 | 4 | 0 | Not started |
 | P08 | 4 | 0 | Not started |
 | P09 | 8 | 0 | Not started |
-| **Total** | **83** | **5** | |
+| **Total** | **83** | **6** | |
 
 ## Ledger (newest first)
 
 Each entry: task ID and status, date, what was delivered, tests run and results, follow-ups, next task.
+
+### P00-09 — Complete (2026-10-26): P00-09c console settings pages and brand images
+
+All three sub-tasks are done (09a theme engine and app shell, 09b landing page, 09c console pages), and every AC passes: the landing page matches the template at desktop and mobile (09b), publishing a colour updates the customer app and Filament (09a, and again here through the console UI), and a draft never reaches the public site (09a, 09b, 09c).
+
+**Delivered (09c):**
+- **Console pages under Settings** (PLATFORM_CONSOLE.md § 9.1). Each is one column of cards with a live preview column on wide screens.
+  - **Brand & appearance:** identity, logos, icon, favicon, colours, greys, font, corners, hero and sign-in photos with overlay colour and strength.
+  - **Public website:** hero and sign-in text, announcement, footer, social links, FAQ (repeater with rich text) and the legal pages.
+  - **Search & sharing:** title, title pattern, description, share image, indexing (automatic / on / off), canonical origin. Its preview shows the Google result and the link card.
+  - **Custom code:** head, body-start, body-end, CSS and the allowed script hosts. It applies on save and needs step-up.
+  - **Versions:** every published version, with "Restore as draft".
+- **Draft workflow** (`DraftSettingsPage`):
+  - Save draft checks each value against the settings registry and shows problems on the matching field.
+  - The preview (`/{ADMIN_PATH}/theme-preview/landing`) reloads after each save.
+  - Header actions: Publish, Discard draft, Reset to default, Open preview.
+  - **Audit:** draft saves are now logged (`theme` / `draft_saved`, before and after per key) as well as publishes and each published key. Rich text the editor only reformats does not count as a change.
+- **Contrast warnings** (§ 9.2, § 9.8):
+  - white text on the primary colour below 4.5:1 (it names the darker shade buttons use);
+  - white text over a hero or sign-in photo under its overlay below 4.5:1, from the photo's average colour.
+- **Brand images** (`App\Theme\BrandAssets`, private `brand` disk, `/brand/{role}`):
+  - **Checks:** file type by magic bytes, which must match the extension; size and pixel limits per role. SVG is allowed only for logos, icon and favicon, and is refused if it contains script, `on*=` handlers, `javascript:`, `foreignObject`, iframe/embed/object, doctype/entities or `data:` links.
+  - **Photos:** re-encoded to WebP q82 at 2400 px and 1200 px (EXIF dropped), served with `srcset`. The share image becomes a 1200 px JPEG, and a raster icon also gets a 180 px touch icon.
+  - **Serving:** files are named by content hash; `?v={hash}` responses are `public, max-age=31536000, immutable` with `nosniff`, and SVGs get a sandbox CSP. These routes, robots.txt and the sitemap run without session or cookies.
+  - **Clean-up:** files that no draft, published theme or stored version names are deleted, so restore keeps working.
+  - **Fallbacks:** logos, icon and favicon fall back to the generated mark in theme colours (SVG, and PNG for the touch icon). The starter kit's Laravel `favicon.ico`, `favicon.svg` and `apple-touch-icon.png` are removed; `/favicon.ico` redirects to `/brand/favicon`.
+  - **Where they show:** uploaded logos replace the mark on the landing nav and footer (`logo_only` hides the name), the console logo (light and dark), and the app sidebar (icon). Favicons apply on every surface.
+- **Step-up** (`App\Platform\Console\StepUp`): password re-entry, rate-limited to 5 tries a minute, opens a 10-minute window. A staff member with confirmed 2FA must also give a TOTP code, so this becomes password + 2FA as soon as P00-10 enrols staff. Used for custom code and the canonical origin.
+- **Permissions:** pages check `settings.theme`, `settings.site`, `settings.seo` and `settings.custom_code` through Laravel gates (`ConsolePermissions`).
+
+**Interim choices (flagged, not in the spec as written):**
+- **Roles:** until staff roles exist (P01-07), every active staff member holds these four permissions. The spec limits custom code to `super-admin`. Today the only staff accounts are the installer's first administrators, so this is equivalent; P01-07 must swap the gate for spatie roles.
+- **Step-up:** password-only until staff 2FA exists (P00-10). The code check is already wired.
+
+**Tests and evidence (local, MariaDB 11.4.12):**
+- `composer ci`: Pint passed, Larastan 0 errors, Pest **717 tests / 2,229 assertions** (43 new in `tests/Feature/Theme/ConsoleSettingsPagesTest.php` and `BrandAssetsTest.php`).
+  - **Pages and drafts:** every page opens for staff and redirects guests; a draft is saved, audited and invisible to visitors; registry and form errors land on the right fields; publish, discard, reset to default and restore work; the contrast warning fires for yellow.
+  - **Images:** the hero upload yields 2400 px and 1200 px WebP files shown only in the preview; unsafe or mislabelled files are refused; replaced draft photos are deleted while published ones stay; uploaded logos, icon and favicon appear on the landing page, the app and the console.
+  - **Search & sharing:** the Google preview follows the form, and indexing maps to on/off/automatic.
+  - **Step-up:** the canonical origin and custom code need the password (a wrong one is refused); custom CSS with `</style` is refused.
+  - **Brand route:** fallbacks, headers, unknown roles and bad versions are covered.
+- **In the browser (console at 1440 px):** a draft saved in Brand & appearance showed only in the preview column. After Publish, the console itself turned teal and read "Ile Homes console", and the public landing printed the new colour and name. The Public website, Search & sharing (Google and card preview), Custom code and Versions pages render.
+- **Drills:** release `0.9.0-rc.2` built; the verify drill passed (tamper target is now `public/images/skyline.svg`, since the Laravel favicon is gone); the install drill passed.
+
+**Follow-ups:**
+- P01-07: replace the interim permission gates with staff roles (custom code `super-admin` only).
+- P00-10: staff 2FA enrolment (step-up then asks for the code automatically). The sign-in page should use `theme.auth_image`, overlay and `site.auth_*`, which are already stored and served.
+- **Generated share card:** the spec's 1200×630 card when no share image is uploaded needs a TTF font for GD. Until then `og:image` is left out when none is uploaded.
+- **Web manifest:** PWA icons (192/512) and `site.webmanifest` from `theme.icon` are not built yet.
+- P00-12: include `storage/app/brand` in the files backup.
+- The console preview covers the landing page and the app shell. Login, email and invoice previews follow with those features (P00-10, P02/P03).
+
+**Next:** P00-10 (login pages to final quality).
 
 ### P00-09b — Complete (2026-10-26): landing page, SEO, custom code
 
