@@ -14,7 +14,8 @@ use Illuminate\Http\Request;
  */
 final class RequirementsChecker
 {
-    public const string MINIMUM_PHP = '8.4.0';
+    // Same as Composer's platform check (composer.json config.platform.php).
+    public const string MINIMUM_PHP = '8.4.1';
 
     /** Required extensions; gd or imagick is checked separately. */
     public const array EXTENSIONS = [
@@ -62,7 +63,7 @@ final class RequirementsChecker
         $version = $this->server->phpVersion();
 
         return new RequirementCheck(
-            'PHP', 'PHP '.substr(self::MINIMUM_PHP, 0, 3).' or newer',
+            'PHP', 'PHP '.self::MINIMUM_PHP.' or newer',
             version_compare($version, self::MINIMUM_PHP, '>=') ? CheckStatus::Pass : CheckStatus::Fail,
             true,
             "This site runs PHP {$version}.",

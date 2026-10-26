@@ -252,7 +252,7 @@ it('stops when the server check fails, with cPanel and Plesk fixes', function ()
     $this->app->instance(ServerEnvironment::class, FakeServer::make(['php' => '8.3.9', 'missing' => ['intl']]));
 
     $this->artisan('goproperty:install', installOptions($this))
-        ->expectsOutputToContain('PHP 8.4 or newer')
+        ->expectsOutputToContain('PHP 8.4.1 or newer')
         ->expectsOutputToContain('cPanel: cPanel → MultiPHP Manager')
         ->expectsOutputToContain('PHP extension: intl')
         ->expectsOutputToContain('Fix the items above')

@@ -12,19 +12,23 @@ if (! function_exists('goproperty_php_version_problem')) {
     /**
      * The sentence to show when this PHP is too old, or null when it is fine.
      *
-     * @param  int  $versionId  PHP_VERSION_ID, e.g. 80100
+     * The minimum matches Composer's platform check (composer.json
+     * config.platform.php), so a host that passes here also passes there.
+     *
+     * @param  int  $versionId  PHP_VERSION_ID, e.g. 80130
      * @return string|null
      */
     function goproperty_php_version_problem($versionId)
     {
-        if ($versionId >= 80400) {
+        if ($versionId >= 80401) {
             return null;
         }
 
         $major = (int) floor($versionId / 10000);
         $minor = (int) floor(($versionId % 10000) / 100);
+        $patch = $versionId % 100;
 
-        return 'GoProperty needs PHP 8.4 or newer; this server runs '.$major.'.'.$minor.'.';
+        return 'GoProperty needs PHP 8.4.1 or newer; this server runs '.$major.'.'.$minor.'.'.$patch.'.';
     }
 }
 

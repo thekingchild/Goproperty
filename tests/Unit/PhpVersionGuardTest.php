@@ -16,11 +16,12 @@ require_once $guard;
 it('explains which PHP the server runs', function (int $versionId, ?string $message) {
     expect(goproperty_php_version_problem($versionId))->toBe($message);
 })->with([
-    [50640, 'GoProperty needs PHP 8.4 or newer; this server runs 5.6.'],
-    [70433, 'GoProperty needs PHP 8.4 or newer; this server runs 7.4.'],
-    [80130, 'GoProperty needs PHP 8.4 or newer; this server runs 8.1.'],
-    [80399, 'GoProperty needs PHP 8.4 or newer; this server runs 8.3.'],
-    [80400, null],
+    [50640, 'GoProperty needs PHP 8.4.1 or newer; this server runs 5.6.40.'],
+    [70433, 'GoProperty needs PHP 8.4.1 or newer; this server runs 7.4.33.'],
+    [80130, 'GoProperty needs PHP 8.4.1 or newer; this server runs 8.1.30.'],
+    [80399, 'GoProperty needs PHP 8.4.1 or newer; this server runs 8.3.99.'],
+    [80400, 'GoProperty needs PHP 8.4.1 or newer; this server runs 8.4.0.'],
+    [80401, null],
     [80512, null],
 ]);
 

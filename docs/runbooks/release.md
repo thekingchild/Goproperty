@@ -34,7 +34,7 @@ split/public_html/             public files only; index.php points at ../goprope
 
 Each layout holds the application code, production `vendor/`, built assets in `public/build/`, `.env.example`, empty `storage/` and `bootstrap/cache/` folders, `VERSION` and `SHA256SUMS`. The split layout also has `bootstrap/public-path.php`, which tells artisan and cron that the public files are in `../public_html`.
 
-Building locally (needs PHP 8.4 with `zip`, Composer, Node 22, and the `zip` command):
+Building locally (needs PHP 8.4.1+ with `zip`, Composer, Node 22, and the `zip` command):
 
 ```bash
 scripts/release/build-package.sh 1.4.0-dev.1 dist
@@ -56,7 +56,7 @@ The build uses only tracked and new (not ignored) files, so a local `.env`, `ven
 | one zip entry changed | refused by the inner checksum and by the `.sha256` file |
 | both layouts served by `php -S`, fresh upload | `/` and `/login` redirect to `/install`; a POST gets 503; `/install` and `install.css` return 200 |
 | the same with `APP_KEY` but not installed | `/up` 200, `/` 503 "being set up", `/install` 200, a built asset 200, nothing written to the log |
-| `artisan` and `index.php` on PHP 7.4 and 8.1 (Docker; set `OLD_PHP_IMAGES`) | exit 1 / HTTP 500 with "GoProperty needs PHP 8.4 or newer; this server runs 7.4." |
+| `artisan` and `index.php` on PHP 7.4 and 8.1 (Docker; set `OLD_PHP_IMAGES`) | exit 1 / HTTP 500 with "GoProperty needs PHP 8.4.1 or newer; this server runs 7.4.33." (the image's patch release) |
 
 The CI workflow also runs the old-PHP check on every push (job `Old PHP guard`), so the guard cannot break between releases.
 

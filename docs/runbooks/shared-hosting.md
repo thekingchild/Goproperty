@@ -6,7 +6,7 @@ Applies to hosting Profile A ([ARCHITECTURE.md § 12.1](../../ARCHITECTURE.md)).
 
 | Requirement | How to check | Why |
 | --- | --- | --- |
-| PHP 8.4 (web **and** CLI) | cPanel: *MultiPHP Manager*. Plesk: *PHP Settings* per domain. CLI: `php -v` over SSH (cPanel CLI binary is usually `/opt/cpanel/ea-php84/root/usr/bin/php`; Plesk: `/opt/plesk/php/8.4/bin/php`) | Laravel 13 |
+| PHP 8.4 (web **and** CLI), patch release 8.4.1 or newer | cPanel: *MultiPHP Manager*. Plesk: *PHP Settings* per domain. CLI: `php -v` over SSH (cPanel CLI binary is usually `/opt/cpanel/ea-php84/root/usr/bin/php`; Plesk: `/opt/plesk/php/8.4/bin/php`) | Laravel 13 |
 | PHP extensions: `pdo_mysql`, `mbstring`, `intl`, `bcmath`, `gd` or `imagick`, `zip`, `fileinfo`, `openssl`, `sodium`, `exif`, `curl`, `dom` | cPanel: *Select PHP Version → Extensions*. Plesk: *PHP Settings* | Money, images, Excel, PDFs |
 | `proc_open` and `exec` (optional) | `php -i \| grep disable_functions` | Only for `mysqldump` backups; without them the pure-PHP dumper is used. The scheduler and queue run in-process and never need them |
 | `memory_limit` ≥ 256M (512M better), `max_execution_time` ≥ 60 s web, `upload_max_filesize` ≥ 20M | PHP settings | Imports, PDFs, proof uploads |

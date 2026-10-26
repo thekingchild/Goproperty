@@ -32,6 +32,21 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 Each entry: task ID and status, date, what was delivered, tests run and results, follow-ups, next task.
 
+### Security update: Symfony advisories — 2026-10-26
+
+Not a plan task; follows up the advisories found during P00-07.
+
+**Delivered:**
+- `symfony/http-foundation` 8.0.15 → **8.1.9** (CVE-2026-108082: ReDoS through the `Cache-Control` request header; shipped in the release package) and `symfony/yaml` 8.0.15 → **8.1.9** (CVE-2026-109413; dev only, through Laravel Sail). Only these two packages changed; the other Symfony components stay on their current versions.
+- The blocker was `config.platform.php` = 8.4.0 in `composer.json`, because the patched Symfony releases need PHP 8.4.1. It is now **8.4.1**, and `require.php` is `^8.4.1`.
+- The minimum is aligned everywhere, so a host that passes our checks also passes Composer's platform check:
+  - The old-PHP guard (`bootstrap/php-version.php`) checks 80401 and names the full version ("GoProperty needs PHP 8.4.1 or newer; this server runs 8.4.0."). Previously an 8.4.0 host would have passed our guard and then failed with Composer's own error.
+  - `RequirementsChecker::MINIMUM_PHP` is now 8.4.1.
+  - The `Old PHP guard` CI job and the release drill match the new message, with the image's patch version allowed to vary. The CI pattern was checked against matching, wrong-version, old-wording and fatal-error outputs.
+- Docs: INSTALLER.md § 2 and § 5, ARCHITECTURE.md § 12.1, shared-hosting.md § 1, ci.md, release.md. Effect on hosts: none in practice (8.4.1 shipped in December 2024, and panels keep PHP 8.4 on the latest patch).
+
+**Tests and evidence (local, MariaDB 11.4.12):** `composer audit` reports no advisories. `composer ci` passed twice: Pint passed, Larastan 0 errors, Pest 554 tests / 1,425 assertions (1 skipped, as before). On a fresh `goproperty-0.7.1-rc.1.zip`, the package's platform check requires 80401, `http-foundation` is 8.1.9 and `yaml` is absent. The release drill passed, and the install drill passed (same local `intl` caveat as P00-06). Not run here: the guard on real PHP 7.4/8.1 (Docker, CI only).
+
 ### P00-07 — Complete (2026-10-26)
 
 **Delivered:**
@@ -75,7 +90,7 @@ Each entry: task ID and status, date, what was delivered, tests run and results,
 - While testing, found and fixed: organization defaults (`allow_support_access`, `platform_covered`) were unknown to a new model, so every later save logged them as changed from null; and `cac_number` serialised in plain text.
 
 **Follow-ups:**
-- **Security (separate from this task):** `composer audit` reports two advisories in Symfony components that were already installed, `symfony/http-foundation` 8.0.15 (ReDoS through the `Cache-Control` request header, CVE-2026-108082) and `symfony/yaml` 8.0.15 (CVE-2026-109413). Symfony fixed 8.x only in 8.1, and the current constraints resolve to a downgrade to 7.4.21, so it needs a decision.
+- ~~Security: two Symfony advisories~~ Resolved in the security update above (both packages on 8.1.9, PHP platform 8.4.1).
 - P01-01: spatie teams roles on `organization_user`, org switcher, and cross-tenant probes on every Phase-1 model.
 - P00-09: theme, website and SEO keys plus `setting_versions` (draft/publish) on the settings registry.
 - P00-11: activity log extra columns, hash chain, both guards as causer, per-log retention.

@@ -154,7 +154,7 @@ for image in ${OLD_PHP_IMAGES:-}; do
     step "Old-PHP guard on $image"
     output=$(docker run --rm -v "$pkg:/pkg:ro" "$image" php /pkg/preferred/goproperty/artisan --version 2>&1) \
         && fail "artisan exited 0 on $image"
-    grep -qE '^GoProperty needs PHP 8\.4 or newer; this server runs [0-9]+\.[0-9]+\.$' <<< "$output" \
+    grep -qE '^GoProperty needs PHP 8\.4\.1 or newer; this server runs [0-9]+\.[0-9]+\.[0-9]+\.$' <<< "$output" \
         || { echo "$output"; fail "artisan did not print the old-PHP sentence on $image"; }
     echo "artisan: $output"
 
@@ -168,7 +168,7 @@ for image in ${OLD_PHP_IMAGES:-}; do
             sleep 0.2
         done
         docker stop "$container" > /dev/null
-        [ "$code" = 500 ] && grep -q 'GoProperty needs PHP 8.4 or newer' "$work/body" \
+        [ "$code" = 500 ] && grep -q 'GoProperty needs PHP 8.4.1 or newer' "$work/body" \
             || { cat "$work/body"; fail "$docroot/index.php on $image returned $code without the sentence"; }
         echo "$docroot/index.php: 500, $(cat "$work/body")"
     done

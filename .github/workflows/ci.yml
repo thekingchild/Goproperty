@@ -141,8 +141,8 @@ jobs:
                 echo "::error::$entry exited 0 on PHP $version"
                 exit 1
               fi
-              expected="GoProperty needs PHP 8.4 or newer; this server runs $version."
-              if [ "$output" != "$expected" ]; then
+              # The image's patch release varies, so match it loosely.
+              if ! grep -qE "^GoProperty needs PHP 8\.4\.1 or newer; this server runs ${version//./\\.}\.[0-9]+\.\$" <<< "$output"; then
                 echo "::error::$entry on PHP $version printed: $output"
                 exit 1
               fi

@@ -47,7 +47,7 @@ it('passes a good host', function () {
 
 it('blocks an old PHP with cPanel and Plesk advice', function () {
     $report = checkServer(['php' => '8.3.14']);
-    $check = findCheck($report, 'PHP 8.4 or newer');
+    $check = findCheck($report, 'PHP 8.4.1 or newer');
 
     expect($report->passed())->toBeFalse()
         ->and($check->status)->toBe(CheckStatus::Fail)
