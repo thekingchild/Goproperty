@@ -46,4 +46,16 @@ final class PhoneNumber
 
         return $number;
     }
+
+    /**
+     * A Nigerian mobile number (070, 080, 081, 090, 091), normalised to
+     * +234…, or null. Signup asks for one (ONBOARDING_COMPLIANCE.md § 2);
+     * it is a contact and sign-in name only, never sent an SMS code.
+     */
+    public static function nigerianMobile(?string $input): ?string
+    {
+        $number = self::normalize($input);
+
+        return $number !== null && preg_match('/^\+234(70|80|81|90|91)\d{8}$/D', $number) === 1 ? $number : null;
+    }
 }

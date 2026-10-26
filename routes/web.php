@@ -6,9 +6,15 @@ use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\BrandAssetController;
 use App\Http\Controllers\Marketing\MarketingController;
 use App\Http\Controllers\Marketing\SeoController;
+use App\Http\Controllers\Onboarding\RegisterController;
+use App\Http\Controllers\Onboarding\VerifyEmailController;
+use App\Http\Controllers\Workspace\DashboardController;
 use App\Http\Controllers\Workspace\SwitchOrganizationController;
+use App\Http\Controllers\Workspace\WorkspaceHomeController;
 use App\Http\Middleware\PublicPageHeaders;
 use App\Http\Middleware\SignInPageHeaders;
+use App\Livewire\Onboarding\CreateOrganization;
+use App\Livewire\Onboarding\SetupWizard;
 use App\Theme\BrandAssets;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -22,7 +28,8 @@ use Illuminate\View\Middleware\ShareErrorsFromSession;
 | One domain, path-based surfaces (ONBOARDING_COMPLIANCE.md § 1)
 |--------------------------------------------------------------------------
 |
-| /                       marketing, signup                 public
+| /                       marketing                         public
+| /register, /signup/…    signup (account, organization)    Fortify + wizard
 | /login                  one sign-in for every customer    Fortify
 | /o/{organization}/…     agency or owner workspace         org members
 | /portal/…               tenant portal, across agencies    tenants
@@ -49,6 +56,20 @@ Route::post('forgot-password', PasswordResetLinkController::class)
     ->middleware(['guest:web', 'throttle:6,1', SignInPageHeaders::class])
     ->name('password.email');
 
+// Signup (ONBOARDING_COMPLIANCE.md § 2). These replace Fortify's register
+// post and email verification link: signup never reveals whether an
+// address has an account, and signs nobody in until the link is opened.
+Route::middleware(['guest:web', SignInPageHeaders::class])->group(function () {
+    Route::post('register', [RegisterController::class, 'store'])
+        ->middleware('throttle:register')
+        ->name('register.store');
+    Route::get('register/check-email', [RegisterController::class, 'sent'])->name('register.sent');
+});
+
+Route::get('email/verify/{id}/{hash}', VerifyEmailController::class)
+    ->middleware(['signed', 'throttle:6,1'])
+    ->name('verification.verify');
+
 // Cacheable files: no session, no cookies.
 Route::withoutMiddleware([StartSession::class, ShareErrorsFromSession::class, EncryptCookies::class, AddQueuedCookiesToResponse::class, PreventRequestForgery::class])->group(function () {
     Route::get('robots.txt', [SeoController::class, 'robots'])->name('robots');
@@ -64,7 +85,10 @@ Route::withoutMiddleware([StartSession::class, ShareErrorsFromSession::class, En
 Route::middleware(['auth', 'verified'])->group(function () {
     // Organization picker; signing in lands on a workspace when there is
     // one to choose (App\Tenancy\WorkspaceLanding).
-    Route::view('dashboard', 'dashboard')->name('dashboard');
+    Route::get('dashboard', DashboardController::class)->name('dashboard');
+
+    // Signup, organization step; later steps run in the new workspace.
+    Route::livewire('signup/organization', CreateOrganization::class)->name('onboarding.organization');
 
     // Organization switcher: opens a workspace and remembers it (404 for non-members).
     Route::post('organizations/{slug}/switch', SwitchOrganizationController::class)
@@ -74,7 +98,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // `organization` checks membership (404 otherwise) and sets the
     // organization context before route model binding (ARCHITECTURE.md § 4).
     Route::middleware('organization')->prefix('o/{organization}')->name('workspace.')->group(function () {
-        Route::view('/', 'surfaces.workspace')->name('home');
+        Route::get('/', WorkspaceHomeController::class)->name('home');
+
+        // Signup wizard, Tier step onwards (ONBOARDING_COMPLIANCE.md § 2).
+        Route::livewire('setup', SetupWizard::class)->name('setup');
     });
 
     // Cross-organization portals: they never set an organization context

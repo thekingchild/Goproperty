@@ -117,6 +117,19 @@ Step details:
    - **Branding:** logo, colours and letterhead, with a live preview of the invoice and receipt ([BRANDING_DOCUMENTS.md](BRANDING_DOCUMENTS.md)).
 7. A progress checklist on the dashboard tracks steps 3–6 (including branding) until complete.
 
+**How the wizard behaves (built in P01-02):**
+
+- **Pages.** Account at `/register` and "check your email" at `/register/check-email` (the sign-in pages' split layout); organization at `/signup/organization`; then Tier, plan, collections and data inside the new workspace at `/o/{slug}/setup` (Livewire). The brand panel lists the seven steps; phones show "Step 4 of 7".
+- **No account enumeration.** Every valid account form ends on the same "check your email" page and nobody is signed in. A new address gets the verification link; an address that already has an account gets an email saying so (sign in / reset password), and nothing on that account changes. A phone number that already belongs to another account is not stored, and the organization step asks for a number again. Field errors are about the form only.
+- **Verification link.** Valid 60 minutes. Opened in the browser that signed up, it confirms the address and signs the new account in, so signup continues straight to the organization step. Opened anywhere else, the person signs in first and returns to the link. Never signs in an account with two-factor authentication.
+- **Bot check and limits.** Turnstile follows Sign-in security ([PLATFORM_CONSOLE.md § 9.6](PLATFORM_CONSOLE.md)): `always` on every signup; `after_failures` from the 4th signup from one IP address in 15 minutes. The account form is limited to 5 a minute and 30 an hour per IP, and 6 an hour per email address. Breached passwords are refused in production.
+- **Resume.** The step is saved on the server (`organization_onboardings.step`), not in the session. Signing in again goes to the confirm-email page, the organization step (an account with no organization at all), or `/o/{slug}`, which sends whoever can carry on to the saved step. "Back" returns to any earlier step, including the organization details (the slug is kept).
+- **Organization.** The signed-up user becomes its first `org-owner`. One organization in signup at a time per user. Owners who manage their own buildings (type `property_owner`) get `platform_covered` set; changing the type during signup updates it.
+- **Tier.** The customer states expected yearly collections; the wizard suggests the lowest tier that covers them (launch values from `config/tiers.php` until the `transaction_tiers` table exists). Tier 1 is active at once. A Tier 2/3 choice is recorded as requested (`organization_onboardings.requested_tier`), its checklist item stays open for the documents and review (P01-03), and `organizations.transaction_tier` stays `1`.
+- **Plan and trial.** Plans from the plan catalogue. The choice is stored in `organizations.signup_plan_key` and `trial_ends_at` is set 14 days ahead the first time a plan is chosen, until SaaS billing creates the subscription (P06-01).
+- **Collections and data.** "Set up later" only, until bank accounts (P01-05 / P03-07), agency Paystack (P03-08) and import or properties (P02) exist; their checklist items stay pending. Finishing the last step makes the organization `active` and opens the dashboard.
+- **Checklist.** One row per item in `onboarding_checklist_items`. Features mark their item done through `App\Onboarding\OnboardingChecklist::complete()`; an item links to its page once that page's route exists (`ChecklistItem::routeName()`). Only members who may edit the organization see it, and it disappears when every item is done.
+
 **Tenants** never self-register. The agency invites them, and the tenant opens the invitation link, sets a password (and can add a passkey), then lands in `/portal`. No SMS codes are involved. The agency picks how the link reaches the tenant:
 
 | Channel | Cost to GoProperty | Phone verified? |

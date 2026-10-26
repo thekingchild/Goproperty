@@ -311,7 +311,7 @@ Output on public pages: `<title>`, description, canonical, Open Graph (`og:site_
 | Setting | Default | Notes |
 | --- | --- | --- |
 | `auth.passkeys_enabled` | on | WebAuthn via Fortify passkeys (`laravel/passkeys` + `@laravel/passkeys`). Relying party = host of `APP_URL` |
-| `auth.turnstile_mode` | `after_failures` | `after_failures` (shows after 3 failed attempts for the account or IP in 15 min) or `always` (every login, signup, password-reset and contact form) |
+| `auth.turnstile_mode` | `after_failures` | `after_failures` (shows after 3 failed attempts for the account or IP in 15 min; on signup, which has no failed answer, from the 4th signup from one IP in 15 min) or `always` (every login, signup, password-reset and contact form) |
 | `auth.turnstile_site_key` / `auth.turnstile_secret_key` | — | Secret encrypted. Without keys, the failure threshold becomes a 15-minute lockout instead. Server check posts `cf-turnstile-response` to Cloudflare siteverify with a 5 s timeout and **fails closed** |
 | `auth.lockout_after` / `auth.lockout_minutes` | 5 / 15 | Per identifier + IP; the generic "Those details don't match our records" message never changes |
 | `auth.remember_days` | 30 | "Keep me signed in"; not offered to accounts that must use 2FA on every sign-in |

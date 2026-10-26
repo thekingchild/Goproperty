@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace Tests\Support;
 
+use App\Enums\ChecklistItem;
+use App\Enums\OnboardingStep;
 use App\Models\Membership;
+use App\Models\OnboardingChecklistItem;
+use App\Models\OrganizationOnboarding;
 use App\Models\User;
 use Closure;
 use Illuminate\Database\Eloquent\Model;
@@ -26,6 +30,8 @@ final class OrganizationScopedModels
     {
         return [
             Membership::class => fn (): Model => Membership::query()->create(['user_id' => User::factory()->create()->id]),
+            OrganizationOnboarding::class => fn (): Model => OrganizationOnboarding::query()->create(['step' => OnboardingStep::Tier]),
+            OnboardingChecklistItem::class => fn (): Model => OnboardingChecklistItem::query()->create(['item' => ChecklistItem::Plan]),
         ];
     }
 

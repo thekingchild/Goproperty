@@ -9,6 +9,7 @@ use App\Enums\OrganizationStatus;
 use App\Enums\OrganizationType;
 use App\Enums\TransactionTier;
 use App\Support\Money;
+use Carbon\CarbonImmutable;
 use Database\Factories\OrganizationFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -42,7 +43,8 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property bool $platform_covered
  * @property array<string, mixed>|null $branding
  * @property Money|null $online_payment_cap_kobo
- * @property Carbon|null $trial_ends_at
+ * @property CarbonImmutable|null $trial_ends_at dates are immutable (AppServiceProvider)
+ * @property string|null $signup_plan_key plan key chosen at signup; interim until the subscription exists (P06-01)
  * @property Carbon|null $suspended_at set by App\Platform\Customers\OrganizationSuspension only
  * @property OrganizationStatus|null $status_before_suspension the status reactivation returns to
  * @property Carbon|null $created_at
@@ -50,7 +52,7 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property Carbon|null $deleted_at
  */
 #[Hidden(['cac_number'])]
-#[Fillable(['name', 'slug', 'type', 'address', 'state', 'lga', 'status', 'transaction_tier', 'allow_support_access', 'platform_covered', 'branding', 'online_payment_cap_kobo', 'trial_ends_at'])]
+#[Fillable(['name', 'slug', 'type', 'address', 'state', 'lga', 'status', 'transaction_tier', 'allow_support_access', 'platform_covered', 'branding', 'online_payment_cap_kobo', 'trial_ends_at', 'signup_plan_key'])]
 class Organization extends Model
 {
     /** @use HasFactory<OrganizationFactory> */

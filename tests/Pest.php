@@ -44,6 +44,9 @@ pest()->extend(TestCase::class)
 |--------------------------------------------------------------------------
 */
 
+// Signup wizard steps over HTTP (tests/Feature/Onboarding).
+require_once __DIR__.'/Support/signup.php';
+
 /**
  * A platform staff member. Staff must use an authenticator app (P00-10c),
  * so by default the account has 2FA set up and can open console pages.

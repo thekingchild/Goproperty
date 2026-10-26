@@ -165,3 +165,66 @@ label, .label { font-size: .875rem; font-weight: 600; color: var(--ink-2); }
 .auth-heading p + p { margin-top: 0; }
 button.link { padding: 0; border: 0; background: none; font: inherit; font-weight: 600; font-size: .875rem; color: var(--color-primary-700); cursor: pointer; }
 .switch button.link { font-size: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 4px; }
+
+/* ---------- Signup wizard (ONBOARDING_COMPLIANCE.md § 2) ---------- */
+/* Step list in the brand panel (desktop); "Step 4 of 7" above the form on phones. */
+.wizard-steps { display: grid; gap: .25rem; margin: 0; padding: 0; list-style: none; counter-reset: none; }
+.wizard-steps li { display: flex; align-items: center; gap: .75rem; min-height: 2.5rem; font-size: .9688rem; font-weight: 500; color: rgba(255,255,255,.62); }
+.wizard-steps__dot { display: grid; place-items: center; width: 1.75rem; height: 1.75rem; flex: none; border-radius: 999px; border: 1px solid rgba(255,255,255,.28); font-size: .8125rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.wizard-steps li.is-done { color: rgba(255,255,255,.86); }
+.wizard-steps li.is-done .wizard-steps__dot { border-color: transparent; background: rgba(34,197,94,.24); color: #86EFAC; }
+.wizard-steps li.is-current { color: #fff; font-weight: 700; }
+.wizard-steps li.is-current .wizard-steps__dot { border-color: transparent; background: var(--color-brand-accent); color: var(--hero-deep); }
+.wizard-progress { margin: 0; font-size: .8125rem; color: var(--muted); }
+.wizard-progress b { color: var(--color-primary-700); font-weight: 700; }
+@media (min-width: 1024px) { .wizard-progress { display: none; } }
+
+/* The wizard's form column is a little wider than sign-in's, for choice cards. */
+.auth-center--wide { width: min(100%, 520px); }
+.auth-foot--wide { width: min(100%, 520px); }
+
+/* Inputs without an icon, selects, and fields with a fixed prefix (₦, the site address). */
+.input--plain { padding-left: .875rem; }
+select.input { appearance: none; padding-right: 2.5rem; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right .875rem center; }
+.prefixed { display: flex; align-items: stretch; border: 1px solid var(--border-strong); border-radius: 12px; background: #fff; box-shadow: 0 1px 2px rgba(15,23,42,.04); transition: border-color .15s, box-shadow .15s; }
+.prefixed:focus-within { border-color: var(--color-primary-700); box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-primary-700) 14%, transparent); }
+.prefixed:has([aria-invalid="true"]) { border-color: var(--danger); }
+.prefixed__text { display: flex; align-items: center; padding: 0 .25rem 0 .875rem; color: var(--muted); font-size: .9375rem; white-space: nowrap; }
+.prefixed .input { min-width: 0; height: 46px; border: 0; box-shadow: none; padding-left: .25rem; background: transparent; }
+.prefixed .input:focus { box-shadow: none; }
+.field-row { display: grid; gap: 1.125rem; }
+@media (min-width: 480px) { .field-row { grid-template-columns: 1fr 1fr; } }
+.optional { font-weight: 500; color: var(--muted); }
+.hint--error { color: var(--danger); font-weight: 600; }
+.fineprint { margin: 0; font-size: .8125rem; color: var(--muted); text-align: center; }
+.fineprint a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+
+/* Choice cards: organization type, tier, plan. The radio stays visible. */
+.choices { border: 0; margin: 0; padding: 0; display: grid; gap: .625rem; }
+.choices legend { margin-bottom: .5rem; padding: 0; }
+.choice { display: flex; align-items: flex-start; gap: .75rem; padding: .875rem 1rem; border: 1px solid var(--border-strong); border-radius: 14px; background: #fff; cursor: pointer; transition: border-color .15s, box-shadow .15s, background-color .15s; font-weight: 400; }
+.choice:hover { border-color: var(--muted-soft); }
+.choice input { width: 18px; height: 18px; margin: .15rem 0 0; flex: none; accent-color: var(--color-primary-700); cursor: pointer; }
+.choice:focus-within { outline: 2px solid var(--color-primary-700); outline-offset: 2px; }
+.choice.is-selected { border-color: var(--color-primary-700); background: var(--color-primary-50); box-shadow: 0 0 0 1px var(--color-primary-700); }
+.choice__body { display: grid; gap: .2rem; min-width: 0; flex: 1; }
+.choice__body strong { display: flex; flex-wrap: wrap; align-items: center; gap: .375rem .5rem; font-size: .9688rem; font-weight: 700; color: var(--ink); }
+.choice__body > span { font-size: .875rem; color: var(--ink-2); }
+.choice__meta { font-size: .8125rem !important; color: var(--muted) !important; }
+.choice__price { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; }
+.choice__price small { font-weight: 500; color: var(--muted); }
+.badge { display: inline-flex; align-items: center; padding: .1rem .5rem; border-radius: 999px; background: var(--color-primary-100); color: var(--color-primary-900); font-size: .6875rem; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; }
+
+.options-list { display: grid; gap: .625rem; margin: 0; padding: 0; list-style: none; }
+.options-list li { display: grid; gap: .2rem; padding: .875rem 1rem; border: 1px solid var(--border); border-radius: 14px; background: var(--canvas); }
+.options-list strong { font-size: .9688rem; color: var(--ink); }
+.options-list span { font-size: .875rem; color: var(--ink-2); }
+.tips { display: grid; gap: .5rem; margin: 0; padding-left: 1.125rem; color: var(--ink-2); font-size: .9375rem; }
+
+.wizard-actions { display: flex; gap: .75rem; }
+.wizard-actions .btn-primary { flex: 1; }
+.btn-secondary { display: inline-flex; align-items: center; justify-content: center; min-height: 50px; padding: 0 1.25rem; border: 1px solid var(--border-strong); border-radius: 12px; background: #fff; color: var(--ink); font: inherit; font-size: 1rem; font-weight: 650; cursor: pointer; }
+.btn-secondary:hover { border-color: var(--ink); }
+.btn-secondary:disabled { opacity: .55; cursor: not-allowed; }
+.auth-top form { display: inline; }
+.btn-bare { padding: 0; border: 0; background: none; font-family: inherit; cursor: pointer; }

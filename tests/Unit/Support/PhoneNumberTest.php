@@ -21,3 +21,19 @@ it('normalises Nigerian numbers to +234', function (string $typed, ?string $expe
     ['call me', null],
     ['', null],
 ]);
+
+it('accepts only Nigerian mobile numbers for signup', function (string $typed, ?string $expected) {
+    expect(PhoneNumber::nigerianMobile($typed))->toBe($expected);
+})->with([
+    ['0803 123 4567', '+2348031234567'],
+    ['0703 123 4567', '+2347031234567'],
+    ['0810 123 4567', '+2348101234567'],
+    ['0905 555 0101', '+2349055550101'],
+    ['0913 123 4567', '+2349131234567'],
+    ['+234 803 123 4567', '+2348031234567'],
+    ['01 234 5678', null],
+    ['0603 123 4567', null],
+    ['+44 7700 900123', null],
+    ['0803 123 456', null],
+    ['', null],
+]);

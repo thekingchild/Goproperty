@@ -6,9 +6,9 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 ## Current state
 
-- **In progress:** P01-02 (registration wizard) and P01-08 (impersonation). Each task is built in its own worktree and reviewed before it merges
+- **In progress:** P01-08 (impersonation) and P01-03 (Transaction Tier applications). Each task is built in its own worktree and reviewed before it merges
 - **In review:** P01-09 (web installer wizard): done and verified locally on MariaDB 11.4; the Install drill on MySQL 8 and MariaDB 10.6 waits on GitHub Actions. P00-03 (hosting profiles), P00-04 (release package) and P00-06 (installer CLI + install drill): done and verified locally; each needs one green run in GitHub Actions (CI for P00-03, a tagged Release for P00-04, the Install drill on MySQL 8 and MariaDB 10.6 for P00-06) once Actions starts jobs. P00-12 (backups): built and drilled locally; needs one real run to an S3-compatible bucket and a Google Shared Drive (PRE-03 accounts)
-- **Next task:** P01-03, P01-04 and P01-05; PRE-01 to PRE-04 continue with the product owner
+- **Next task:** P01-04 and P01-05; PRE-01 to PRE-04 continue with the product owner
 - **Blocked:** P00-02: GitHub Actions jobs are not being given a runner (account-level), and branch protection on `main` needs a repo admin. This also holds P00-03's CI check, P00-04's release run and P00-06's install drill
 - **Blocked:** P00-13 (staging): the deploy scripts, the deploy on merge and the deploy drill are built and drilled locally; it needs a staging host (PRE-04) and working Actions runners (P00-02)
 
@@ -18,7 +18,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | --- | --- | --- | --- |
 | PRE | 5 | 1 | In progress |
 | P00 | 13 | 7 | In progress |
-| P01 | 9 | 3 | In progress |
+| P01 | 9 | 4 | In progress |
 | P02 | 7 | 0 | Not started |
 | P03 | 13 | 0 | Not started |
 | P04 | 3 | 0 | Not started |
@@ -27,11 +27,49 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | P07 | 4 | 0 | Not started |
 | P08 | 4 | 0 | Not started |
 | P09 | 8 | 0 | Not started |
-| **Total** | **83** | **11** | |
+| **Total** | **83** | **12** | |
 
 ## Ledger (newest first)
 
 Each entry: task ID and status, date, what was delivered, tests run and results, follow-ups, next task.
+
+### P01-02 — Complete (2026-10-27): registration wizard
+
+**Delivered** ([ONBOARDING_COMPLIANCE.md § 2](../ONBOARDING_COMPLIANCE.md)):
+- **Account step** (`/register`, rebuilt on the sign-in split layout with the seven steps in the brand panel; `/register/check-email`). `RegisterController` replaces Fortify's register post; `App\Onboarding\RegisterAccount` + `CreateNewUser::validate()`:
+  - name, email, Nigerian mobile number (`PhoneNumber::nigerianMobile()`, `App\Rules\NigerianMobile`, stored +234…, never sent an SMS), password under the customer rule (10 characters, breached-password check in production);
+  - **no account enumeration:** every valid form ends on the same "check your email" page and nobody is signed in. A taken email gets `SignupForExistingAccount` (sign in / reset) and the account is untouched; the password is still hashed for equal timing. A phone number used by another account is not stored, and the organization step asks for one again;
+  - **Turnstile** per Sign-in security (`SignupBotCheck`): `always` on every signup, `after_failures` from the 4th signup from one IP in 15 min. Rate limiter `register`: 5/min and 30/h per IP, 6/h per email.
+- **Verification link** (`VerifyEmailController` replaces Fortify's route): in the browser that signed up (session holds the new account id) it confirms and signs in; anywhere else the person signs in first and comes back to the link; never signs in an account with 2FA; wrong hash, expired, or someone else's link → 403.
+- **Organization step** (`/signup/organization`, Livewire `App\Livewire\Onboarding\CreateOrganization` + `OrganizationForm`): type, name, slug suggested from the name (`OrganizationSlug`: format, reserved words, free now and in `previous_slugs`), state (`NigerianStates`), LGA, optional CAC number (encrypted). `OrganizationSignup::start()` creates the organization (`status` onboarding, Tier 1, `platform_covered` for `property_owner`), makes the user `org-owner` with `joinOrganization()`, remembers it as default, and opens the wizard state and checklist. One signup at a time per user (row lock); 10 tries a minute per user.
+- **Wizard inside the workspace** (`/o/{slug}/setup`, `App\Livewire\Onboarding\SetupWizard`, `App\Onboarding\OnboardingWizard`): Tier (stated yearly collections, suggested tier from `config/tiers.php` launch values via `TierGuide`; Tier 1 active at once; Tier 2/3 recorded as `requested_tier` with its checklist item pending, `organizations.transaction_tier` stays 1) → plan (`PlanCatalogue`; `organizations.signup_plan_key`, interim until P06-01; `trial_ends_at` 14 days from the first choice; "covered" note for platform-covered orgs) → collections ("Set up later") → data ("Go to my dashboard", org becomes `active`). "Back" to any earlier step including the organization details. Steps are saved in order (`StepOutOfOrder`; a stale tab gets a notice, nothing saved twice). Every action checks `OrganizationPolicy::continueSignup` (per-step permission: `organization.update`, `.compliance`, `.billing`, `.payment_settings`, `imports.manage`). The component locks its organization id and refuses any other context.
+- **Resume:** state is in `organization_onboardings.step`. Sign-in lands on the confirm-email page, the organization step (`/dashboard` sends users with no organization at all there, `DashboardController`), or `/o/{slug}`, which sends whoever can continue to the saved step (`WorkspaceHomeController`).
+- **Checklist** on the workspace dashboard (`x-onboarding.checklist`, `onboarding_checklist_items`, `App\Onboarding\OnboardingChecklist::start/complete/reopen/isOpen`): tier, plan, collections, data, branding; progress bar; shown to members with `organization.update` until all done; an item links to its page once `ChecklistItem::routeName()` is registered ("Coming soon" until then).
+- **Schema** (3 migrations): `organizations.signup_plan_key`; `organization_onboardings` (unique `organization_id`, `step`, `declared_annual_volume_kobo`, `requested_tier`, `completed_at`, audited under log name `onboarding`); `onboarding_checklist_items` (unique `(organization_id, item)`). Both new models use `BelongsToOrganization` and are in `OrganizationScopedModels`.
+- `AdminPath::RESERVED` gains `register`, `signup`, `email`.
+- **Docs:** DATABASE_SCHEMA.md § 1, ONBOARDING_COMPLIANCE.md § 2 ("How the wizard behaves"), ARCHITECTURE.md § 4 and § 6.1, BILLING_PAYMENTS.md § 2, PLATFORM_CONSOLE.md § 9.6 (Turnstile on signup), UX_DESIGN.md § 3.3.
+
+**Tests and evidence (local, MariaDB 11.4.12):**
+- Orchestrator's review run (branch with latest `main`): `composer ci` Pint passed, Larastan 0 errors, Pest **1,111 tests: 1,110 passed, 1 skipped, 8,326 assertions**.
+- `composer ci` on the branch merged with main (P01-06, P01-07): Pint passed, Larastan 0 errors, Pest **1,111 tests: 1,110 passed, 1 skipped, 8,326 assertions**.
+- New: `tests/Feature/Onboarding/SignupWizardTest.php`, `SignupGuardsTest.php`, `SignupAccountTest.php`, `tests/Unit/Onboarding/SignupRulesTest.php`, more cases in `tests/Unit/Support/PhoneNumberTest.php`. `tests/Support/LivewireHttp.php` drives components through Livewire's real update endpoint with the full middleware stack (Livewire::test skips route middleware); `tests/Support/signup.php` holds the step helpers.
+- **AC: a new signup reaches the dashboard as `org-owner`:** `SignupWizardTest` › "takes a new signup to the dashboard as org-owner" (register → link in the same browser → organization → tier → plan → collections later → finish → `/o/adeyemi-realty` with the checklist; role `org-owner`, status active; signing in again lands there).
+- **AC: leaving mid-wizard resumes at the same step:** "resumes at the same step after leaving mid-wizard" (after email confirmation, at the plan step, after going back to Tier with answers kept; each time a fresh session after sign-out) and "resumes at email confirmation when the link was not opened".
+- **AC: property-owner signup sets `platform_covered`:** "sets platform_covered when a property owner signs up", "leaves platform_covered off for agencies and hybrids", "follows a type changed during signup".
+- Also: Tier 1/2/3 recording (and audit entry), bad amounts, plan + 14-day trial not restarted, unknown plan, pending items; slug rules, CAC encrypted, phone re-ask, one signup at a time; admins/agents 403 on steps, strangers/tenants/property owners 404, Livewire update context and non-member 404 replay, agent update 403, stale tab, suspended organization read-only, checklist completion by later features and visibility; account step: phone formats, breached password (production, HTTP faked), identical reply for existing emails, Turnstile in both modes, both rate limits, verification link cases.
+- Existing tests changed for the new behaviour: `Auth/RegistrationTest` "new users can register" (phone required, no sign-in until the link, verification sent) and `DashboardTest` (the visiting user now belongs to an organization; new case for users with none).
+- **In the browser (local, 1440 px and 375 px):** full signup as a property owner: field error for a landline, check-email page, link opened in the same browser → organization step with slug suggested live → Tier 2 with "Suggested" badge and review note → plan with the "covered" note → collections → properties → dashboard checklist "1 of 5 done" with the Tier 2 note. No horizontal scroll at 375 px.
+
+**Follow-ups:**
+- P01-03: read `organization_onboardings.requested_tier` / `declared_annual_volume_kobo` to start the Tier 2/3 application; on approval complete `ChecklistItem::Tier`; register `workspace.compliance.tier` (or change `ChecklistItem::routeName()`).
+- P01-05 / P03-07 / P03-08 / P02 / branding: call `OnboardingChecklist::complete()` for collections, data and branding and register the routes named in `ChecklistItem::routeName()`.
+- P06-01: create the `trialing` subscription from `signup_plan_key` + `trial_ends_at`; then retire `signup_plan_key`. Monthly vs annual is not asked at signup.
+- `auth.require_2fa_for` (Tier 2/3 or all owners) is still not enforced; it belongs with P01-03 once tiers can be approved.
+- Logo upload at the organization step waits for the media library (P02-05); branding stays a checklist item.
+- Password reset and email verification do not end a user's other sessions (no `AuthenticateSession` on the web guard); "Log out other sessions" from P00-10b would also close the pre-registered-account case.
+- The slug check necessarily tells a signed-in, verified user whether a web address is taken (rate-limited).
+
+**Next:** P01-03 (Transaction Tier applications), P01-04, P01-05.
 
 ### P01-06 — Complete (2026-10-27): console customers list, users lookup, organization suspend/reactivate, read-only suspended organizations
 

@@ -14,6 +14,7 @@ use App\Auth\SignIn\LoginResponse;
 use App\Auth\SignIn\PasskeyLoginResponse;
 use App\Auth\SignIn\RedirectIfTwoFactorNeeded;
 use App\Auth\SignIn\TwoFactorLoginResponse;
+use App\Http\Controllers\Onboarding\RegisterController;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -93,7 +94,7 @@ class FortifyServiceProvider extends ServiceProvider
         Fortify::verifyEmailView(fn () => view('pages::auth.verify-email'));
         Fortify::twoFactorChallengeView(fn () => view('pages::auth.two-factor-challenge'));
         Fortify::confirmPasswordView(fn () => view('pages::auth.confirm-password'));
-        Fortify::registerView(fn () => view('pages::auth.register'));
+        Fortify::registerView(fn (Request $request) => RegisterController::formView($request));
         Fortify::resetPasswordView(fn () => view('pages::auth.reset-password'));
         Fortify::requestPasswordResetLinkView(fn () => view('pages::auth.forgot-password'));
     }
@@ -112,6 +113,15 @@ class FortifyServiceProvider extends ServiceProvider
         RateLimiter::for('login', fn (Request $request): array => [
             Limit::perMinute(30)->by('ip:'.$request->ip()),
             Limit::perMinute(10)->by('id:'.hash('sha256', Str::lower(trim((string) $request->input('identifier'))).'|'.$request->ip())),
+        ]);
+
+        // Signup (RegisterController): per IP, and per email address so one
+        // inbox cannot be flooded; the same limits whether or not the
+        // address has an account.
+        RateLimiter::for('register', fn (Request $request): array => [
+            Limit::perMinute(5)->by('ip:'.$request->ip()),
+            Limit::perHour(30)->by('ip-hour:'.$request->ip()),
+            Limit::perHour(6)->by('email:'.hash('sha256', Str::lower(trim((string) $request->input('email'))))),
         ]);
 
         RateLimiter::for('passkeys', function (Request $request) {
