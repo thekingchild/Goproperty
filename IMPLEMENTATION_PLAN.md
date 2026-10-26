@@ -19,7 +19,7 @@ Each phase below is split into numbered tasks (`P00-01`, `P00-02`, …). Each ta
 | Phase | Name | Weeks | Milestone | Status |
 | --- | --- | --- | --- | --- |
 | PRE | Decisions and accounts before coding | 0 | — | In progress |
-| P00 | Foundation, tooling, installer core, login pages & backups baseline | 1–2 | M0 | Not started |
+| P00 | Foundation, tooling, installer core, login pages & backups baseline | 1–2 | M0 | In progress |
 | P01 | Tenancy, auth, registration, Transaction Tiers, staff console core & web installer | 3–5 | M1 | Not started |
 | P02 | Properties, units, owners & import (part 1) | 6–8 | M2 | Not started |
 | P03 | Leasing, branded documents & the customer money loop + import (part 2) | 9–12 | M3 | Not started |
@@ -52,13 +52,13 @@ From § 8. These are product-owner tasks, not code.
 | PRE-04 — **Not started** | Register `goproperty.ng`; buy cPanel or Plesk shared hosting checked against [docs/runbooks/shared-hosting.md § 1](docs/runbooks/shared-hosting.md) | Host passes every § 1 check; staging and production accounts exist |
 | PRE-05 — **Complete (2026-10-25)** | Design checkpoint: SocietyFlow reference captured, GoProperty designs approved ([UX_DESIGN.md § 5](UX_DESIGN.md)) | `docs/design/templates/landing.html`, `login.html`, `login-2fa.html` committed |
 
-### P00 — Foundation, tooling, login pages & backups baseline (Weeks 1–2) — Not started
+### P00 — Foundation, tooling, login pages & backups baseline (Weeks 1–2) — In progress
 
 Depends on: PRE-03 (test accounts) for P00-12 and P00-13; PRE-04 for P00-13.
 
 | ID | Deliverable | Acceptance |
 | --- | --- | --- |
-| P00-01 — **Not started** | Laravel 13 project (Livewire 4 starter kit), PHP 8.4, MySQL 8, Filament 5, Pest 4; Sail for local dev. Exact versions pinned | Fresh clone installs and boots; resolved versions recorded in `docs/PROGRESS.md` |
+| P00-01 — **In progress** | Laravel 13 project (Livewire 4 starter kit), PHP 8.4, MySQL 8, Filament 5, Pest 4; Sail for local dev. Exact versions pinned | Fresh clone installs and boots; resolved versions recorded in `docs/PROGRESS.md` |
 | P00-02 — **Not started** | CI: GitHub Actions running Pint, Larastan (level 6), Pest, on MySQL 8 and MariaDB 10.6+; branch protection on `main` | `composer ci` runs lint + static analysis + tests locally and in CI; both database jobs green |
 | P00-03 — **Not started** | **Hosting profiles** ([ARCHITECTURE.md § 12.1](ARCHITECTURE.md), [docs/runbooks/shared-hosting.md](docs/runbooks/shared-hosting.md)): config switches for queue/cache/session drivers, realtime (polling vs Reverb) and PDF driver (`dompdf` vs Chrome). Scheduler and queue run **in-process** from one cron line (no `exec`/`proc_open`, [INSTALLER.md § 8](INSTALLER.md)). Shared-hosting deploy pipeline (CI builds assets, deploys over SSH, runs migrations) | CI runs the full suite with the shared-hosting profile; cron-started worker processes a job with `exec`/`proc_open` disabled |
 | P00-04 — **Not started** | **Release package** ([INSTALLER.md](INSTALLER.md)): zip built by CI on each tag with `vendor/` + built assets, `preferred` and `split` (public_html) layouts, `SHA256SUMS`, `VERSION`, PHP-version guard, `goproperty:verify-package` | CI produces a release zip that `goproperty:verify-package` passes; a tampered file fails verification |

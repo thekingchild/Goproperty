@@ -7,23 +7,31 @@
 .env
 .env.*
 !.env.example
+/auth.json
 
 # OS / editor
 .DS_Store
 Thumbs.db
 .idea/
 .vscode/
+/.fleet
+/.nova
+/.zed
+.phpactor.json
 *.swp
 
-# Future Laravel project files
+# Laravel
 /vendor/
 /node_modules/
 /public/build/
 /public/hot
 /public/storage
+/public/fonts-manifest.dev.json
 /storage/*.key
 /storage/pail/
 /bootstrap/cache/*.php
+Homestead.json
+Homestead.yaml
 npm-debug.log
 yarn-error.log
 .phpunit.result.cache
