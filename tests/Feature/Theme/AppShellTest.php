@@ -13,7 +13,7 @@ use App\Models\User;
 
 beforeEach(function () {
     $this->user = User::factory()->create();
-    $this->user->organizations()->attach(Organization::factory()->create(['name' => 'Acme Homes', 'slug' => 'acme-homes']));
+    joinAs($this->user, Organization::factory()->create(['name' => 'Acme Homes', 'slug' => 'acme-homes']));
 });
 
 it('offers every workspace and portal in the switcher', function () {

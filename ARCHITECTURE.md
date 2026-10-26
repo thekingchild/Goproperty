@@ -93,11 +93,13 @@ The `users` table holds every customer-side person. What a user can do is a func
 
 > **Naming:** in code, "tenant" always means a **renter** (`TenantProfile`). The multi-tenancy concept uses "organization" everywhere (`OrganizationContext`, `BelongsToOrganization`, `SetOrganizationContext`) to avoid confusing the two.
 
-- `App\Tenancy\OrganizationContext` — scoped singleton (fresh for every request and queued job) holding the current organization; set by the `SetOrganizationContext` middleware (`App\Http\Middleware`, alias `organization`) from the `{organization}` slug in the URL after checking membership. Unknown slugs and non-members get the same 404, an old slug redirects (301) to the current one, and the middleware runs before route model binding so models bound from the URL are already scoped. Jobs and commands use `OrganizationContext::run($organization, fn () => …)`, which restores the previous context afterwards. Users may belong to several orgs; a switcher exists in the app shell.
+- `App\Tenancy\OrganizationContext` — scoped singleton (fresh for every request and queued job) holding the current organization; set by the `SetOrganizationContext` middleware (`App\Http\Middleware`, alias `organization`) from the `{organization}` slug in the URL after checking membership. Unknown slugs and non-members get the same 404, an old slug redirects (301) to the current one, and the middleware runs before route model binding so models bound from the URL are already scoped. Jobs and commands use `OrganizationContext::run($organization, fn () => …)`, which restores the previous context afterwards; `outside(fn () => …)` runs code with no organization (e.g. a staff permission check while impersonating). Users may belong to several orgs; the **organization switcher** in the app shell lists the organizations whose workspace the user may open (with their role in each), and choosing one (`POST /organizations/{slug}/switch`, 404 for non-members) opens it and stores it as `organization_user.is_default`. After signing in (password, 2FA or passkey), `App\Tenancy\WorkspaceLanding` sends the user to the page they asked for, else to their only workspace, else to the one they chose last, else to the organization picker (`/dashboard`).
 - The tenant and owner portals are **cross-organization by nature**: they do not set a single organization context, and instead query through an explicit "records linked to my user" path (`tenant_profiles.user_id = me`, owner links) that is policy-checked per record.
 - `App\Tenancy\BelongsToOrganization` trait — boots `OrganizationScope` (`where organization_id = current`) and auto-fills `organization_id` on create. **Fail closed:** querying or creating without a context throws `MissingOrganizationContext` instead of returning every organization's rows, and creating a row in, or moving one to, another organization throws `CrossOrganizationWrite`. Models opt in; nothing queries organization data without it.
 - All unique indexes include `organization_id` (e.g. `unique(organization_id, unit_number, property_id)`).
 - Cross-org reads (Platform console, aggregate analytics) bypass the scope explicitly through dedicated read models / raw queries in the `Platform` namespace — the only place allowed to do so, guarded by platform middleware. A Larastan rule (`tools/phpstan/Rules/OrganizationScopeBypassRule.php`) fails the build when code outside `App\Platform` or `Modules\Platform` removes `OrganizationScope`, or calls `withoutGlobalScopes()` on an organization-owned model.
+- **Roles follow the context.** spatie/laravel-permission runs with teams (team = organization, column `organization_id`). Its team id comes from `App\Tenancy\OrganizationTeamResolver`, which reads `OrganizationContext` on every call and refuses `setPermissionsTeamId()`, so the team can never outlive a request or queued job or drift from the organization being worked in. `User` (`App\Tenancy\HasOrganizationRoles`) also forgets roles loaded for another organization, and refuses role grants outside an organization, to non-members, or of a role another organization defined.
+- **Cross-tenant probes:** `tests/Feature/Tenancy/CrossTenantAccessTest.php` runs every organization-owned model listed in `Tests\Support\OrganizationScopedModels` through reads, writes, moves, URL binding and a missing context, and fails while any `BelongsToOrganization` model in `app/` or `Modules/` is missing from that list. New models are added there.
 - Database-level defense: every tenant-domain controller/Livewire action resolves models through the trait's scope; policies re-check membership (`user Belongs To Organization` + role).
 - **Escape hatch for the future:** if an enterprise customer demands physical isolation, the same code runs multi-database (connection switching in the tenancy layer) — but that is explicitly not an MVP concern.
 
@@ -116,7 +118,9 @@ Platform side (spatie roles on the `staff` guard; default roles, custom roles an
 | `content-manager` | Email templates, marketing content |
 | `analyst` | Analytics, read-only, no PII |
 
-Customer side (per-organization roles):
+Staff roles are global: no organization on the role or on the assignment (`organization_id` null in the shared spatie tables); `App\Platform\Console\HasStaffRoles` reads and grants them outside any organization context.
+
+Customer side (per-organization roles, spatie teams on the `web` guard; the permission catalogue is `App\Enums\OrganizationPermission` and each role's grants are in `App\Enums\OrganizationRole`, seeded by `OrganizationRolesSeeder`):
 
 | Role | Capabilities |
 | --- | --- |
@@ -125,6 +129,8 @@ Customer side (per-organization roles):
 | `agent` | Operational staff: manage assigned buildings, units, leases, confirm payments, handle tickets, moderate Building Groups |
 | `property-owner` | Read-heavy: view own buildings/units/leases, financial reports for own properties, respond to tickets if no agent assigned |
 | `tenant` | Portal only: own leases, bills, payments (upload proof), own tickets, Building Group membership for own buildings |
+
+**Who opens the workspace (`/o/{slug}`).** Only members holding `workspace.access` there: `org-owner`, `org-admin` and `agent` (`OrganizationPolicy::view`, checked by `SetOrganizationContext`). A user whose only roles in an organization are `tenant` or `property-owner` gets the same 404 as a stranger, and the switcher and picker never list that organization: tenants use `/portal` and agency-invited property owners use `/owner` (§ 3, [ONBOARDING_COMPLIANCE.md § 2](ONBOARDING_COMPLIANCE.md)); owners who run their own buildings sign up as their own organization and are its `org-owner`. A member with no role at all is also refused (fail closed).
 
 Rules encoded in policies, not controllers:
 

@@ -32,7 +32,7 @@ beforeEach(function () {
     $this->acme = Organization::factory()->create(['slug' => 'acme-homes', 'previous_slugs' => ['acme-old']]);
     $this->other = Organization::factory()->create(['slug' => 'other-realty']);
     $this->user = User::factory()->create();
-    $this->user->organizations()->attach($this->acme);
+    joinAs($this->user, $this->acme);
 });
 
 afterEach(function () {

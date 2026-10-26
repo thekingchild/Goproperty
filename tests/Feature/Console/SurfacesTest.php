@@ -14,8 +14,9 @@ use Database\Seeders\DatabaseSeeder;
 it('lets the seeded demo user sign in and open every surface', function () {
     $this->seed(DatabaseSeeder::class);
 
+    // A member of one organization lands on its workspace (P01-01).
     $this->post('/login', ['identifier' => 'test@example.com', 'password' => 'password'])
-        ->assertRedirect('/dashboard');
+        ->assertRedirect('/o/demo-realty');
 
     $this->get('/o/demo-realty')->assertOk()->assertSee('Demo Realty')->assertSee('Your properties, leases, bills and payments');
     $this->get('/portal')->assertOk()->assertSee('My rentals');
@@ -24,7 +25,7 @@ it('lets the seeded demo user sign in and open every surface', function () {
 
 it('links every surface from the sidebar', function () {
     $user = User::factory()->create();
-    $user->organizations()->attach(Organization::factory()->create(['name' => 'Acme Homes', 'slug' => 'acme-homes']));
+    joinAs($user, Organization::factory()->create(['name' => 'Acme Homes', 'slug' => 'acme-homes']));
 
     $this->actingAs($user)->get('/portal')
         ->assertSee('Acme Homes')

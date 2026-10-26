@@ -64,4 +64,27 @@ final class OrganizationContext
             $this->organization = $previous;
         }
     }
+
+    /**
+     * Runs the callback with no organization context (as on the console or
+     * the portals) and restores the current one afterwards. For work that
+     * must not happen inside an organization, such as a staff member's
+     * permission check during impersonation.
+     *
+     * @template T
+     *
+     * @param  Closure(): T  $callback
+     * @return T
+     */
+    public function outside(Closure $callback): mixed
+    {
+        $previous = $this->organization;
+        $this->organization = null;
+
+        try {
+            return $callback();
+        } finally {
+            $this->organization = $previous;
+        }
+    }
 }

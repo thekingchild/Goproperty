@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Platform\Console\HasStaffRoles;
 use Filament\Auth\MultiFactor\App\Contracts\HasAppAuthentication;
 use Filament\Auth\MultiFactor\App\Contracts\HasAppAuthenticationRecovery;
 use Filament\Models\Contracts\FilamentUser;
@@ -17,7 +18,8 @@ use SensitiveParameter;
 /**
  * A GoProperty staff member (DATABASE_SCHEMA.md § 8). Never a customer user:
  * staff sign in on the `staff` guard at the console path (P00-08), with
- * mandatory 2FA (P00-10c) and, from P01-07, roles on that guard.
+ * mandatory 2FA (P00-10c) and global spatie roles on that guard (the
+ * catalogue and console come with P01-07).
  *
  * @property int $id
  * @property string $name
@@ -37,6 +39,8 @@ use SensitiveParameter;
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class PlatformStaff extends Authenticatable implements FilamentUser, HasAppAuthentication, HasAppAuthenticationRecovery
 {
+    use HasStaffRoles;
+
     protected $table = 'platform_staff';
 
     /** Only active staff, and only the console panel. */

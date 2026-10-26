@@ -16,13 +16,15 @@ use Illuminate\Database\Seeder;
  * because the release package has none. tests/Feature/Installer/InstallSeederTest
  * runs the list twice and compares every table.
  *
- * Added by later tasks: roles and permissions, default plans and prices,
- * Transaction Tiers, default theme, email templates.
+ * Added by later tasks: staff roles and permissions (P01-07), default plans
+ * and prices, Transaction Tiers, default theme, email templates.
  */
 final class InstallSeeder extends Seeder
 {
     /** @var list<class-string<Seeder>> */
-    public const array SEEDERS = [];
+    public const array SEEDERS = [
+        OrganizationRolesSeeder::class,
+    ];
 
     public function run(): void
     {

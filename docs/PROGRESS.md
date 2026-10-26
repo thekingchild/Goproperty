@@ -6,9 +6,9 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 ## Current state
 
-- **In progress:** P01-01 (organization switcher, roles per organization) and P01-09 (web installer wizard), built in parallel in separate worktrees
+- **In progress:** P01-09 (web installer wizard); P01-02 (registration wizard) and P01-07 (console staff roles) next. Each task is built in its own worktree and reviewed before it merges
 - **In review:** P00-03 (hosting profiles), P00-04 (release package) and P00-06 (installer CLI + install drill): done and verified locally; each needs one green run in GitHub Actions (CI for P00-03, a tagged Release for P00-04, the Install drill on MySQL 8 and MariaDB 10.6 for P00-06) once Actions starts jobs. P00-12 (backups): built and drilled locally; needs one real run to an S3-compatible bucket and a Google Shared Drive (PRE-03 accounts)
-- **Next task:** P01-02 (registration wizard) and P01-07 (console staff roles) once P01-01 lands; PRE-01 to PRE-04 continue with the product owner
+- **Next task:** P01-02 and P01-07 in parallel; PRE-01 to PRE-04 continue with the product owner
 - **Blocked:** P00-02: GitHub Actions jobs are not being given a runner (account-level), and branch protection on `main` needs a repo admin. This also holds P00-03's CI check, P00-04's release run and P00-06's install drill
 - **Blocked:** P00-13 (staging): the deploy scripts, the deploy on merge and the deploy drill are built and drilled locally; it needs a staging host (PRE-04) and working Actions runners (P00-02)
 
@@ -18,7 +18,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | --- | --- | --- | --- |
 | PRE | 5 | 1 | In progress |
 | P00 | 13 | 7 | In progress |
-| P01 | 9 | 0 | In progress |
+| P01 | 9 | 1 | In progress |
 | P02 | 7 | 0 | Not started |
 | P03 | 13 | 0 | Not started |
 | P04 | 3 | 0 | Not started |
@@ -27,11 +27,47 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | P07 | 4 | 0 | Not started |
 | P08 | 4 | 0 | Not started |
 | P09 | 8 | 0 | Not started |
-| **Total** | **83** | **8** | |
+| **Total** | **83** | **9** | |
 
 ## Ledger (newest first)
 
 Each entry: task ID and status, date, what was delivered, tests run and results, follow-ups, next task.
+
+### P01-01 — Complete (2026-10-26): organization switcher, roles per organization (spatie teams)
+
+**Delivered:**
+- **spatie/laravel-permission 8.3.2** (`~8.3.2`) with teams: team = organization, team column `organization_id` (`config/permission.php`).
+  - **Tables** (five migrations, one table each, literal names for the installer's `OwnTables`): `permissions`, `roles` (`organization_id` nullable FK), `model_has_permissions` and `model_has_roles` (surrogate `id`, nullable `organization_id` FK, unique `(organization_id, role/permission, model_id, model_type)`), `role_has_permissions`. Spatie's stub puts the team column in the primary key, which cannot be null; the surrogate key lets staff hold global (no-organization) roles in the same tables.
+  - **The team follows `OrganizationContext`:** `App\Tenancy\OrganizationTeamResolver` reads the context on every call and refuses `setPermissionsTeamId()`, so a team id cannot outlive a request or a queued job. `OrganizationContext::outside()` runs code with no organization.
+  - **Customers** (`App\Tenancy\HasOrganizationRoles` on `User`): forgets roles/permissions loaded for another organization (same model across `run()` calls or restored in a job), refuses grants outside an organization, to non-members, or of a role another organization defined; `joinOrganization()`, `roleNamesIn()`, `hasRoleIn()`, `roleNamesByOrganization()`, `workspaceOrganizationIds()`/`workspaceOrganizations()`.
+  - **Staff** (`App\Platform\Console\HasStaffRoles` on `PlatformStaff`): spatie roles on the `staff` guard, always read and granted outside any organization context, so they stay global even during impersonation (P01-08). The staff catalogue, console and the extra `roles` columns stay with P01-07.
+- **Customer roles and permission catalogue in code:** `App\Enums\OrganizationPermission` (26 permissions incl. `workspace.access`) and `App\Enums\OrganizationRole` (`org-owner`, `org-admin`, `agent`, `property-owner`, `tenant`, with their grants per ARCHITECTURE.md § 5). `OrganizationRolesSeeder` (idempotent, syncs grants back to the catalogue) is in `InstallSeeder::SEEDERS`; the demo seeder makes the demo user `org-owner` of Demo Realty.
+- **Workspace access** (extra requirement from the orchestrator): `/o/{slug}` admits only members holding `workspace.access` there (`org-owner`, `org-admin`, `agent`), through `OrganizationPolicy::view` in `SetOrganizationContext`. Tenant-only and property-owner-only members, members with no role, strangers, unknown slugs and old slugs of such organizations all get the same 404; old slugs still 301 for real workspace members.
+- **Organization switcher** in the app shell: lists only workspaces the user may open, with their role in each; choosing one posts to `POST /organizations/{slug}/switch` (`SwitchOrganizationController`, policy `switchTo`, 404 otherwise), which opens it and stores it as `organization_user.is_default` (exactly one per user). **Picker** at `/dashboard` (cards with role and "Last used").
+- **Landing after sign-in** (`App\Tenancy\WorkspaceLanding`) for password, 2FA and passkey sign-in (custom Fortify `LoginResponse`, `PasskeyLoginResponse`, updated `TwoFactorLoginResponse`): the intended URL, else the only workspace, else the last chosen, else the picker.
+- **`App\Models\Membership`** (`organization_user`, `BelongsToOrganization`): the organization-scoped way to list members. **`App\Models\Role`** (spatie role with `organization()`).
+- **Reusable cross-tenant probes:** `Tests\Support\OrganizationScopedModels` (+ dataset `organization-scoped models` in `tests/Datasets/`) lists every organization-owned model with a factory; `CrossTenantAccessTest` runs each through no-context reads/creates, scoped listing, find by foreign id, bulk update/delete, create in and move to another organization, and a URL-bound foreign id (404), and fails while any `BelongsToOrganization` model in `app/` or `Modules/` is missing from the list. Later tasks add their models there.
+- `organizations` added to `AdminPath::RESERVED`.
+- **Fix outside the task (P00-12):** spatie's `BackupJob` takes its temporary folder from the config repository, not from `BackupRunner`'s per-run config, so every run shared `backup-temp/temp` and emptied the other's zip (the "own folder per run" comment was not true). It showed up as a parallel-test race in `GoogleDriveAndFilesTest`. `BackupRunner` now points the repository at the run's folder during the job; regression test added.
+- **Docs:** DATABASE_SCHEMA.md § 1 (`organization_user`, the five spatie tables) and § 8 (staff roles share the tables, null organization); ARCHITECTURE.md § 4 (switcher, landing, team resolver, cross-tenant probes) and § 5 (staff roles global, catalogue location, who opens the workspace).
+
+**Tests and evidence (local, MariaDB 11.4):**
+- `composer ci` (agent, twice; then the orchestrator's review run): Pint passed, Larastan 0 errors, Pest **863 tests / 2,997 assertions**, 0 failed, 1 skipped (the existing module-boundary check). The review run first caught a flaky test: under a long parallel run the queue tick's 192 MB memory guard could stop the tick before any job ran. `OrganizationRolesTest` and `QueueTickTest` now raise that limit for the test and assert the tick drained.
+- **AC: two orgs, a user in both can switch:** `OrganizationSwitcherTest` "lets a member of two organizations switch between them" (picker → switch → `/o/other-realty` with role Agent → switch back → next sign-in lands on the last choice), "keeps exactly one default organization", one-org user goes straight to it, 2FA and passkey landing, intended URL wins.
+- **AC: data never crosses orgs:** `CrossTenantAccessTest` (dataset over every organization-owned model + completeness check, members listing, roles/permissions per organization, another organization's custom role, organization settings); `OrganizationRolesTest` (team from context only, per request, per queued job through the real queue tick, stale relation never answered, refused grants, staff global roles incl. inside an organization context).
+- **AC: `/o/{slug}` of an org you don't belong to returns 404:** `OrganizationSwitcherTest` "answers 404 for an organization the user does not belong to" (another org, its previous slug, a third org, unknown slug; switching to them also 404), tenant/property-owner-only member 404 and not listed, member without a role 404; `SetOrganizationContextTest` still green.
+- Existing tests changed: `SurfacesTest` now expects the one-org demo user to land on `/o/demo-realty` instead of `/dashboard` (the new landing rule); `AppShellTest`, `ThemePublishingTest`, `SurfacesTest` and `SetOrganizationContextTest` make their user a member with a role (`joinAs()` in `tests/Pest.php`) instead of a bare `attach()`, because a member without a workspace role is now refused.
+
+**Follow-ups:**
+- The unique indexes on `model_has_roles`/`model_has_permissions` include the nullable `organization_id`; MySQL and MariaDB treat NULLs as distinct, so the database does not stop a duplicate global (staff) assignment. Spatie checks before inserting; P01-07 should keep staff grants going through `HasStaffRoles`.
+- P01-04 (invitations) and P01-06: removing a member must also remove their role assignments in that organization (`model_has_roles` rows with its `organization_id`).
+- P01-07: add `is_default`, `is_protected`, `description`, `active` to `roles` and the staff catalogue; create staff roles with `organization_id` null (outside an organization context). `permission:create-role --team-id` and `permission:assign-role --team-id` are refused by the resolver; use code with `OrganizationContext::run()`.
+- P01-08: staff permission checks during impersonation go through `HasStaffRoles` (already outside the context).
+- The first Livewire component inside `/o/{slug}` (P02) needs `SetOrganizationContext` as Livewire persistent middleware, or its update requests run without a context (they fail closed today).
+- Tenants and agency-invited owners land on the picker until P03/P04 route them to `/portal` and `/owner`. `users.last_active_organization_id` (DATABASE_SCHEMA.md § 1) is not used; `organization_user.is_default` holds the last choice.
+- Agent narrowing by building (`agent_building`) and record-level rules stay in the policies of the tasks that add those models.
+
+**Next:** P01-02 (registration wizard; the first user joins as `org-owner` with `joinOrganization()`).
 
 ### P02 and P03 split into sub-tasks — 2026-10-26
 

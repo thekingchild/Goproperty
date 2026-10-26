@@ -8,6 +8,7 @@ use App\Backup\BackupRun;
 use App\Backup\BackupRunner;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -48,6 +49,24 @@ it('copies the encrypted zip to an S3-compatible destination', function () {
         ->and($runs[0]->filename)->toStartWith('goproperty-db/')
         ->and($runs[0]->size_bytes)->toBeGreaterThan(0)
         ->and(Storage::disk($destination->diskName())->exists((string) $runs[0]->filename))->toBeTrue();
+});
+
+it('works in a temporary folder of its own, so it cannot empty another run\'s', function () {
+    // Spatie empties <temporary_directory>/temp when a job starts; with the
+    // shared default folder a manual run would wipe the nightly run's zip.
+    $shared = storage_path('app/backup-temp/temp');
+    File::ensureDirectoryExists($shared);
+    File::put($shared.'/other-run.zip', 'zip in progress');
+    $destination = s3Destination();
+    Storage::fake($destination->diskName());
+
+    try {
+        expect(app(BackupRunner::class)->run('db')[0]->status)->toBe('success')
+            ->and(File::get($shared.'/other-run.zip'))->toBe('zip in progress')
+            ->and(config('backup.backup.temporary_directory'))->toBe(storage_path('app/backup-temp'));
+    } finally {
+        File::delete($shared.'/other-run.zip');
+    }
 });
 
 it('keeps going when one destination fails', function () {

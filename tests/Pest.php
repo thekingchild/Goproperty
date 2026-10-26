@@ -2,8 +2,13 @@
 
 declare(strict_types=1);
 
+use App\Enums\OrganizationRole;
+use App\Models\Organization;
 use App\Models\PlatformStaff;
+use App\Models\Role;
 use App\Models\StaffStatus;
+use App\Models\User;
+use Database\Seeders\OrganizationRolesSeeder;
 use Illuminate\Foundation\Testing\DatabaseTruncation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PragmaRX\Google2FA\Google2FA;
@@ -57,4 +62,25 @@ function staffMember(array $attributes = [], bool $withTwoFactor = true): Platfo
     }
 
     return $staff;
+}
+
+/**
+ * Makes the user a member of the organization with a role there (org-owner
+ * unless given), seeding the customer roles first if the test has not.
+ * Only owners, administrators and agents open the workspace at /o/{slug}.
+ */
+function joinAs(User $user, Organization $organization, OrganizationRole $role = OrganizationRole::Owner): User
+{
+    seedOrganizationRoles();
+    $user->joinOrganization($organization, $role);
+
+    return $user;
+}
+
+/** The customer roles and permission catalogue (OrganizationRolesSeeder), once per test. */
+function seedOrganizationRoles(): void
+{
+    if (! Role::query()->whereNull('organization_id')->where('name', OrganizationRole::Owner->value)->exists()) {
+        test()->seed(OrganizationRolesSeeder::class);
+    }
 }

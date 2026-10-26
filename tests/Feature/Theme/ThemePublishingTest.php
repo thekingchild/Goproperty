@@ -17,7 +17,7 @@ use Filament\Support\Colors\Color as FilamentColor;
 beforeEach(function () {
     $this->staff = staffMember(['name' => 'Ada', 'email' => 'ada@goproperty.ng', 'password' => 'x-long-password-1', 'status' => StaffStatus::Active]);
     $this->user = User::factory()->create();
-    $this->user->organizations()->attach(Organization::factory()->create(['slug' => 'acme-homes']));
+    joinAs($this->user, Organization::factory()->create(['slug' => 'acme-homes']));
     $this->console = '/'.config('app.admin_path');
 });
 

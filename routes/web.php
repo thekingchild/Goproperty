@@ -6,6 +6,7 @@ use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\BrandAssetController;
 use App\Http\Controllers\Marketing\MarketingController;
 use App\Http\Controllers\Marketing\SeoController;
+use App\Http\Controllers\Workspace\SwitchOrganizationController;
 use App\Http\Middleware\PublicPageHeaders;
 use App\Http\Middleware\SignInPageHeaders;
 use App\Theme\BrandAssets;
@@ -61,7 +62,14 @@ Route::withoutMiddleware([StartSession::class, ShareErrorsFromSession::class, En
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
+    // Organization picker; signing in lands on a workspace when there is
+    // one to choose (App\Tenancy\WorkspaceLanding).
     Route::view('dashboard', 'dashboard')->name('dashboard');
+
+    // Organization switcher: opens a workspace and remembers it (404 for non-members).
+    Route::post('organizations/{slug}/switch', SwitchOrganizationController::class)
+        ->where('slug', '[A-Za-z0-9-]{1,64}')
+        ->name('organizations.switch');
 
     // `organization` checks membership (404 otherwise) and sets the
     // organization context before route model binding (ARCHITECTURE.md § 4).

@@ -91,6 +91,10 @@ final readonly class BackupRunner
         // Spatie's zip and encryption steps read the config from the container.
         $previous = app()->bound(BackupConfig::class) ? app(BackupConfig::class) : null;
         app()->instance(BackupConfig::class, $config);
+        // Its job takes the temporary folder from the config repository, not
+        // from $config, so point that at this run's folder too.
+        $previousTemporary = $this->config->get('backup.backup.temporary_directory');
+        $this->config->set('backup.backup.temporary_directory', $temporary);
 
         try {
             $job = BackupJobFactory::createFromConfig($config)->disableSignals();
@@ -104,6 +108,7 @@ final readonly class BackupRunner
             }
 
             $previous !== null ? app()->instance(BackupConfig::class, $previous) : app()->forgetInstance(BackupConfig::class);
+            $this->config->set('backup.backup.temporary_directory', $previousTemporary);
         }
 
         foreach ($runs as $disk => $run) {

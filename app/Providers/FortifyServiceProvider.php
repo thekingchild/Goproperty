@@ -10,6 +10,8 @@ use App\Auth\Devices\KnownDevices;
 use App\Auth\SignIn\FailedAttempt;
 use App\Auth\SignIn\FindUser;
 use App\Auth\SignIn\GuardSignIn;
+use App\Auth\SignIn\LoginResponse;
+use App\Auth\SignIn\PasskeyLoginResponse;
 use App\Auth\SignIn\RedirectIfTwoFactorNeeded;
 use App\Auth\SignIn\TwoFactorLoginResponse;
 use Illuminate\Auth\Events\Failed;
@@ -21,9 +23,11 @@ use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Laravel\Fortify\Actions\AttemptToAuthenticate;
 use Laravel\Fortify\Actions\PrepareAuthenticatedSession;
+use Laravel\Fortify\Contracts\LoginResponse as LoginResponseContract;
 use Laravel\Fortify\Contracts\TwoFactorLoginResponse as TwoFactorLoginResponseContract;
 use Laravel\Fortify\Features;
 use Laravel\Fortify\Fortify;
+use Laravel\Passkeys\Contracts\PasskeyLoginResponse as PasskeyLoginResponseContract;
 
 class FortifyServiceProvider extends ServiceProvider
 {
@@ -35,6 +39,11 @@ class FortifyServiceProvider extends ServiceProvider
         $this->app->scoped(FailedAttempt::class);
         $this->app->scoped(KnownDevices::class);
         $this->app->singleton(TwoFactorLoginResponseContract::class, TwoFactorLoginResponse::class);
+
+        // Every way of signing in lands on the user's workspace
+        // (ONBOARDING_COMPLIANCE.md § 1 "After login", WorkspaceLanding).
+        $this->app->singleton(LoginResponseContract::class, LoginResponse::class);
+        $this->app->singleton(PasskeyLoginResponseContract::class, PasskeyLoginResponse::class);
     }
 
     /**

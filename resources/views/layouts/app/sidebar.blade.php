@@ -31,7 +31,7 @@
 
             {{-- Surfaces (ONBOARDING_COMPLIANCE.md § 1). --}}
             <flux:sidebar.nav>
-                @foreach (auth()->user()->organizations()->orderBy('name')->get() as $organization)
+                @foreach (auth()->user()->workspaceOrganizations()->orderBy('name')->get() as $organization)
                     <flux:sidebar.item icon="building-office-2" :href="route('workspace.home', $organization)" :current="request()->is('o/'.$organization->slug.'*')" wire:navigate>
                         {{ $organization->name }}
                     </flux:sidebar.item>

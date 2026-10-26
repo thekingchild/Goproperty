@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Enums\OrganizationRole;
 use App\Installer\InstallationMarkers;
 use App\Installer\InstallationRecord;
 use App\Installer\InstallStage;
@@ -20,7 +21,7 @@ use Illuminate\Support\Facades\DB;
  * InstallSeeder only, through the installer.
  *
  * Demo sign-ins, local copies only:
- * - customer: test@example.com / password (member of Demo Realty: /o/demo-realty)
+ * - customer: test@example.com / password (owner of Demo Realty: /o/demo-realty)
  * - staff:    staff@example.com / password (console at /{ADMIN_PATH})
  */
 class DatabaseSeeder extends Seeder
@@ -40,7 +41,7 @@ class DatabaseSeeder extends Seeder
             'name' => 'Demo Realty',
             'slug' => 'demo-realty',
         ]);
-        $user->organizations()->attach($organization, ['is_default' => true]);
+        $user->joinOrganization($organization, OrganizationRole::Owner);
 
         if (app()->isLocal()) {
             PlatformStaff::query()->create([

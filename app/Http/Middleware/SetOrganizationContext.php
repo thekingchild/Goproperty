@@ -11,6 +11,7 @@ use Closure;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Route;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\URL;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -20,7 +21,9 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
  * by slug, checks the signed-in user is a member, and sets the context
  * before route model binding, so models bound from the URL are already
  * scoped. Unknown organizations and non-members both get a plain 404, so
- * slugs cannot be probed. An old slug redirects to the current one.
+ * slugs cannot be probed. An old slug redirects to the current one, for
+ * members only. Membership is OrganizationPolicy::view. Spatie's permission
+ * team follows the context (OrganizationTeamResolver).
  */
 final class SetOrganizationContext
 {
@@ -63,7 +66,7 @@ final class SetOrganizationContext
     {
         $user = $request->user();
 
-        return $user instanceof User && $user->belongsToOrganization($organization);
+        return $user instanceof User && Gate::forUser($user)->allows('view', $organization);
     }
 
     private function currentUrl(Request $request, string $old, string $new): string
