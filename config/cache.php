@@ -17,7 +17,8 @@ return [
     |
     */
 
-    'default' => env('CACHE_STORE', 'database'),
+    // HOSTING_PROFILE picks the default (ARCHITECTURE.md § 12.1); CACHE_STORE overrides it.
+    'default' => env('CACHE_STORE', env('HOSTING_PROFILE', 'shared') === 'vps' ? 'redis' : 'database'),
 
     /*
     |--------------------------------------------------------------------------

@@ -1,0 +1,120 @@
+# Shared-hosting deploy over SSH (docs/runbooks/shared-hosting.md § 3): the
+# quality gate on every database, then a release with production vendor/ and
+# built assets is uploaded, migrated and switched live. The server needs
+# neither Composer nor Node. Started by hand for now; P00-13 deploys staging
+# on every merge to main.
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Where to deploy
+        type: choice
+        options:
+          - staging
+          - production
+        default: staging
+      maintenance:
+        description: Maintenance mode during migrations (schema-breaking releases only)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    name: Quality gate
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    name: Deploy to ${{ inputs.environment }}
+    needs: ci
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    # Settings live on the GitHub environment (docs/runbooks/shared-hosting.md § 3).
+    environment: ${{ inputs.environment }}
+
+    env:
+      DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+      DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
+      DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+      DEPLOY_PHP: ${{ vars.DEPLOY_PHP || 'php' }}
+      DEPLOY_KNOWN_HOSTS: ${{ vars.DEPLOY_KNOWN_HOSTS }}
+      APP_URL: ${{ vars.APP_URL }}
+      MAINTENANCE: ${{ inputs.maintenance && '1' || '0' }}
+
+    steps:
+      - name: Check deploy settings
+        run: |
+          missing=()
+          for name in DEPLOY_HOST DEPLOY_USER DEPLOY_PATH DEPLOY_KNOWN_HOSTS APP_URL; do
+            [ -n "${!name}" ] || missing+=("$name")
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Set these variables on the GitHub environment: ${missing[*]}"
+            exit 1
+          fi
+
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@4424c9aab975b57bd706ee5a39c6b4334d6e4f60 # 2.40.0
+        with:
+          php-version: '8.4'
+          extensions: bcmath, gd, intl, mbstring, pdo_mysql, zip
+          tools: composer:v2
+          coverage: none
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Build release
+        run: |
+          release="$(date -u +%Y%m%d%H%M%S)-${GITHUB_SHA::7}"
+          echo "RELEASE=$release" >> "$GITHUB_ENV"
+          scripts/deploy/build-release.sh "$RUNNER_TEMP/$release.tar.gz"
+
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          [ -n "$DEPLOY_SSH_KEY" ] || { echo "::error::Set the DEPLOY_SSH_KEY secret on the GitHub environment"; exit 1; }
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$DEPLOY_SSH_KEY" > "$HOME/.ssh/deploy_key"
+          chmod 600 "$HOME/.ssh/deploy_key"
+          # Pinned host keys only: never trust a key on first use.
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+
+      - name: Upload and switch release
+        run: |
+          opts=(-i "$HOME/.ssh/deploy_key" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
+          target="$DEPLOY_USER@$DEPLOY_HOST"
+          archive="$DEPLOY_PATH/upload-$RELEASE.tar.gz"
+
+          scp "${opts[@]}" -P "$DEPLOY_PORT" "$RUNNER_TEMP/$RELEASE.tar.gz" "$target:$archive"
+
+          # The script runs from stdin; arguments are shell-quoted for the remote side.
+          printf -v remote 'MAINTENANCE=%q bash -s -- %q %q %q %q' \
+            "$MAINTENANCE" "$DEPLOY_PATH" "$archive" "$RELEASE" "$DEPLOY_PHP"
+          ssh "${opts[@]}" -p "$DEPLOY_PORT" "$target" "$remote" < scripts/deploy/remote-deploy.sh
+
+      - name: Health check
+        run: curl --fail --silent --show-error --retry 5 --retry-delay 3 --retry-all-errors "${APP_URL%/}/up" > /dev/null
+
+      - name: Remove SSH key
+        if: always()
+        run: rm -f "$HOME/.ssh/deploy_key"

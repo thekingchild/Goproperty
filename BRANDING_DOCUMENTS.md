@@ -79,8 +79,8 @@ Voided receipts are re-rendered with a diagonal **VOID** watermark and the void 
 
 - One Blade template per document and layout. Templates use **table layouts and simple CSS only** (no flexbox, grid or CSS variables), so they render identically with both PDF drivers:
   - `dompdf`: pure PHP, works on shared hosting.
-  - Headless Chrome (Browsershot or a Gotenberg service): VPS hosting; faster for large batches.
-- The driver is chosen in config (`PDF_DRIVER`). See [ARCHITECTURE.md § 12](ARCHITECTURE.md) for hosting profiles.
+  - Headless Chrome through a Gotenberg service (HTTP, so the PHP server needs neither Node nor `proc_open`): VPS hosting; faster for large batches.
+- The driver is chosen in config (`PDF_DRIVER`, defaulted by `HOSTING_PROFILE`) and used through `App\Pdf\PdfRenderer`. Each template should set its page with `@page { size; margin }`: both drivers let the template's `@page` rule win. See [ARCHITECTURE.md § 12](ARCHITECTURE.md) for hosting profiles.
 - Fonts are bundled locally (Inter + DejaVu Sans fallback, which includes the ₦ sign).
 - Every document is also viewable as a responsive **web page** (faster on mobile data); the PDF is a download.
 - Generated PDFs are stored once and re-used. Changing branding does not alter issued documents.

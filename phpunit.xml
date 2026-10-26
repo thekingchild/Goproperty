@@ -11,6 +11,9 @@
         <testsuite name="Feature">
             <directory>tests/Feature</directory>
         </testsuite>
+        <testsuite name="Drill">
+            <directory>tests/Drill</directory>
+        </testsuite>
     </testsuites>
     <source>
         <include>
@@ -21,14 +24,15 @@
         <env name="APP_ENV" value="testing"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
-        <env name="BROADCAST_CONNECTION" value="null"/>
-        <env name="CACHE_STORE" value="array"/>
+        <!-- The suite runs on the shared-hosting profile: database cache and
+             sessions, no broadcasting, polling, dompdf (P00-03). Only the queue
+             runs jobs inline; the queue tick tests use the database queue. -->
+        <env name="HOSTING_PROFILE" value="shared"/>
         <env name="DB_CONNECTION" value="mysql"/>
         <env name="DB_DATABASE" value="testing"/>
         <env name="DB_URL" value=""/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
-        <env name="SESSION_DRIVER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>

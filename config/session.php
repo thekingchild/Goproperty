@@ -20,7 +20,8 @@ return [
     |
     */
 
-    'driver' => env('SESSION_DRIVER', 'database'),
+    // HOSTING_PROFILE picks the default (ARCHITECTURE.md § 12.1); SESSION_DRIVER overrides it.
+    'driver' => env('SESSION_DRIVER', env('HOSTING_PROFILE', 'shared') === 'vps' ? 'redis' : 'database'),
 
     /*
     |--------------------------------------------------------------------------

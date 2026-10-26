@@ -136,7 +136,10 @@ php artisan goproperty:install --no-interaction \
 ## 8. Cron and background work without `exec`
 
 - One cron line runs `artisan schedule:run` every minute ([docs/runbooks/shared-hosting.md § 2](docs/runbooks/shared-hosting.md)).
-- Scheduled work is registered with `Schedule::call()` / `Schedule::job()`, so it runs **inside** the cron's PHP process. The queue is drained in-process by a "tick" that pops jobs from the `database` queue with per-lane caps (payments, notifications, default, bulk) and a time budget of ~45 s, with a lock so ticks never overlap and a heartbeat for the console. This is adopted from SocietyFlow: it means `proc_open`/`exec` are **not required** (some hosts disable them).
+- Scheduled work is registered with `Schedule::call()` / `Schedule::job()`, so it runs **inside** the cron's PHP process (`Schedule::command()` and `runInBackground()` start a shell through `proc_open`; a test rejects them). The queue is drained in-process by a "tick" (`App\Hosting\Queue\QueueTick`, registered last in `routes/console.php`) that pops jobs from the `database` queue with per-lane caps and a time budget of ~45 s, with a lock so ticks never overlap and a heartbeat for the console. This is adopted from SocietyFlow: it means `proc_open`/`exec` are **not required** (some hosts disable them).
+- Lanes map to the queue names in [ARCHITECTURE.md § 7](ARCHITECTURE.md): payments = `billing`, notifications = `notifications`, default = `default`, bulk = `pdf` + `imports`. Lanes take one job each in turn, so a long import cannot starve payments. Settings are in `config/hosting.php` (`QUEUE_TICK_*`).
+- Hosts often load the `pcntl` extension but disable its functions. Laravel's scheduler would then fail every event, so the app turns off the scheduler's signal hook in that case, and the tick enforces job timeouts only when the pcntl functions work.
+- CI drill (`tests/Drill/CronDrillTest.php`): runs `php artisan schedule:run` with `exec`, `proc_open` and pcntl disabled and checks that a queued job ran.
 - On a VPS (Profile B), Horizon replaces the tick by configuration.
 
 ## 9. Recovery (never over HTTP)

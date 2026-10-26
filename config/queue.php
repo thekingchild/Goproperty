@@ -15,7 +15,8 @@ return [
     |
     */
 
-    'default' => env('QUEUE_CONNECTION', 'database'),
+    // HOSTING_PROFILE picks the default (ARCHITECTURE.md § 12.1); QUEUE_CONNECTION overrides it.
+    'default' => env('QUEUE_CONNECTION', env('HOSTING_PROFILE', 'shared') === 'vps' ? 'redis' : 'database'),
 
     /*
     |--------------------------------------------------------------------------

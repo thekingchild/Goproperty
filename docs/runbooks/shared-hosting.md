@@ -40,14 +40,11 @@ Composer and Node on the server are **not** required: the release zip already co
    APP_DEBUG=false
    APP_URL=https://goproperty.ng
    ADMIN_PATH=gp-control-xxxxxx        # set by goproperty:install
-   QUEUE_CONNECTION=database
-   CACHE_STORE=database
-   SESSION_DRIVER=database
-   BROADCAST_CONNECTION=log            # no Reverb on shared hosting
-   PDF_DRIVER=dompdf
+   HOSTING_PROFILE=shared              # database queue/cache/sessions, no broadcasting, polling, dompdf, queue tick on
    FILESYSTEM_DISK=s3                  # media lives in S3-compatible storage, not on the host
    MAIL_MAILER=postmark                # or mailgun/ses — never the host's sendmail
    ```
+   `HOSTING_PROFILE=shared` sets `QUEUE_CONNECTION=database`, `CACHE_STORE=database`, `SESSION_DRIVER=database`, `BROADCAST_CONNECTION=null`, `REALTIME_DRIVER=polling`, `PDF_DRIVER=dompdf` and `QUEUE_TICK_ENABLED=true`. Set one of those only to override it. Broadcasting is `null`, not `log`, so event payloads never land in the logs. `php artisan goproperty:hosting` shows what is active.
 4. **First install** — full detail in [INSTALLER.md](../../INSTALLER.md):
    - Upload the release zip with File Manager (or `scp`), compare its `.sha256`, extract the `preferred/` layout (or `split/` if the domain must use `public_html`).
    - Open `https://your-domain/install` and unlock it: **with SSH** run `php artisan goproperty:setup-token` and paste the token; **without SSH** create `storage/app/install-unlock.txt` containing the phrase the page shows.
@@ -66,20 +63,40 @@ Composer and Node on the server are **not** required: the release zip already co
 
 ## 3. Every deploy
 
-CI (GitHub Actions) does the heavy work so the server only receives files:
+The **Deploy** workflow ([`.github/workflows/deploy.yml`](../../.github/workflows/deploy.yml)) does the heavy work so the server only receives files. Start it from **Actions → Deploy → Run workflow**, pick `staging` or `production`, and tick *maintenance* only for schema-breaking releases. (P00-13 adds the automatic staging deploy on every merge to `main`.)
 
-1. CI runs tests (MySQL **and** MariaDB), then builds an artifact: `composer install --no-dev --optimize-autoloader` + `npm ci && npm run build` (Vite assets) → `release.tar.gz`.
-2. CI uploads the artifact over SSH (rsync/scp) to `releases/<timestamp>/`, links `shared/.env` and `shared/storage`.
-3. CI runs over SSH:
+1. It runs the full quality gate (MySQL **and** MariaDB, the `CI` workflow).
+2. `scripts/deploy/build-release.sh` builds `<timestamp>-<sha>.tar.gz`: tracked files, `composer install --no-dev --optimize-autoloader`, `npm ci && npm run build`; tests, docs, dev config and `storage/` are left out.
+3. It uploads the archive with `scp` and runs `scripts/deploy/remote-deploy.sh` over SSH, which:
    ```
-   php artisan down --render="errors::maintenance"   # only for schema-breaking releases
+   unpack to releases/<name>/, link shared/.env and shared/storage
+   php artisan goproperty:hosting      # stop here if the hosting settings cannot work together
+   php artisan down --retry=60         # only with "maintenance" ticked
    php artisan migrate --force
-   ln -sfn releases/<timestamp> current               # atomic switch
-   php artisan config:cache && php artisan route:cache && php artisan view:cache
+   php artisan config:cache && route:cache && view:cache && event:cache   # in the new release, before it is live
+   ln -sfn releases/<name> current.next && mv -Tf current.next current   # atomic switch
    php artisan queue:restart
-   php artisan up
+   php artisan up                      # if it went down
+   delete all but the newest 5 releases (KEEP_RELEASES)
    ```
-4. Keep the last 5 releases; rollback = point `current` back to the previous release (migrations must be backward compatible for one release).
+   If any step fails, `current` still points to the previous release. If maintenance mode was on, the site stays down until someone runs `php artisan up` from `current/`, because a half-run migration may need attention first.
+4. It checks `APP_URL/up` returns 200.
+5. Rollback = point `current` back to the previous release (`ln -sfn releases/<previous> current.next && mv -Tf current.next current`); migrations must be backward compatible for one release.
+
+**GitHub environment settings** (Settings → Environments → `staging` / `production`; production should require a reviewer):
+
+| Name | Kind | Example |
+| --- | --- | --- |
+| `DEPLOY_HOST` | variable | `server123.hosting.ng` |
+| `DEPLOY_PORT` | variable (optional, default 22) | `21098` (some cPanel hosts use a custom SSH port) |
+| `DEPLOY_USER` | variable | the cPanel/Plesk account user |
+| `DEPLOY_PATH` | variable | `/home/USER/goproperty` (the folder holding `releases/`, `shared/`, `current`) |
+| `DEPLOY_PHP` | variable (optional, default `php`) | `/opt/cpanel/ea-php84/root/usr/bin/php` or `/opt/plesk/php/8.4/bin/php` |
+| `DEPLOY_KNOWN_HOSTS` | variable | the host's line from `ssh-keyscan -p PORT HOST`, checked against the fingerprint the host shows in its panel |
+| `APP_URL` | variable | `https://staging.goproperty.ng` |
+| `DEPLOY_SSH_KEY` | **secret** | private key of a deploy-only key pair; add the public key under cPanel *SSH Access → Manage Keys* or the Plesk SSH user |
+
+The first install still uses the installer ([INSTALLER.md](../../INSTALLER.md)), which creates `shared/.env`; the deploy script refuses to run without it.
 
 **Alternatives if CI can't SSH in:** cPanel *Git™ Version Control* with a `.cpanel.yml` that copies a pre-built branch; Plesk *Git* extension with "Additional deployment actions". In both cases deploy a **build branch** that already contains `vendor/` and built assets.
 
@@ -92,10 +109,11 @@ CI (GitHub Actions) does the heavy work so the server only receives files:
 ## 5. Health checks after deploy
 
 - `https://goproperty.ng/up` returns 200.
+- `php artisan goproperty:hosting` (from `current/`) reports a consistent configuration, a scheduler heartbeat under 2 minutes old and a recent queue tick.
 - Console → Operations: scheduler heartbeat < 2 min old, queue wait < 1 min, last backup OK.
 - Log in as a test agency; open an invoice PDF; send a test email; trigger a Paystack test webhook.
 - `APP_DEBUG=false` confirmed (an error page must not show stack traces).
 
 ## 6. When to leave shared hosting
 
-Move to a VPS (Profile B) when: ~50 paying customers or ~5,000 units; queue wait regularly over 5 minutes; the host throttles CPU/memory or suspends the account for resource use; Building Group needs instant updates; or PDF batches are slow. The move is configuration only: switch `QUEUE_CONNECTION`/`CACHE_STORE`/`SESSION_DRIVER` to `redis`, `BROADCAST_CONNECTION` to `reverb`, `PDF_DRIVER` to `chrome`, and optionally move the console to its own subdomain.
+Move to a VPS (Profile B) when: ~50 paying customers or ~5,000 units; queue wait regularly over 5 minutes; the host throttles CPU/memory or suspends the account for resource use; Building Group needs instant updates; or PDF batches are slow. The move is configuration only: set `HOSTING_PROFILE=vps` (Redis queue, cache and sessions; Reverb; Chrome PDFs through Gotenberg at `PDF_CHROME_URL`; queue tick off because Horizon runs the queues), or switch the individual variables, and optionally move the console to its own subdomain. Run `php artisan goproperty:hosting` afterwards: it fails if a selected add-on is missing (no Redis client, no Pusher SDK for Reverb, no Gotenberg URL).

@@ -63,7 +63,7 @@ flowchart LR
 | Roles | spatie/laravel-permission with teams support | Roles are scoped per organization (team = organization) |
 | Media | spatie/laravel-medialibrary | Payment proofs, post images, avatars → S3-compatible storage |
 | Audit | spatie/laravel-activitylog | Every mutation on billing, leases, tickets, subscriptions |
-| PDF | Driver-based: `dompdf` (pure PHP, shared hosting) or headless Chrome via Browsershot/Gotenberg (VPS) | Same table-based Blade templates for both; see [BRANDING_DOCUMENTS.md § 5](BRANDING_DOCUMENTS.md) |
+| PDF | Driver-based (`App\Pdf\PdfRenderer`, `PDF_DRIVER`): `dompdf` (pure PHP, shared hosting) or headless Chrome through a Gotenberg service over HTTP (VPS; no Node or `proc_open` on the PHP server) | Same table-based Blade templates for both; see [BRANDING_DOCUMENTS.md § 5](BRANDING_DOCUMENTS.md) |
 | Spreadsheets | OpenSpout / spatie/simple-excel (streaming) | Low-memory import/export ([DATA_IMPORT.md](DATA_IMPORT.md)) |
 | WhatsApp | Meta WhatsApp Cloud API, **agency's own account** (optional) | Templates fetched from the agency's account (§ 6.7) |
 | SMS | Termii (or Africa's Talking) | Nigerian routes, DND-aware |
@@ -166,7 +166,7 @@ Tenants may hold multiple active leases across buildings and orgs — every leas
   - **Cash / POS** recorded by an agent; receipt sent straight to the tenant.
   One incoming payment can be allocated across several bills (`payment_allocations`); any excess becomes tenant credit. An `agent`/`org-admin` **confirms** or **rejects** (with reason) anything not auto-confirmed. On confirmation:
   1. bill status recomputes (`paid`, `partially_paid`, stays `overdue`);
-  2. a numbered **receipt** is generated (PDF, Browsershot) and emailed/linked to the tenant;
+  2. a numbered **receipt** is generated (PDF, through the PDF driver) and emailed/linked to the tenant;
   3. activity log entry + notification to tenant.
 - Overdue handling: a daily job flags `overdue` bills and triggers the reminder ladder (§ 6.7). Late fees are a post-MVP module (see [IMPLEMENTATION_PLAN.md § 7](IMPLEMENTATION_PLAN.md)).
 
@@ -302,16 +302,18 @@ CI (GitHub Actions) on every PR: `pint --test`, `larastan`, `pest --parallel`, p
 
 The product owner may launch on shared hosting. The app is built so **every feature works on shared hosting**, and VPS-only components (Redis, Horizon, Reverb, headless Chrome) are switched on by configuration, not code changes.
 
+**One switch:** `HOSTING_PROFILE=shared|vps` (`config/hosting.php`) sets the defaults for `QUEUE_CONNECTION`, `CACHE_STORE`, `SESSION_DRIVER`, `BROADCAST_CONNECTION`, `REALTIME_DRIVER`, `PDF_DRIVER` and `QUEUE_TICK_ENABLED`; each of those variables still overrides it. Code asks about capabilities (`App\Hosting\Realtime`, `App\Pdf\PdfRenderer`), never about the profile. `php artisan goproperty:hosting` shows the active drivers and heartbeats and fails when settings cannot work together (for example `REALTIME_DRIVER=reverb` without `BROADCAST_CONNECTION=reverb`); deploys run it before switching releases. The test suite and CI run on the shared profile.
+
 | Concern | Profile A — Shared hosting | Profile B — VPS (Forge / Ploi / Laravel Cloud) |
 | --- | --- | --- |
 | Control panel | **cPanel or Plesk** (product owner's choice). Step-by-step setup and deploys: [docs/runbooks/shared-hosting.md](docs/runbooks/shared-hosting.md) | Forge / Ploi / Laravel Cloud |
 | Minimum host requirements | PHP 8.4 (web + CLI), MySQL 8 or MariaDB 10.6+, cron **every minute**, document root settable to `/public` (or the `split` package layout for `public_html`), free SSL, ≥ 2 GB RAM per account. SSH is helpful but not required; `proc_open`/`exec` optional (only `mysqldump` uses them; a pure-PHP dumper is the fallback). Composer/Node not needed on the server (release zip includes `vendor/` and built assets). Installed with the web or CLI installer ([INSTALLER.md](INSTALLER.md)) | Any small VPS (2 vCPU / 4 GB) + managed or local MySQL |
-| Queues | `database` driver; cron runs `schedule:run` every minute, and an in-process tick drains the queue within a ~45 s budget (per-lane caps, overlap lock, heartbeat) — no `exec`/`proc_open` ([INSTALLER.md § 8](INSTALLER.md)) | Redis + Horizon, always-on workers |
+| Queues | `database` driver; cron runs `schedule:run` every minute, and an in-process tick (`App\Hosting\Queue\QueueTick`) drains the queue within a ~45 s budget (per-lane caps, overlap lock, heartbeat) — no `exec`/`proc_open` ([INSTALLER.md § 8](INSTALLER.md)) | Redis + Horizon, always-on workers (`QUEUE_TICK_ENABLED=false`) |
 | Cache / sessions | `database` (or `file`) | Redis |
-| Realtime | Livewire polling | Reverb WebSockets + polling fallback |
-| PDF | `dompdf` | Browsershot / Gotenberg (dompdf still available) |
+| Realtime | Livewire polling (every 15 s); `BROADCAST_CONNECTION=null` | Reverb WebSockets + 60 s polling fallback |
+| PDF | `dompdf` | Headless Chrome via Gotenberg (`PDF_DRIVER=chrome`, `PDF_CHROME_URL`; dompdf still available) |
 | Assets | Built in CI (Vite) and deployed as files — no Node on the server | Same, or built on server |
-| Deploy | First install: release zip + installer ([INSTALLER.md](INSTALLER.md)). Updates: CI uploads the built release over SSH and runs `migrate --force` + cache rebuild; without SSH, the zip upgrade runbook ([INSTALLER.md § 10](INSTALLER.md)) | Zero-downtime deploys |
+| Deploy | First install: release zip + installer ([INSTALLER.md](INSTALLER.md)). Updates: the `Deploy` workflow uploads the built release over SSH and runs `migrate --force` + cache rebuild ([docs/runbooks/shared-hosting.md § 3](docs/runbooks/shared-hosting.md)); without SSH, the zip upgrade runbook ([INSTALLER.md § 10](INSTALLER.md)) | Zero-downtime deploys |
 | Backups | spatie/laravel-backup (needs `exec` for `mysqldump`) to S3-compatible + Google Drive; plus the host's own backups | Same + managed DB point-in-time recovery |
 | Domains | Single domain, console on secret path | Optional `app.` / ops subdomains |
 

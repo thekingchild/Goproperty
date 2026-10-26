@@ -7,7 +7,7 @@ GoProperty is a multi-tenant SaaS platform for property management in Nigeria. A
 | Aspect | Decision |
 | --- | --- |
 | Stack | Laravel 13, PHP 8.4+, MySQL 8 / MariaDB 10.6+, Livewire 4, Filament 5 (platform console), Pest 4 |
-| Hosting | Installed from a release zip with a web or CLI installer ([INSTALLER.md](INSTALLER.md)). Runs on **cPanel or Plesk shared hosting** (database queues via cron, polling, dompdf — see [docs/runbooks/shared-hosting.md](docs/runbooks/shared-hosting.md)); Redis/Horizon/Reverb/headless Chrome switch on by config when moved to a VPS ([ARCHITECTURE.md § 12.1](ARCHITECTURE.md)) |
+| Hosting | Installed from a release zip with a web or CLI installer ([INSTALLER.md](INSTALLER.md)). Runs on **cPanel or Plesk shared hosting** (database queues via cron, polling, dompdf — see [docs/runbooks/shared-hosting.md](docs/runbooks/shared-hosting.md)); Redis/Horizon/Reverb/headless Chrome switch on by config when moved to a VPS (`HOSTING_PROFILE`, [ARCHITECTURE.md § 12.1](ARCHITECTURE.md)) |
 | Tenancy | Single database, row-level scoping on `organization_id` (see [ARCHITECTURE.md](ARCHITECTURE.md)) |
 | SaaS billing | Per-unit plans from ₦10,000/month (Starter, 10 units) — editable; Paystack card payments + bank transfer with receipt confirmation |
 | Payments (customers) | Tenants pay the agency **directly**: bank transfer (matched from the agency's bank statement, or proof upload) or the agency's **own** Paystack account. GoProperty never receives or routes tenant money (see [ONBOARDING_COMPLIANCE.md § 0](ONBOARDING_COMPLIANCE.md)) |

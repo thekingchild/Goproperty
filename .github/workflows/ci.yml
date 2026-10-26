@@ -1,18 +1,23 @@
 # Quality gate: Pint, Larastan and Pest via `composer ci` (AGENT.md § 2),
 # once per supported database. cPanel/Plesk hosts often run MariaDB, so both
 # engines are tested at their oldest and newest supported LTS versions
-# (ARCHITECTURE.md § 2, docs/runbooks/ci.md).
+# (ARCHITECTURE.md § 2, docs/runbooks/ci.md). The suite runs on the
+# shared-hosting profile, including a cron drill with exec/proc_open disabled.
+# Deploy calls this workflow first.
 name: CI
 
 on:
   push:
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
 
+# github.workflow is the caller's name when Deploy calls this, so a deploy's
+# gate never cancels (or is cancelled by) the push run on the same branch.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ${{ github.workflow }}-ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -58,6 +63,7 @@ jobs:
           --health-retries=20
 
     env:
+      HOSTING_PROFILE: shared
       DB_CONNECTION: ${{ matrix.connection }}
       DB_HOST: 127.0.0.1
       DB_PORT: 3306

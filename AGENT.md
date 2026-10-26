@@ -27,9 +27,10 @@ sail composer lint              # fix code style (Pint)
 sail composer test              # Pest only
 
 # Long-running processes (dev)
-sail artisan queue:listen --queue=default,notifications,billing,pdf,imports
-sail artisan schedule:work
+sail artisan schedule:work        # scheduler + the in-process queue tick (shared profile), as cron does on the host
+sail artisan queue:listen --queue=billing,notifications,default,pdf,imports   # optional: runs jobs at once instead of each minute
 sail artisan reverb:start         # optional: only when testing VPS-profile realtime
+sail artisan goproperty:hosting   # hosting profile, drivers, heartbeats; fails on inconsistent settings
 
 # Modules (nwidart)
 php artisan module:make <Name>
@@ -60,9 +61,10 @@ Breaking any of these is a critical defect regardless of task size:
 - **Core stays thin:** tenancy, auth, users, orgs, settings, money, documents, shared UI. If you're adding domain logic to Core, it probably belongs in a module.
 - **Surfaces:** `/o/{org-slug}`, `/portal` and `/owner` are Livewire 4 — do not introduce Vue/React there. The console at `/{ADMIN_PATH}` is Filament 5 (separate `staff` guard, `platform_staff` table and session cookie). Never hard-code the admin path or any host name; read them from config. Marketing pages are plain Blade + Livewire forms.
 - **Events over hooks:** subsystems react to domain events; don't have Billing reach into Tickets internals, etc.
-- **Queues:** everything slow (PDF, mail, SMS, WhatsApp, webhooks processing, metering, imports) is queued with the right queue name (`default`, `notifications`, `billing`, `pdf`, `imports`) and a retry/backoff config. Jobs must finish in under ~50 seconds or be split into chunks (shared-hosting workers are cron-started and time-limited).
+- **Queues:** everything slow (PDF, mail, SMS, WhatsApp, webhooks processing, metering, imports) is queued with the right queue name (`default`, `notifications`, `billing`, `pdf`, `imports`) and a retry/backoff config. Jobs must finish in under ~50 seconds or be split into chunks (shared-hosting workers are cron-started and time-limited). A new queue name must also be added to a lane in `config/hosting.php`, or the shared-hosting tick never runs it.
+- **Scheduler:** register scheduled work with `Schedule::call()` or `Schedule::job()` only. `Schedule::command()` and `runInBackground()` need `proc_open`, which shared hosts may disable ([INSTALLER.md § 8](INSTALLER.md)); a test enforces this.
 - **Theme:** never hard-code GoProperty colours, logos or the product name in views. Use the platform theme tokens and settings ([PLATFORM_CONSOLE.md § 9](PLATFORM_CONSOLE.md)); agency documents use agency branding.
-- **Shared-hosting compatibility:** no feature may require Redis, Horizon, Reverb, Node at runtime, or headless Chrome. Use Laravel's driver/config switches so those are enhancements on VPS only.
+- **Shared-hosting compatibility:** no feature may require Redis, Horizon, Reverb, Node at runtime, or headless Chrome. Use Laravel's driver/config switches so those are enhancements on VPS only. Ask capabilities, not the profile: `App\Hosting\Realtime` for live updates (`pollSeconds()`, `usesWebsockets()`), `App\Pdf\PdfRenderer` for PDFs.
 - **Documents:** Blade templates rendered through the PDF driver interface (`dompdf` or Chrome); table layouts and simple CSS only so both drivers render identically ([BRANDING_DOCUMENTS.md § 5](BRANDING_DOCUMENTS.md)). Agency branding is snapshotted on each issued document. Numbering via `document_counters` inside a transaction. Never `max(id)+1`.
 - **Imports:** always dry run before commit; never back-bill imported leases; never auto-contact imported tenants ([DATA_IMPORT.md](DATA_IMPORT.md)).
 
