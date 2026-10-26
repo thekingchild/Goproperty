@@ -9,5 +9,11 @@ parameters:
         - config/
         - database/
         - routes/
+        - tools/
+        - tests/Fixtures/Models/
 
     level: 7
+
+rules:
+    # Tenancy guard: only the Platform namespace may remove OrganizationScope.
+    - Tools\PHPStan\Rules\OrganizationScopeBypassRule

@@ -30,7 +30,7 @@ composer install --no-dev --optimize-autoloader \
 npm ci --no-audit --no-fund
 npm run build
 
-rm -rf node_modules tests docs .github scripts \
+rm -rf node_modules tests tools docs .github scripts \
     .editorconfig .gitattributes .gitignore .npmrc \
     compose.yaml phpstan.neon phpunit.xml pint.json package.json package-lock.json vite.config.js \
     ./*.md

@@ -43,7 +43,7 @@ php artisan goproperty:check-installation              # health of an installed 
 scripts/release/install-drill.sh dist/goproperty-1.4.0-dev.1.zip   # needs DB_* for an account that can create databases
 
 # Modules (nwidart)
-php artisan module:make <Name>
+php artisan module:make <Name>   # then composer dump-autoload && composer lint
 php artisan module:migrate <Name>
 ```
 
@@ -53,7 +53,7 @@ CI runs `composer ci` on every push, once each on MySQL 8.0/8.4 and MariaDB 10.6
 
 Breaking any of these is a critical defect regardless of task size:
 
-1. **Tenancy.** Every customer-domain model uses `BelongsToOrganization`. Never query organization data without `OrganizationContext` set; never remove/disable a global scope without a platform-guarded, documented reason. Platform-side cross-org reads live only in `Modules\Platform` (or `App\Platform` pre-extraction).
+1. **Tenancy.** Every customer-domain model uses `BelongsToOrganization` (queries without an `OrganizationContext` throw; Larastan rejects removing `OrganizationScope` outside the Platform namespace). Never query organization data without `OrganizationContext` set; never remove/disable a global scope without a platform-guarded, documented reason. Platform-side cross-org reads live only in `Modules\Platform` (or `App\Platform` pre-extraction).
 2. **Money.** Kobo integers only. No floats, no floatval, no `->amount / 100` arithmetic outside the money helper. All money math goes through `App\Support\Money` (or the module equivalent). Currency is NGN.
 3. **Cycle math.** All lease period arithmetic goes through `Modules\Leasing\CycleCalculator`. Never hand-roll date intervals.
 4. **Authorization.** Every controller action, Livewire component, and Filament resource checks a Policy. Hiding UI is never the security control.

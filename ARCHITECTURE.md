@@ -93,11 +93,11 @@ The `users` table holds every customer-side person. What a user can do is a func
 
 > **Naming:** in code, "tenant" always means a **renter** (`TenantProfile`). The multi-tenancy concept uses "organization" everywhere (`OrganizationContext`, `BelongsToOrganization`, `SetOrganizationContext`) to avoid confusing the two.
 
-- `App\Tenancy\OrganizationContext` — singleton holding the current organization; set by `SetOrganizationContext` middleware from the `{org-slug}` in the URL after checking membership (non-members get 404). Users may belong to several orgs; a switcher exists in the app shell.
+- `App\Tenancy\OrganizationContext` — scoped singleton (fresh for every request and queued job) holding the current organization; set by the `SetOrganizationContext` middleware (`App\Http\Middleware`, alias `organization`) from the `{organization}` slug in the URL after checking membership. Unknown slugs and non-members get the same 404, an old slug redirects (301) to the current one, and the middleware runs before route model binding so models bound from the URL are already scoped. Jobs and commands use `OrganizationContext::run($organization, fn () => …)`, which restores the previous context afterwards. Users may belong to several orgs; a switcher exists in the app shell.
 - The tenant and owner portals are **cross-organization by nature**: they do not set a single organization context, and instead query through an explicit "records linked to my user" path (`tenant_profiles.user_id = me`, owner links) that is policy-checked per record.
-- `App\Tenancy\BelongsToOrganization` trait — boots a global scope (`where organization_id = current`) and auto-fills `organization_id` on create. Models opt in; nothing queries organization data without it.
+- `App\Tenancy\BelongsToOrganization` trait — boots `OrganizationScope` (`where organization_id = current`) and auto-fills `organization_id` on create. **Fail closed:** querying or creating without a context throws `MissingOrganizationContext` instead of returning every organization's rows, and creating a row in, or moving one to, another organization throws `CrossOrganizationWrite`. Models opt in; nothing queries organization data without it.
 - All unique indexes include `organization_id` (e.g. `unique(organization_id, unit_number, property_id)`).
-- Cross-org reads (Platform console, aggregate analytics) bypass the scope explicitly through dedicated read models / raw queries in the `Platform` namespace — the only place allowed to do so, guarded by platform middleware.
+- Cross-org reads (Platform console, aggregate analytics) bypass the scope explicitly through dedicated read models / raw queries in the `Platform` namespace — the only place allowed to do so, guarded by platform middleware. A Larastan rule (`tools/phpstan/Rules/OrganizationScopeBypassRule.php`) fails the build when code outside `App\Platform` or `Modules\Platform` removes `OrganizationScope`, or calls `withoutGlobalScopes()` on an organization-owned model.
 - Database-level defense: every tenant-domain controller/Livewire action resolves models through the trait's scope; policies re-check membership (`user Belongs To Organization` + role).
 - **Escape hatch for the future:** if an enterprise customer demands physical isolation, the same code runs multi-database (connection switching in the tenancy layer) — but that is explicitly not an MVP concern.
 
@@ -257,6 +257,8 @@ Built on nwidart/laravel-modules — a modular monolith. Rules:
 5. New expansion (e.g. late fees, owner payouts, e-signatures, WhatsApp bot, tenant online payments) ships as a new module — zero surgery on existing modules beyond registering events.
 
 This keeps the codebase upgradeable across Laravel versions and lets paid add-ons be enabled per customer by the platform owner.
+
+Generating a module: `php artisan module:make Billing`, then `composer dump-autoload` (module classes autoload through `wikimedia/composer-merge-plugin`) and `composer lint`. `config/modules.php` is trimmed for shared hosting: modules share the app's single Vite build, so no per-module `package.json`, `vite.config.js`, asset folders or API routes are generated. Module status lives in `modules_statuses.json` at the app root. A test keeps modules from importing each other's internals (anything outside `Contracts` and `Events`) once modules exist.
 
 ## 9. Storage & Media
 

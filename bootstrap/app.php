@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 use App\Http\Middleware\AwaitApplicationKey;
 use App\Http\Middleware\EnsureSiteInstalled;
+use App\Http\Middleware\SetOrganizationContext;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Support\Facades\Route;
 
 $app = Application::configure(basePath: dirname(__DIR__))
@@ -26,6 +28,11 @@ $app = Application::configure(basePath: dirname(__DIR__))
             AwaitApplicationKey::class,
             EnsureSiteInstalled::class,
         ]);
+
+        // /o/{organization} routes: the context must exist before route
+        // model binding resolves organization-owned models (ARCHITECTURE.md § 4).
+        $middleware->alias(['organization' => SetOrganizationContext::class]);
+        $middleware->prependToPriorityList(SubstituteBindings::class, SetOrganizationContext::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
