@@ -34,7 +34,7 @@ Staff access is controlled only by **roles** (spatie permissions on the `staff` 
 
 ### Two-person rules (segregation of duties)
 
-Needs a second staff member with the right role to approve:
+Needs a second staff member with the right role to approve (`App\Platform\Approvals\ApprovalService`; the approver permission per action: refunds `refunds.approve`, production restore `backups.approve_production_restore`, role grants `roles.manage` held by a super-admin, write-mode impersonation `impersonate.write`, data purge `data.purge`):
 
 - Refunds above a set amount (e.g. ₦100,000).
 - Restoring a backup to production.
@@ -45,6 +45,17 @@ Needs a second staff member with the right role to approve:
 ### Staff lifecycle
 
 Invite by email → set password + 2FA on first login → active. Deactivation immediately ends all sessions. Staff profile: name, work email, phone, roles, status, last login, 2FA status, IP allowlist (optional).
+
+### How it is built (P01-07)
+
+- **Console pages:** Staff (list, profile with history, Invite staff, Grant/Remove role, Edit details, Send invitation again, Deactivate/Reactivate), Staff → Roles (`/staff-roles`: create, edit permissions by area, deactivate/reactivate), Staff → Approvals (`/approvals`: pending requests with Approve/Reject). Each page and action is checked by a policy (`PlatformStaffPolicy`, `StaffRolePolicy`, `ApprovalRequestPolicy`); the services check again.
+- **Catalogue in code:** `App\Platform\Staff\StaffPermission` (protected: `impersonate.write`, `backups.approve_production_restore`, `roles.manage`, `data.purge`); default grants in `DefaultStaffRole`, including § 6's impersonation grants and `system.status` (technical-admin). Staff management uses `staff.view`, `staff.invite`, `staff.manage`, `roles.manage` and `approvals.view`.
+- **Default roles keep their names** (the two-person rules and later features refer to them); their permissions and descriptions can change. Custom roles can be renamed. No role is ever deleted; a role is deactivated once nobody holds it, and a deactivated role grants nothing.
+- **Two-person rules for roles:** granting `super-admin`, `finance-admin`, `compliance-officer`, or any role carrying a protected permission, opens an approval request; adding a protected permission to a role does too (the other changes apply at once). Role-grant requests are approved by a **second super-admin**. Nobody can approve or reject their own request (service and policy). Requests expire (7 days for role grants).
+- **Bootstrap:** right after install there is one super-admin and nobody else could approve. While nobody else (active or invited) holds `super-admin`, the lone super-admin's grant of `super-admin` applies at once, recorded with `bootstrap: true`; from then on the rules above apply.
+- **At least two active super-admins:** the count of active super-admins never drops below min(current, 2): once two exist, no role removal or deactivation may leave fewer than two; while only one exists every console page shows a warning and nothing may leave none.
+- **2FA:** every console page sends staff without 2FA to set it up (also for Livewire updates), and without 2FA a staff member holds no permission. Invitees set a password from the emailed link (one use, 7 days, stored hashed), are signed in, enrol 2FA, and their account becomes active on the next request.
+- **Audit:** every invitation, acceptance, activation, grant, removal, role change, deactivation and approval decision is written to the audit log (log `staff`) with the acting staff member; entries about a staff member make up their profile history.
 
 ## 1A. Business Settings Managed in the Console
 

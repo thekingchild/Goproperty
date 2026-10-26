@@ -118,7 +118,7 @@ Platform side (spatie roles on the `staff` guard; default roles, custom roles an
 | `content-manager` | Email templates, marketing content |
 | `analyst` | Analytics, read-only, no PII |
 
-Staff roles are global: no organization on the role or on the assignment (`organization_id` null in the shared spatie tables); `App\Platform\Console\HasStaffRoles` reads and grants them outside any organization context.
+Staff roles are global: no organization on the role or on the assignment (`organization_id` null in the shared spatie tables); `App\Platform\Console\HasStaffRoles` reads and grants them outside any organization context. The permission catalogue is `App\Platform\Staff\StaffPermission` (one permission per console area and action; new features add permissions, never roles) and the default grants are `DefaultStaffRole`. A staff permission check (Gate, `can()`, policies) answers from the staff member's **active** roles, and only for an active account **with 2FA enrolled**: without 2FA a staff member holds no console permission at all. Grants, role edits, invitations and deactivations go through `App\Platform\Staff\StaffRoles` and `StaffLifecycle` (two-person rules, the super-admin floor, audit log); two-person requests through `App\Platform\Approvals\ApprovalService`, where later features register a handler for their action.
 
 Customer side (per-organization roles, spatie teams on the `web` guard; the permission catalogue is `App\Enums\OrganizationPermission` and each role's grants are in `App\Enums\OrganizationRole`, seeded by `OrganizationRolesSeeder`):
 

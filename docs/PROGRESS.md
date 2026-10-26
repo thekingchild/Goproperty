@@ -6,9 +6,9 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 ## Current state
 
-- **In progress:** P01-07 (console staff roles) and P01-02 (registration wizard). Each task is built in its own worktree and reviewed before it merges
+- **In progress:** P01-02 (registration wizard) and P01-06 (console customers list, suspend/reactivate). Each task is built in its own worktree and reviewed before it merges
 - **In review:** P01-09 (web installer wizard): done and verified locally on MariaDB 11.4; the Install drill on MySQL 8 and MariaDB 10.6 waits on GitHub Actions. P00-03 (hosting profiles), P00-04 (release package) and P00-06 (installer CLI + install drill): done and verified locally; each needs one green run in GitHub Actions (CI for P00-03, a tagged Release for P00-04, the Install drill on MySQL 8 and MariaDB 10.6 for P00-06) once Actions starts jobs. P00-12 (backups): built and drilled locally; needs one real run to an S3-compatible bucket and a Google Shared Drive (PRE-03 accounts)
-- **Next task:** P01-04, P01-05 and P01-06 once P01-02 and P01-07 land; PRE-01 to PRE-04 continue with the product owner
+- **Next task:** P01-04, P01-05, then P01-03 and P01-08; PRE-01 to PRE-04 continue with the product owner
 - **Blocked:** P00-02: GitHub Actions jobs are not being given a runner (account-level), and branch protection on `main` needs a repo admin. This also holds P00-03's CI check, P00-04's release run and P00-06's install drill
 - **Blocked:** P00-13 (staging): the deploy scripts, the deploy on merge and the deploy drill are built and drilled locally; it needs a staging host (PRE-04) and working Actions runners (P00-02)
 
@@ -18,7 +18,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | --- | --- | --- | --- |
 | PRE | 5 | 1 | In progress |
 | P00 | 13 | 7 | In progress |
-| P01 | 9 | 1 | In progress |
+| P01 | 9 | 2 | In progress |
 | P02 | 7 | 0 | Not started |
 | P03 | 13 | 0 | Not started |
 | P04 | 3 | 0 | Not started |
@@ -27,11 +27,43 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | P07 | 4 | 0 | Not started |
 | P08 | 4 | 0 | Not started |
 | P09 | 8 | 0 | Not started |
-| **Total** | **83** | **9** | |
+| **Total** | **83** | **10** | |
 
 ## Ledger (newest first)
 
 Each entry: task ID and status, date, what was delivered, tests run and results, follow-ups, next task.
+
+### P01-07 — Complete (2026-10-26): console staff management, configurable roles, 2FA enforcement, two-person approvals
+
+**Delivered:**
+- **Permission catalogue in code** (`App\Platform\Staff\StaffPermission`, 51 permissions on the `staff` guard, grouped by console area) with the four protected permissions from PLATFORM_CONSOLE.md § 1 (`impersonate.write`, `backups.approve_production_restore`, `roles.manage`, `data.purge`). Includes § 6's `impersonate.read_only`, `impersonate.write`, `impersonation.view_log` with their default grants (ready for P01-08) and P01-09's `system.status` (technical-admin, super-admin). The interim `ConsolePermissions` (every active staff member held the settings permissions) is gone: settings pages and the heartbeat now follow roles.
+- **Default roles** (`DefaultStaffRole`): the eight roles of § 1 with descriptions and grants; `super-admin` holds the whole catalogue, is protected (never edited or deactivated). `StaffRolesSeeder` in `InstallSeeder::SEEDERS` (idempotent; never undoes console edits: default grants on creation, later only permissions new to the catalogue).
+- **Schema** (three migrations): `roles` gains `is_default`, `is_protected`, `description`, `active`; `platform_staff` gains `invited_by_staff_id`, `invitation_token_hash`, `invitation_expires_at`, `invitation_accepted_at`, `deactivated_at`; new `approval_requests` (action, subject morph, payload, summary, reason, requested/approved/rejected by, status, decision note, expires_at, decided_at).
+- **Permission checks** (`HasStaffRoles` on `PlatformStaff`): spatie's check is replaced so a staff permission comes only from active roles, only for an active account **with 2FA enrolled**. All grant/removal methods run outside any organization context.
+- **Services:** `StaffRoles` (grant/revoke, create/update/deactivate/reactivate roles, protected permissions only by a super-admin and only after a second super-admin approves), `StaffLifecycle` (invite by email, accept invitation, activate after 2FA, deactivate, reactivate, edit details/IP allowlist), `SuperAdminFloor` (active super-admins never drop below min(current, 2), serialised on the role row), `ApprovalService` (request/approve/reject/expire, handler registry for later actions; nobody decides their own request; decider needs the action's permission), `RoleGrantApproval` (role grants approved by a second super-admin), `FirstSuperAdmin` (installer). Every change is written to the hash-chained audit log (log `staff`) with the acting staff member.
+- **Two-person role grants:** granting `super-admin`, `finance-admin`, `compliance-officer` or any role carrying a protected permission opens an approval request; the grant takes effect only on approval. Bootstrap exception (documented in § 1): while nobody else holds `super-admin`, the lone super-admin's grant of `super-admin` applies at once (audited `bootstrap: true`).
+- **Installer:** `InstallationSteps::createSuperAdmin()` (shared by `goproperty:install` and the web wizard) calls `App\Platform\Staff\FirstSuperAdmin::grant($staff)`, also on resume. It only works for the first staff account.
+- **2FA and lifecycle in the console:** every console page (and Livewire update: the 2FA middleware and the new `StaffAccountState` are persistent) sends staff without 2FA to enrol; invitees open the emailed link (`/{ADMIN_PATH}/invitation/{token}`, one use, 7 days, stored hashed), set a password, are signed in, must enrol 2FA, and become active on the next request. Deactivated staff are signed out at their next request (any browser). `last_login_at` is recorded.
+- **Filament pages** (`App\Platform\Filament`): Staff (list with roles, status, 2FA, last login; profile with history; Invite, Grant/Remove role, Edit details incl. IP allowlist, Send invitation again, Deactivate/Reactivate), Staff → Roles (`/staff-roles`), Staff → Approvals (`/approvals`, pending badge). Policies: `PlatformStaffPolicy`, `StaffRolePolicy`, `ApprovalRequestPolicy`. A warning shows on every console page while fewer than two active super-admins exist.
+- **Scheduler:** `approvals-expire` every 15 minutes (`Schedule::call`).
+- **Docs:** PLATFORM_CONSOLE.md § 1 (two-person approvers, "How it is built"), DATABASE_SCHEMA.md (`platform_staff`, staff roles, `approval_requests`, `permissions`), ARCHITECTURE.md § 5, INSTALLER.md step 6.
+
+**Tests and evidence (local, MariaDB 11.4):**
+- Orchestrator's review run (branch with latest `main`): `composer ci` Pint passed, Larastan 0 errors, Pest **957 tests: 956 passed, 1 skipped, 6,333 assertions**.
+- `composer ci`: Pint passed, Larastan 0 errors, Pest **957 tests (956 passed, 1 skipped: the existing module-boundary check), 6,333 assertions**, 0 failed.
+- **AC: a two-person action cannot be approved by its requester:** `StaffApprovalsTest` "cannot be approved by its requester, by the service, the policy or the console" (dataset super-admin / finance-admin / compliance-officer: service refuses approve and reject, policy denies, console hides the buttons, the role is not held; a second super-admin approves through the console and only then the grant applies, audited), plus "needs the right permission to approve", "needs a second super-admin, not just roles.manage", reject, expiry, duplicate refusal, deactivated-meanwhile, generic refund action, bootstrap.
+- **AC: staff without 2FA are forced to enrol:** `StaffTwoFactorEnforcementTest` walks every GET route of the console (staff, roles, approvals, settings, previews, heartbeat, ping) for a super-admin without 2FA and for an invited staff member on first sign-in (after setting a password): each redirects to the 2FA set-up; such staff hold no permission; after enrolling the invitee becomes active. A companion test opens every one of those pages for a super-admin with 2FA.
+- `StaffRolesTest` (catalogue and default grants incl. § 6, seeder keeps edits, settings pages follow roles, custom role in the console, rename/permissions audited, protected rules, deactivation), `StaffLifecycleTest` (invite from the page, unique email, hashed one-time token, expired/replaced links, password rule, deactivation ends sessions and sign-in, floor of two super-admins and the warning, profile history, last login, details/IP allowlist).
+- Installer: `InstallCommandTest` (CLI install: the staff account holds exactly `super-admin`, catalogue and default roles seeded, grant audited; resume keeps it), `WebInstallWizardTest` (the wizard's account holds `super-admin`).
+- Existing tests changed: `staffMember()` now gives `super-admin` by default (console access comes from roles; `roles: []` for none) and `staffNamed()` was added; three `OrganizationRolesTest` cases use `roles: []` because they create their own staff roles; `ConsolePanelTest` "refuses staff who are not active" split: invited → 403, deactivated → signed out and sent to sign-in (the new lifecycle rule); `SchedulerHeartbeatTest` checks `system.status` with an analyst (403) and a technical admin (200) instead of redefining the gate; `InstallerCommandsTest` "fails on pending migrations" now deletes exactly the create migration (a second migration name now contains `platform_staff`).
+
+**Follow-ups:**
+- P01-08 uses `impersonate.read_only` / `impersonate.write` / `impersonation.view_log` and `ApprovalService::request(ApprovalAction::WriteImpersonation, …)`; write-impersonation requests have no handler (the session checks the approved request).
+- Later tasks register handlers for `refund`, `production_restore`, `data_purge` with `ApprovalService::handle()` (StaffServiceProvider or the module's provider).
+- Reactivating a deactivated staff member restores their roles without a second approval (spec silent).
+- `goproperty:staff-reset-2fa` (INSTALLER.md § 9) is not built here.
+
+**Next:** P01-02 (registration wizard) and P01-08 (impersonation).
 
 ### P01-09 — In review (2026-10-26): web installer wizard
 

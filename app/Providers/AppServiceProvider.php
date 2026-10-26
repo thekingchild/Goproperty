@@ -4,13 +4,11 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
-use App\Platform\Console\ConsolePermissions;
 use App\Settings\SettingDefinition;
 use App\Settings\SettingsRegistry;
 use App\Tenancy\OrganizationContext;
 use App\Theme\ThemeContext;
 use Carbon\CarbonImmutable;
-use Illuminate\Contracts\Auth\Access\Gate;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\ServiceProvider;
@@ -49,7 +47,6 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
-        ConsolePermissions::register($this->app->make(Gate::class));
     }
 
     /**

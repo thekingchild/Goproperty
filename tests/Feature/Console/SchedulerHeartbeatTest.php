@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use App\Hosting\Heartbeats;
-use Illuminate\Support\Facades\Gate;
 
 /*
  * P01-09: the scheduler heartbeat the installer's finish screen polls for
@@ -42,7 +41,10 @@ it('sends staff without 2FA to set it up', function () {
 });
 
 it('refuses staff without the system.status permission', function () {
-    Gate::define('system.status', fn () => false);
+    // P01-07: the permission comes from staff roles (technical-admin, super-admin).
+    $this->actingAs(staffMember(roles: ['analyst']), 'staff')->getJson(heartbeatUrl())->assertForbidden();
+});
 
-    $this->actingAs(staffMember(), 'staff')->getJson(heartbeatUrl())->assertForbidden();
+it('answers technical admins', function () {
+    $this->actingAs(staffMember(roles: ['technical-admin']), 'staff')->getJson(heartbeatUrl())->assertOk();
 });

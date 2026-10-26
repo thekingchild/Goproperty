@@ -129,7 +129,7 @@ it('fails when the markers disagree', function () {
 it('fails on pending migrations', function () {
     finishMarkers();
     beatEverything();
-    DB::table('migrations')->where('migration', 'like', '%platform_staff%')->delete();
+    DB::table('migrations')->where('migration', 'like', '%create_platform_staff_table')->delete();
 
     $this->artisan('goproperty:check-installation')
         ->expectsOutputToContain('1 pending')

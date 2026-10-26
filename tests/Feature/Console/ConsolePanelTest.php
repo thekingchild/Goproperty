@@ -58,11 +58,20 @@ it('opens an empty console for active staff', function () {
         ->assertDontSee('Welcome');
 });
 
-it('refuses staff who are not active', function (StaffStatus $status) {
-    $this->actingAs(activeStaff(['status' => $status]), 'staff')
+it('refuses invited staff who have not accepted their invitation', function () {
+    $this->actingAs(activeStaff(['status' => StaffStatus::Invited]), 'staff')
         ->get(consoleUrl())
         ->assertForbidden();
-})->with([StaffStatus::Invited, StaffStatus::Deactivated]);
+});
+
+// P01-07: deactivation ends the session at the next request (PLATFORM_CONSOLE.md § 1).
+it('signs deactivated staff out', function () {
+    $this->actingAs(activeStaff(['status' => StaffStatus::Deactivated]), 'staff')
+        ->get(consoleUrl())
+        ->assertRedirect(consoleUrl('login'));
+
+    expect(auth('staff')->check())->toBeFalse();
+});
 
 it('signs staff in on the staff guard only, with their 2FA code', function () {
     $staff = activeStaff();

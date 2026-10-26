@@ -292,6 +292,11 @@ it('installs GoProperty over HTTP, the same as the command line', function () {
         ->and($audit->ip)->toBe('127.0.0.1')
         ->and(json_decode($audit->properties, true))->toBe(['version' => 'dev', 'via' => 'web']);
 
+    // P01-07: the wizard's first staff account is the super-admin, as on the command line.
+    $superAdmin = $target->table('roles')->where('name', 'super-admin')->where('guard_name', 'staff')->whereNull('organization_id')->value('id');
+    expect($superAdmin)->not->toBeNull()
+        ->and($target->table('model_has_roles')->where('model_type', PlatformStaff::class)->where('model_id', $staff->id)->pluck('role_id')->all())->toBe([$superAdmin]);
+
     // The schema equals a plain migrate.
     $reference = ScratchDatabase::create();
     Artisan::call('migrate', ['--database' => $reference, '--force' => true]);

@@ -6,9 +6,11 @@ use App\Enums\OrganizationRole;
 use App\Models\Organization;
 use App\Models\PlatformStaff;
 use App\Models\Role;
+use App\Models\StaffRole;
 use App\Models\StaffStatus;
 use App\Models\User;
 use Database\Seeders\OrganizationRolesSeeder;
+use Database\Seeders\StaffRolesSeeder;
 use Illuminate\Foundation\Testing\DatabaseTruncation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PragmaRX\Google2FA\Google2FA;
@@ -45,10 +47,13 @@ pest()->extend(TestCase::class)
 /**
  * A platform staff member. Staff must use an authenticator app (P00-10c),
  * so by default the account has 2FA set up and can open console pages.
+ * Console access comes from staff roles (P01-07): `super-admin` unless
+ * other roles are given ([] for none).
  *
  * @param  array<string, mixed>  $attributes
+ * @param  list<string>  $roles
  */
-function staffMember(array $attributes = [], bool $withTwoFactor = true): PlatformStaff
+function staffMember(array $attributes = [], bool $withTwoFactor = true, array $roles = ['super-admin']): PlatformStaff
 {
     $staff = PlatformStaff::query()->create($attributes + [
         'name' => 'Ada',
@@ -61,7 +66,31 @@ function staffMember(array $attributes = [], bool $withTwoFactor = true): Platfo
         $staff->saveAppAuthenticationSecret(app(Google2FA::class)->generateSecretKey());
     }
 
-    return $staff;
+    if ($roles !== []) {
+        seedStaffRoles();
+        $staff->assignRole(...$roles);
+    }
+
+    return $staff->fresh() ?? $staff;
+}
+
+/**
+ * Another staff member with an email made from the name, e.g.
+ * staffNamed('Bola', ['finance-admin']) → bola@goproperty.ng.
+ *
+ * @param  list<string>  $roles
+ */
+function staffNamed(string $name, array $roles = [], bool $withTwoFactor = true): PlatformStaff
+{
+    return staffMember(['name' => $name, 'email' => strtolower($name).'@goproperty.ng'], $withTwoFactor, $roles);
+}
+
+/** The staff permission catalogue and default staff roles (StaffRolesSeeder), once per test. */
+function seedStaffRoles(): void
+{
+    if (! StaffRole::query()->where('name', 'super-admin')->exists()) {
+        test()->seed(StaffRolesSeeder::class);
+    }
 }
 
 /**

@@ -16,6 +16,8 @@ use App\Installer\Migrations\BatchedMigrator;
 use App\Installer\Requirements\ServerEnvironment;
 use App\Installer\SiteSettings;
 use App\Models\PlatformStaff;
+use App\Platform\Staff\DefaultStaffRole;
+use App\Platform\Staff\StaffPermission;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
@@ -127,6 +129,15 @@ it('installs GoProperty from the command line', function () {
         ->and($staff->two_factor_secret)->toBeNull()
         ->and($target->table('installation_state')->value('status'))->toBe('finalized');
 
+    // P01-07: the first staff account is the super-admin, and the staff
+    // catalogue and default roles are seeded.
+    $superAdmin = $target->table('roles')->where('name', 'super-admin')->where('guard_name', 'staff')->whereNull('organization_id')->value('id');
+    expect($superAdmin)->not->toBeNull()
+        ->and($target->table('model_has_roles')->where('model_type', PlatformStaff::class)->where('model_id', $staff->id)->pluck('role_id')->all())->toBe([$superAdmin])
+        ->and($target->table('roles')->where('guard_name', 'staff')->count())->toBe(count(DefaultStaffRole::cases()))
+        ->and($target->table('permissions')->where('guard_name', 'staff')->count())->toBe(count(StaffPermission::cases()))
+        ->and($target->table('activity_log')->where('log_name', 'staff')->where('event', 'staff.role_granted')->where('subject_id', $staff->id)->exists())->toBeTrue();
+
     $markers = app(InstallationMarkers::class);
     $record = (string) file_get_contents(config('installer.paths.record'));
 
@@ -195,7 +206,7 @@ it('resumes with the same super-admin but refuses another', function () {
     $this->artisan('goproperty:install', installOptions($this))->assertSuccessful();
     $steps = app(InstallationSteps::class);
 
-    expect($steps->createSuperAdmin('Ada Obi', 'ada@goproperty.ng', ADMIN_PASSWORD)->email)->toBe('ada@goproperty.ng')
+    expect($steps->createSuperAdmin('Ada Obi', 'ada@goproperty.ng', ADMIN_PASSWORD)->isSuperAdmin())->toBeTrue()
         ->and(fn () => $steps->createSuperAdmin('Eve', 'eve@goproperty.ng', 'another-Long-pass-77'))
         ->toThrow(InstallationException::class, 'A staff account already exists.');
 });

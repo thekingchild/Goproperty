@@ -167,7 +167,7 @@ it('refuses roles outside an organization or for non-members', function () {
 });
 
 it('lets staff hold global roles on the staff guard, outside any organization', function () {
-    $staff = staffMember();
+    $staff = staffMember(roles: []);
     $permission = Permission::create(['name' => 'customers.view', 'guard_name' => 'staff']);
     $role = Role::create(['name' => 'support-agent', 'guard_name' => 'staff']);
     $role->givePermissionTo($permission);
@@ -182,7 +182,7 @@ it('lets staff hold global roles on the staff guard, outside any organization', 
 });
 
 it('keeps staff roles global even inside an organization context', function () {
-    $staff = staffMember();
+    $staff = staffMember(roles: []);
     Role::create(['name' => 'support-agent', 'guard_name' => 'staff']);
     Role::create(['name' => 'analyst', 'guard_name' => 'staff']);
     $staff->assignRole('support-agent');
@@ -201,7 +201,7 @@ it('keeps staff roles global even inside an organization context', function () {
 
 it('keeps customer and staff roles apart', function () {
     $user = joinAs(User::factory()->create(), $this->acme);
-    $staff = staffMember();
+    $staff = staffMember(roles: []);
 
     expect(fn () => $staff->assignRole('org-owner'))->toThrow(RoleDoesNotExist::class)
         ->and(fn () => $this->context->run($this->acme, fn () => $user->hasPermissionTo('customers.view', 'staff')))->toThrow(PermissionDoesNotExist::class);

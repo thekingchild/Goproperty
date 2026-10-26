@@ -8,6 +8,7 @@ use App\Backup\BackupRunner;
 use App\Backup\BackupVerifier;
 use App\Hosting\Heartbeats;
 use App\Hosting\Queue\QueueTick;
+use App\Platform\Approvals\ApprovalService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
@@ -63,6 +64,11 @@ Schedule::call(function (BackupVerifier $verifier): void {
         Log::critical('The monthly backup verify failed: '.$result['message']);
     }
 })->name('backup-verify')->monthlyOn(1, '04:00');
+
+// Two-person requests nobody decided in time (PLATFORM_CONSOLE.md § 1).
+Schedule::call(fn (ApprovalService $approvals) => $approvals->expireStale())
+    ->name('approvals-expire')
+    ->everyFifteenMinutes();
 
 // Keep this last: it can use most of the minute, and events run in order.
 Schedule::call(fn (QueueTick $tick) => $tick->run())

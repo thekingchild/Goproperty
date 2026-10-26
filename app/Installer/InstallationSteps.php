@@ -15,6 +15,7 @@ use App\Installer\Migrations\MigrationProgress;
 use App\Installer\Support\AtomicFile;
 use App\Models\PlatformStaff;
 use App\Models\StaffStatus;
+use App\Platform\Staff\FirstSuperAdmin;
 use Closure;
 use Database\Seeders\InstallSeeder;
 use Illuminate\Contracts\Config\Repository as Config;
@@ -272,8 +273,9 @@ final class InstallationSteps
     }
 
     /**
-     * Step 6: the first staff account. Refused if any staff account exists,
-     * except the same email and password again (resuming after a timeout).
+     * Step 6: the first staff account, made `super-admin` (FirstSuperAdmin,
+     * PLATFORM_CONSOLE.md § 1). Refused if any staff account exists, except
+     * the same email and password again (resuming after a timeout).
      * The web wizard enrols 2FA right after this step (INSTALLER.md § 5); the
      * command-line install leaves it to the first console sign-in (§ 7).
      *
@@ -288,6 +290,7 @@ final class InstallationSteps
 
         if ($existing !== null) {
             if (strcasecmp($existing->email, $email) === 0 && Hash::check($password, $existing->password)) {
+                $this->app->make(FirstSuperAdmin::class)->grant($existing);
                 $this->recordStage(InstallStage::OwnerReady);
 
                 return $existing;
@@ -303,11 +306,7 @@ final class InstallationSteps
             'status' => StaffStatus::Active,
         ]);
 
-        // Staff roles arrive with P01-07: give this account the `super-admin`
-        // role here (for example $staff->assignRole('super-admin') on the
-        // staff guard), so the CLI and the web wizard both grant it. Until
-        // then every active staff member holds the console permissions
-        // (App\Platform\Console\ConsolePermissions).
+        $this->app->make(FirstSuperAdmin::class)->grant($staff);
         $this->recordStage(InstallStage::OwnerReady);
         Log::channel('install')->info('First staff account created');
 

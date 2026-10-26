@@ -6,10 +6,13 @@ namespace App\Providers\Filament;
 
 use App\Http\Controllers\Console\SchedulerHeartbeatController;
 use App\Http\Controllers\Console\ThemePreviewController;
+use App\Http\Middleware\StaffAccountState;
 use App\Http\Middleware\StaffIdleTimeout;
 use App\Http\Middleware\StaffIpAllowlist;
 use App\Platform\Console\ConsoleRequests;
+use App\Platform\Filament\Auth\AcceptStaffInvitation;
 use App\Platform\Filament\Auth\StaffLogin;
+use App\Platform\Staff\SuperAdminFloor;
 use App\Theme\BrandAssets;
 use App\Theme\ThemeContext;
 use Filament\Auth\MultiFactor\App\AppAuthentication;
@@ -80,8 +83,18 @@ final class ConsolePanelProvider extends PanelProvider
             ->colors(fn (): array => ['primary' => app(ThemeContext::class)->current()->primaryPalette()])
             ->font(fn (): string => app(ThemeContext::class)->current()->fontFamily(), provider: LocalFontProvider::class)
             ->renderHook(PanelsRenderHook::HEAD_END, fn (): string => Blade::render('<x-theme-styles />'))
-            ->renderHook(PanelsRenderHook::HEAD_END, fn (): string => view('console.auth-style')->render(), scopes: [StaffLogin::class, SetUpRequiredMultiFactorAuthentication::class])
+            ->renderHook(PanelsRenderHook::HEAD_END, fn (): string => view('console.auth-style')->render(), scopes: [StaffLogin::class, SetUpRequiredMultiFactorAuthentication::class, AcceptStaffInvitation::class])
             ->renderHook(PanelsRenderHook::BODY_END, fn (): string => Filament::auth()->check() ? view('console.idle-warning')->render() : '')
+            // Until two active super-admins exist (PLATFORM_CONSOLE.md § 1).
+            ->renderHook(PanelsRenderHook::CONTENT_START, fn (): string => Filament::auth()->check() && app(SuperAdminFloor::class)->belowRequired()
+                ? view('console.super-admin-warning', ['count' => app(SuperAdminFloor::class)->activeCount()])->render()
+                : '')
+            // Invitation link (PLATFORM_CONSOLE.md § 1): set a password, then 2FA.
+            ->routes(function (): void {
+                Route::get('invitation/{token}', AcceptStaffInvitation::class)
+                    ->middleware('throttle:30,1')
+                    ->name('auth.staff-invitation');
+            })
             ->authenticatedRoutes(function (): void {
                 // Filament adds the 2FA-required check to its own pages only;
                 // these routes need it too (UX_DESIGN.md § 3.2).
@@ -113,6 +126,11 @@ final class ConsolePanelProvider extends PanelProvider
                 DisableBladeIconComponents::class,
                 DispatchServingFilamentEvent::class,
             ])
+            // Also on Livewire updates from console pages: deactivated
+            // staff are signed out at once, and the 2FA requirement holds
+            // for every request, not just page loads.
+            ->middleware([StaffAccountState::class], isPersistent: true)
+            ->persistentMiddleware([EnsureMultiFactorAuthenticationIsEnabled::class])
             ->authMiddleware([Authenticate::class, StaffIpAllowlist::class, StaffIdleTimeout::class]);
 
         return $domain !== null ? $panel->domain($domain) : $panel;

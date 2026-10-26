@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Audit\AuditEntry;
 use App\Platform\Console\HasStaffRoles;
 use Filament\Auth\MultiFactor\App\Contracts\HasAppAuthentication;
 use Filament\Auth\MultiFactor\App\Contracts\HasAppAuthenticationRecovery;
@@ -11,15 +12,20 @@ use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
 use SensitiveParameter;
 
 /**
  * A GoProperty staff member (DATABASE_SCHEMA.md § 8). Never a customer user:
  * staff sign in on the `staff` guard at the console path (P00-08), with
- * mandatory 2FA (P00-10c) and global spatie roles on that guard (the
- * catalogue and console come with P01-07).
+ * mandatory 2FA (P00-10c) and global spatie roles on that guard
+ * (PLATFORM_CONSOLE.md § 1, P01-07). Lifecycle: invited → (password set,
+ * then 2FA enrolled) active → deactivated, through
+ * App\Platform\Staff\StaffLifecycle.
  *
  * @property int $id
  * @property string $name
@@ -32,21 +38,64 @@ use SensitiveParameter;
  * @property StaffStatus $status
  * @property list<string>|null $ip_allowlist
  * @property Carbon|null $last_login_at
+ * @property int|null $invited_by_staff_id
+ * @property string|null $invitation_token_hash
+ * @property Carbon|null $invitation_expires_at
+ * @property Carbon|null $invitation_accepted_at
+ * @property Carbon|null $deactivated_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
 #[Fillable(['name', 'email', 'phone', 'password', 'status'])]
-#[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
+#[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token', 'invitation_token_hash'])]
 class PlatformStaff extends Authenticatable implements FilamentUser, HasAppAuthentication, HasAppAuthenticationRecovery
 {
     use HasStaffRoles;
+    use Notifiable;
 
     protected $table = 'platform_staff';
 
-    /** Only active staff, and only the console panel. */
+    /**
+     * Only the console panel; active staff, plus invited staff who have set
+     * their password, so they can reach the 2FA set-up page that every
+     * other console page redirects them to (first sign-in, § 1).
+     */
     public function canAccessPanel(Panel $panel): bool
     {
-        return $panel->getId() === 'console' && $this->status === StaffStatus::Active;
+        return $panel->getId() === 'console' && ($this->status === StaffStatus::Active || $this->hasAcceptedInvitation());
+    }
+
+    public function hasAcceptedInvitation(): bool
+    {
+        return $this->status === StaffStatus::Invited && $this->invitation_accepted_at !== null;
+    }
+
+    public function hasTwoFactorEnabled(): bool
+    {
+        return $this->two_factor_confirmed_at !== null && filled($this->two_factor_secret);
+    }
+
+    /** Console permissions need an active account with 2FA enrolled. */
+    protected function mayUseStaffPermissions(): bool
+    {
+        return $this->status === StaffStatus::Active && $this->hasTwoFactorEnabled();
+    }
+
+    /** @return BelongsTo<PlatformStaff, $this> */
+    public function invitedBy(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'invited_by_staff_id');
+    }
+
+    /**
+     * Audit entries about this staff member: invitation, role grants and
+     * removals, activation, deactivation (the profile history, § 1).
+     *
+     * @return MorphMany<AuditEntry, $this>
+     */
+    public function history(): MorphMany
+    {
+        return $this->morphMany(AuditEntry::class, 'subject');
     }
 
     /*
@@ -99,6 +148,9 @@ class PlatformStaff extends Authenticatable implements FilamentUser, HasAppAuthe
             'status' => StaffStatus::class,
             'ip_allowlist' => 'array',
             'last_login_at' => 'datetime',
+            'invitation_expires_at' => 'datetime',
+            'invitation_accepted_at' => 'datetime',
+            'deactivated_at' => 'datetime',
         ];
     }
 }

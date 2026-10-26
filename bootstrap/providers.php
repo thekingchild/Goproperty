@@ -9,6 +9,7 @@ use App\Providers\Filament\ConsolePanelProvider;
 use App\Providers\FortifyServiceProvider;
 use App\Providers\HostingServiceProvider;
 use App\Providers\InstallerServiceProvider;
+use App\Providers\StaffServiceProvider;
 
 return [
     AppServiceProvider::class,
@@ -17,5 +18,6 @@ return [
     FortifyServiceProvider::class,
     HostingServiceProvider::class,
     InstallerServiceProvider::class,
+    StaffServiceProvider::class,
     ConsolePanelProvider::class,
 ];

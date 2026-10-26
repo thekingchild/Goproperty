@@ -12,6 +12,7 @@ use App\Models\Organization;
 use App\Models\PlatformStaff;
 use App\Models\StaffStatus;
 use App\Models\User;
+use App\Platform\Staff\FirstSuperAdmin;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
@@ -22,7 +23,7 @@ use Illuminate\Support\Facades\DB;
  *
  * Demo sign-ins, local copies only:
  * - customer: test@example.com / password (owner of Demo Realty: /o/demo-realty)
- * - staff:    staff@example.com / password (console at /{ADMIN_PATH})
+ * - staff:    staff@example.com / password (super-admin; console at /{ADMIN_PATH})
  */
 class DatabaseSeeder extends Seeder
 {
@@ -44,12 +45,13 @@ class DatabaseSeeder extends Seeder
         $user->joinOrganization($organization, OrganizationRole::Owner);
 
         if (app()->isLocal()) {
-            PlatformStaff::query()->create([
+            $staff = PlatformStaff::query()->create([
                 'name' => 'Demo Staff',
                 'email' => 'staff@example.com',
                 'password' => 'password',
                 'status' => StaffStatus::Active,
             ]);
+            app(FirstSuperAdmin::class)->grant($staff);
 
             // Without both markers every page shows "being set up"
             // (INSTALLER.md § 3). Real installs are finalized by the installer.

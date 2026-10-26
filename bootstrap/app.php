@@ -5,7 +5,9 @@ declare(strict_types=1);
 use App\Http\Middleware\AwaitApplicationKey;
 use App\Http\Middleware\EnsureSiteInstalled;
 use App\Http\Middleware\SetOrganizationContext;
+use App\Http\Middleware\StaffAccountState;
 use App\Http\Middleware\UseConsoleSession;
+use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -39,6 +41,10 @@ $app = Application::configure(basePath: dirname(__DIR__))
         // model binding resolves organization-owned models (ARCHITECTURE.md § 4).
         $middleware->alias(['organization' => SetOrganizationContext::class]);
         $middleware->prependToPriorityList(SubstituteBindings::class, SetOrganizationContext::class);
+
+        // A deactivated staff member's session ends before the console's
+        // Authenticate middleware answers 403 (PLATFORM_CONSOLE.md § 1).
+        $middleware->prependToPriorityList(AuthenticatesRequests::class, StaffAccountState::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         // /admin and other guesses are plain 404s, logged as probes
