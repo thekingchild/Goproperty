@@ -4,8 +4,13 @@ declare(strict_types=1);
 
 namespace App\Platform\Filament\Auth;
 
+use App\Audit\AccessLog;
+use App\Models\PlatformStaff;
+use Filament\Auth\Http\Responses\Contracts\LoginResponse;
 use Filament\Auth\Pages\Login;
+use Filament\Facades\Filament;
 use Filament\Schemas\Schema;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Staff sign-in (UX_DESIGN.md § 3.2): a single centred card on a dark
@@ -25,6 +30,32 @@ final class StaffLogin extends Login
             $this->getEmailFormComponent(),
             $this->getPasswordFormComponent(),
         ]);
+    }
+
+    /**
+     * Records the 2FA step's result for the authentication log
+     * (PLATFORM_CONSOLE.md § 8); the password step is logged from the
+     * guard's Login and Failed events.
+     */
+    public function authenticate(): ?LoginResponse
+    {
+        $challenged = filled($this->userUndertakingMultiFactorAuthentication) ? $this->getUserUndertakingMultiFactorAuthentication() : null;
+
+        try {
+            $response = parent::authenticate();
+        } catch (ValidationException $exception) {
+            if ($challenged instanceof PlatformStaff) {
+                app(AccessLog::class)->record('2fa_failed', $challenged);
+            }
+
+            throw $exception;
+        }
+
+        if ($challenged instanceof PlatformStaff && Filament::auth()->check()) {
+            app(AccessLog::class)->record('2fa_passed', $challenged);
+        }
+
+        return $response;
     }
 
     public function getHeading(): string

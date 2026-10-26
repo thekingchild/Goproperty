@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Auth\SignIn;
 
+use App\Audit\AccessLog;
 use Closure;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -35,6 +36,7 @@ final readonly class GuardSignIn
         private SignInSecurity $security,
         private Turnstile $turnstile,
         private FailedAttempt $attempt,
+        private AccessLog $accessLog,
     ) {}
 
     /**
@@ -42,7 +44,8 @@ final readonly class GuardSignIn
      */
     public function handle(Request $request, Closure $next): Response
     {
-        $identifier = Identifier::from($request->input('identifier'))->forLimits();
+        $typed = Identifier::from($request->input('identifier'));
+        $identifier = $typed->forLimits();
         $ip = $request->ip();
 
         if ($this->security->isLocked($identifier, $ip)) {
@@ -51,6 +54,7 @@ final readonly class GuardSignIn
 
         if ($this->security->needsCheck($identifier, $ip) && ! $this->turnstile->verify($request->input('cf-turnstile-response'), $ip)) {
             $request->session()->flash(self::SHOW_CHECK, true);
+            $this->accessLog->record('turnstile_failed', 'user', $identifier->accountId(), $typed->value);
 
             return $this->refuse($request, self::CHECK_FAILED);
         }
@@ -69,6 +73,8 @@ final readonly class GuardSignIn
         $this->security->recordFailure($identifier, $ip);
 
         if ($this->security->isLocked($identifier, $ip)) {
+            $this->accessLog->record('lockout', 'user', $identifier->accountId(), $typed->value);
+
             return $this->locked($request, $identifier, $ip);
         }
 

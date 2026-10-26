@@ -6,7 +6,8 @@
 #   2. php artisan goproperty:install --no-interaction under shared-host
 #      limits: max_execution_time=30, memory_limit=256M, exec/proc_open and
 #      pcntl disabled
-#   3. a second install is refused; cron runs once; check-installation passes
+#   3. a second install is refused; cron runs once; check-installation passes;
+#      the audit log hash chain verifies
 #   4. the site serves pages from public_html; /install is 404; the console
 #      sign-in answers at /{ADMIN_PATH}, which robots.txt never names
 #   5. the installed copy still passes goproperty:verify-package
@@ -106,6 +107,7 @@ echo "refused: already installed"
 step "Cron runs once; the installation checks out"
 (cd "$app" && "$php" "${limits[@]}" artisan schedule:run --no-ansi > /dev/null)
 (cd "$app" && "$php" "${limits[@]}" artisan goproperty:check-installation) || fail "check-installation failed"
+(cd "$app" && "$php" "${limits[@]}" artisan goproperty:audit-verify) || fail "the audit log chain is broken after the install"
 
 step "The site serves pages from public_html"
 "$php" "${limits[@]}" -S "127.0.0.1:$port" -t "$work/home/public_html" > "$work/server.log" 2>&1 &

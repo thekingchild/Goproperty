@@ -52,6 +52,12 @@ final readonly class Identifier
         return is_int($id) ? new self('account:'.$id, $this->email, $this->phone) : $this;
     }
 
+    /** The account forLimits() found, if any. */
+    public function accountId(): ?int
+    {
+        return str_starts_with($this->value, 'account:') ? (int) substr($this->value, 8) : null;
+    }
+
     /** For rate-limiter keys: never the identifier itself. */
     public function key(): string
     {

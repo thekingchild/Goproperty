@@ -8,7 +8,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 - **In progress:** none
 - **In review:** P00-03 (hosting profiles), P00-04 (release package) and P00-06 (installer CLI + install drill): done and verified locally; each needs one green run in GitHub Actions (CI for P00-03, a tagged Release for P00-04, the Install drill on MySQL 8 and MariaDB 10.6 for P00-06) once Actions starts jobs
-- **Next task:** P00-11 (audit log and access log); PRE-01 to PRE-04 continue with the product owner
+- **Next task:** P00-12 (backups baseline); PRE-01 to PRE-04 continue with the product owner
 - **Blocked:** P00-02: GitHub Actions jobs are not being given a runner (account-level), and branch protection on `main` needs a repo admin. This also holds P00-03's CI check, P00-04's release run and P00-06's install drill
 
 ## Board
@@ -16,7 +16,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | Phase | Tasks | Complete | Status |
 | --- | --- | --- | --- |
 | PRE | 5 | 1 | In progress |
-| P00 | 13 | 6 | In progress |
+| P00 | 13 | 7 | In progress |
 | P01 | 9 | 0 | Not started |
 | P02 | 7 | 0 | Not started |
 | P03 | 13 | 0 | Not started |
@@ -26,11 +26,48 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | P07 | 4 | 0 | Not started |
 | P08 | 4 | 0 | Not started |
 | P09 | 8 | 0 | Not started |
-| **Total** | **83** | **7** | |
+| **Total** | **83** | **8** | |
 
 ## Ledger (newest first)
 
 Each entry: task ID and status, date, what was delivered, tests run and results, follow-ups, next task.
+
+### P00-11 — Complete (2026-10-26): audit log hash chain, authentication log for both guards
+
+**Delivered:**
+- **Append-only audit log with a hash chain** (`App\Audit`, PLATFORM_CONSOLE.md § 7):
+  - **New columns:** `activity_log` gains `impersonator_staff_id`, `ip`, `user_agent`, `reason`, `prev_hash` and `hash`. Spatie's model is replaced by `AuditEntry`, which fills IP, user agent, reason (`AuditContext::because()`) and the impersonator (wired by P01-08).
+  - **The chain:** each entry stores the previous hash and an HMAC-SHA256 of its own content, keyed from `APP_KEY` and never the raw key. Someone with database access but without the key cannot forge a valid entry.
+  - **Writes:** appends take a row lock on the new one-row `audit_chain_head` table, so concurrent writes cannot fork the chain.
+  - **JSON columns:** hashed with sorted keys, because MySQL's JSON type reorders them.
+  - **Key rotation:** entries made with a key in `APP_PREVIOUS_KEYS` still verify.
+  - **Append-only:** the model refuses updates and deletes, `activitylog:clean` is refused, and the buffered (bulk-insert) mode is off for good.
+  - **Existing entries:** sealed into the chain by the migration.
+  - **Verification:** `goproperty:audit-verify` walks the chain and names the first entry that was changed, removed or reordered, including removed newest entries. It runs nightly and logs a critical line on a break, and the install drill now runs it after installing.
+  - **Who:** the causer is the staff member on console requests and the customer elsewhere; an explicit `causedBy()` still wins.
+- **Authentication log for customers and staff** (`authentication_logs`, PLATFORM_CONSOLE.md § 8, built in the app rather than with rappasoft's package so one table covers both guards and all the spec's events):
+  - **Customers:** sign-in success, passkey sign-in, failure (known or unknown account), sign-out, 2FA passed and failed, recovery code used, Turnstile failed, the start of a lockout, reset link sent, password reset.
+  - **Staff:** sign-in success and failure, 2FA passed and failed, sign-out (including idle timeout).
+  - **Stored:** IP, user agent, country from Cloudflare's `CF-IPCountry` when present, and whether the browser was new. A typed email or phone is kept only as an HMAC.
+  - **Retention:** rows older than a year are deleted nightly.
+  - The sign-in device tracking from P00-10b moved into the same subscriber, so each sign-in is recorded once with its new-device flag.
+- **Docs:** DATABASE_SCHEMA.md § 8 describes the chain, the head row and the authentication log.
+
+**Tests and evidence (local, MariaDB 11.4.12):**
+- `composer ci`: Pint passed, Larastan 0 errors, Pest **799 tests / 2,639 assertions** (22 new in `tests/Feature/Audit/`).
+- **AC: tampering breaks verification:** changing an entry's description, properties, causer, time or hash; deleting an entry in the middle; deleting the newest entry; and forging an entry with a plain SHA-256 link are each detected at the right entry, and the command exits 1. Reordered JSON keys and a rotated `APP_KEY` still verify, and unchained older entries can be sealed.
+- **AC: logins and failures recorded for both guards:** customer failure (known by phone, unknown), success with new device, sign-out; 2FA failed, recovery code, passed; three failures then lockout; Turnstile failure; reset link only for real accounts; password reset; staff failure (unknown, known), 2FA failed, success, 2FA passed, sign-out. Rows store IP, user agent and country, and the typed identifier only as an HMAC.
+- **Also tested:** the app refuses to change, delete or clean entries; the staff causer on a console change; the nightly checks; one-year pruning.
+- **Drills:** release `0.11.0-rc.1` built, the verify drill passed and the install drill passed: schema identical (164 columns and tables) and the new audit-chain check passed.
+- **Local environment:** the scratch MariaDB and the local install-drill copy were rebuilt, since the scratchpad had been cleared between sessions.
+
+**Follow-ups:**
+- Audit-log and access-log viewers (console, org-owner Activity page), and the "staff views of the audit log are logged" rule: P06-07.
+- Retention for the audit log (7 years money, 2 years other) needs an archive that keeps the chain verifiable (export, then a signed checkpoint row); `activitylog:clean` stays refused until then.
+- Console alert on bursts of failed sign-ins, and the sessions list with "log out other sessions": with the console dashboard (P06) and the profile (P01).
+- The country comes from a header Cloudflare sets. Off Cloudflare a client could send it, so it is approximate only.
+
+**Next:** P00-12 (backups baseline).
 
 ### P00-10 — Complete (2026-10-26): P00-10c staff sign-in with mandatory 2FA, Sign-in security settings
 

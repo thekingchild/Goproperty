@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use Spatie\Activitylog\Actions\CleanActivityLogAction;
+use App\Audit\AuditEntry;
+use App\Audit\RefuseCleaning;
 use Spatie\Activitylog\Actions\LogActivityAction;
-use Spatie\Activitylog\Models\Activity;
 
 return [
 
@@ -18,8 +18,8 @@ return [
      * the number of days specified here will be deleted.
      */
     // The audit log is append-only and kept 7 years for money entries
-    // (PLATFORM_CONSOLE.md § 7). Never schedule activitylog:clean; P00-11
-    // replaces this with per-log retention.
+    // (PLATFORM_CONSOLE.md § 7). activitylog:clean is refused
+    // (App\Audit\RefuseCleaning): deleting rows would break the hash chain.
     'clean_after_days' => 2557,
 
     /*
@@ -45,7 +45,8 @@ return [
      * It should implement the Spatie\Activitylog\Contracts\Activity interface
      * and extend Illuminate\Database\Eloquent\Model.
      */
-    'activity_model' => Activity::class,
+    // Append-only entries in a hash chain (App\Audit, PLATFORM_CONSOLE.md § 7).
+    'activity_model' => AuditEntry::class,
 
     /*
      * These attributes will be excluded from logging for all models.
@@ -64,7 +65,8 @@ return [
      * buffer is flushed.
      */
     'buffer' => [
-        'enabled' => env('ACTIVITYLOG_BUFFER_ENABLED', false),
+        // Never buffered: buffered entries are inserted in bulk, outside the chain.
+        'enabled' => false,
     ],
 
     /*
@@ -73,6 +75,6 @@ return [
      */
     'actions' => [
         'log_activity' => LogActivityAction::class,
-        'clean_log' => CleanActivityLogAction::class,
+        'clean_log' => RefuseCleaning::class,
     ],
 ];
