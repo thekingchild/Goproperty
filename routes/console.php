@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use App\Audit\AuditChain;
 use App\Audit\AuthenticationLog;
+use App\Backup\BackupRunner;
+use App\Backup\BackupVerifier;
 use App\Hosting\Heartbeats;
 use App\Hosting\Queue\QueueTick;
 use Illuminate\Foundation\Inspiring;
@@ -46,6 +48,21 @@ Schedule::call(function (AuditChain $chain): void {
 Schedule::call(fn () => AuthenticationLog::query()->where('created_at', '<', now()->subYear())->delete())
     ->name('authentication-log-prune')
     ->dailyAt('02:45');
+
+// Backups (PLATFORM_CONSOLE.md § 4): the database and the uploaded files are
+// separate jobs, in-process (no exec), each to every destination that takes it.
+Schedule::call(fn (BackupRunner $runner) => $runner->run('db'))->name('backup-db')->dailyAt('01:30');
+Schedule::call(fn (BackupRunner $runner) => $runner->run('files'))->name('backup-files')->dailyAt('02:30');
+
+// Monthly proof that the newest database backup restores (needs
+// BACKUP_VERIFY_DB_DATABASE); a failure is a critical log line.
+Schedule::call(function (BackupVerifier $verifier): void {
+    $result = $verifier->verify();
+
+    if (! $result['ok']) {
+        Log::critical('The monthly backup verify failed: '.$result['message']);
+    }
+})->name('backup-verify')->monthlyOn(1, '04:00');
 
 // Keep this last: it can use most of the minute, and events run in order.
 Schedule::call(fn (QueueTick $tick) => $tick->run())

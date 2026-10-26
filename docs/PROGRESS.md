@@ -6,9 +6,9 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 ## Current state
 
-- **In progress:** none
+- **In progress:** P00-12 (backups baseline), split into P00-12a database backup and restore (done), P00-12b files backup and Google Drive
 - **In review:** P00-03 (hosting profiles), P00-04 (release package) and P00-06 (installer CLI + install drill): done and verified locally; each needs one green run in GitHub Actions (CI for P00-03, a tagged Release for P00-04, the Install drill on MySQL 8 and MariaDB 10.6 for P00-06) once Actions starts jobs
-- **Next task:** P00-12 (backups baseline); PRE-01 to PRE-04 continue with the product owner
+- **Next task:** P00-13 (staging installed with the installer, deploy pipeline); PRE-01 to PRE-04 continue with the product owner
 - **Blocked:** P00-02: GitHub Actions jobs are not being given a runner (account-level), and branch protection on `main` needs a repo admin. This also holds P00-03's CI check, P00-04's release run and P00-06's install drill
 
 ## Board
@@ -31,6 +31,48 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 ## Ledger (newest first)
 
 Each entry: task ID and status, date, what was delivered, tests run and results, follow-ups, next task.
+
+### P00-12a — Complete (2026-10-26): database backup, encryption, restore and verify
+
+P00-12 is split into sub-tasks (IMPLEMENTATION_PLAN.md § 3.1): **12a** the database backup, its encryption, restore and verify; **12b** the files backup, the Google Drive destination and adding destinations from the command line. P00-12 is marked complete when both are done.
+
+**Delivered:**
+- **Dependencies:**
+  - `spatie/laravel-backup` 10.3 does the packaging, AES-256 zip encryption, copying and retention.
+  - `druidfi/mysqldump-php` 2.0 is a pure-PHP dumper over PDO.
+  - `league/flysystem-aws-s3-v3` 3.35 provides the S3 destination. The AWS SDK is trimmed to S3 by its official Composer cleanup (`extra.aws/aws-sdk-php`), so `vendor/` grew by about 7 MB and 700 files.
+- **No `exec`, `proc_open` or signals** (`App\Backup\BackupRunner`):
+  - **Dump:** spatie's dumper factory uses `PhpMySqlDumper` instead of `mysqldump`, as ARCHITECTURE.md § 12 asks. `BACKUP_DUMPER=mysqldump` switches back where a host allows it.
+  - **In-process:** the job runs inside the scheduler's PHP process rather than through `backup:run`, which needs `pcntl`, and the zip step gets the per-run config.
+  - **Encryption:** every zip is AES-256 encrypted. The password is `BACKUP_ARCHIVE_PASSWORD`, or is derived from `APP_KEY` (HMAC); `goproperty:backup-password` prints it for a hand restore. The zip is re-opened after writing (`verify_backup`).
+- **Destinations** (`backup_destinations`, DATABASE_SCHEMA.md § 8):
+  - **Drivers:** `s3` (R2, Spaces, Wasabi, B2…), `google_drive` (12b), and `local`. The local driver is for drills only and is refused in production, since a backup on the same server is not a backup.
+  - **Security:** credentials are encrypted in the database and never part of the model's output. Each destination becomes a filesystem disk only for the run.
+  - **Failures:** `continue_on_failure` is on, so one unreachable destination does not stop the others.
+- **Runs** (`backup_runs`): one row per job and destination, with status, file, size, schedule/manual and staff.
+  - **Recording a failure:** a failure, or having no destination, is recorded with its reason and logged as critical. Alerts come with P08-03, and the package's own mails are off.
+  - **Retention, per destination after each run:** everything from the last day, one a day for 30 days, one a month for 12 months. The `db` and `files` jobs use separate backup names, so retention never mixes them.
+- **Schedule:** database at 01:30 and files at 02:30, as separate jobs, plus a monthly verify on the 1st at 04:00.
+- **Restore** (`App\Backup\Restorer`, `goproperty:backup-restore <zip|latest> --database=…`):
+  - **How:** it decrypts in PHP and replays the dump statement by statement over PDO, so no `mysql` client is needed.
+  - **Safety:** it empties the target first and **refuses the site's own database**. Production restores go into a new database and `DB_DATABASE` is switched (runbook).
+- **Verify** (`goproperty:backup-verify`): downloads the newest database backup, restores it into `BACKUP_VERIFY_DB_DATABASE`, checks that every live table and the migration history are there, and marks the run verified.
+- **Docs:**
+  - `docs/runbooks/restore.md`: what a backup is, restoring with the command, restoring by hand with 7-Zip and phpMyAdmin, files restore, the monthly check.
+  - `.env.example`: lists `BACKUP_DUMPER`, `BACKUP_VERIFY_DB_DATABASE` and `BACKUP_ARCHIVE_PASSWORD`.
+
+**Tests and evidence (local, MariaDB 11.4.12):**
+- `composer ci`: Pint passed, Larastan 0 errors, Pest **815 tests / 2,729 assertions**. New: 4 drill tests in `tests/Drill/BackupDrillTest.php`, which commit real rows, and 12 in `tests/Feature/Backup/`.
+- **AC (drilled):**
+  - **No exec:** `goproperty:backup-run db` ran in a subprocess with `exec`, `proc_open` and `pcntl` disabled, and the scheduled `backup-db` event (`30 1 * * *`) ran too. Both destinations that take database backups received a zip; a files-only destination received none.
+  - **Encryption:** every zip's entry is AES-256 and unreadable without the password.
+  - **Restore:** the newest backup was downloaded, decrypted and restored into another database, and a marker row came back. The verify restored and marked the run, another `APP_KEY` cannot open it, and the site's own database is refused.
+- **Other tests:** an S3 destination (Flysystem level) gets the zip; one failing destination does not stop the other; inactive and other-job destinations are skipped; a 400-day-old backup is deleted by retention; credentials are encrypted at rest; local is refused in production; password derivation and override; the schedule expressions.
+- **By hand:** a real database backup under the same disabled functions took under a second (4.5 KB zip, AES-256 confirmed), and restoring it into `gp_restore` brought back all 22 tables.
+
+**Not yet verified:** a real S3-compatible bucket and Google Drive. Their accounts are PRE-03, still with the product owner. The S3 driver is tested at the filesystem level only.
+
+**Next:** P00-12b (files backup, Google Drive destination, adding destinations from the command line).
 
 ### P00-11 — Complete (2026-10-26): audit log hash chain, authentication log for both guards
 
