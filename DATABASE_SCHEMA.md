@@ -254,6 +254,9 @@ WebAuthn credentials (Fortify passkeys). `authenticatable_type` (`user`, `platfo
 ### backup_restores
 `backup_run_id`, `target` (`temporary`, `staging`, `production`), `approval_request_id` (required for production), `requested_by_staff_id`, `status`, `started_at`, `finished_at`, `notes`.
 
+### installation_state
+The installer's database marker ([INSTALLER.md § 3](INSTALLER.md)). One row, `id` = 1 (tinyint primary key). `status` (`configured`, `migrating`, `owner_ready`, `finalized`), `version` (release that installed or last finalized), `finalized_at` (nullable), timestamps. With `storage/app/installed.lock` it decides whether the site is open; the installer stays closed if either says `finalized`.
+
 ## 8A. Data Import
 
 ### import_batches

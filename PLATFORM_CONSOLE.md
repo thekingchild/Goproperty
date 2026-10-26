@@ -312,7 +312,7 @@ Product name "GoProperty", primary blue `#1D4ED8`, accent amber `#F59E0B`, neutr
 ## 10. Console Path
 
 - The console URL is `https://{domain}/{ADMIN_PATH}`. **Default: `gp-control`**, but the installer (web wizard or `php artisan goproperty:install`, [INSTALLER.md](INSTALLER.md)) writes a unique value such as `gp-control-k7m2qx` (random suffix) into `.env`, so no two installations share a guessable path.
-- Rules: lowercase letters, numbers and hyphens, 8–40 characters. Reserved words are rejected (`admin`, `login`, `o`, `portal`, `owner`, `pay`, `verify`, `api`, `webhooks`, `storage`, `build`).
+- Rules: lowercase letters, numbers and hyphens, 8–40 characters. Reserved words are rejected (`admin`, `login`, `o`, `portal`, `owner`, `pay`, `verify`, `api`, `webhooks`, `storage`, `build`, `install`, `up`, `livewire`, `brand`, `dashboard`, `settings`; `App\Installer\Finishing\AdminPath`).
 - In production, if `ADMIN_PATH` is still the bare default `gp-control`, the operations dashboard shows a red warning and a daily email reminds `technical-admin` to change it.
 - To change it: edit `ADMIN_PATH` in `.env`, then run `php artisan config:cache`. Staff are told the new address; the old path returns a plain 404.
 - The path is the first thing staff bookmark. Never put it in public docs, emails to customers, `robots.txt` or support macros.

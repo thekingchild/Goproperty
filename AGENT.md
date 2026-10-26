@@ -19,7 +19,7 @@ Assume Laravel Sail locally unless told otherwise.
 # Environment
 composer install && npm install
 sail up -d                      # or: php artisan serve with local MySQL
-sail artisan migrate --seed     # seeded demo org/building/lease data
+sail artisan migrate --seed     # seeded demo data; on a local copy also marks the install finished (else every page says "being set up")
 
 # Quality gate — must pass before declaring any task done
 sail composer ci                # Pint --test + Larastan (level 7; 6 minimum) + Pest --parallel

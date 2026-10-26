@@ -137,6 +137,15 @@ return [
             'path' => storage_path('logs/laravel.log'),
         ],
 
+        // Installer events until the audit log exists (INSTALLER.md § 5).
+        // Never log passwords, keys, tokens or the console path here.
+        'install' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/install.log'),
+            'level' => 'info',
+            'replace_placeholders' => true,
+        ],
+
     ],
 
 ];

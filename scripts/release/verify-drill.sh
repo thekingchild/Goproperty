@@ -4,7 +4,8 @@
 #
 #   1. goproperty:verify-package passes on the zip and on both unpacked layouts
 #   2. a changed file, an added file and a changed zip entry all fail it
-#   3. both layouts serve pages, assets included, with `php -S`
+#   3. both layouts, served with `php -S`, send a fresh upload to /install,
+#      say "being set up" once APP_KEY exists, and serve built assets
 #   4. with OLD_PHP_IMAGES set (Docker images, e.g. "php:7.4-cli php:8.1-cli"),
 #      artisan and index.php print the old-PHP sentence instead of an error
 #
@@ -85,31 +86,54 @@ if [ -f "$zip.sha256" ]; then
         "$php" "$preferred/artisan" goproperty:verify-package "$work/tampered/$(basename "$zip")"
 fi
 
-# Serves a layout with the built-in server and checks a page and an asset.
+# Requests a page from the layout being served and checks the status, and
+# optionally text in the headers or body. Uses serve_check's $url.
+# Usage: expect_status <method> <path> <status> [text]
+expect_status() {
+    local method=$1 path=$2 want=$3 text=${4:-} code
+    code=$(curl -s -D "$work/headers" -o "$work/body" -w '%{http_code}' -X "$method" "$url$path")
+    if [ "$code" != "$want" ] || { [ -n "$text" ] && ! cat "$work/headers" "$work/body" | grep -qF -- "$text"; }; then
+        cat "$work/headers" "$work/body" | head -40
+        fail "$method $path returned $code, expected $want ${text}"
+    fi
+    echo "$method $path: $code ${text}"
+}
+
+# Serves a layout with the built-in server, first as a fresh upload and then
+# with APP_KEY, and checks the installer gates (INSTALLER.md § 3) and assets.
 # Usage: serve_check <app-dir> <public-dir> <port>
 serve_check() {
-    local app=$1 public=$2 port=$3 asset code
-    # No database yet (the installer comes later): file sessions and cache.
-    printf 'APP_KEY=\nAPP_ENV=production\nAPP_DEBUG=false\nAPP_URL=http://127.0.0.1:%s\nSESSION_DRIVER=file\nCACHE_STORE=file\n' \
-        "$port" > "$app/.env"
-    "$php" "$app/artisan" key:generate --force --no-interaction > /dev/null
+    local app=$1 public=$2 port=$3 asset
+    local url="http://127.0.0.1:$port"
 
     "$php" -S "127.0.0.1:$port" -t "$public" > "$work/server-$port.log" 2>&1 &
     server_pid=$!
     for _ in $(seq 1 50); do
-        curl -s -o /dev/null "http://127.0.0.1:$port/up" && break
+        curl -s -o /dev/null "$url/install.css" && break
         sleep 0.2
     done
 
-    for path in /up /; do
-        code=$(curl -s -o "$work/body" -w '%{http_code}' "http://127.0.0.1:$port$path")
-        [ "$code" = 200 ] || { cat "$work/body" "$app"/storage/logs/*.log 2>/dev/null | tail -40; fail "GET $path returned $code"; }
-    done
-    asset=$(grep -oE '/build/assets/[^"?) ]+' "$work/body" | head -1 || true)
-    [ -n "$asset" ] || fail "the home page links no built asset"
-    code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$port$asset")
-    [ "$code" = 200 ] || fail "GET $asset returned $code"
-    echo "GET /up, / and $asset: 200"
+    # Fresh upload: no .env and no APP_KEY.
+    expect_status GET / 302 "Location: /install"
+    expect_status GET /login 302 "Location: /install"
+    expect_status POST /login 503 "being set up"
+    expect_status GET /install 200 "Install GoProperty"
+    expect_status GET /install.css 200
+
+    # With APP_KEY but not installed: every public page says "being set up".
+    printf 'APP_KEY=\nAPP_ENV=production\nAPP_DEBUG=false\nAPP_URL=%s\n' "$url" > "$app/.env"
+    "$php" "$app/artisan" key:generate --force --no-interaction > /dev/null
+    expect_status GET /up 200
+    expect_status GET / 503 "is being set up"
+    expect_status GET /install 200 "Install GoProperty"
+
+    asset=$("$php" -r '$m = json_decode(file_get_contents($argv[1]), true); echo "/build/", reset($m)["file"];' "$public/build/manifest.json")
+    expect_status GET "$asset" 200
+
+    if find "$app/storage/logs" -type f ! -name .gitignore | grep -q .; then
+        cat "$app"/storage/logs/*.log | tail -40
+        fail "the layout wrote to its log"
+    fi
 
     kill "$server_pid" && wait "$server_pid" 2>/dev/null || true
     server_pid=""

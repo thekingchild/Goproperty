@@ -54,7 +54,8 @@ The build uses only tracked and new (not ignored) files, so a local `.env`, `ven
 | one public file changed | refused: "does not match its SHA256SUMS checksum" |
 | one file added to `public_html` | refused: "not listed in SHA256SUMS" |
 | one zip entry changed | refused by the inner checksum and by the `.sha256` file |
-| both layouts served by `php -S` | `/up`, `/` and a built asset return 200 |
+| both layouts served by `php -S`, fresh upload | `/` and `/login` redirect to `/install`; a POST gets 503; `/install` and `install.css` return 200 |
+| the same with `APP_KEY` but not installed | `/up` 200, `/` 503 "being set up", `/install` 200, a built asset 200, nothing written to the log |
 | `artisan` and `index.php` on PHP 7.4 and 8.1 (Docker; set `OLD_PHP_IMAGES`) | exit 1 / HTTP 500 with "GoProperty needs PHP 8.4 or newer; this server runs 7.4." |
 
 The CI workflow also runs the old-PHP check on every push (job `Old PHP guard`), so the guard cannot break between releases.

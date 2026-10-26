@@ -13,7 +13,7 @@ namespace App\Release;
  */
 final class PackageVerifier
 {
-    public const string VERSION_PATTERN = '/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/';
+    public const string VERSION_PATTERN = '/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/D';
 
     /** Files every layout needs, whatever SHA256SUMS says. */
     private const array REQUIRED = [

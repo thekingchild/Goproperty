@@ -4,6 +4,7 @@
         "declare_strict_types": true
     },
     "notPath": [
-        "bootstrap/php-version.php"
+        "bootstrap/php-version.php",
+        "resources/views/installer"
     ]
 }

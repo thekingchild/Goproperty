@@ -4,9 +4,16 @@ declare(strict_types=1);
 
 namespace Tests;
 
+use App\Installer\InstallationMarkers;
+use App\Installer\InstallationRecord;
+use App\Installer\InstallStage;
 use Illuminate\Cache\DatabaseStore;
+use Illuminate\Foundation\Testing\DatabaseTruncation;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Str;
 use Laravel\Fortify\Features;
 
 abstract class TestCase extends BaseTestCase
@@ -16,6 +23,54 @@ abstract class TestCase extends BaseTestCase
         parent::setUp();
 
         $this->reconnectDatabaseCache();
+        $this->useTemporaryInstallerFiles();
+
+        // Tests see an installed site unless they say otherwise; without both
+        // markers every page shows "being set up" (INSTALLER.md § 3).
+        $traits = class_uses_recursive(static::class);
+
+        if (isset($traits[RefreshDatabase::class]) || isset($traits[DatabaseTruncation::class])) {
+            $this->markInstalled();
+        }
+    }
+
+    public function markInstalled(): void
+    {
+        $this->app->make(InstallationMarkers::class)->writeLock('testing');
+        $this->app->make(InstallationRecord::class)->record(DB::connection(), InstallStage::Finalized, 'testing');
+    }
+
+    /** A copy that has not been installed: no lock file, no database row. */
+    public function markNotInstalled(): void
+    {
+        File::delete((string) config('installer.paths.lock'));
+        DB::table(InstallationRecord::TABLE)->delete();
+    }
+
+    /**
+     * Installer markers and secrets go to a folder of this test's own, never
+     * the checkout's storage/ (a lock file there would open a developer's
+     * local site, a missing one would close it).
+     */
+    private function useTemporaryInstallerFiles(): void
+    {
+        $directory = sys_get_temp_dir().'/goproperty-installer-'.Str::random(16);
+
+        config([
+            'installer.paths.lock' => $directory.'/installed.lock',
+            'installer.paths.checkpoint' => $directory.'/private/install.checkpoint',
+            'installer.paths.setup_token' => $directory.'/private/setup.token.hash',
+            'installer.paths.unlock_challenge' => $directory.'/private/unlock.challenge',
+            'installer.paths.unlock_file' => $directory.'/install-unlock.txt',
+            'installer.paths.grant' => $directory.'/private/install.grant',
+            'installer.paths.attempts' => $directory.'/private/install.attempts',
+            // The test's own connection, so the marker sees rows written
+            // inside the test's transaction.
+            'installer.marker_connection' => config('database.default'),
+            'logging.channels.install.path' => $directory.'/install.log',
+        ]);
+
+        $this->beforeApplicationDestroyed(fn () => File::deleteDirectory($directory));
     }
 
     public function skipUnlessFortifyHas(string $feature, ?string $message = null): void

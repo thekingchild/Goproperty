@@ -15,7 +15,7 @@ return [
     |
     */
 
-    'name' => env('APP_NAME', 'Laravel'),
+    'name' => env('APP_NAME', 'GoProperty'),
 
     /*
     |--------------------------------------------------------------------------
@@ -55,6 +55,19 @@ return [
     */
 
     'url' => env('APP_URL', 'http://localhost'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Platform console path
+    |--------------------------------------------------------------------------
+    |
+    | The staff console lives at /{admin_path} (PLATFORM_CONSOLE.md § 10). The
+    | installer writes a unique value such as "gp-control-k7m2qx"; never
+    | hard-code it or put it in public pages.
+    |
+    */
+
+    'admin_path' => env('ADMIN_PATH', 'gp-control'),
 
     /*
     |--------------------------------------------------------------------------
