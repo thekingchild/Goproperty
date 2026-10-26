@@ -18,6 +18,8 @@ final class AuditContext
 
     private ?int $impersonatorStaffId = null;
 
+    private ?int $impersonationSessionId = null;
+
     /**
      * @template T
      *
@@ -41,14 +43,26 @@ final class AuditContext
         return $this->reason;
     }
 
-    /** Set for the whole request by impersonation (P01-08). */
-    public function impersonatedBy(?int $staffId): void
+    /**
+     * Set for the whole request by a GoProperty support session
+     * (App\Http\Middleware\ResumeImpersonation, PLATFORM_CONSOLE.md § 6):
+     * every entry written meanwhile, business changes included, carries the
+     * staff member in `impersonator_staff_id` and the session in its
+     * properties (`impersonation_session_id`).
+     */
+    public function impersonatedBy(?int $staffId, ?int $sessionId = null): void
     {
         $this->impersonatorStaffId = $staffId;
+        $this->impersonationSessionId = $staffId !== null ? $sessionId : null;
     }
 
     public function impersonatorStaffId(): ?int
     {
         return $this->impersonatorStaffId;
+    }
+
+    public function impersonationSessionId(): ?int
+    {
+        return $this->impersonationSessionId;
     }
 }

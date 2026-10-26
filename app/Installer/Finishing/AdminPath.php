@@ -16,7 +16,7 @@ final class AdminPath
     /** Top-level paths the application already uses. */
     public const array RESERVED = [
         'admin', 'login', 'o', 'portal', 'owner', 'pay', 'verify', 'api', 'webhooks', 'storage', 'build',
-        'install', 'up', 'livewire', 'brand', 'dashboard', 'settings', 'organizations', 'register', 'signup', 'email',
+        'install', 'up', 'livewire', 'brand', 'dashboard', 'settings', 'organizations', 'impersonation', 'register', 'signup', 'email',
     ];
 
     private const string ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789';

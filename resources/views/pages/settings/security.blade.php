@@ -1,5 +1,6 @@
 <?php
 
+use App\Tenancy\BlockedWhileImpersonating;
 use App\Concerns\PasswordValidationRules;
 use Flux\Flux;
 use Illuminate\Support\Facades\Auth;
@@ -13,7 +14,8 @@ use Laravel\Passkeys\Actions\DeletePasskey;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 
-new #[Title('Security settings')] class extends Component {
+// Password, 2FA and passkeys: never while GoProperty support impersonates (PLATFORM_CONSOLE.md § 6).
+new #[Title('Security settings'), BlockedWhileImpersonating] class extends Component {
     use PasswordValidationRules;
 
     public string $current_password = '';

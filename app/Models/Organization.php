@@ -39,7 +39,6 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property int|null $logo_media_id
  * @property OrganizationStatus $status
  * @property TransactionTier $transaction_tier
- * @property bool $allow_support_access
  * @property bool $platform_covered
  * @property array<string, mixed>|null $branding
  * @property Money|null $online_payment_cap_kobo
@@ -52,7 +51,7 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property Carbon|null $deleted_at
  */
 #[Hidden(['cac_number'])]
-#[Fillable(['name', 'slug', 'type', 'address', 'state', 'lga', 'status', 'transaction_tier', 'allow_support_access', 'platform_covered', 'branding', 'online_payment_cap_kobo', 'trial_ends_at', 'signup_plan_key'])]
+#[Fillable(['name', 'slug', 'type', 'address', 'state', 'lga', 'status', 'transaction_tier', 'platform_covered', 'branding', 'online_payment_cap_kobo', 'trial_ends_at', 'signup_plan_key'])]
 class Organization extends Model
 {
     /** @use HasFactory<OrganizationFactory> */
@@ -67,7 +66,6 @@ class Organization extends Model
     protected $attributes = [
         'status' => 'onboarding',
         'transaction_tier' => 1,
-        'allow_support_access' => true,
         'platform_covered' => false,
     ];
 
@@ -80,7 +78,6 @@ class Organization extends Model
             'cac_number' => 'encrypted',
             'status' => OrganizationStatus::class,
             'transaction_tier' => TransactionTier::class,
-            'allow_support_access' => 'boolean',
             'platform_covered' => 'boolean',
             'branding' => 'array',
             'online_payment_cap_kobo' => MoneyCast::class,

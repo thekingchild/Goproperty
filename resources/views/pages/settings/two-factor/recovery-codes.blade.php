@@ -1,10 +1,11 @@
 <?php
 
+use App\Tenancy\BlockedWhileImpersonating;
 use Laravel\Fortify\Actions\GenerateNewRecoveryCodes;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
 
-new class extends Component {
+new #[BlockedWhileImpersonating] class extends Component {
     #[Locked]
     public array $recoveryCodes = [];
 

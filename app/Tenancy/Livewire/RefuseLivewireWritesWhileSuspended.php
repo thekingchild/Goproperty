@@ -33,7 +33,7 @@ final class RefuseLivewireWritesWhileSuspended
             return;
         }
 
-        $target = $method === '__dispatch' ? $this->listenerMethod($component, $params) : $method;
+        $target = $method === '__dispatch' ? self::listenerMethod($component, $params) : $method;
 
         if ($target === null || in_array($target, self::READS, true) || $this->guard->methodAllowed($component::class, $target)) {
             return;
@@ -43,7 +43,7 @@ final class RefuseLivewireWritesWhileSuspended
     }
 
     /** The method an event would run; null for an unknown event (Livewire refuses it itself). */
-    private function listenerMethod(Component $component, mixed $params): ?string
+    public static function listenerMethod(Component $component, mixed $params): ?string
     {
         $event = is_array($params) ? ($params[0] ?? null) : null;
 

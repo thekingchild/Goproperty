@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Models\ImpersonationSession;
 use App\Models\Organization;
 use App\Models\PlatformStaff;
 use App\Models\StaffRole;
@@ -70,6 +71,15 @@ function consolePageUrls(PlatformStaff $someone): array
                     str_contains($route->uri(), 'staff-roles') => $role->id,
                     str_contains($route->uri(), 'customer-users') => ($customerUser ??= User::factory()->create())->id,
                     str_contains($route->uri(), 'customers') => ($organization ??= Organization::factory()->create())->id,
+                    str_contains($route->uri(), 'impersonation-log') => ($supportSession ??= ImpersonationSession::query()->forceCreate([
+                        'staff_id' => $someone->id,
+                        'user_id' => ($customerUser ??= User::factory()->create())->id,
+                        'organization_id' => ($organization ??= Organization::factory()->create())->id,
+                        'reason' => 'Ticket 1',
+                        'mode' => 'read_only',
+                        'started_at' => now(),
+                        'expires_at' => now()->addMinutes(30),
+                    ]))->id,
                     default => $someone->id,
                 },
                 'surface' => 'landing',
@@ -89,7 +99,7 @@ it('sends staff without 2FA to enrol from every console page, whatever their rol
 
     // The list really covers the console: staff, roles, approvals, settings, previews.
     expect(count($urls))->toBeGreaterThan(12)
-        ->and(implode(' ', $urls))->toContain('/staff-roles', '/approvals', '/settings/brand', '/theme-preview/landing', '/staff/'.$staff->id, '/customers/', '/customer-users/');
+        ->and(implode(' ', $urls))->toContain('/staff-roles', '/approvals', '/settings/brand', '/theme-preview/landing', '/staff/'.$staff->id, '/customers/', '/customer-users/', '/impersonation-log/');
 
     foreach ($urls as $url) {
         $this->actingAs($staff, 'staff')->get($url)->assertRedirect($this->setUp);

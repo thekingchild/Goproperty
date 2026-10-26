@@ -9,6 +9,7 @@ use App\Backup\BackupVerifier;
 use App\Hosting\Heartbeats;
 use App\Hosting\Queue\QueueTick;
 use App\Platform\Approvals\ApprovalService;
+use App\Platform\Impersonation\Impersonations;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
@@ -69,6 +70,13 @@ Schedule::call(function (BackupVerifier $verifier): void {
 Schedule::call(fn (ApprovalService $approvals) => $approvals->expireStale())
     ->name('approvals-expire')
     ->everyFifteenMinutes();
+
+// Support sessions past their 30 minutes, or whose 60-second hand-off link
+// ran out unused, end with `timeout` (PLATFORM_CONSOLE.md § 6). Each
+// customer request checks the limit too; this closes the row on time.
+Schedule::call(fn (Impersonations $impersonations) => $impersonations->endExpired())
+    ->name('impersonation-timeout')
+    ->everyMinute();
 
 // Keep this last: it can use most of the minute, and events run in order.
 Schedule::call(fn (QueueTick $tick) => $tick->run())

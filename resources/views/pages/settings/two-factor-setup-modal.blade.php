@@ -1,5 +1,6 @@
 <?php
 
+use App\Tenancy\BlockedWhileImpersonating;
 use Laravel\Fortify\Actions\ConfirmTwoFactorAuthentication;
 use Laravel\Fortify\Actions\EnableTwoFactorAuthentication;
 use Livewire\Attributes\Computed;
@@ -8,7 +9,7 @@ use Livewire\Attributes\On;
 use Livewire\Attributes\Validate;
 use Livewire\Component;
 
-new class extends Component {
+new #[BlockedWhileImpersonating] class extends Component {
     #[Locked]
     public bool $requiresConfirmation;
 

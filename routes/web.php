@@ -121,3 +121,5 @@ Route::get('verify/{code}', fn () => abort(404))
     ->name('documents.verify');
 
 require __DIR__.'/settings.php';
+
+require __DIR__.'/impersonation.php';

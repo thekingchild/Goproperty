@@ -45,7 +45,17 @@ class AuditEntry extends Activity
         $this->ip ??= $request?->ip();
         $this->user_agent ??= $request?->userAgent() !== null ? Str::limit((string) $request->userAgent(), 250, '') : null;
         $this->reason ??= $context->reason();
-        $this->impersonator_staff_id ??= $context->impersonatorStaffId();
+
+        // During a support session every entry, business changes included,
+        // names the staff member and the session (PLATFORM_CONSOLE.md § 6).
+        if ($this->impersonator_staff_id === null && $context->impersonatorStaffId() !== null) {
+            $this->impersonator_staff_id = $context->impersonatorStaffId();
+            $properties = $this->properties ?? collect();
+
+            if ($context->impersonationSessionId() !== null && ! $properties->has('impersonation_session_id')) {
+                $this->properties = $properties->put('impersonation_session_id', $context->impersonationSessionId());
+            }
+        }
 
         // Fixed before hashing, so the stored time is the hashed time.
         $this->updateTimestamps();

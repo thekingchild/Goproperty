@@ -1,5 +1,6 @@
 <?php
 
+use App\Tenancy\BlockedWhileImpersonating;
 use App\Concerns\ProfileValidationRules;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Flux\Flux;
@@ -26,7 +27,10 @@ new #[Title('Profile settings')] class extends Component {
 
     /**
      * Update the profile information for the currently authenticated user.
+     * The email is a sign-in detail: never while GoProperty support
+     * impersonates (PLATFORM_CONSOLE.md § 6).
      */
+    #[BlockedWhileImpersonating]
     public function updateProfileInformation(): void
     {
         $user = Auth::user();
@@ -45,8 +49,10 @@ new #[Title('Profile settings')] class extends Component {
     }
 
     /**
-     * Send an email verification notification to the current user.
+     * Send an email verification notification to the current user (never
+     * during a support session: nothing reaches the user from one).
      */
+    #[BlockedWhileImpersonating]
     public function resendVerificationNotification(): void
     {
         $user = Auth::user();

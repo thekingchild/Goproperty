@@ -26,7 +26,10 @@ use Spatie\Permission\Traits\HasRoles;
  * - refuses role grants outside an organization, to a non-member, or of a
  *   role another organization defined for itself;
  * - holds no write permission while the organization is suspended or
- *   cancelled (OrganizationWriteGuard).
+ *   cancelled (OrganizationWriteGuard);
+ * - holds none of the always-blocked permissions (and, in a read-only
+ *   session, no write permission) while GoProperty staff impersonate the
+ *   user (ImpersonationGuard).
  *
  * @phpstan-require-extends Model
  */
@@ -118,7 +121,8 @@ trait HasOrganizationRoles
         };
 
         // A permission given by ID is refused too: fail closed.
-        if (! app(OrganizationWriteGuard::class)->allowsPermission($name ?? '')) {
+        if (! app(OrganizationWriteGuard::class)->allowsPermission($name ?? '')
+            || ! app(ImpersonationGuard::class)->allowsPermission($this, $name ?? '')) {
             return false;
         }
 

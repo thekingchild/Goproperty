@@ -1,11 +1,12 @@
 <?php
 
+use App\Tenancy\BlockedWhileImpersonating;
 use App\Concerns\PasswordValidationRules;
 use App\Livewire\Actions\Logout;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 
-new class extends Component {
+new #[BlockedWhileImpersonating] class extends Component {
     use PasswordValidationRules;
 
     public string $password = '';

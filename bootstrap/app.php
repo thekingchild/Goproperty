@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\Middleware\AwaitApplicationKey;
 use App\Http\Middleware\EnsureSiteInstalled;
+use App\Http\Middleware\ResumeImpersonation;
 use App\Http\Middleware\SetOrganizationContext;
 use App\Http\Middleware\StaffAccountState;
 use App\Http\Middleware\UseConsoleSession;
@@ -45,6 +46,11 @@ $app = Application::configure(basePath: dirname(__DIR__))
         // A deactivated staff member's session ends before the console's
         // Authenticate middleware answers 403 (PLATFORM_CONSOLE.md § 1).
         $middleware->prependToPriorityList(AuthenticatesRequests::class, StaffAccountState::class);
+
+        // GoProperty support sessions on the customer side: after the
+        // session starts, before `auth` (PLATFORM_CONSOLE.md § 6).
+        $middleware->web(append: [ResumeImpersonation::class]);
+        $middleware->prependToPriorityList(AuthenticatesRequests::class, ResumeImpersonation::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         // /admin and other guesses are plain 404s, logged as probes

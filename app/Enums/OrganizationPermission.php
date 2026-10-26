@@ -93,6 +93,51 @@ enum OrganizationPermission: string
         };
     }
 
+    /**
+     * Whether GoProperty staff lose this permission while impersonating a
+     * user, in read-only and write mode alike (PLATFORM_CONSOLE.md § 6,
+     * "always blocked"; App\Tenancy\ImpersonationGuard): money actions
+     * (confirming or rejecting payments, payment proofs, issuing and voiding
+     * bills, the subscription and billing transfers), bank accounts and
+     * Paystack keys (viewing them too: a page that shows them checks this
+     * permission), members and roles, closing the organization, and data
+     * imports (commit and rollback, DATA_IMPORT.md § 5). Read-only sessions
+     * also lose every permission that writes (allowedWhileSuspended() false).
+     * Every new permission must be placed here; the match has no default,
+     * so one left out fails the build.
+     */
+    public function blockedWhileImpersonating(): bool
+    {
+        return match ($this) {
+            self::DeleteOrganization,
+            self::ManageBilling,
+            self::ManagePaymentSettings,
+            self::ManageMembers,
+            self::ManageBills,
+            self::ConfirmPayments,
+            self::SubmitPaymentProof,
+            self::ManageImports => true,
+            self::OpenWorkspace,
+            self::UpdateOrganization,
+            self::ManageCompliance,
+            self::ViewActivity,
+            self::ViewMembers,
+            self::ViewProperties,
+            self::ManageProperties,
+            self::ViewLeases,
+            self::ManageLeases,
+            self::ViewBills,
+            self::ViewPayments,
+            self::ViewTickets,
+            self::CreateTickets,
+            self::RespondToTickets,
+            self::ManageTickets,
+            self::ParticipateInBuildingGroups,
+            self::ModerateBuildingGroups,
+            self::ViewReports => false,
+        };
+    }
+
     public function description(): string
     {
         return match ($this) {

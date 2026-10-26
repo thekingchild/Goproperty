@@ -7,6 +7,7 @@ namespace App\Providers;
 use App\Models\PlatformStaff;
 use App\Platform\Approvals\ApprovalAction;
 use App\Platform\Approvals\ApprovalService;
+use App\Platform\Impersonation\WriteImpersonationApproval;
 use App\Platform\Staff\RoleGrantApproval;
 use App\Platform\Staff\StaffAudit;
 use Illuminate\Auth\Events\Login;
@@ -16,7 +17,8 @@ use Illuminate\Support\ServiceProvider;
 /**
  * Staff roles, lifecycle and two-person approvals (PLATFORM_CONSOLE.md § 1).
  * Later tasks register their approval handlers here (refund,
- * production_restore, data_purge) or in their own module provider.
+ * production_restore, data_purge) or in their own module provider;
+ * write-mode impersonation's is WriteImpersonationApproval (P01-08).
  */
 final class StaffServiceProvider extends ServiceProvider
 {
@@ -25,6 +27,7 @@ final class StaffServiceProvider extends ServiceProvider
         $this->app->singleton(ApprovalService::class, function ($app): ApprovalService {
             $approvals = new ApprovalService($app, $app->make(StaffAudit::class));
             $approvals->handle(ApprovalAction::RoleGrant, RoleGrantApproval::class);
+            $approvals->handle(ApprovalAction::WriteImpersonation, WriteImpersonationApproval::class);
 
             return $approvals;
         });
