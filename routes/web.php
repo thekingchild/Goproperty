@@ -2,6 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Marketing\MarketingController;
+use App\Http\Controllers\Marketing\SeoController;
+use App\Http\Middleware\PublicPageHeaders;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -23,7 +26,15 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::view('/', 'welcome')->name('home');
+// Public marketing pages (UX_DESIGN.md § 4, PLATFORM_CONSOLE.md § 9.3–9.5).
+Route::middleware(PublicPageHeaders::class)->controller(MarketingController::class)->group(function () {
+    Route::get('/', 'home')->name('home');
+    Route::get('privacy', 'privacy')->name('privacy');
+    Route::get('terms', 'terms')->name('terms');
+});
+
+Route::get('robots.txt', [SeoController::class, 'robots'])->name('robots');
+Route::get('sitemap.xml', [SeoController::class, 'sitemap'])->name('sitemap');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::view('dashboard', 'dashboard')->name('dashboard');

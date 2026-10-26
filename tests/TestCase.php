@@ -7,6 +7,7 @@ namespace Tests;
 use App\Installer\InstallationMarkers;
 use App\Installer\InstallationRecord;
 use App\Installer\InstallStage;
+use App\Theme\ThemeContext;
 use Illuminate\Cache\DatabaseStore;
 use Illuminate\Foundation\Testing\DatabaseTruncation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -32,6 +33,23 @@ abstract class TestCase extends BaseTestCase
         if (isset($traits[RefreshDatabase::class]) || isset($traits[DatabaseTruncation::class])) {
             $this->markInstalled();
         }
+    }
+
+    /**
+     * Each request starts on the published theme, as in production, where
+     * the scoped theme context never outlives a request: a console preview
+     * or a theme read before a publish does not carry over to the next call.
+     *
+     * @param  array<string, mixed>  $parameters
+     * @param  array<string, mixed>  $cookies
+     * @param  array<string, mixed>  $files
+     * @param  array<string, mixed>  $server
+     */
+    public function call($method, $uri, $parameters = [], $cookies = [], $files = [], $server = [], $content = null)
+    {
+        $this->app->forgetInstance(ThemeContext::class);
+
+        return parent::call($method, $uri, $parameters, $cookies, $files, $server, $content);
     }
 
     public function markInstalled(): void

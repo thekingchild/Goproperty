@@ -8,7 +8,7 @@
 #      pcntl disabled
 #   3. a second install is refused; cron runs once; check-installation passes
 #   4. the site serves pages from public_html; /install is 404; the console
-#      sign-in answers at /{ADMIN_PATH}
+#      sign-in answers at /{ADMIN_PATH}, which robots.txt never names
 #   5. the installed copy still passes goproperty:verify-package
 #   6. its schema equals a plain `php artisan migrate` of the same release
 #
@@ -121,6 +121,9 @@ expect_status /install 404
 expect_status "/$admin_path/login" 200
 expect_status "/$admin_path" 302
 expect_status /admin 404
+expect_status /robots.txt 200
+grep -q "Disallow: /login" "$work/body" || fail "robots.txt does not keep crawlers off /login"
+! grep -q "$admin_path" "$work/body" || fail "robots.txt names the console path"
 kill "$server_pid" && wait "$server_pid" 2>/dev/null || true
 server_pid=""
 if grep -qE 'PHP (Fatal|Warning)' "$work/server.log"; then

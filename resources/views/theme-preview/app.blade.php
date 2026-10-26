@@ -6,7 +6,6 @@
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
     <head>
         @include('partials.head', ['title' => __('Theme preview')])
-        <meta name="robots" content="noindex, nofollow">
     </head>
     <body class="min-h-screen bg-white text-zinc-900">
         <div class="bg-brand-accent-50 px-4 py-2 text-center text-sm font-medium text-brand-accent-700" role="status" data-test="preview-banner">

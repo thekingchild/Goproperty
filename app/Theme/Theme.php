@@ -130,6 +130,7 @@ final readonly class Theme
             '--color-brand-accent' => $this->accent(),
             '--color-brand-accent-soft' => $accent[300],
             '--color-brand-accent-50' => $accent[50],
+            '--color-brand-accent-200' => $accent[200],
             '--color-brand-accent-700' => $accent[700],
 
             '--hero-deep' => $deep,
@@ -145,7 +146,7 @@ final readonly class Theme
             '--muted-2' => $neutral[600],
             '--border' => $neutral[200],
             '--border-strong' => $neutral[300],
-            '--canvas' => $this->mix($neutral[50], $neutral[100]),
+            '--canvas' => Palette::CANVAS[$this->string('theme.neutral', 'slate')] ?? Palette::CANVAS['slate'],
             '--surface' => '#ffffff',
 
             '--font-ui' => '"'.$this->fontFamily().'", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
@@ -186,18 +187,5 @@ final readonly class Theme
         $percent = is_int($value) ? max(0, min(100, $value)) : $default;
 
         return rtrim(rtrim(number_format($percent / 100, 2, '.', ''), '0'), '.') ?: '0';
-    }
-
-    /** Halfway between two hex colours. */
-    private function mix(string $first, string $second): string
-    {
-        $hex = '#';
-
-        foreach ([1, 3, 5] as $offset) {
-            $value = (int) round((hexdec(substr($first, $offset, 2)) + hexdec(substr($second, $offset, 2))) / 2);
-            $hex .= str_pad(dechex($value), 2, '0', STR_PAD_LEFT);
-        }
-
-        return $hex;
     }
 }

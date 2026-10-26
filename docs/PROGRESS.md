@@ -6,7 +6,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 ## Current state
 
-- **In progress:** P00-09 (design system and platform theme), split into P00-09a theme engine (done), P00-09b landing page, P00-09c console settings pages
+- **In progress:** P00-09 (design system and platform theme), split into P00-09a theme engine (done), P00-09b landing page (done), P00-09c console settings pages
 - **In review:** P00-03 (hosting profiles), P00-04 (release package) and P00-06 (installer CLI + install drill): done and verified locally; each needs one green run in GitHub Actions (CI for P00-03, a tagged Release for P00-04, the Install drill on MySQL 8 and MariaDB 10.6 for P00-06) once Actions starts jobs
 - **Next task:** P00-10 (login pages to final quality); PRE-01 to PRE-04 continue with the product owner
 - **Blocked:** P00-02: GitHub Actions jobs are not being given a runner (account-level), and branch protection on `main` needs a repo admin. This also holds P00-03's CI check, P00-04's release run and P00-06's install drill
@@ -31,6 +31,41 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 ## Ledger (newest first)
 
 Each entry: task ID and status, date, what was delivered, tests run and results, follow-ups, next task.
+
+### P00-09b — Complete (2026-10-26): landing page, SEO, custom code
+
+**Delivered:**
+- **Landing page at `/`** (`marketing.home`, `layouts/marketing`, partials for brand, hero, plans, announcement and footer), converted from `docs/design/templates/landing.html`. The CSS and script are the template's (`resources/css/marketing.css`, `resources/js/marketing.js`) with its tokens mapped to the theme variables, so a published colour, font or radius restyles the page with no rebuild. The kit's `welcome` view and the static `public/robots.txt` are removed.
+  - **From the published theme:** brand name and mark, hero heading/subheading/badge/lede/trust items, FAQ (sanitised HTML), footer text, legal name, social links (only those set), announcement ribbon (dismissed per content, remembered in the browser), support email for "Book a demo" and "Contact".
+  - **From the plan catalogue, never typed into settings:** `config/plans.php` and `App\Marketing\PlanCatalogue` hold the launch plans, VAT, trial days and annual months (BILLING_PAYMENTS.md § 1) until the billing module adds the plans table. Plan cards, the facts row, the calculator's first result and JSON-LD use it; the script gets the same numbers from a JSON block.
+  - **Footer:** only links that lead somewhere (anchors, Book a demo, Log in, Privacy, Terms). Help centre, news and receipt verification join when those pages exist.
+- **`/privacy` and `/terms`** render `site.privacy_policy` and `site.terms` (sanitised on save) in the same layout.
+- **Search and sharing (§ 9.4)** via `App\Marketing\PublicSite`: title (`seo.title`, else name — tagline; other pages through `seo.title_pattern`), description, canonical and `og:url` on `seo.canonical_origin` (else `APP_URL`), Open Graph, Twitter card, theme colour and JSON-LD `Organization` + `SoftwareApplication` with the Starter price.
+  - **Indexing:** `seo.indexing_enabled`, unset meaning production only. Off → `noindex, nofollow`, `robots.txt` is `Disallow: /`, `sitemap.xml` is 404. On → `robots.txt` disallows `/login`, `/register`, `/o/`, `/portal`, `/owner`, `/pay/`, `/verify/`, `/install`, `/dashboard`, `/settings` and links the sitemap (marketing pages, cached 10 minutes). The console path is never mentioned.
+  - **Sign-in and app pages** now print `noindex, nofollow` (shared `partials/head`).
+  - `og:image`, logo and favicon switch to the uploaded brand images once P00-09c adds the brand image routes.
+- **Custom code (§ 9.5)** is printed only on the marketing layout: CSS in `<style data-custom-css>`, head code at the end of `<head>`, body code after `<body>` and before `</body>`. It is left out for signed-in users, in the console preview and with `?safe=1`.
+- **Content-Security-Policy on public pages** (`PublicPageHeaders`): scripts, frames and connections only from the site and `custom_code.allowed_hosts`; inline scripts allowed (analytics snippets are inline); `object-src 'none'`, `frame-ancestors 'self'`; plus `nosniff` and a referrer policy.
+- **Console preview** of the landing page with the draft theme at `/{ADMIN_PATH}/theme-preview/landing` (staff only, preview banner, noindex, no custom code).
+- **Theme fix:** `--canvas` is now a fixed tint per neutral (`#f7f8fb` for slate, as in the template) instead of a 50/100 mix, which was one shade bluer.
+
+**Tests and evidence (local, MariaDB 11.4.12):**
+- `composer ci`: Pint passed, Larastan 0 errors, Pest **674 tests / 1,954 assertions** (17 new in `tests/Feature/Marketing/`). The test case now starts each request on the published theme, as production does.
+- **AC: matches the approved template at desktop and mobile.**
+  - **Structure:** a test compares the tag and class of every element under `<main>` with the template file; they are identical.
+  - **Desktop (1440×900):** in the browser, every section starts at the same offset with the same height as the template. The computed colour, background, border, font size, weight, radius, shadow and box size of all 820 elements in the nav, hero and main match, apart from colour-syntax differences (`color-mix` vs `rgba`, same values), 1 px text widths (bundled vs Google-hosted Inter), and animation states. One real difference was found and fixed: the import bar's amber segment used the old `--color-accent` name.
+  - **Mobile (375×812):** every section height matches and there is no horizontal scroll.
+  - **Only intended difference:** the footer is shorter, since it shows only working links and no social links are set by default.
+  - **Interactions:** the menu, calculator (250 units → Scale ₦102,500, ₦410 per unit) and yearly toggle work. No console errors.
+- **Drafts:** website text and colours appear only after publishing; the landing preview shows the draft to staff only.
+- **SEO and custom code:** tags, title pattern, indexing on/off, production default, robots/sitemap content, safe mode, signed-in users, sign-in pages and the console preview, and the CSP host list are each tested.
+- **Drills:** release build `0.9.0-rc.1`, verify drill passed (its tamper target moved from `public/robots.txt`, now a route, to `public/favicon.svg`), install drill passed with a new check that `robots.txt` keeps crawlers off `/login` and never names the console path.
+
+**Follow-ups:**
+- The font plugin emits a `.woff` `@font-face` next to each `.woff2`, and browsers fetch both for some weights (about 120 KB extra). Look for a woff2-only option when fonts are next touched.
+- Help centre, news and receipt verification links return to the footer with P03 (verify page) and the content pages.
+
+**Next:** P00-09c (console settings pages and image uploads).
 
 ### P00-09a — Complete (2026-10-26): theme engine, app shell
 

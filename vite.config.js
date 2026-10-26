@@ -10,6 +10,8 @@ export default defineConfig({
                 'resources/css/app.css',
                 'resources/js/app.js',
                 'resources/js/passkeys.js',
+                'resources/css/marketing.css',
+                'resources/js/marketing.js',
             ],
             refresh: true,
             // The platform theme picks one of these (PLATFORM_CONSOLE.md § 9.2);

@@ -1,5 +1,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+{{-- Sign-in and app pages are never indexed (PLATFORM_CONSOLE.md § 9.4). --}}
+<meta name="robots" content="noindex, nofollow" />
 
 @php($themeName = app(\App\Theme\ThemeContext::class)->current()->name())
 <title>

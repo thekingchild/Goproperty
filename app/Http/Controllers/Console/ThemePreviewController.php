@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Console;
 
+use App\Http\Controllers\Marketing\MarketingController;
 use App\Theme\ThemeContext;
 use App\Theme\ThemeManager;
+use Illuminate\Contracts\Container\Container;
+use Illuminate\Support\Facades\View;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -15,14 +18,22 @@ use Symfony\Component\HttpFoundation\Response;
  */
 final class ThemePreviewController
 {
-    public const array SURFACES = ['app'];
+    public const array SURFACES = ['app', 'landing'];
 
-    public function __invoke(string $surface, ThemeManager $themes, ThemeContext $context): Response
+    public function __invoke(string $surface, ThemeManager $themes, ThemeContext $context, Container $container): Response
     {
         $context->preview($themes->draftTheme());
 
-        return response()
-            ->view('theme-preview.'.$surface, ['draft' => $themes->hasDraft()])
+        if ($surface === 'landing') {
+            // The real landing page; its layout shows the preview banner and
+            // leaves out custom code while the context is a preview.
+            View::share('themePreviewDraft', $themes->hasDraft());
+            $view = $container->call([$container->make(MarketingController::class), 'home']);
+        } else {
+            $view = view('theme-preview.app', ['draft' => $themes->hasDraft()]);
+        }
+
+        return response($view)
             ->header('Cache-Control', 'no-store, private')
             ->header('X-Robots-Tag', 'noindex, nofollow');
     }

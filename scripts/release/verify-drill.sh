@@ -60,11 +60,11 @@ step "Verify both unpacked layouts"
 (cd "$split" && "$php" artisan goproperty:verify-package)
 
 step "A changed file fails"
-cp "$preferred/public/robots.txt" "$work/robots.txt"
-echo "Disallow: /changed" >> "$preferred/public/robots.txt"
-expect_failure "public/robots.txt does not match its SHA256SUMS checksum" \
+cp "$preferred/public/favicon.svg" "$work/favicon.svg"
+echo "<!-- changed -->" >> "$preferred/public/favicon.svg"
+expect_failure "public/favicon.svg does not match its SHA256SUMS checksum" \
     "$php" "$preferred/artisan" goproperty:verify-package
-cp "$work/robots.txt" "$preferred/public/robots.txt"
+cp "$work/favicon.svg" "$preferred/public/favicon.svg"
 
 step "An added file fails"
 echo '<?php echo 1;' > "$public_html/added.php"
@@ -76,10 +76,10 @@ step "A changed zip entry fails"
 mkdir -p "$work/tampered/preferred/goproperty/public"
 cp "$zip.sha256" "$work/tampered/" 2>/dev/null || true
 cp "$zip" "$work/tampered/"
-echo "Disallow: /changed" >> "$work/robots.txt"
-cp "$work/robots.txt" "$work/tampered/preferred/goproperty/public/robots.txt"
-(cd "$work/tampered" && zip -q "$(basename "$zip")" preferred/goproperty/public/robots.txt)
-expect_failure "preferred: public/robots.txt does not match its SHA256SUMS checksum" \
+echo "<!-- changed -->" >> "$work/favicon.svg"
+cp "$work/favicon.svg" "$work/tampered/preferred/goproperty/public/favicon.svg"
+(cd "$work/tampered" && zip -q "$(basename "$zip")" preferred/goproperty/public/favicon.svg)
+expect_failure "preferred: public/favicon.svg does not match its SHA256SUMS checksum" \
     "$php" "$preferred/artisan" goproperty:verify-package "$work/tampered/$(basename "$zip")"
 if [ -f "$zip.sha256" ]; then
     expect_failure "does not match $(basename "$zip").sha256" \
