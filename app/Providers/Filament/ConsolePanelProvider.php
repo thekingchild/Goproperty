@@ -5,9 +5,16 @@ declare(strict_types=1);
 namespace App\Providers\Filament;
 
 use App\Http\Controllers\Console\ThemePreviewController;
+use App\Http\Middleware\StaffIdleTimeout;
+use App\Http\Middleware\StaffIpAllowlist;
 use App\Platform\Console\ConsoleRequests;
+use App\Platform\Filament\Auth\StaffLogin;
 use App\Theme\BrandAssets;
 use App\Theme\ThemeContext;
+use Filament\Auth\MultiFactor\App\AppAuthentication;
+use Filament\Auth\MultiFactor\Http\Middleware\EnsureMultiFactorAuthenticationIsEnabled;
+use Filament\Auth\MultiFactor\Pages\SetUpRequiredMultiFactorAuthentication;
+use Filament\Facades\Filament;
 use Filament\FontProviders\LocalFontProvider;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
@@ -57,8 +64,12 @@ final class ConsolePanelProvider extends PanelProvider
             ->id('console')
             ->default()
             ->path((string) $console->path())
-            ->login()
+            ->login(StaffLogin::class)
             ->authGuard('staff')
+            // Staff must use an authenticator app (UX_DESIGN.md § 3.2): without
+            // one they are sent to set it up before any console page opens.
+            // The authenticator entry is named after the panel brand, read lazily.
+            ->multiFactorAuthentication([AppAuthentication::make()->recoverable()], isRequired: true)
             // The console follows the published platform theme (PLATFORM_CONSOLE.md § 9.7).
             ->brandName(fn (): string => app(ThemeContext::class)->current()->name().' console')
             ->brandLogo(fn (): ?string => app(BrandAssets::class)->url(app(ThemeContext::class)->current(), 'logo-light'))
@@ -68,11 +79,20 @@ final class ConsolePanelProvider extends PanelProvider
             ->colors(fn (): array => ['primary' => app(ThemeContext::class)->current()->primaryPalette()])
             ->font(fn (): string => app(ThemeContext::class)->current()->fontFamily(), provider: LocalFontProvider::class)
             ->renderHook(PanelsRenderHook::HEAD_END, fn (): string => Blade::render('<x-theme-styles />'))
+            ->renderHook(PanelsRenderHook::HEAD_END, fn (): string => view('console.auth-style')->render(), scopes: [StaffLogin::class, SetUpRequiredMultiFactorAuthentication::class])
+            ->renderHook(PanelsRenderHook::BODY_END, fn (): string => Filament::auth()->check() ? view('console.idle-warning')->render() : '')
             ->authenticatedRoutes(function (): void {
-                // Draft preview (§ 9.8): staff only, never cached, never indexed.
-                Route::get('theme-preview/{surface}', ThemePreviewController::class)
-                    ->whereIn('surface', ThemePreviewController::SURFACES)
-                    ->name('theme-preview');
+                // Filament adds the 2FA-required check to its own pages only;
+                // these routes need it too (UX_DESIGN.md § 3.2).
+                Route::middleware(EnsureMultiFactorAuthenticationIsEnabled::class)->group(function (): void {
+                    // Draft preview (§ 9.8): staff only, never cached, never indexed.
+                    Route::get('theme-preview/{surface}', ThemePreviewController::class)
+                        ->whereIn('surface', ThemePreviewController::SURFACES)
+                        ->name('theme-preview');
+
+                    // "Stay signed in" on the idle warning: the request itself is the activity.
+                    Route::get('session/ping', fn () => response()->noContent())->name('session-ping');
+                });
             })
             ->discoverResources(in: app_path('Platform/Filament/Resources'), for: 'App\\Platform\\Filament\\Resources')
             ->discoverPages(in: app_path('Platform/Filament/Pages'), for: 'App\\Platform\\Filament\\Pages')
@@ -89,7 +109,7 @@ final class ConsolePanelProvider extends PanelProvider
                 DisableBladeIconComponents::class,
                 DispatchServingFilamentEvent::class,
             ])
-            ->authMiddleware([Authenticate::class]);
+            ->authMiddleware([Authenticate::class, StaffIpAllowlist::class, StaffIdleTimeout::class]);
 
         return $domain !== null ? $panel->domain($domain) : $panel;
     }

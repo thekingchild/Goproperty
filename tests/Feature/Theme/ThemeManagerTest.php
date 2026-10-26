@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use App\Models\PlatformStaff;
 use App\Models\StaffStatus;
 use App\Settings\SettingsStore;
 use App\Theme\ThemeManager;
@@ -17,7 +16,7 @@ use Spatie\Activitylog\Models\Activity;
 
 beforeEach(function () {
     $this->themes = app(ThemeManager::class);
-    $this->staff = PlatformStaff::query()->create(['name' => 'Ada', 'email' => 'ada@goproperty.ng', 'password' => 'x-long-password-1', 'status' => StaffStatus::Active]);
+    $this->staff = staffMember(['name' => 'Ada', 'email' => 'ada@goproperty.ng', 'password' => 'x-long-password-1', 'status' => StaffStatus::Active]);
 });
 
 it('starts on the shipped defaults', function () {

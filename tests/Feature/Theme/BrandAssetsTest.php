@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use App\Models\PlatformStaff;
 use App\Models\StaffStatus;
 use App\Models\User;
 use App\Theme\BrandAssets;
@@ -108,7 +107,7 @@ it('puts uploaded logos, icon and favicon on the public site, the app and the co
     $this->actingAs(User::factory()->create())->get('/portal')
         ->assertSee(url('/brand/icon?v='.$version($icon)), false);
 
-    $staff = PlatformStaff::query()->create(['name' => 'Ada', 'email' => 'ada@goproperty.ng', 'password' => 'x-long-password-1', 'status' => StaffStatus::Active]);
+    $staff = staffMember(['name' => 'Ada', 'email' => 'ada@goproperty.ng', 'password' => 'x-long-password-1', 'status' => StaffStatus::Active]);
     $this->actingAs($staff, 'staff')->get('/'.config('app.admin_path'))
         ->assertSee(url('/brand/logo-light?v='.$version($light)), false);
 });

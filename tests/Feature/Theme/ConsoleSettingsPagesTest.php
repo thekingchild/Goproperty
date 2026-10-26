@@ -15,6 +15,7 @@ use Filament\Facades\Filament;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
+use PragmaRX\Google2FA\Google2FA;
 use Spatie\Activitylog\Models\Activity;
 
 /*
@@ -25,11 +26,16 @@ use Spatie\Activitylog\Models\Activity;
 
 beforeEach(function () {
     Storage::fake('brand');
-    $this->staff = PlatformStaff::query()->create(['name' => 'Ada', 'email' => 'ada@goproperty.ng', 'password' => 'x-long-password-1', 'status' => StaffStatus::Active]);
+    $this->staff = staffMember(['name' => 'Ada', 'email' => 'ada@goproperty.ng', 'password' => 'x-long-password-1', 'status' => StaffStatus::Active]);
     $this->actingAs($this->staff, 'staff');
     Filament::setCurrentPanel('console');
     $this->console = '/'.config('app.admin_path');
 });
+
+function staffCode(PlatformStaff $staff): string
+{
+    return app(Google2FA::class)->getCurrentOtp((string) $staff->two_factor_secret);
+}
 
 function themes(): ThemeManager
 {
@@ -222,10 +228,10 @@ it('asks for the password before changing the canonical origin', function () {
     $page->call('saveDraft')->assertNotified('Confirm it is you first');
     expect(themes()->hasDraft())->toBeFalse();
 
-    $page->callAction('saveDraft', data: ['password' => 'wrong-password'])->assertNotified('The password is not right.');
+    $page->callAction('saveDraft', data: ['password' => 'wrong-password', 'code' => '000000'])->assertNotified('The password or code is not right.');
     expect(themes()->hasDraft())->toBeFalse();
 
-    $page->callAction('saveDraft', data: ['password' => 'x-long-password-1'])->assertNotified('Draft saved');
+    $page->callAction('saveDraft', data: ['password' => 'x-long-password-1', 'code' => staffCode($this->staff)])->assertNotified('Draft saved');
     expect(themes()->draftValues()['seo.canonical_origin'])->toBe('https://goproperty.ng');
 });
 
@@ -233,10 +239,10 @@ it('applies custom code on save, after step-up, with a full audit', function () 
     $page = Livewire::test(CustomCode::class)
         ->fillForm(['custom_code' => ['head' => '<script async src="https://www.googletagmanager.com/gtag/js?id=G-1"></script>', 'allowed_hosts' => ['www.googletagmanager.com', 'Connect.Facebook.net']]]);
 
-    $page->callAction('save', data: ['password' => 'wrong-password'])->assertNotified('The password is not right.');
+    $page->callAction('save', data: ['password' => 'wrong-password', 'code' => '000000'])->assertNotified('The password or code is not right.');
     expect(app(SettingsStore::class)->get('custom_code.head'))->toBeNull();
 
-    $page->callAction('save', data: ['password' => 'x-long-password-1'])->assertNotified('Saved and live on the public pages');
+    $page->callAction('save', data: ['password' => 'x-long-password-1', 'code' => staffCode($this->staff)])->assertNotified('Saved and live on the public pages');
 
     expect(app(SettingsStore::class)->get('custom_code.head'))->toContain('G-1')
         ->and(app(SettingsStore::class)->get('custom_code.allowed_hosts'))->toBe(['www.googletagmanager.com', 'connect.facebook.net'])

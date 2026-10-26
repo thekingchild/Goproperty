@@ -54,9 +54,11 @@ final readonly class StepUp
             return 'Too many attempts. Try again in '.RateLimiter::availableIn($limiter).' seconds.';
         }
 
-        $codeOk = ! $this->needsCode($staff) || ($code !== null && $this->twoFactor->verify((string) $staff->two_factor_secret, $code));
+        // The password first, so a mistyped one does not use up a valid code.
+        $passwordOk = $this->hasher->check($password, $staff->password);
+        $codeOk = $passwordOk && (! $this->needsCode($staff) || ($code !== null && $this->twoFactor->verify((string) $staff->two_factor_secret, $code)));
 
-        if (! $this->hasher->check($password, $staff->password) || ! $codeOk) {
+        if (! $codeOk) {
             RateLimiter::hit($limiter);
 
             return $this->needsCode($staff) ? 'The password or code is not right.' : 'The password is not right.';

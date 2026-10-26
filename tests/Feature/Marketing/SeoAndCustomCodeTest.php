@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use App\Models\PlatformStaff;
 use App\Models\StaffStatus;
 use App\Models\User;
 use App\Settings\SettingsStore;
@@ -124,7 +123,7 @@ describe('custom code', function () {
     });
 
     it('never prints it in the console preview', function () {
-        $staff = PlatformStaff::query()->create(['name' => 'Ada', 'email' => 'ada@goproperty.ng', 'password' => 'x-long-password-1', 'status' => StaffStatus::Active]);
+        $staff = staffMember(['name' => 'Ada', 'email' => 'ada@goproperty.ng', 'password' => 'x-long-password-1', 'status' => StaffStatus::Active]);
 
         $this->actingAs($staff, 'staff')->get('/'.config('app.admin_path').'/theme-preview/landing')
             ->assertOk()

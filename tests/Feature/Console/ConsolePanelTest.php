@@ -6,13 +6,14 @@ use App\Models\PlatformStaff;
 use App\Models\StaffStatus;
 use App\Models\User;
 use App\Platform\Console\ConsoleRequests;
-use Filament\Auth\Pages\Login;
+use App\Platform\Filament\Auth\StaffLogin;
 use Filament\Facades\Filament;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
 use Livewire\Livewire;
 use Livewire\Mechanisms\HandleRequests\EndpointResolver;
+use PragmaRX\Google2FA\Google2FA;
 
 /*
  * P00-08 acceptance: the console is auth-protected and empty, and a customer
@@ -26,7 +27,7 @@ function consoleUrl(string $path = ''): string
 
 function activeStaff(array $attributes = []): PlatformStaff
 {
-    return PlatformStaff::query()->create(array_merge([
+    return staffMember(array_merge([
         'name' => 'Ada Obi',
         'email' => 'ada@goproperty.ng',
         'password' => 'correct-Horse-battery-9',
@@ -63,12 +64,18 @@ it('refuses staff who are not active', function (StaffStatus $status) {
         ->assertForbidden();
 })->with([StaffStatus::Invited, StaffStatus::Deactivated]);
 
-it('signs staff in on the staff guard only', function () {
-    activeStaff();
+it('signs staff in on the staff guard only, with their 2FA code', function () {
+    $staff = activeStaff();
     Filament::setCurrentPanel(Filament::getPanel('console'));
 
-    Livewire::test(Login::class)
+    $login = Livewire::test(StaffLogin::class)
         ->fillForm(['email' => 'ada@goproperty.ng', 'password' => 'correct-Horse-battery-9'])
+        ->call('authenticate')
+        ->assertHasNoFormErrors();
+
+    expect(auth('staff')->check())->toBeFalse();
+
+    $login->set('data.multiFactor.app.code', app(Google2FA::class)->getCurrentOtp((string) $staff->two_factor_secret))
         ->call('authenticate')
         ->assertHasNoFormErrors();
 
@@ -80,7 +87,7 @@ it('refuses a customer\'s password on the console sign-in', function () {
     User::factory()->create(['email' => 'test@example.com']);
     Filament::setCurrentPanel(Filament::getPanel('console'));
 
-    Livewire::test(Login::class)
+    Livewire::test(StaffLogin::class)
         ->fillForm(['email' => 'test@example.com', 'password' => 'password'])
         ->call('authenticate')
         ->assertHasFormErrors(['email']);

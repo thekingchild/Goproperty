@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use App\Models\PlatformStaff;
 use App\Models\StaffStatus;
 use App\Theme\ThemeManager;
 
@@ -131,7 +130,7 @@ it('renders the privacy policy and terms from the settings', function () {
 });
 
 it('previews the landing page with the draft theme, to staff only', function () {
-    $staff = PlatformStaff::query()->create(['name' => 'Ada', 'email' => 'ada@goproperty.ng', 'password' => 'x-long-password-1', 'status' => StaffStatus::Active]);
+    $staff = staffMember(['name' => 'Ada', 'email' => 'ada@goproperty.ng', 'password' => 'x-long-password-1', 'status' => StaffStatus::Active]);
     app(ThemeManager::class)->saveDraft(['site.hero_heading' => 'Pay day.', 'theme.color_primary' => '#B91C1C'], $staff);
     $preview = '/'.config('app.admin_path').'/theme-preview/landing';
 

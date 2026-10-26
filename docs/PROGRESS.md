@@ -6,7 +6,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 ## Current state
 
-- **In progress:** P00-10 (login pages to final quality), split into P00-10a customer sign-in (done), P00-10b 2FA challenge and other auth screens (done), P00-10c staff login with mandatory 2FA
+- **In progress:** none
 - **In review:** P00-03 (hosting profiles), P00-04 (release package) and P00-06 (installer CLI + install drill): done and verified locally; each needs one green run in GitHub Actions (CI for P00-03, a tagged Release for P00-04, the Install drill on MySQL 8 and MariaDB 10.6 for P00-06) once Actions starts jobs
 - **Next task:** P00-11 (audit log and access log); PRE-01 to PRE-04 continue with the product owner
 - **Blocked:** P00-02: GitHub Actions jobs are not being given a runner (account-level), and branch protection on `main` needs a repo admin. This also holds P00-03's CI check, P00-04's release run and P00-06's install drill
@@ -16,7 +16,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | Phase | Tasks | Complete | Status |
 | --- | --- | --- | --- |
 | PRE | 5 | 1 | In progress |
-| P00 | 13 | 5 | In progress |
+| P00 | 13 | 6 | In progress |
 | P01 | 9 | 0 | Not started |
 | P02 | 7 | 0 | Not started |
 | P03 | 13 | 0 | Not started |
@@ -26,11 +26,48 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | P07 | 4 | 0 | Not started |
 | P08 | 4 | 0 | Not started |
 | P09 | 8 | 0 | Not started |
-| **Total** | **83** | **6** | |
+| **Total** | **83** | **7** | |
 
 ## Ledger (newest first)
 
 Each entry: task ID and status, date, what was delivered, tests run and results, follow-ups, next task.
+
+### P00-10 — Complete (2026-10-26): P00-10c staff sign-in with mandatory 2FA, Sign-in security settings
+
+All three sub-tasks are done (10a customer sign-in, 10b 2FA and the other sign-in screens, 10c staff), and every AC passes:
+- **Pages match the templates:** `login.html` and `login-2fa.html` were compared element by element at desktop, and `login.html` at mobile (10a, 10b).
+- **Tests cover:** the rate limit, the lockout and identical answers for unknown and known accounts, for customers (10a) and staff (here). They also show that staff cannot sign in without 2FA (here).
+
+**Delivered (10c):**
+- **Mandatory staff 2FA:**
+  - **How:** Filament's authenticator-app 2FA, with recovery codes, is required on the console (`isRequired`).
+  - **Storage:** `PlatformStaff` keeps the secret and the hashed recovery codes in the existing `two_factor_*` columns.
+  - **First sign-in:** a staff member without 2FA is signed in only to the set-up screen. Every console page, the theme preview and the session ping redirect there until an authenticator is enrolled. The preview and ping routes needed Filament's 2FA-required check added by hand, since Filament adds it only to its own pages.
+  - **Later sign-ins:** the password, then the 6-digit code. Filament keeps one generic error, equal timing and a per-IP limit of 5 tries a minute.
+  - **Step-up:** now asks for the code too (password checked first, so a typo does not use up a code).
+- **Staff sign-in page** (`StaffLogin`): dark neutral background and one centred card, headed "Staff console". There is no sign-up link and no marketing, and "Remember me" is gone, since staff use 2FA on every sign-in (§ 9.6).
+- **30-minute idle timeout** (`StaffIdleTimeout`): the session ends after 30 minutes without a request. Two minutes before, a dialog with a countdown offers "Stay signed in", which pings the server. Any console request counts as activity.
+- **Optional per-staff IP allowlist** (`StaffIpAllowlist`, `platform_staff.ip_allowlist`, addresses or CIDR ranges): from anywhere else the session ends and the reply is a plain-text 404 with no branding. Editing the list comes with staff management (P01-07).
+- **Settings → Sign-in security** (PLATFORM_CONSOLE.md § 9.6). It applies on save and is audited by the settings store.
+  - **Fields:** passkeys on/off, Turnstile mode and keys, lockout count and minutes, remember days, trusted-device days, and who must use 2FA.
+  - **Turnstile secret:** never sent to the browser (shown as "•••• set"). Changing or removing it needs step-up (password and code).
+- **Docs:** DATABASE_SCHEMA.md § 1 now lists `user_devices`.
+
+**Interim and flagged:**
+- **`auth.require_2fa_for`:** stored and editable, but enforced only once organization roles and Transaction Tiers exist (P01-01/P01-02). The page says so.
+- **Who may open the page:** as with the other settings pages, every active staff member until roles exist (P01-07, approved 2026-10-26). The spec has `super-admin`, with `technical-admin` read-only.
+
+**Tests and evidence (local, MariaDB 11.4.12):**
+- `composer ci`: Pint passed, Larastan 0 errors, Pest **777 tests / 2,547 assertions** (12 new in `tests/Feature/Console/StaffSignInTest.php`). Console tests now create staff through a `staffMember()` helper with 2FA set up, and the console sign-in and step-up tests supply real TOTP codes.
+- **AC: staff cannot sign in without 2FA:** without enrolment, six console URLs redirect to set-up; after enrolment the console opens; with 2FA, a wrong code is refused and the right one signs in.
+- **Other tests:** identical errors for an unknown email and a wrong password; the 6th attempt is rate-limited; timeout at 31 minutes (but not 10); the ping; allowlist allow and deny (plain 404, signed out); no "Remember me"; the settings save, validate, keep the secret hidden, ask for step-up to change it, leave it alone otherwise, and can remove it.
+- **In the browser (local):**
+  - **Staff sign-in:** the page showed the dark card.
+  - **Enrolment:** signing in as the seeded staff account went straight to "Set up two-factor authentication". Enrolling with the QR code's secret, a real code and the password showed 8 recovery codes, and then the console opened.
+  - **Settings page:** Sign-in security rendered.
+- **Drills:** release `0.10.0-rc.1` built, the verify drill passed and the install drill passed. The installed schema is identical to a plain migrate (145 columns and tables), and `/` and `/login` answer 200.
+
+**Next:** P00-11 (audit log and access log).
 
 ### P00-10b — Complete (2026-10-26): 2FA challenge and the other sign-in screens
 

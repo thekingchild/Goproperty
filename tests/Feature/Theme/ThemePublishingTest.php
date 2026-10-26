@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use App\Models\Organization;
-use App\Models\PlatformStaff;
 use App\Models\StaffStatus;
 use App\Models\User;
 use App\Theme\ThemeManager;
@@ -16,7 +15,7 @@ use Filament\Support\Colors\Color as FilamentColor;
  */
 
 beforeEach(function () {
-    $this->staff = PlatformStaff::query()->create(['name' => 'Ada', 'email' => 'ada@goproperty.ng', 'password' => 'x-long-password-1', 'status' => StaffStatus::Active]);
+    $this->staff = staffMember(['name' => 'Ada', 'email' => 'ada@goproperty.ng', 'password' => 'x-long-password-1', 'status' => StaffStatus::Active]);
     $this->user = User::factory()->create();
     $this->user->organizations()->attach(Organization::factory()->create(['slug' => 'acme-homes']));
     $this->console = '/'.config('app.admin_path');
