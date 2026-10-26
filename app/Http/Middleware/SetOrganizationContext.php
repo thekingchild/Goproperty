@@ -7,6 +7,7 @@ namespace App\Http\Middleware;
 use App\Models\Organization;
 use App\Models\User;
 use App\Tenancy\OrganizationContext;
+use App\Tenancy\OrganizationWriteGuard;
 use Closure;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -24,10 +25,20 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
  * slugs cannot be probed. An old slug redirects to the current one, for
  * members only. Membership is OrganizationPolicy::view. Spatie's permission
  * team follows the context (OrganizationTeamResolver).
+ *
+ * In a suspended or cancelled organization any request that is not a GET
+ * is refused here unless its action carries #[AllowedWhileSuspended]
+ * (OrganizationWriteGuard). Livewire runs this again on every update request
+ * (persistent middleware, with the page's method), so components know their
+ * organization; their method calls are judged by
+ * RefuseLivewireWritesWhileSuspended.
  */
 final class SetOrganizationContext
 {
-    public function __construct(private readonly OrganizationContext $context) {}
+    public function __construct(
+        private readonly OrganizationContext $context,
+        private readonly OrganizationWriteGuard $writes,
+    ) {}
 
     public function handle(Request $request, Closure $next): Response
     {
@@ -58,6 +69,8 @@ final class SetOrganizationContext
         /** @var Route $route */
         $route->setParameter('organization', $organization);
         URL::defaults(['organization' => $organization->slug]);
+
+        $this->writes->ensureRequestAllowed($request);
 
         return $next($request);
     }

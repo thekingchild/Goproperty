@@ -72,6 +72,15 @@ Invite by email → set password + 2FA on first login → active. Deactivation i
 | Sign-in security (passkeys, Turnstile, 2FA rules) | `super-admin` | — (audited) | § 9.6 |
 | Console path (`ADMIN_PATH`) | `technical-admin` (via `.env` on the server) | — | § 10 |
 
+## 1B. Customers
+
+Console → Customers (built in P01-06; subscriptions and the impersonation log join it in later tasks). Cross-organization reads go through read models in the Platform namespace (`App\Platform\Customers\Customer` and `CustomerUser`), never the customer-side models; organizations and users are never created, edited or deleted here.
+
+- **Organizations** (`/customers`, permission `customers.view`: `support-agent`, `operations-manager`, `compliance-officer`, `finance-admin`, `super-admin`; never `analyst`, whose work is aggregated and has no personal data): name and workspace slug, type, status, Transaction Tier, member count, owner (name and email), created and trial-end dates. Search by name, slug or the owner's name, email or phone; filter by status, type and tier; paged on the server (25/50/100).
+- **Organization page:** profile, status (with "suspended since" and the status reactivation returns to), its users with their roles there, and its history (audit entries about it, with staff member and reason).
+- **Users** (`/customer-users`, `customers.view`): find a person by name, email or phone; their page lists every organization they belong to with their roles in each and its status.
+- **Suspend / Reactivate** (permission `customers.suspend`: `operations-manager`, `super-admin`; checked by `CustomerPolicy` and again by `App\Platform\Customers\OrganizationSuspension`): a **reason is required** (kept in the audit log, not sent to the customer) and an optional note to the owner is quoted in the email. Suspending works from `onboarding`, `active` or `restricted`; reactivating returns to that status. Each change is one audit entry (log `customers`, `organization.suspended` / `organization.reactivated`, the staff member as causer, the reason, status before and after), and every org-owner with an email gets a queued email (`notifications` queue) after the change commits. From their next request the organization's members can sign in, read and export but not change anything ([ARCHITECTURE.md § 4](ARCHITECTURE.md), "Suspended organizations are read-only"). Restricting an organization for compliance (`compliance.restrict`) is a separate action built with the compliance queue.
+
 ## 2. System Operations Dashboard (for `technical-admin`, `super-admin`)
 
 Health at a glance, refreshed every 60 s:

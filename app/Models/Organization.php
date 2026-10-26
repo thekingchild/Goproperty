@@ -43,6 +43,8 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property array<string, mixed>|null $branding
  * @property Money|null $online_payment_cap_kobo
  * @property Carbon|null $trial_ends_at
+ * @property Carbon|null $suspended_at set by App\Platform\Customers\OrganizationSuspension only
+ * @property OrganizationStatus|null $status_before_suspension the status reactivation returns to
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property Carbon|null $deleted_at
@@ -81,6 +83,8 @@ class Organization extends Model
             'branding' => 'array',
             'online_payment_cap_kobo' => MoneyCast::class,
             'trial_ends_at' => 'datetime',
+            'suspended_at' => 'datetime',
+            'status_before_suspension' => OrganizationStatus::class,
         ];
     }
 

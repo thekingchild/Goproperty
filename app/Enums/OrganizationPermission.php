@@ -53,6 +53,46 @@ enum OrganizationPermission: string
     case ViewReports = 'reports.view';
     case ManageImports = 'imports.manage';
 
+    /**
+     * Whether members keep this permission while their organization is
+     * suspended or cancelled (OrganizationWriteGuard): reading, exporting,
+     * paying the GoProperty subscription (a confirmed payment reactivates,
+     * ONBOARDING_COMPLIANCE.md § 3) and a tenant's payment proof (the portal
+     * keeps accepting proofs). Every new permission must be placed here;
+     * the match has no default, so one left out fails the build.
+     */
+    public function allowedWhileSuspended(): bool
+    {
+        return match ($this) {
+            self::OpenWorkspace,
+            self::ViewActivity,
+            self::ViewMembers,
+            self::ViewProperties,
+            self::ViewLeases,
+            self::ViewBills,
+            self::ViewPayments,
+            self::ViewTickets,
+            self::ViewReports,
+            self::ManageBilling,
+            self::SubmitPaymentProof => true,
+            self::UpdateOrganization,
+            self::DeleteOrganization,
+            self::ManagePaymentSettings,
+            self::ManageCompliance,
+            self::ManageMembers,
+            self::ManageProperties,
+            self::ManageLeases,
+            self::ManageBills,
+            self::ConfirmPayments,
+            self::CreateTickets,
+            self::RespondToTickets,
+            self::ManageTickets,
+            self::ParticipateInBuildingGroups,
+            self::ModerateBuildingGroups,
+            self::ManageImports => false,
+        };
+    }
+
     public function description(): string
     {
         return match ($this) {

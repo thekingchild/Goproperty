@@ -10,6 +10,7 @@ use App\Providers\FortifyServiceProvider;
 use App\Providers\HostingServiceProvider;
 use App\Providers\InstallerServiceProvider;
 use App\Providers\StaffServiceProvider;
+use App\Providers\TenancyServiceProvider;
 
 return [
     AppServiceProvider::class,
@@ -19,5 +20,6 @@ return [
     HostingServiceProvider::class,
     InstallerServiceProvider::class,
     StaffServiceProvider::class,
+    TenancyServiceProvider::class,
     ConsolePanelProvider::class,
 ];

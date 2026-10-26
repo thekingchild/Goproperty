@@ -2,9 +2,11 @@
 
 declare(strict_types=1);
 
+use App\Models\Organization;
 use App\Models\PlatformStaff;
 use App\Models\StaffRole;
 use App\Models\StaffStatus;
+use App\Models\User;
 use App\Notifications\StaffInvitation;
 use App\Platform\Filament\Auth\AcceptStaffInvitation;
 use App\Platform\Filament\Pages\Settings\BrandAppearance;
@@ -48,6 +50,8 @@ function consolePageUrls(PlatformStaff $someone): array
         'filament.console.auth.staff-invitation',
     ];
     $role = StaffRole::query()->where('name', 'analyst')->firstOrFail();
+    $organization = null;
+    $customerUser = null;
     $urls = [];
 
     foreach (Router::getRoutes()->getRoutes() as $route) {
@@ -62,7 +66,12 @@ function consolePageUrls(PlatformStaff $someone): array
 
         foreach ($route->parameterNames() as $parameter) {
             $parameters[$parameter] = match ($parameter) {
-                'record' => str_contains($route->uri(), 'staff-roles') ? $role->id : $someone->id,
+                'record' => match (true) {
+                    str_contains($route->uri(), 'staff-roles') => $role->id,
+                    str_contains($route->uri(), 'customer-users') => ($customerUser ??= User::factory()->create())->id,
+                    str_contains($route->uri(), 'customers') => ($organization ??= Organization::factory()->create())->id,
+                    default => $someone->id,
+                },
                 'surface' => 'landing',
                 default => throw new RuntimeException("Fill the {$parameter} parameter of {$name} in this test."),
             };
@@ -80,7 +89,7 @@ it('sends staff without 2FA to enrol from every console page, whatever their rol
 
     // The list really covers the console: staff, roles, approvals, settings, previews.
     expect(count($urls))->toBeGreaterThan(12)
-        ->and(implode(' ', $urls))->toContain('/staff-roles', '/approvals', '/settings/brand', '/theme-preview/landing', '/staff/'.$staff->id);
+        ->and(implode(' ', $urls))->toContain('/staff-roles', '/approvals', '/settings/brand', '/theme-preview/landing', '/staff/'.$staff->id, '/customers/', '/customer-users/');
 
     foreach ($urls as $url) {
         $this->actingAs($staff, 'staff')->get($url)->assertRedirect($this->setUp);

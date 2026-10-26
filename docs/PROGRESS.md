@@ -6,9 +6,9 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 ## Current state
 
-- **In progress:** P01-02 (registration wizard) and P01-06 (console customers list, suspend/reactivate). Each task is built in its own worktree and reviewed before it merges
+- **In progress:** P01-02 (registration wizard) and P01-08 (impersonation). Each task is built in its own worktree and reviewed before it merges
 - **In review:** P01-09 (web installer wizard): done and verified locally on MariaDB 11.4; the Install drill on MySQL 8 and MariaDB 10.6 waits on GitHub Actions. P00-03 (hosting profiles), P00-04 (release package) and P00-06 (installer CLI + install drill): done and verified locally; each needs one green run in GitHub Actions (CI for P00-03, a tagged Release for P00-04, the Install drill on MySQL 8 and MariaDB 10.6 for P00-06) once Actions starts jobs. P00-12 (backups): built and drilled locally; needs one real run to an S3-compatible bucket and a Google Shared Drive (PRE-03 accounts)
-- **Next task:** P01-04, P01-05, then P01-03 and P01-08; PRE-01 to PRE-04 continue with the product owner
+- **Next task:** P01-03, P01-04 and P01-05; PRE-01 to PRE-04 continue with the product owner
 - **Blocked:** P00-02: GitHub Actions jobs are not being given a runner (account-level), and branch protection on `main` needs a repo admin. This also holds P00-03's CI check, P00-04's release run and P00-06's install drill
 - **Blocked:** P00-13 (staging): the deploy scripts, the deploy on merge and the deploy drill are built and drilled locally; it needs a staging host (PRE-04) and working Actions runners (P00-02)
 
@@ -18,7 +18,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | --- | --- | --- | --- |
 | PRE | 5 | 1 | In progress |
 | P00 | 13 | 7 | In progress |
-| P01 | 9 | 2 | In progress |
+| P01 | 9 | 3 | In progress |
 | P02 | 7 | 0 | Not started |
 | P03 | 13 | 0 | Not started |
 | P04 | 3 | 0 | Not started |
@@ -27,11 +27,46 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | P07 | 4 | 0 | Not started |
 | P08 | 4 | 0 | Not started |
 | P09 | 8 | 0 | Not started |
-| **Total** | **83** | **10** | |
+| **Total** | **83** | **11** | |
 
 ## Ledger (newest first)
 
 Each entry: task ID and status, date, what was delivered, tests run and results, follow-ups, next task.
+
+### P01-06 — Complete (2026-10-27): console customers list, users lookup, organization suspend/reactivate, read-only suspended organizations
+
+**Delivered:**
+- **One central rule: suspended organizations are read-only** (`App\Tenancy\OrganizationWriteGuard`, ARCHITECTURE.md § 4). While `organizations.status` is `suspended` (or `cancelled`) members can sign in, read and export; every write is refused with a 403 saying so, from the next request (the status comes from the organization `SetOrganizationContext` loads each request; nothing caches it). Applied in four places so later features need no check of their own:
+  1. **HTTP:** `SetOrganizationContext` refuses any non-GET request inside `/o/{organization}` unless the controller method carries `#[AllowedWhileSuspended]` (`App\Tenancy\AllowedWhileSuspended`, for exports and writes the docs allow).
+  2. **Livewire:** `SetOrganizationContext` is now Livewire persistent middleware (the P01-01 follow-up), and a `Livewire\before('call')` hook (`App\Tenancy\Livewire\RefuseLivewireWritesWhileSuspended`) refuses every component method call before it runs, except paging, `$refresh`/`$set`/`$sync`/`$commit` and `#[AllowedWhileSuspended]` methods; event listeners (`__dispatch`) are judged by the method they run.
+  3. **Permissions:** `HasOrganizationRoles::hasPermissionTo` drops every customer permission whose new `OrganizationPermission::allowedWhileSuspended()` is false (exhaustive match: a new permission must be classed). Kept: `workspace.access`, the `*.view` permissions, `organization.activity`, `organization.billing` (pay the subscription; a confirmed payment reactivates) and `payments.submit_proof`.
+  4. **Policies:** a `Gate::before` hook (new `App\Providers\TenancyServiceProvider`) denies customers every ability that is not a read (`view…`, `export…`, `download…`, `switchTo`) in a suspended organization (the one passed to the check, else the context), with the message. Staff checks are never affected.
+  - `OrganizationStatus::blocksWrites()` (suspended, cancelled) and `canBeSuspended()` (onboarding, active, restricted). `restricted` stays writable; the features it limits check it themselves.
+  - Workspace layout shows "This organization is suspended" with what still works (`<x-organization-status-notice />` in `layouts/app.blade.php`).
+- **Schema:** `organizations.suspended_at`, `status_before_suspension` (one migration). Reactivation returns to the status it left (a restricted organization stays restricted).
+- **Suspend / reactivate** (`App\Platform\Customers\OrganizationSuspension`): permission `customers.suspend` (already in the P01-07 catalogue: `operations-manager`, `super-admin`), reason required (max 500), optional note to the owner (quoted in the email; the reason is not), row lock, valid transitions only. One audit entry per change (log `customers`, `organization.suspended` / `organization.reactivated`, staff causer, reason column, status before/after; the model's own `updated` entry is suppressed). Every org-owner with an email gets `OrganizationSuspendedNotice` / `OrganizationReactivatedNotice` (queued, `notifications`, after commit, platform brand name, link to the workspace).
+- **Console → Customers** (`App\Platform\Filament`):
+  - **Organizations** (`/customers`): name and slug, type, status, tier, member count, owner (name, email), created and trial-end dates; search by name, slug or owner name/email/phone; filters status/type/tier; server-side pagination (25/50/100). Page: profile incl. "suspended since" and "reactivation returns to", Users relation (each member's roles there), History relation (audit entries with staff member and reason), Suspend / Reactivate actions (confirmation, reason + note fields).
+  - **Users** (`/customer-users`): users lookup by name, email or phone; user page with every organization, its status and the user's roles there.
+  - Read models `App\Platform\Customers\Customer` (organizations) and `CustomerUser` (users), read-only (saving/deleting throw), with `#[UsePolicy]` → `CustomerPolicy` (`customers.view`; `suspend`/`reactivate` need `customers.suspend` and the right status; create/update/delete always false) and `CustomerUserPolicy` (`customers.view`). `analyst`, `technical-admin`, `content-manager` get 403.
+  - `ActsAsStaff::attempt()` also shows `CustomerChangeRefused` as a red notification.
+- **Docs:** ARCHITECTURE.md § 4 (the read-only rule, its four enforcement points, the `updated*` hook caveat, jobs not blocked, and how the P03 tenant portal must stay read-only for a suspended organization's records while still accepting payment proofs), AGENT.md § 4 (one line), PLATFORM_CONSOLE.md new § 1B Customers, DATABASE_SCHEMA.md `organizations`, BILLING_PAYMENTS.md § 2 (P05's `SubscriptionService` must set/restore `organizations.status`; paying stays allowed), ONBOARDING_COMPLIANCE.md § 5.5 (pointer).
+
+**Tests and evidence (local, MariaDB 11.4):**
+- Orchestrator's review run: `composer ci` Pint passed, Larastan 0 errors, Pest **994 tests: 993 passed, 1 skipped, 6,995 assertions**.
+- `composer ci`: Pint passed, Larastan 0 errors, Pest **994 tests: 993 passed, 1 skipped (the existing module-boundary check), 6,995 assertions**, 0 failed. 37 tests are new.
+- **AC: suspending an org blocks its users' write actions within one request; reactivating restores them:** `tests/Feature/Tenancy/SuspendedOrganizationTest.php` › "refuses every write from the next request after suspension, and reactivation restores them" (dataset org-owner / org-admin / agent: a write succeeds, `OrganizationSuspension::suspend()` runs, the very next POST/PUT/PATCH/DELETE and a closure-route POST are 403 with the message and nothing is written; GET, an `#[AllowedWhileSuspended]` export and the workspace page (with the notice) still work; after `reactivate()` the next write succeeds). Also: "affects only the suspended organization for a member of two" (writes and permissions in the other organization unaffected, switching still works), "lets members of a suspended organization sign in and read" (real sign-in lands on the workspace), "refuses Livewire writes in a suspended organization before they run" (real Livewire update requests over HTTP with the context from persistent middleware: `save` and an event that runs it are 403 and never run; export, `nextPage`, `$refresh`, a refresh event and property updates work; reactivation restores; verified the test fails without the persistent middleware), permissions and policy abilities (every `OrganizationPermission` through `hasPermissionTo` and the Gate, read/write policy abilities, an organization passed with no context), cancelled read-only / restricted writable, the exact kept-permission list, staff unaffected.
+- `tests/Feature/Console/CustomersTest.php` (26): access by role (5 roles with `customers.view` open all four pages; analyst, technical-admin, content-manager 403), never create/edit/delete, list columns (members, owner, type, tier, status, trial date), search (name, slug, owner name, email, phone), filters, server-side paging (32 records, 25 shown), members with roles per organization, users lookup with organizations and roles; **suspend from the console** by an operations-manager (status, `suspended_at`, `status_before_suspension`, one `customers` audit entry with staff causer, reason and before/after, no duplicate `updated` entry, history shows staff and reason, `goproperty:audit-verify` passes, owner emailed on the `notifications` queue with the note and without the internal reason, agent and other organizations not emailed); **reason required** (form and service); **non-permitted staff** (support-agent, compliance-officer, finance-admin: actions hidden, policy denies, service refuses, nothing audited or sent); reactivation returns to `restricted`, audited and emailed with the workspace link; invalid transitions refused.
+- Existing test changed: `StaffTwoFactorEnforcementTest::consolePageUrls()` fills the `record` parameter of the two new resources with an organization / user id (and the list check now expects `/customers/` and `/customer-users/`).
+
+**Follow-ups:**
+- P05: `SubscriptionService` sets `organizations.status` to `suspended` at grace end and restores it on payment (BILLING_PAYMENTS.md § 2 now says so). If staff and billing both suspend, decide which reactivation wins (today the console's reactivate simply returns to `status_before_suspension`).
+- P03 tenant portal: apply the read-only rule to a suspended organization's records with the payment-proof exception (ARCHITECTURE.md § 4 says how).
+- Compliance restrict (`compliance.restrict`, ONBOARDING_COMPLIANCE.md § 5.5) is not built here; it belongs with the compliance queue (P01-03 / compliance tasks).
+- Livewire refusals show Livewire's error modal with the 403 message; a friendlier toast can come with the workspace UI kit (P02).
+- Not checked in a browser (the console pages and the notice render in tests).
+
+**Next:** P01-04, P01-05, then P01-03 and P01-08.
 
 ### P01-07 — Complete (2026-10-26): console staff management, configurable roles, 2FA enforcement, two-person approvals
 

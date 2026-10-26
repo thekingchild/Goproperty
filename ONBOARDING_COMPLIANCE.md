@@ -253,7 +253,7 @@ GoProperty can't stop money moving between a tenant and an agency's bank, so enf
 4. Compliance staff can extend the grace period with a reason (audited).
 5. While an upgrade application is under review, the org is never restricted.
 
-Platform staff can also manually restrict or suspend an organization for compliance reasons (audited, reason required, org-owner notified).
+Platform staff can also manually restrict or suspend an organization for compliance reasons (audited, reason required, org-owner notified). Suspend/reactivate is in Console → Customers ([PLATFORM_CONSOLE.md § 1B](PLATFORM_CONSOLE.md)); while suspended the organization is read-only for its members ([ARCHITECTURE.md § 4](ARCHITECTURE.md)).
 
 ### 5.6 What GoProperty is *not*
 

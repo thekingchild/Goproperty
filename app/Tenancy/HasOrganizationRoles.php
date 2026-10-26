@@ -8,9 +8,11 @@ use App\Enums\OrganizationPermission;
 use App\Enums\OrganizationRole;
 use App\Models\Organization;
 use App\Models\Role;
+use BackedEnum;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Facades\DB;
+use Spatie\Permission\Contracts\Permission;
 use Spatie\Permission\Traits\HasRoles;
 
 /**
@@ -22,7 +24,9 @@ use Spatie\Permission\Traits\HasRoles;
  *   model kept across OrganizationContext::run() calls (or restored in a
  *   queued job) never answers with another organization's roles;
  * - refuses role grants outside an organization, to a non-member, or of a
- *   role another organization defined for itself.
+ *   role another organization defined for itself;
+ * - holds no write permission while the organization is suspended or
+ *   cancelled (OrganizationWriteGuard).
  *
  * @phpstan-require-extends Model
  */
@@ -31,6 +35,7 @@ trait HasOrganizationRoles
     use HasRoles {
         assignRole as private spatieAssignRole;
         givePermissionTo as private spatieGivePermissionTo;
+        hasPermissionTo as private spatieHasPermissionTo;
     }
 
     /**
@@ -94,6 +99,30 @@ trait HasOrganizationRoles
         }
 
         return $this->spatieAssignRole(...$roles);
+    }
+
+    /**
+     * Spatie's check, except that a suspended or cancelled organization's
+     * members keep only the permissions that read, export or pay
+     * (OrganizationPermission::allowedWhileSuspended()).
+     *
+     * @param  mixed  $permission
+     */
+    public function hasPermissionTo($permission, ?string $guardName = null): bool
+    {
+        $name = match (true) {
+            $permission instanceof BackedEnum => (string) $permission->value,
+            $permission instanceof Permission => (string) $permission->getAttribute('name'),
+            is_string($permission) => $permission,
+            default => null,
+        };
+
+        // A permission given by ID is refused too: fail closed.
+        if (! app(OrganizationWriteGuard::class)->allowsPermission($name ?? '')) {
+            return false;
+        }
+
+        return $this->spatieHasPermissionTo($permission, $guardName);
     }
 
     /**

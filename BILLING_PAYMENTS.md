@@ -95,6 +95,7 @@ cancelled ◀──(owner cancels / non-payment)── suspended ◀──(grace
 
 - Payment methods the customer can keep on file: Paystack card authorization (auto-charge attempt on invoice issue) or bank transfer (manual, see § 5).
 - **Suspension is reversible and non-destructive.** No data deletion ever happens automatically.
+- **How "write actions blocked" is enforced:** by `organizations.status` = `suspended` through the one central rule in [ARCHITECTURE.md § 4](ARCHITECTURE.md) (`App\Tenancy\OrganizationWriteGuard`). `SubscriptionService` must therefore set the organization's status to `suspended` when the subscription is suspended and restore it on payment, the same way staff do from the console (`App\Platform\Customers\OrganizationSuspension`, which records the status to return to). Paying the subscription (`organization.billing`) stays allowed while suspended.
 - Platform-covered orgs (`platform_covered = true` or `payer_organization_id` pointing at a platform-owned org) skip dunning — invoices are marked paid internally with an audit trail.
 
 ## 3. Invoice Generation & Unit Metering
