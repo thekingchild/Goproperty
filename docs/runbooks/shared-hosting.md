@@ -46,7 +46,7 @@ Composer and Node on the server are **not** required: the release zip already co
    ```
    `HOSTING_PROFILE=shared` sets `QUEUE_CONNECTION=database`, `CACHE_STORE=database`, `SESSION_DRIVER=database`, `BROADCAST_CONNECTION=null`, `REALTIME_DRIVER=polling`, `PDF_DRIVER=dompdf` and `QUEUE_TICK_ENABLED=true`. Set one of those only to override it. Broadcasting is `null`, not `log`, so event payloads never land in the logs. `php artisan goproperty:hosting` shows what is active.
 4. **First install** — full detail in [INSTALLER.md](../../INSTALLER.md):
-   - Upload the release zip with File Manager (or `scp`), compare its `.sha256`, extract the `preferred/` layout (or `split/` if the domain must use `public_html`).
+   - Download the release zip and its `.sha256` from the GitHub release and compare the checksum. Upload the zip with File Manager (or `scp`) and extract the `preferred/` layout (or `split/` if the domain must use `public_html`). With SSH, `php artisan goproperty:verify-package` in the app folder checks every file ([release.md § 4](release.md)).
    - Open `https://your-domain/install` and unlock it: **with SSH** run `php artisan goproperty:setup-token` and paste the token; **without SSH** create `storage/app/install-unlock.txt` containing the phrase the page shows.
    - Follow the wizard: server check → site & database → build the database → email & file storage tests → first super-admin with 2FA → finish (console path, cron line, live cron check, installation record).
    - Or, over SSH: `php artisan goproperty:install` (same steps, non-interactive mode available).
@@ -66,7 +66,7 @@ Composer and Node on the server are **not** required: the release zip already co
 The **Deploy** workflow ([`.github/workflows/deploy.yml`](../../.github/workflows/deploy.yml)) does the heavy work so the server only receives files. Start it from **Actions → Deploy → Run workflow**, pick `staging` or `production`, and tick *maintenance* only for schema-breaking releases. (P00-13 adds the automatic staging deploy on every merge to `main`.)
 
 1. It runs the full quality gate (MySQL **and** MariaDB, the `CI` workflow).
-2. `scripts/deploy/build-release.sh` builds `<timestamp>-<sha>.tar.gz`: tracked files, `composer install --no-dev --optimize-autoloader`, `npm ci && npm run build`; tests, docs, dev config and `storage/` are left out.
+2. `scripts/deploy/build-release.sh` builds `<timestamp>-<sha>.tar.gz` (with `scripts/release/stage.sh`, shared with the release zip): tracked files, `composer install --no-dev --optimize-autoloader`, `npm ci && npm run build`; tests, docs, dev config and `storage/` are left out.
 3. It uploads the archive with `scp` and runs `scripts/deploy/remote-deploy.sh` over SSH, which:
    ```
    unpack to releases/<name>/, link shared/.env and shared/storage

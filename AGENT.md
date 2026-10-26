@@ -32,6 +32,11 @@ sail artisan queue:listen --queue=billing,notifications,default,pdf,imports   # 
 sail artisan reverb:start         # optional: only when testing VPS-profile realtime
 sail artisan goproperty:hosting   # hosting profile, drivers, heartbeats; fails on inconsistent settings
 
+# Release package (docs/runbooks/release.md): tag vX.Y.Z to build and publish in CI
+scripts/release/build-package.sh 1.4.0-dev.1 dist     # build the zip locally
+scripts/release/verify-drill.sh dist/goproperty-1.4.0-dev.1.zip
+php artisan goproperty:verify-package <zip|folder>     # no argument: this installation
+
 # Modules (nwidart)
 php artisan module:make <Name>
 php artisan module:migrate <Name>

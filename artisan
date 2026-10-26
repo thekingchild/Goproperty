@@ -6,6 +6,9 @@ use Symfony\Component\Console\Input\ArgvInput;
 
 define('LARAVEL_START', microtime(true));
 
+// Plain message instead of a fatal error on an old PHP (INSTALLER.md § 2)...
+require __DIR__.'/bootstrap/php-version.php';
+
 // Register the Composer autoloader...
 require __DIR__.'/vendor/autoload.php';
 

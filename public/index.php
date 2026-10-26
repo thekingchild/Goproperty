@@ -7,6 +7,9 @@ use Illuminate\Http\Request;
 
 define('LARAVEL_START', microtime(true));
 
+// Plain message instead of a fatal error on an old PHP (INSTALLER.md § 2)...
+require __DIR__.'/../bootstrap/php-version.php';
+
 // Determine if the application is in maintenance mode...
 if (file_exists($maintenance = __DIR__.'/../storage/framework/maintenance.php')) {
     require $maintenance;

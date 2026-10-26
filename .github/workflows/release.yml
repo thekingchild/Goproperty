@@ -1,0 +1,106 @@
+# Release package (INSTALLER.md § 2, docs/runbooks/release.md). On every
+# version tag (v1.4.0, v1.4.0-rc.1): the quality gate on every database, then
+# the release zip is built with production vendor/ and assets, checked by
+# goproperty:verify-package and the release drill (tampering is refused, both
+# layouts serve pages, the old-PHP guard answers on PHP 7.4 and 8.1), and
+# published to GitHub Releases with its .sha256 file.
+# Run it by hand to build a test package from any branch: it is kept as a
+# workflow artifact for 7 days and never published.
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version for a test package, e.g. 1.4.0-rc.1 (not published)
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    name: Quality gate
+    uses: ./.github/workflows/ci.yml
+
+  package:
+    name: Build, verify and publish
+    needs: ci
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write # gh release create
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Resolve version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="$INPUT_VERSION"
+          fi
+          if ! [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::'$version' is not a version such as 1.4.0 or 1.4.0-rc.1"
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "PACKAGE=$RUNNER_TEMP/dist/goproperty-$version.zip" >> "$GITHUB_ENV"
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@4424c9aab975b57bd706ee5a39c6b4334d6e4f60 # 2.40.0
+        with:
+          php-version: '8.4'
+          extensions: bcmath, gd, intl, mbstring, pdo_mysql, zip
+          tools: composer:v2
+          coverage: none
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Build package
+        run: scripts/release/build-package.sh "$VERSION" "$RUNNER_TEMP/dist"
+
+      - name: Release drill
+        env:
+          OLD_PHP_IMAGES: php:7.4-cli php:8.1-cli
+        run: scripts/release/verify-drill.sh "$PACKAGE"
+
+      - name: Keep test package
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: goproperty-${{ env.VERSION }}
+          path: |
+            ${{ env.PACKAGE }}
+            ${{ env.PACKAGE }}.sha256
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Publish GitHub release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prerelease=()
+          [[ $VERSION != *-* ]] || prerelease=(--prerelease)
+          gh release create "$GITHUB_REF_NAME" "$PACKAGE" "$PACKAGE.sha256" \
+            --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes \
+            --title "GoProperty $VERSION" "${prerelease[@]}"

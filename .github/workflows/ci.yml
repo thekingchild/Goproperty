@@ -3,11 +3,14 @@
 # engines are tested at their oldest and newest supported LTS versions
 # (ARCHITECTURE.md § 2, docs/runbooks/ci.md). The suite runs on the
 # shared-hosting profile, including a cron drill with exec/proc_open disabled.
-# Deploy calls this workflow first.
+# Deploy and Release call this workflow first. A separate job checks that
+# artisan and index.php explain an old PHP instead of failing (INSTALLER.md § 2).
 name: CI
 
 on:
+  # Branches only: version tags run this through the Release workflow.
   push:
+    branches: ['**']
   workflow_dispatch:
   workflow_call:
 
@@ -117,3 +120,32 @@ jobs:
 
       - name: Run quality gate
         run: composer ci
+
+  php-guard:
+    name: Old PHP guard
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The guard runs before Composer, so no vendor/ is needed.
+      - name: artisan and index.php explain the PHP version on PHP 7.4 and 8.1
+        run: |
+          for version in 7.4 8.1; do
+            for entry in artisan public/index.php; do
+              if output=$(docker run --rm -v "$PWD:/app:ro" -w /app "php:$version-cli" php "$entry" 2>&1); then
+                echo "::error::$entry exited 0 on PHP $version"
+                exit 1
+              fi
+              expected="GoProperty needs PHP 8.4 or newer; this server runs $version."
+              if [ "$output" != "$expected" ]; then
+                echo "::error::$entry on PHP $version printed: $output"
+                exit 1
+              fi
+              echo "PHP $version, $entry: $output"
+            done
+          done

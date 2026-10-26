@@ -17,19 +17,20 @@ The design follows the installer in the product owner's SocietyFlow build (studi
 
 ## 2. The release package
 
-CI builds the package on every tagged release (GitHub Actions → GitHub Releases):
+CI builds the package on every version tag (`v1.4.0`, `v1.4.0-rc.1`) with the **Release** workflow (GitHub Actions → GitHub Releases). How to cut a release: [docs/runbooks/release.md](docs/runbooks/release.md).
 
 ```
 goproperty-1.4.0.zip            ← upload this
 goproperty-1.4.0.zip.sha256     ← checksum to compare after upload
 ```
 
-- **Contents:** application code, `vendor/` (`composer install --no-dev --optimize-autoloader`), built front-end assets in `public/build/` (Vite), a static `public/install.css` so the installer's first screens render without the build manifest, `.env.example`, `VERSION`, and an inner `SHA256SUMS`.
-- **Two layouts in one zip:**
-  - `preferred/` — the domain's document root points at `goproperty/public`. Use this whenever the panel allows changing the document root.
-  - `split/goproperty-app/` + `split/public_html/` — for hosts whose primary domain must use `public_html`. The generated `public_html/index.php` points at `../goproperty-app` and calls `$app->usePublicPath(__DIR__)`. Only public files sit in `public_html`.
-- **Package verifier** (runs in CI and as `php artisan goproperty:verify-package` on the server). It refuses a package that contains symlinks, `..` paths, `.env*` files, keys, SQLite files, dev dependencies or secret-shaped strings, or that has a missing Vite manifest, a checksum mismatch, or a version that doesn't match `VERSION`.
-- **Old-PHP guard:** `public/index.php` and `artisan` first load a tiny PHP-7-parseable `bootstrap/php-version.php` that prints one plain sentence ("GoProperty needs PHP 8.4 or newer; this server runs 8.1") instead of a fatal error.
+- **Contents:** application code, `vendor/` (`composer install --no-dev --optimize-autoloader`), built front-end assets in `public/build/` (Vite), `.env.example`, `VERSION`, an inner `SHA256SUMS`, and the empty `storage/` and `bootstrap/cache/` folders. Tests, docs, dev config and Laravel's package caches are left out. The installer's static `public/install.css` (so its first screens render without the build manifest) arrives with the web installer (P01-09). Built by `scripts/release/build-package.sh <version> <dir>`.
+- **Two layouts in one zip,** plus a `README.txt` saying which to use:
+  - `preferred/goproperty/` — the domain's document root points at `goproperty/public`. Use this whenever the panel allows changing the document root.
+  - `split/goproperty-app/` + `split/public_html/` — for hosts whose primary domain must use `public_html`. The generated `public_html/index.php` points at `../goproperty-app` and calls `$app->usePublicPath(__DIR__)`; `goproperty-app/bootstrap/public-path.php` gives artisan and cron the same folder (edit it if the host names the folder differently, e.g. Plesk's `httpdocs`). Only public files sit in `public_html`.
+- **`SHA256SUMS`** (one per layout, `sha256sum` format) lists every file except `storage/` and `bootstrap/cache/`. Public files are listed as `public/…` in both layouts, wherever they live.
+- **Package verifier:** `php artisan goproperty:verify-package [path]` checks a zip (read in place, before anything is unpacked), an unpacked layout folder, or with no argument the running installation. CI runs it on every release. It refuses a package that contains symlinks, unsafe paths (`..`, absolute, backslashes), `.env*` files (only `*.example` is allowed), `auth.json`, key files, SQLite files, `.git`/`node_modules` folders, dev dependencies (checked against `composer.lock` and Composer's `installed.json`) or secret-shaped strings (private keys, AWS, Paystack/Stripe, GitHub, Slack, Google keys, a filled-in `APP_KEY`, DSNs with keys; reported by kind, never printed), or that has a missing Vite manifest or asset, a changed, missing or added file against `SHA256SUMS`, an entry point that skips the old-PHP guard, a zip that does not match its `.sha256`, or a `VERSION` that does not match the zip's name. On an installation it ignores the site's own `.env`, `storage/`, `bootstrap/cache/` and what hosting panels add (`error_log`, `.user.ini`, `public/.well-known/`, `public/cgi-bin/`, and cPanel's PHP-handler block in `public/.htaccess`).
+- **Old-PHP guard:** `public/index.php` and `artisan` first load a tiny `bootstrap/php-version.php` (no PHP 8 syntax, so old versions can parse it) that prints one plain sentence ("GoProperty needs PHP 8.4 or newer; this server runs 8.1.") with exit code 1, or HTTP 500 on the web, instead of a fatal error. CI runs it on PHP 7.4 and 8.1.
 - **No `storage:link`:** media and documents live in S3-compatible storage, and brand assets are streamed by controllers (`/brand/*`), so nothing needs a symlink inside `public/`.
 
 ## 3. How the app knows whether it is installed
@@ -191,6 +192,7 @@ GoProperty's own production is normally upgraded by CI over SSH ([docs/runbooks/
 ## 12. Tests and drills
 
 - **Feature tests:** pre-key routes (redirect/503, no DB query, no log noise), unlock (both methods, wrong token, rate limit, origin checks, HTTPS), grant (rotation, renewal, expiry → re-unlock), requirements checker, `.env` writer (escaping, duplicates, atomic write, password never echoed), database step (refuses foreign tables, scoped listing), batched migrations (resume after interruption), super-admin + 2FA, finish ordering (cleanup checkpoint first), `/install` 404 afterwards, public routes 503 before finish, no HTTP recovery route, cron-path detection.
+- **Release drill** (`scripts/release/verify-drill.sh`, on every release): the package's own `goproperty:verify-package` passes the zip and both unpacked layouts; a changed file, an added file and a changed zip entry are refused; both layouts serve pages and built assets; artisan and `index.php` print the old-PHP sentence on PHP 7.4 and 8.1.
 - **Install drill in CI** (every pull request that adds a migration, and nightly): build the package, verify it, unpack the **split** layout, serve it with shared-host limits (`max_execution_time=30`, `memory_limit=256M`, `disable_functions=exec,proc_open`), and walk the whole wizard over HTTP — including the file-check unlock and TOTP enrolment — on **MySQL 8 and MariaDB 10.6**. A second drill upgrades the previous release to the new one.
 - **Schema check:** a database built by the installer must match one built by `migrate` exactly.
 - **Manual drills before launch:** a real install on a cPanel account and a Plesk account, one with SSH and one without, following the owner manual word for word.

@@ -20,6 +20,9 @@ Thumbs.db
 .phpactor.json
 *.swp
 
+# Release builds (scripts/release/build-package.sh)
+/dist/
+
 # Laravel
 /vendor/
 /node_modules/
@@ -41,3 +44,4 @@ yarn-error.log
 .caddy/
 composer.phar
 *.log
+/bootstrap/public-path.php
