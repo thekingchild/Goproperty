@@ -33,6 +33,10 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 Each entry: task ID and status, date, what was delivered, tests run and results, follow-ups, next task.
 
+### P02 and P03 split into sub-tasks — 2026-10-26
+
+[docs/plans/P02-P03-subtasks.md](plans/P02-P03-subtasks.md) splits P02 into 10 sub-tasks and P03 into 22, each with what it builds, its dependencies and its acceptance. Every original acceptance criterion maps to one sub-task. It also sets the run order: waves of at most two sub-tasks in parallel, each pair chosen so they do not edit the same files. The file ends with 15 decisions and doc gaps the product owner should settle before P02 starts (module list, cycle-maths naming, public lookups without an organization context, webhook URL, billing-transfer statuses and others).
+
 ### P00-13 — Blocked (2026-10-26): staging install and deploy on merge, built and drilled locally
 
 **Status:** Blocked. Everything that can be built without a server is done and drilled on one machine. The AC needs a real staging host (PRE-04, with the product owner) and GitHub Actions starting jobs (P00-02).

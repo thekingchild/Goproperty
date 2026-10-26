@@ -94,7 +94,7 @@ Depends on: P00.
 
 ### P02 — Properties, units, owners & import part 1 (Weeks 6–8) — Not started
 
-Depends on: P01.
+Depends on: P01. Sub-tasks, run order and open decisions: [docs/plans/P02-P03-subtasks.md](docs/plans/P02-P03-subtasks.md).
 
 | ID | Deliverable | Acceptance |
 | --- | --- | --- |
@@ -110,7 +110,7 @@ Depends on: P01.
 
 ### P03 — Leasing, branded documents & the customer money loop + import part 2 (Weeks 9–12) — *the heart* — Not started
 
-Depends on: P02.
+Depends on: P02. Sub-tasks, run order and open decisions: [docs/plans/P02-P03-subtasks.md](docs/plans/P02-P03-subtasks.md).
 
 | ID | Deliverable | Acceptance |
 | --- | --- | --- |
