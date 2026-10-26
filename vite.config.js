@@ -12,6 +12,8 @@ export default defineConfig({
                 'resources/js/passkeys.js',
                 'resources/css/marketing.css',
                 'resources/js/marketing.js',
+                'resources/css/auth.css',
+                'resources/js/auth.js',
             ],
             refresh: true,
             // The platform theme picks one of these (PLATFORM_CONSOLE.md § 9.2);

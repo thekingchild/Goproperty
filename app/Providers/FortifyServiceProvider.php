@@ -6,11 +6,20 @@ namespace App\Providers;
 
 use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
+use App\Auth\SignIn\FailedAttempt;
+use App\Auth\SignIn\FindUser;
+use App\Auth\SignIn\GuardSignIn;
+use Illuminate\Auth\Events\Failed;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
+use Laravel\Fortify\Actions\AttemptToAuthenticate;
+use Laravel\Fortify\Actions\PrepareAuthenticatedSession;
+use Laravel\Fortify\Actions\RedirectIfTwoFactorAuthenticatable;
+use Laravel\Fortify\Features;
 use Laravel\Fortify\Fortify;
 
 class FortifyServiceProvider extends ServiceProvider
@@ -20,7 +29,7 @@ class FortifyServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->scoped(FailedAttempt::class);
     }
 
     /**
@@ -40,6 +49,25 @@ class FortifyServiceProvider extends ServiceProvider
     {
         Fortify::resetUserPasswordsUsing(ResetUserPassword::class);
         Fortify::createUsersUsing(CreateNewUser::class);
+
+        // One field, email or phone number (UX_DESIGN.md § 3.1).
+        Fortify::authenticateUsing(fn (Request $request) => app(FindUser::class)($request));
+
+        // Fortify reports wrong details (unknown account or wrong password)
+        // with this event; GuardSignIn counts it towards lockout.
+        Event::listen(Failed::class, function (Failed $event): void {
+            if ($event->guard === config('fortify.guard')) {
+                app(FailedAttempt::class)->failed = true;
+            }
+        });
+
+        // Lockout, bot check and the generic error wrap Fortify's own steps.
+        Fortify::authenticateThrough(fn (): array => array_values(array_filter([
+            GuardSignIn::class,
+            Features::enabled(Features::twoFactorAuthentication()) ? RedirectIfTwoFactorAuthenticatable::class : null,
+            AttemptToAuthenticate::class,
+            PrepareAuthenticatedSession::class,
+        ])));
     }
 
     /**
@@ -65,11 +93,12 @@ class FortifyServiceProvider extends ServiceProvider
             return Limit::perMinute(5)->by($request->session()->get('login.id'));
         });
 
-        RateLimiter::for('login', function (Request $request) {
-            $throttleKey = Str::transliterate(Str::lower($request->input(Fortify::username())).'|'.$request->ip());
-
-            return Limit::perMinute(5)->by($throttleKey);
-        });
+        // A backstop on the login route; lockout and the bot check
+        // (App\Auth\SignIn) do the per-account work.
+        RateLimiter::for('login', fn (Request $request): array => [
+            Limit::perMinute(30)->by('ip:'.$request->ip()),
+            Limit::perMinute(10)->by('id:'.hash('sha256', Str::lower(trim((string) $request->input('identifier'))).'|'.$request->ip())),
+        ]);
 
         RateLimiter::for('passkeys', function (Request $request) {
             $credentialId = $request->input('credential.id');

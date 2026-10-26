@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Http\Middleware\PasskeySignInSwitch;
+use App\Http\Middleware\SignInPageHeaders;
 use Laravel\Fortify\Features;
 
 return [
@@ -47,7 +49,7 @@ return [
     |
     */
 
-    'username' => 'email',
+    'username' => 'identifier',
 
     'email' => 'email',
 
@@ -103,7 +105,7 @@ return [
     |
     */
 
-    'middleware' => ['web'],
+    'middleware' => ['web', SignInPageHeaders::class, PasskeySignInSwitch::class],
 
     /*
     |--------------------------------------------------------------------------

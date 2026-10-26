@@ -162,11 +162,23 @@ return [
         ],
 
         // ---------------------------------------------------------------
-        // Sign-in security (§ 9.6, completed in P00-10)
+        // Sign-in security (§ 9.6): applies on save
         // ---------------------------------------------------------------
 
+        'auth.passkeys_enabled' => ['type' => 'boolean', 'default' => true, 'rules' => ['boolean'], 'permission' => 'settings.security'],
+        // after_failures: the check shows after 3 failed sign-ins for the
+        // account or the IP in 15 minutes; always: on every attempt.
+        'auth.turnstile_mode' => ['type' => 'string', 'default' => 'after_failures', 'rules' => ['required', 'in:after_failures,always'], 'permission' => 'settings.security'],
         'auth.turnstile_site_key' => ['type' => 'string', 'rules' => ['nullable', 'string', 'max:100'], 'permission' => 'settings.security'],
         'auth.turnstile_secret_key' => ['type' => 'string', 'rules' => ['nullable', 'string', 'max:100'], 'secret' => true, 'permission' => 'settings.security', 'step_up' => true],
+        // Failed sign-ins per identifier + IP before a pause; without Turnstile
+        // keys the pause starts at the bot-check threshold (3) instead.
+        'auth.lockout_after' => ['type' => 'integer', 'default' => 5, 'rules' => ['required', 'integer', 'between:3,20'], 'permission' => 'settings.security'],
+        'auth.lockout_minutes' => ['type' => 'integer', 'default' => 15, 'rules' => ['required', 'integer', 'between:1,1440'], 'permission' => 'settings.security'],
+        'auth.remember_days' => ['type' => 'integer', 'default' => 30, 'rules' => ['required', 'integer', 'between:1,365'], 'permission' => 'settings.security'],
+        'auth.trust_device_days' => ['type' => 'integer', 'default' => 30, 'rules' => ['required', 'integer', 'between:1,365'], 'permission' => 'settings.security'],
+        // Who must use 2FA: owners of Tier 2/3 organizations, all owners, or all agency staff.
+        'auth.require_2fa_for' => ['type' => 'string', 'default' => 'tier_owners', 'rules' => ['required', 'in:tier_owners,all_owners,all_staff'], 'permission' => 'settings.security'],
 
     ],
 

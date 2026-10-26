@@ -6,9 +6,9 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 ## Current state
 
-- **In progress:** none
+- **In progress:** P00-10 (login pages to final quality), split into P00-10a customer sign-in (done), P00-10b 2FA challenge and other auth screens, P00-10c staff login with mandatory 2FA
 - **In review:** P00-03 (hosting profiles), P00-04 (release package) and P00-06 (installer CLI + install drill): done and verified locally; each needs one green run in GitHub Actions (CI for P00-03, a tagged Release for P00-04, the Install drill on MySQL 8 and MariaDB 10.6 for P00-06) once Actions starts jobs
-- **Next task:** P00-10 (login pages to final quality); PRE-01 to PRE-04 continue with the product owner
+- **Next task:** P00-11 (audit log and access log); PRE-01 to PRE-04 continue with the product owner
 - **Blocked:** P00-02: GitHub Actions jobs are not being given a runner (account-level), and branch protection on `main` needs a repo admin. This also holds P00-03's CI check, P00-04's release run and P00-06's install drill
 
 ## Board
@@ -31,6 +31,46 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 ## Ledger (newest first)
 
 Each entry: task ID and status, date, what was delivered, tests run and results, follow-ups, next task.
+
+### P00-10a — Complete (2026-10-26): customer sign-in page and its security
+
+P00-10 is split into sub-tasks (IMPLEMENTATION_PLAN.md § 3.1): **10a** customer sign-in; **10b** 2FA challenge and the other sign-in screens; **10c** staff sign-in with mandatory 2FA and the Sign-in security console page. P00-10 is marked complete when all three are done.
+
+**Delivered:**
+- **`/login` rebuilt from `docs/design/templates/login.html`** (`layouts/auth-split`, `resources/css/auth.css`, `resources/js/auth.js`).
+  - **Brand panel:** the uploaded sign-in photo under its overlay, or the gradient and skyline. It also carries the dark logo, the activity cards (switchable) and the headline, benefits and trust line from `site.auth_*`.
+  - **Form:** passkey button, which the browser also offers as autofill in the field; "Email or phone number"; password with show/hide and a Caps Lock warning; "Keep me signed in"; a Turnstile slot; and a busy state on Sign in.
+  - **Shared styles:** the base styles shared with the landing page moved to `resources/css/site-base.css`.
+- **Phone numbers as a sign-in name:**
+  - **Schema:** `users.phone` (unique, E.164) is added, and `users.email` becomes nullable, both as in DATABASE_SCHEMA.md § 1.
+  - **Normalising:** `App\Support\PhoneNumber` turns "0803 123 4567", "+234 803…", "234803…" and "00234…" into one +234 number. No SMS is sent anywhere.
+  - **Matching:** Fortify's `username` is now `identifier`, and `FindUser` finds the account by email or phone.
+- **Sign-in security** (`App\Auth\SignIn`, first step of Fortify's login pipeline):
+  - **One generic answer:** "Those details don't match our records." for an unknown account, a wrong password or anything else. Unknown accounts still cost one password check, so timing gives nothing away.
+  - **Lockout:** after `auth.lockout_after` (5) failures from one IP, sign-in pauses for `auth.lockout_minutes` (15). Failures are counted per account, so switching between email and phone does not reset them. While paused even the right password is refused, the form shows "Too many attempts" with a reset-password link, and the button is disabled.
+  - **Turnstile:** with keys set, the check appears after 3 failures for the account or the IP in 15 minutes, or always (`auth.turnstile_mode`). It is verified server-side with a 5 s timeout and fails closed on rejection, errors, timeouts or odd answers.
+  - **Without Turnstile keys,** the pause starts at 3 failures, as PLATFORM_CONSOLE.md § 9.6 says.
+  - **Rate limit:** the route also limits each IP to 30 tries a minute, and each identifier from one IP to 10.
+  - **Remember me:** lasts `auth.remember_days` (30), and is set only when asked.
+  - **Passkeys switch:** `auth.passkeys_enabled` off hides the button and makes the passkey sign-in routes return 404.
+- **New settings** (§ 9.6): `auth.passkeys_enabled`, `auth.turnstile_mode`, `auth.lockout_after`, `auth.lockout_minutes`, `auth.remember_days`, `auth.trust_device_days` and `auth.require_2fa_for`. Their console page comes with 10c.
+- **Page security:** sign-in pages send a strict Content-Security-Policy — no inline scripts, no third-party scripts except Cloudflare Turnstile, `frame-ancestors 'none'` — and never print custom code.
+
+**Tests and evidence (local, MariaDB 11.4.12):**
+- `composer ci`: Pint passed, Larastan 0 errors, Pest **750 tests / 2,348 assertions**. There are 33 new tests in `tests/Feature/Auth/SignInTest.php` and `tests/Unit/Support/PhoneNumberTest.php`, and the kit's login tests now post `identifier`.
+- **AC: rate limit, lockout and identical answers:**
+  - an unknown email, an unknown phone, nonsense and a wrong password give the same status, redirect and message;
+  - the pause works per account and IP, and another IP is unaffected;
+  - it clears after 15 minutes;
+  - the bot check comes after 3 failures and the pause after 5;
+  - the Turnstile request carries the secret, token and IP, and four failure modes are refused;
+  - the 31st request a minute from one IP gets 429.
+- **AC: matches the template (in the browser):**
+  - **Desktop (1440 px):** all 113 visible elements were compared against `login.html`. Colours, fonts, sizes and positions match, apart from colour syntax, the floating cards' animation phase, the template's Turnstile stand-in, and the Help link (shown only when a support email is set).
+  - **Mobile (375 px):** every block has the same position and height, and there is no horizontal scroll.
+  - **Real states:** the wrong-details and locked states looked as designed when tried in the browser.
+
+**Next:** P00-10b (2FA challenge and the other sign-in screens).
 
 ### P00-09 — Complete (2026-10-26): P00-09c console settings pages and brand images
 
@@ -61,7 +101,7 @@ All three sub-tasks are done (09a theme engine and app shell, 09b landing page, 
 - **Step-up** (`App\Platform\Console\StepUp`): password re-entry, rate-limited to 5 tries a minute, opens a 10-minute window. A staff member with confirmed 2FA must also give a TOTP code, so this becomes password + 2FA as soon as P00-10 enrols staff. Used for custom code and the canonical origin.
 - **Permissions:** pages check `settings.theme`, `settings.site`, `settings.seo` and `settings.custom_code` through Laravel gates (`ConsolePermissions`).
 
-**Interim choices (flagged, not in the spec as written):**
+**Interim choices (not in the spec as written; approved by the product owner on 2026-10-26 until P01-07 and P00-10):**
 - **Roles:** until staff roles exist (P01-07), every active staff member holds these four permissions. The spec limits custom code to `super-admin`. Today the only staff accounts are the installer's first administrators, so this is equivalent; P01-07 must swap the gate for spatie roles.
 - **Step-up:** password-only until staff 2FA exists (P00-10). The code check is already wired.
 

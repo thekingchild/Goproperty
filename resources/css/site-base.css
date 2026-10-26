@@ -1,0 +1,39 @@
+/*
+ * Shared by the marketing and sign-in pages: fixed tokens, base rules and
+ * the brand lock-up, from docs/design/templates/assets/theme.css. Brand
+ * colours, font and radii come from <x-theme-styles /> (PLATFORM_CONSOLE.md § 9.8).
+ */
+:root {
+  /* Fixed tokens; the brand tokens come from <x-theme-styles /> (PLATFORM_CONSOLE.md § 9.8). */
+  --success: #15803D;
+  --success-soft: #DCFCE7;
+  --warning: #B45309;
+  --warning-soft: #FEF3C7;
+  --danger: #B91C1C;
+  --danger-soft: #FEF2F2;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --shadow-panel: 0 1px 2px rgba(15,23,42,.06), 0 24px 60px -24px rgba(15,23,42,.28);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; font-family: var(--font-ui); color: var(--ink); background: var(--surface); line-height: 1.5; -webkit-font-smoothing: antialiased; }
+a { color: inherit; }
+img, svg { display: block; max-width: 100%; }
+[hidden] { display: none !important; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.skip-link { position: absolute; left: 1rem; top: -3rem; z-index: 100; background: #fff; color: var(--ink); padding: .5rem .875rem; border-radius: 8px; font-weight: 600; }
+.skip-link:focus { top: 1rem; }
+:focus-visible { outline: 2px solid var(--color-primary-700); outline-offset: 3px; }
+
+/* Brand lock-up: theme logo (light/dark variants) or the generated text logo below */
+.brand { display: inline-flex; align-items: center; gap: .6rem; text-decoration: none; font-weight: 800; font-size: 1.1875rem; letter-spacing: -.02em; border-radius: 10px; }
+.brand__mark { width: 34px; height: 34px; flex: none; }
+.brand__logo { display: block; height: 34px; width: auto; max-width: 12rem; object-fit: contain; }
+.brand__img { height: 36px; width: auto; max-width: 216px; object-fit: contain; object-position: left center; }
+
+/* Replaceable background image (hero + login side panel).
+   No image set  → brand gradient + skyline art.
+   Image set     → photo + overlay (colour/opacity from the theme). */
+.bg-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -1; pointer-events: none; }
+.bg-overlay { position: absolute; inset: 0; z-index: -1; pointer-events: none; }

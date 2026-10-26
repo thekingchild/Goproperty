@@ -20,7 +20,7 @@ use Illuminate\Contracts\Auth\Access\Gate;
 final class ConsolePermissions
 {
     /** @var list<string> */
-    public const array PERMISSIONS = ['settings.theme', 'settings.site', 'settings.seo', 'settings.custom_code'];
+    public const array PERMISSIONS = ['settings.theme', 'settings.site', 'settings.seo', 'settings.custom_code', 'settings.security'];
 
     public static function register(Gate $gate): void
     {

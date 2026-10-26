@@ -13,7 +13,7 @@ test('users can authenticate using the login screen', function () {
     $user = User::factory()->create();
 
     $this->post(route('login.store'), [
-        'email' => $user->email,
+        'identifier' => $user->email,
         'password' => 'password',
     ])
         ->assertSessionHasNoErrors()
@@ -26,9 +26,9 @@ test('users can not authenticate with invalid password', function () {
     $user = User::factory()->create();
 
     $this->post(route('login.store'), [
-        'email' => $user->email,
+        'identifier' => $user->email,
         'password' => 'wrong-password',
-    ])->assertSessionHasErrorsIn('email');
+    ])->assertSessionHasErrors('identifier');
 
     $this->assertGuest();
 });
@@ -44,7 +44,7 @@ test('users with two factor enabled are redirected to two factor challenge', fun
     $user = User::factory()->withTwoFactor()->create();
 
     $this->post(route('login.store'), [
-        'email' => $user->email,
+        'identifier' => $user->email,
         'password' => 'password',
     ])->assertRedirect(route('two-factor.login'));
 

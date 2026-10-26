@@ -14,7 +14,7 @@ use Database\Seeders\DatabaseSeeder;
 it('lets the seeded demo user sign in and open every surface', function () {
     $this->seed(DatabaseSeeder::class);
 
-    $this->post('/login', ['email' => 'test@example.com', 'password' => 'password'])
+    $this->post('/login', ['identifier' => 'test@example.com', 'password' => 'password'])
         ->assertRedirect('/dashboard');
 
     $this->get('/o/demo-realty')->assertOk()->assertSee('Demo Realty')->assertSee('Your properties, leases, bills and payments');

@@ -80,7 +80,7 @@ it('indexes production by default and never names the console in robots.txt', fu
 });
 
 it('marks sign-in and app pages noindex', function () {
-    $this->get('/login')->assertSee('<meta name="robots" content="noindex, nofollow" />', false);
+    $this->get('/login')->assertSee('<meta name="robots" content="noindex, nofollow">', false);
     $this->actingAs(User::factory()->create())->get('/portal')->assertSee('<meta name="robots" content="noindex, nofollow" />', false);
 });
 

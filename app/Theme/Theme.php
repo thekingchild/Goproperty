@@ -144,6 +144,7 @@ final readonly class Theme
             '--ink-2' => $neutral[800],
             '--muted' => $neutral[500],
             '--muted-2' => $neutral[600],
+            '--muted-soft' => $neutral[400],
             '--border' => $neutral[200],
             '--border-strong' => $neutral[300],
             '--canvas' => Palette::CANVAS[$this->string('theme.neutral', 'slate')] ?? Palette::CANVAS['slate'],
