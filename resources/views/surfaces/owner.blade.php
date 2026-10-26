@@ -1,7 +1,6 @@
-{{-- Owner portal shell (/owner), across the agencies that manage your properties. --}}
+{{-- Owner portal (/owner), across the agencies that manage your properties. --}}
 <x-layouts::app :title="__('My properties')">
-    <div class="flex flex-col gap-2">
-        <flux:heading size="xl" level="1">{{ __('My properties') }}</flux:heading>
-        <flux:text>{{ __('Statements for the properties agencies manage for you will appear here.') }}</flux:text>
-    </div>
+    <x-page :heading="__('My properties')" :description="__('Statements for the properties agencies manage for you will appear here.')">
+        <x-empty-state icon="key" :heading="__('No properties yet')" :description="__('When an agency invites you as an owner, your statements appear here.')" />
+    </x-page>
 </x-layouts::app>

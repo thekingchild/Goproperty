@@ -12,10 +12,13 @@ export default defineConfig({
                 'resources/js/passkeys.js',
             ],
             refresh: true,
+            // The platform theme picks one of these (PLATFORM_CONSOLE.md § 9.2);
+            // pages load only the chosen family through @fonts('alias').
             fonts: [
-                fontsource('Inter', {
-                    weights: [400, 500, 600, 700, 800],
-                }),
+                fontsource('Inter', { weights: [400, 500, 600, 700, 800] }),
+                fontsource('Plus Jakarta Sans', { weights: [400, 500, 600, 700, 800] }),
+                fontsource('Manrope', { weights: [400, 500, 600, 700, 800] }),
+                fontsource('DM Sans', { weights: [400, 500, 600, 700, 800] }),
             ],
         }),
         tailwindcss(),

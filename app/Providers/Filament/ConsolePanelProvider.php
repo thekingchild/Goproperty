@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace App\Providers\Filament;
 
+use App\Http\Controllers\Console\ThemePreviewController;
 use App\Platform\Console\ConsoleRequests;
+use App\Theme\ThemeContext;
+use Filament\FontProviders\LocalFontProvider;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -12,13 +15,15 @@ use Filament\Http\Middleware\DispatchServingFilamentEvent;
 use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
-use Filament\Support\Colors\Color;
+use Filament\View\PanelsRenderHook;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Route;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 /**
@@ -53,9 +58,17 @@ final class ConsolePanelProvider extends PanelProvider
             ->path((string) $console->path())
             ->login()
             ->authGuard('staff')
-            ->brandName(fn (): string => config('app.name').' console')
-            // Placeholder colours until the platform theme (P00-09, PLATFORM_CONSOLE.md § 9).
-            ->colors(['primary' => Color::Blue])
+            // The console follows the published platform theme (PLATFORM_CONSOLE.md § 9.7).
+            ->brandName(fn (): string => app(ThemeContext::class)->current()->name().' console')
+            ->colors(fn (): array => ['primary' => app(ThemeContext::class)->current()->primaryPalette()])
+            ->font(fn (): string => app(ThemeContext::class)->current()->fontFamily(), provider: LocalFontProvider::class)
+            ->renderHook(PanelsRenderHook::HEAD_END, fn (): string => Blade::render('<x-theme-styles />'))
+            ->authenticatedRoutes(function (): void {
+                // Draft preview (§ 9.8): staff only, never cached, never indexed.
+                Route::get('theme-preview/{surface}', ThemePreviewController::class)
+                    ->whereIn('surface', ThemePreviewController::SURFACES)
+                    ->name('theme-preview');
+            })
             ->discoverResources(in: app_path('Platform/Filament/Resources'), for: 'App\\Platform\\Filament\\Resources')
             ->discoverPages(in: app_path('Platform/Filament/Pages'), for: 'App\\Platform\\Filament\\Pages')
             ->pages([Dashboard::class])

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Settings;
 
 use App\Models\Organization;
+use App\Support\SafeHtml;
 use App\Tenancy\OrganizationContext;
 use Illuminate\Contracts\Cache\Repository as Cache;
 use Illuminate\Contracts\Encryption\StringEncrypter;
@@ -53,17 +54,38 @@ final class SettingsStore
         return $value;
     }
 
-    /** @throws ValidationException */
-    public function set(string $key, mixed $value, ?Organization $organization = null): void
+    /**
+     * The value as it would be stored: HTML fields cleaned, then checked
+     * against the definition's type and rules.
+     *
+     * @throws ValidationException
+     */
+    public function validated(string $key, mixed $value): mixed
     {
         $definition = $this->registry->get($key);
-        [$scopeType, $scopeId] = $this->scope($definition, $organization);
 
         if ($value !== null && ! $definition->type->accepts($value)) {
             throw new InvalidArgumentException("{$key} takes a {$definition->type->value}, not ".get_debug_type($value).'.');
         }
 
-        Validator::make(['value' => $value], ['value' => $definition->rules], [], ['value' => $key])->validate();
+        $value = $this->clean($definition, $value);
+        $rules = ['value' => $definition->rules];
+
+        foreach ($definition->itemRules as $path => $itemRules) {
+            $rules['value.'.$path] = $itemRules;
+        }
+
+        Validator::make(['value' => $value], $rules, [], ['value' => $key])->validate();
+
+        return $value;
+    }
+
+    /** @throws ValidationException */
+    public function set(string $key, mixed $value, ?Organization $organization = null): void
+    {
+        $definition = $this->registry->get($key);
+        [$scopeType, $scopeId] = $this->scope($definition, $organization);
+        $value = $this->validated($key, $value);
 
         $old = $this->get($key, $organization);
         $encoded = (string) json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
@@ -99,6 +121,35 @@ final class SettingsStore
         if ($deleted > 0) {
             $this->audit('reset', $definition, $scopeType, $scopeId, $old, $definition->default);
         }
+    }
+
+    private function clean(SettingDefinition $definition, mixed $value): mixed
+    {
+        if ($definition->html === []) {
+            return $value;
+        }
+
+        if (is_string($value) && in_array('', $definition->html, true)) {
+            return SafeHtml::clean($value);
+        }
+
+        if (! is_array($value)) {
+            return $value;
+        }
+
+        foreach ($value as $index => $item) {
+            if (is_array($item)) {
+                foreach ($definition->html as $field) {
+                    if ($field !== '' && is_string($item[$field] ?? null)) {
+                        $item[$field] = SafeHtml::clean($item[$field]);
+                    }
+                }
+
+                $value[$index] = $item;
+            }
+        }
+
+        return $value;
     }
 
     /**

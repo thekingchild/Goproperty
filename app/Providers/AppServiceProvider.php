@@ -7,6 +7,7 @@ namespace App\Providers;
 use App\Settings\SettingDefinition;
 use App\Settings\SettingsRegistry;
 use App\Tenancy\OrganizationContext;
+use App\Theme\ThemeContext;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
@@ -22,6 +23,9 @@ class AppServiceProvider extends ServiceProvider
     {
         // Fresh for every request and queued job (ARCHITECTURE.md § 4).
         $this->app->scoped(OrganizationContext::class);
+
+        // The published theme unless the console preview switches to the draft.
+        $this->app->scoped(ThemeContext::class);
 
         $this->app->singleton(SettingsRegistry::class, function (): SettingsRegistry {
             $registry = new SettingsRegistry;

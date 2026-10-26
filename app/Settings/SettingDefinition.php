@@ -15,6 +15,8 @@ final readonly class SettingDefinition
 {
     /**
      * @param  list<mixed>  $rules  Laravel validation rules for the value
+     * @param  array<string, list<mixed>>  $itemRules  rules for parts of a list or object, keyed like "*" or "*.question"
+     * @param  list<string>  $html  cleaned with the safe-HTML policy: "" for the whole value, or item field names
      */
     public function __construct(
         public string $key,
@@ -25,6 +27,8 @@ final readonly class SettingDefinition
         public bool $secret = false,
         public ?string $permission = null,
         public bool $stepUp = false,
+        public array $itemRules = [],
+        public array $html = [],
     ) {
         if (preg_match('/^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)+$/D', $key) !== 1) {
             throw new InvalidArgumentException("Setting keys look like area.name (lowercase), not \"{$key}\".");
@@ -44,6 +48,15 @@ final readonly class SettingDefinition
         $scope = SettingScope::from(is_string($definition['scope'] ?? null) ? $definition['scope'] : 'global');
         $rules = is_array($definition['rules'] ?? null) ? array_values($definition['rules']) : [];
         $permission = $definition['permission'] ?? null;
+        $itemRules = [];
+
+        foreach (is_array($definition['item_rules'] ?? null) ? $definition['item_rules'] : [] as $path => $pathRules) {
+            if (is_string($path) && is_array($pathRules)) {
+                $itemRules[$path] = array_values($pathRules);
+            }
+        }
+
+        $html = array_values(array_filter(is_array($definition['html'] ?? null) ? $definition['html'] : [], 'is_string'));
 
         return new self(
             $key,
@@ -54,6 +67,8 @@ final readonly class SettingDefinition
             (bool) ($definition['secret'] ?? false),
             is_string($permission) ? $permission : null,
             (bool) ($definition['step_up'] ?? false),
+            $itemRules,
+            $html,
         );
     }
 }

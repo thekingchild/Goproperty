@@ -6,9 +6,9 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 ## Current state
 
-- **In progress:** none
+- **In progress:** P00-09 (design system and platform theme), split into P00-09a theme engine (done), P00-09b landing page, P00-09c console settings pages
 - **In review:** P00-03 (hosting profiles), P00-04 (release package) and P00-06 (installer CLI + install drill): done and verified locally; each needs one green run in GitHub Actions (CI for P00-03, a tagged Release for P00-04, the Install drill on MySQL 8 and MariaDB 10.6 for P00-06) once Actions starts jobs
-- **Next task:** P00-09 (design system and platform theme); PRE-01 to PRE-04 continue with the product owner
+- **Next task:** P00-10 (login pages to final quality); PRE-01 to PRE-04 continue with the product owner
 - **Blocked:** P00-02: GitHub Actions jobs are not being given a runner (account-level), and branch protection on `main` needs a repo admin. This also holds P00-03's CI check, P00-04's release run and P00-06's install drill
 
 ## Board
@@ -31,6 +31,48 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 ## Ledger (newest first)
 
 Each entry: task ID and status, date, what was delivered, tests run and results, follow-ups, next task.
+
+### P00-09a — Complete (2026-10-26): theme engine, app shell
+
+P00-09 is split into sub-tasks (IMPLEMENTATION_PLAN.md § 3.1): **09a** theme engine and app shell; **09b** landing page, SEO and custom code; **09c** console settings pages and image uploads. P00-09 is marked complete when all three are done.
+
+**Delivered:**
+- **Settings registry for PLATFORM_CONSOLE.md §§ 9.2–9.5** (`config/settings.php`, 53 keys): `theme.*`, `site.*`, `seo.*`, `custom_code.*`, each with defaults from the approved templates and the rules in the spec (plain text rejects `<>`; hex colours; fixed lists for font, neutral and radius; three trust items and three benefits; https-only social links and canonical origin; title pattern must contain `{page}`; 50 KB custom code; no `</style` in custom CSS). The P00-07 placeholder `site.name` became `theme.name`.
+  - **New in the settings store:** `item_rules` validate list and object items, and `html` fields go through `App\Support\SafeHtml`. That is a Symfony HtmlSanitizer policy allowing only text formatting, headings, lists, tables and https/mailto links; scripts, handlers, iframes and `javascript:` are dropped.
+  - **`SettingsStore::validated()`** checks a value without storing it.
+- **Colours** (`App\Theme\Color`, `Palette`):
+  - **Conversion:** exact hex↔OKLCH, with gamut mapping by chroma reduction, and WCAG contrast.
+  - **Scales:** generated from one hex. The colour lands on its closest step, and the other steps follow Tailwind's blue (primary) or amber (accent) lightness, chroma and hue drift. **The defaults reproduce the approved template's tokens exactly.**
+  - **Dark brand surface:** `--hero-deep` is always ≥ 9:1 against white.
+  - **Neutrals:** four neutral scales are available.
+- **`Theme`, `ThemeManager`, `ThemeContext`:**
+  - **Draft:** edits go into one draft, validated when saved.
+  - **Publish:** writes only the changed keys through the settings store (each audited) and keeps a numbered snapshot in the new `setting_versions` table. The previous version is archived, a theme log entry records who published, and any version can be restored. Reset-to-defaults and discard are available.
+  - **Isolation:** `ThemeContext` (scoped) gives every request the **published** theme. Only the staff-only console route `/{ADMIN_PATH}/theme-preview/app` (no-store, noindex) switches to the draft.
+- **CSS variables everywhere:**
+  - **`<x-theme-styles />` in `<head>`:** prints the theme as an unlayered `:root` rule, overriding Tailwind 4's `@theme` defaults in `app.css` with no rebuild. It loads only the chosen font and sets `theme-color`.
+  - **Variable names:** as in the template, except `--color-brand-accent*` (Flux owns `--color-accent`) and `--gp-radius*` (Tailwind owns `--radius-*`).
+  - **Flux:** its accent now follows the brand primary.
+  - **Filament:** reads its primary palette, font (local) and name from the theme on every request, and prints the same variables.
+- **Fonts:** Inter, Plus Jakarta Sans, Manrope and DM Sans are bundled through Vite (`@fontsource`, 400–800). Each page preloads only the chosen family.
+- **App shell:**
+  - The starter kit's Laravel logo is replaced by a generated GoProperty mark in theme colours (sidebar and auth layouts), and the product name comes from the theme.
+  - The sidebar has a workspace switcher placeholder, workspace and surface navigation, and a mobile bottom navigation (Home, Rentals, Properties, Account).
+  - The forced dark mode is removed; the default is light, per § 9.9.
+  - Page templates `<x-page>` (heading, description, actions) and `<x-empty-state>` are used on the dashboard and all three surfaces.
+
+**Tests and evidence (local, MariaDB 11.4.12):**
+- `composer ci`: Pint passed, Larastan 0 errors, Pest **657 tests / 1,836 assertions** (65 new: `tests/Unit/Theme/PaletteTest.php`, `tests/Feature/Theme/*`).
+- **AC: publishing a colour updates the customer app and Filament.** After publishing `#0F766E`, `/dashboard`, `/o/{slug}`, `/portal` and `/owner` print `--color-primary-700:#0f766e`, and the console prints Filament's `--primary-700` for the same colour.
+- **AC: a draft does not leak.** With a draft colour and name saved, `/login`, the customer pages and the console show only the published values. The preview shows the draft to staff, and redirects guests and customers to the console sign-in.
+- **Other tests:**
+  - only the chosen font is loaded;
+  - the theme name is used in titles and the console brand;
+  - drafts merge, publish creates numbered versions, restore and reset work;
+  - every validation rule from the spec is enforced, and FAQ and legal HTML is cleaned;
+  - palette exactness, monotonic scales and ≥ 9:1 hero contrast hold for 8 colours.
+
+**Next:** P00-09b (landing page).
 
 ### P00-08 — Complete (2026-10-26)
 

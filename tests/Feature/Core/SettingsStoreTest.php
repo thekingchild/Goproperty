@@ -35,20 +35,20 @@ afterEach(function () {
 });
 
 it('returns the default until a value is stored', function () {
-    expect($this->settings->get('site.name'))->toBe('GoProperty')
+    expect($this->settings->get('theme.name'))->toBe('GoProperty')
         ->and($this->settings->get('auth.turnstile_site_key'))->toBeNull()
         ->and($this->settings->get('theme.palette'))->toBe(['primary' => '#1D4ED8']);
 });
 
 it('stores and reads typed values', function () {
-    $this->settings->set('site.name', 'GoProperty NG');
+    $this->settings->set('theme.name', 'GoProperty NG');
     $this->settings->set('theme.palette', ['primary' => '#0F1B44', 'accent' => '#F59E0B']);
     $this->settings->set('auth.always_challenge', true);
 
-    expect($this->settings->get('site.name'))->toBe('GoProperty NG')
+    expect($this->settings->get('theme.name'))->toBe('GoProperty NG')
         ->and($this->settings->get('theme.palette'))->toBe(['primary' => '#0F1B44', 'accent' => '#F59E0B'])
         ->and($this->settings->get('auth.always_challenge'))->toBeTrue()
-        ->and(DB::table('settings')->where('key', 'site.name')->value('scope_type'))->toBe('global');
+        ->and(DB::table('settings')->where('key', 'theme.name')->value('scope_type'))->toBe('global');
 });
 
 it('refuses unknown keys', function () {
@@ -60,7 +60,7 @@ it('refuses values of the wrong type', function () {
 })->throws(InvalidArgumentException::class, 'auth.always_challenge takes a boolean, not string.');
 
 it('validates values against the definition', function () {
-    $this->settings->set('site.name', str_repeat('x', 61));
+    $this->settings->set('theme.name', str_repeat('x', 121));
 })->throws(ValidationException::class);
 
 it('keeps secrets encrypted in the database and the cache', function () {
@@ -89,28 +89,28 @@ it('audits who changed what', function () {
     $user = User::factory()->create();
     $this->actingAs($user);
 
-    $this->settings->set('site.name', 'GoProperty NG');
+    $this->settings->set('theme.name', 'GoProperty NG');
 
     $entry = Activity::query()->where('log_name', 'settings')->sole();
 
     expect($entry->event)->toBe('updated')
         ->and($entry->causer?->is($user))->toBeTrue()
-        ->and($entry->properties->all())->toMatchArray(['key' => 'site.name', 'old' => 'GoProperty', 'new' => 'GoProperty NG']);
+        ->and($entry->properties->all())->toMatchArray(['key' => 'theme.name', 'old' => 'GoProperty', 'new' => 'GoProperty NG']);
 });
 
 it('reads a changed value at once, despite the cache', function () {
-    expect($this->settings->get('site.name'))->toBe('GoProperty');
+    expect($this->settings->get('theme.name'))->toBe('GoProperty');
 
-    $this->settings->set('site.name', 'Changed');
+    $this->settings->set('theme.name', 'Changed');
 
-    expect($this->settings->get('site.name'))->toBe('Changed');
+    expect($this->settings->get('theme.name'))->toBe('Changed');
 });
 
 it('goes back to the default when forgotten', function () {
-    $this->settings->set('site.name', 'Changed');
-    $this->settings->forget('site.name');
+    $this->settings->set('theme.name', 'Changed');
+    $this->settings->forget('theme.name');
 
-    expect($this->settings->get('site.name'))->toBe('GoProperty')
+    expect($this->settings->get('theme.name'))->toBe('GoProperty')
         ->and(Activity::query()->where('event', 'reset')->count())->toBe(1);
 });
 
@@ -139,13 +139,13 @@ it('needs an organization for organization settings', function () {
 })->throws(MissingOrganizationContext::class);
 
 it('refuses an organization for global settings', function () {
-    $this->settings->set('site.name', 'X', Organization::factory()->create());
-})->throws(InvalidArgumentException::class, 'site.name is a global setting');
+    $this->settings->set('theme.name', 'X', Organization::factory()->create());
+})->throws(InvalidArgumentException::class, 'theme.name is a global setting');
 
 it('refuses duplicate and badly named declarations', function () {
     $registry = app(SettingsRegistry::class);
 
-    expect(fn () => $registry->define(new SettingDefinition('site.name', SettingType::String)))->toThrow(InvalidArgumentException::class, 'declared twice')
+    expect(fn () => $registry->define(new SettingDefinition('theme.name', SettingType::String)))->toThrow(InvalidArgumentException::class, 'declared twice')
         ->and(fn () => new SettingDefinition('SiteName', SettingType::String))->toThrow(InvalidArgumentException::class, 'area.name')
         ->and(fn () => new SettingDefinition('site.count', SettingType::Integer, 'seven'))->toThrow(InvalidArgumentException::class, 'not a integer');
 });
