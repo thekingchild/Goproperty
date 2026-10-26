@@ -6,10 +6,10 @@ use App\Installer\Requirements\CheckStatus;
 use App\Installer\Requirements\RequirementCheck;
 use App\Installer\Requirements\RequirementsChecker;
 use App\Installer\Requirements\RequirementsReport;
-use App\Installer\Requirements\ServerEnvironment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
+use Tests\Support\FakeServer;
 
 /*
  * P00-05: the installer's server check (INSTALLER.md § 5, step 2), against
@@ -17,53 +17,11 @@ use Illuminate\Support\Str;
  */
 
 /**
- * @param  array<string, mixed>  $overrides
- */
-function fakeServer(array $overrides = []): ServerEnvironment
-{
-    return new class($overrides) implements ServerEnvironment
-    {
-        /** @param  array<string, mixed>  $o */
-        public function __construct(private array $o) {}
-
-        public function phpVersion(): string
-        {
-            return $this->o['php'] ?? '8.4.27';
-        }
-
-        public function extensionLoaded(string $extension): bool
-        {
-            return ! in_array($extension, $this->o['missing'] ?? [], true);
-        }
-
-        public function functionAvailable(string $function): bool
-        {
-            return ! in_array($function, $this->o['disabled'] ?? [], true);
-        }
-
-        public function ini(string $setting): string
-        {
-            return ($this->o['ini'] ?? [])[$setting] ?? ['max_execution_time' => '60', 'memory_limit' => '512M', 'upload_max_filesize' => '64M'][$setting] ?? '';
-        }
-
-        public function freeDiskBytes(string $path): ?float
-        {
-            return array_key_exists('disk', $this->o) ? $this->o['disk'] : 50.0 * 1024 ** 3;
-        }
-
-        public function opcacheEnabled(): bool
-        {
-            return $this->o['opcache'] ?? true;
-        }
-    };
-}
-
-/**
  * @param  array<string, mixed>  $server
  */
 function checkServer(array $server = [], ?Request $request = null): RequirementsReport
 {
-    return (new RequirementsChecker(fakeServer($server)))->check($request ?? Request::create('https://goproperty.ng/install', 'GET', server: [
+    return (new RequirementsChecker(FakeServer::make($server)))->check($request ?? Request::create('https://goproperty.ng/install', 'GET', server: [
         'DOCUMENT_ROOT' => public_path(),
     ]));
 }
@@ -159,7 +117,7 @@ it('needs the document root to be the public folder', function () {
 });
 
 it('skips the browser-only checks on the command line', function () {
-    $report = (new RequirementsChecker(fakeServer()))->check();
+    $report = (new RequirementsChecker(FakeServer::make()))->check();
 
     expect(findCheck($report, 'HTTPS')->status)->toBe(CheckStatus::Warn)
         ->and(findCheck($report, 'The domain serves only the public folder')->status)->toBe(CheckStatus::Warn)

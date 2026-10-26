@@ -1,5 +1,6 @@
 # Release package (INSTALLER.md § 2, docs/runbooks/release.md). On every
-# version tag (v1.4.0, v1.4.0-rc.1): the quality gate on every database, then
+# version tag (v1.4.0, v1.4.0-rc.1): the quality gate and the install drill
+# (install-drill.yml) on every database, then
 # the release zip is built with production vendor/ and assets, checked by
 # goproperty:verify-package and the release drill (tampering is refused, both
 # layouts serve pages, the old-PHP guard answers on PHP 7.4 and 8.1), and
@@ -31,9 +32,13 @@ jobs:
     name: Quality gate
     uses: ./.github/workflows/ci.yml
 
+  install-drill:
+    name: Install drill
+    uses: ./.github/workflows/install-drill.yml
+
   package:
     name: Build, verify and publish
-    needs: ci
+    needs: [ci, install-drill]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -65,7 +70,7 @@ jobs:
         uses: shivammathur/setup-php@4424c9aab975b57bd706ee5a39c6b4334d6e4f60 # 2.40.0
         with:
           php-version: '8.4'
-          extensions: bcmath, gd, intl, mbstring, pdo_mysql, zip
+          extensions: bcmath, ctype, curl, dom, exif, fileinfo, gd, intl, mbstring, openssl, pdo_mysql, sodium, tokenizer, xml, zip
           tools: composer:v2
           coverage: none
 

@@ -80,7 +80,8 @@ return [
     |
     */
 
-    'timezone' => 'UTC',
+    // The installer writes Africa/Lagos (INSTALLER.md § 5, step 3).
+    'timezone' => env('APP_TIMEZONE', 'UTC'),
 
     /*
     |--------------------------------------------------------------------------

@@ -14,7 +14,7 @@ The zip is for installs and upgrades **from a file upload** (no SSH, or a manual
    git push origin v1.4.0
    ```
 4. The **Release** workflow ([`.github/workflows/release.yml`](../../.github/workflows/release.yml)) then:
-   1. runs the quality gate on every database (the `CI` workflow);
+   1. runs the quality gate and the install drill on every database (the `CI` and `Install drill` workflows);
    2. builds `goproperty-1.4.0.zip` and `goproperty-1.4.0.zip.sha256` with `scripts/release/build-package.sh`;
    3. runs the release drill (§ 3);
    4. publishes a GitHub release for the tag with both files and generated notes. Versions with a suffix (`-rc.1`) are marked as pre-releases.
@@ -59,6 +59,16 @@ The build uses only tracked and new (not ignored) files, so a local `.env`, `ven
 | `artisan` and `index.php` on PHP 7.4 and 8.1 (Docker; set `OLD_PHP_IMAGES`) | exit 1 / HTTP 500 with "GoProperty needs PHP 8.4 or newer; this server runs 7.4." |
 
 The CI workflow also runs the old-PHP check on every push (job `Old PHP guard`), so the guard cannot break between releases.
+
+**Install drill** (`scripts/release/install-drill.sh <zip>`, needs `DB_CONNECTION`, `DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD` for an account that can create databases). It installs the split layout with `goproperty:install --no-interaction` under shared-host limits and checks:
+
+- a second install is refused;
+- `check-installation` passes after one cron run;
+- `/` and `/login` return 200 and `/install` 404;
+- `verify-package` passes on the installed copy;
+- the schema is identical to a plain `migrate` of the same release.
+
+Both drills run before every release.
 
 ## 4. Verifying on the server
 

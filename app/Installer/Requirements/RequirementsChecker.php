@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Installer\Requirements;
 
+use App\Installer\Support\LocalHost;
 use Illuminate\Http\Request;
 
 /**
@@ -189,7 +190,7 @@ final class RequirementsChecker
         }
 
         // A local test copy (localhost, *.test) may run without a certificate.
-        $local = preg_match('/^(localhost|127\.0\.0\.1|\[?::1\]?|.+\.test|.+\.localhost)$/D', $request->getHost()) === 1;
+        $local = LocalHost::is($request->getHost());
 
         return new RequirementCheck(
             'Security', $label,

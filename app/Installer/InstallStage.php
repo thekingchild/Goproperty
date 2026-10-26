@@ -18,6 +18,18 @@ enum InstallStage: string
     case CleanupPending = 'cleanup_pending';
     case Finalized = 'finalized';
 
+    /** Position in the install, to move only forward. */
+    public function order(): int
+    {
+        return match ($this) {
+            self::Configured => 1,
+            self::Migrating => 2,
+            self::OwnerReady => 3,
+            self::CleanupPending => 4,
+            self::Finalized => 5,
+        };
+    }
+
     /** Past this point the installer is closed for good. */
     public function isFinished(): bool
     {

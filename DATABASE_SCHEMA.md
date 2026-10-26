@@ -216,7 +216,7 @@ Ledger of SMS credits. `organization_id`, `credits` (+ allowance/purchase, − u
 ## 8. Platform Operations
 
 ### platform_staff
-GoProperty staff (separate `staff` guard). `name`, `email` (unique), `phone`, `password`, `two_factor_secret` / `two_factor_recovery_codes` (encrypted, required), `status` (`invited`, `active`, `deactivated`), `ip_allowlist` (json, nullable), `last_login_at`. Roles via spatie on the `staff` guard.
+GoProperty staff (separate `staff` guard). `name`, `email` (unique), `phone`, `password`, `two_factor_secret` / `two_factor_recovery_codes` (encrypted, required), `status` (`invited`, `active`, `deactivated`), `ip_allowlist` (json, nullable), `last_login_at`, `remember_token`, `two_factor_confirmed_at`. Roles via spatie on the `staff` guard. The 2FA columns are nullable in the table: the command-line installer creates the first account before 2FA is enrolled, and the console refuses sign-in until it is (INSTALLER.md § 7). Created in P00-06; the guard and console come in P00-08.
 
 ### Staff roles & permissions
 spatie `roles` / `permissions` / `role_has_permissions` / `model_has_roles` on the `staff` guard. Extra columns on `roles`: `is_default` (shipped role), `is_protected` (`super-admin`, not editable), `description`, `active`. Permissions are seeded from code (one catalogue); roles are data and editable in the console.

@@ -7,9 +7,9 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 ## Current state
 
 - **In progress:** none
-- **In review:** P00-03 (hosting profiles) and P00-04 (release package): done and verified locally; each needs one green run in GitHub Actions (CI for P00-03, a tagged Release for P00-04) once Actions starts jobs
-- **Next task:** P00-06 (installer CLI + install drill); PRE-01 to PRE-04 continue with the product owner
-- **Blocked:** P00-02: GitHub Actions jobs are not being given a runner (account-level), and branch protection on `main` needs a repo admin. This also holds P00-03's CI check and P00-04's release run
+- **In review:** P00-03 (hosting profiles), P00-04 (release package) and P00-06 (installer CLI + install drill): done and verified locally; each needs one green run in GitHub Actions (CI for P00-03, a tagged Release for P00-04, the Install drill on MySQL 8 and MariaDB 10.6 for P00-06) once Actions starts jobs
+- **Next task:** P00-07 (module skeleton and Core); PRE-01 to PRE-04 continue with the product owner
+- **Blocked:** P00-02: GitHub Actions jobs are not being given a runner (account-level), and branch protection on `main` needs a repo admin. This also holds P00-03's CI check, P00-04's release run and P00-06's install drill
 
 ## Board
 
@@ -31,6 +31,56 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 ## Ledger (newest first)
 
 Each entry: task ID and status, date, what was delivered, tests run and results, follow-ups, next task.
+
+### P00-06 — In review (2026-10-26)
+
+**Delivered** ([INSTALLER.md § 7](../INSTALLER.md), § 12):
+- **`InstallationSteps`**: the installer's steps for the CLI and the web wizard (P01-09). Each step is safe to repeat:
+  - `ensureApplicationKey`: create `.env` from `.env.example`, reuse a valid key or generate one, switch it into the process.
+  - `configureSite`: probe, then write the site and database settings plus `HOSTING_PROFILE=shared`, `APP_TIMEZONE=Africa/Lagos`, `APP_DEBUG=false`, and file cache and sessions until the tables exist. It refuses database settings that differ from the checkpoint.
+  - `buildDatabase`: batched migrations with progress, then `InstallSeeder`.
+  - `configureMail` and `sendTestEmail` (SMTP).
+  - `createSuperAdmin`: 12+ characters and a breached-password check; an existing staff account is accepted only with the same email and password.
+  - `finalize`, then `writeInstallationRecord` (mode 0600, with `APP_KEY`).
+  - Stages move only forward, in the checkpoint and the database row.
+- **`php artisan goproperty:install`**: interactive (Laravel Prompts) or `--no-interaction`. It runs the server check with cPanel and Plesk fixes, then validates every answer before writing anything. Passwords come only from files or hidden prompts, with a warning when others can read the file. It refuses to run once installed, and prints the console URL, the cron line and the record path.
+- **`php artisan goproperty:setup-token`**: a 40-character token printed once, with only its SHA-256 stored (mode 0600); a new token replaces the old one. `SetupToken::verify()` is for the P01-09 unlock.
+- **`php artisan goproperty:check-installation {--json}`** (`InstallationHealth`): server requirements, pending migrations and missing tables, the three markers, production settings (key, debug off, unique console path, https, hosting profile) and scheduler and queue-tick heartbeats under 5 minutes old. Exits 1 on any failure.
+- **`php artisan goproperty:finish-install`**: recovery for a finish stopped at `cleanup_pending`, which no other path could complete. Hidden **`goproperty:schema-snapshot`** for the drill.
+- **`CronLine`**: panel CLI binaries first (cPanel ea-php84, CloudLinux alt-php84, Plesk 8.4), else PHP_BINARY only if it is a CLI binary (never php-fpm or lsphp); paths are quoted.
+- **`platform_staff` table and `PlatformStaff` model, pulled forward from P00-08** so the installer can create the first super-admin. 2FA columns are nullable until first console sign-in; the guard, console and roles stay in P00-08. **`SchemaSnapshot`**: tables, columns, indexes, foreign keys and the migration list from `information_schema` (base tables only, not views).
+- **Install drill** `scripts/release/install-drill.sh <zip>`, run by the new workflow `install-drill.yml` on MySQL 8.0 and 8.4 and MariaDB 10.6 and 11.4 (nightly, on pull requests touching migrations, seeders or the installer, by hand) and before every release (`release.yml` now needs it). It unpacks the split layout and runs `goproperty:install --no-interaction` under `max_execution_time=30`, `memory_limit=256M`, with `exec`, `proc_open` and pcntl disabled. Then:
+  - a second install is refused;
+  - after one cron run, `check-installation` passes;
+  - `public_html` serves `/` and `/login` with 200 and `/install` with 404;
+  - `verify-package` passes on the installed copy;
+  - the schema is diffed against a plain `migrate` of the same zip.
+- `config/app.php` timezone now reads `APP_TIMEZONE` (was hard-coded UTC, so the installer's Africa/Lagos had no effect). The workflows now install every PHP extension the requirements check needs (sodium, exif and others were missing from the list). [install-recovery.md](runbooks/install-recovery.md) is new (markers disagreeing, failed migration, lost access, start over).
+- Doc corrections: INSTALLER.md § 5 step 3 said the installer writes `BROADCAST_CONNECTION=log`, but P00-03 chose `null` (via `HOSTING_PROFILE=shared`). § 7 now lists the real options. § 12 notes that the wizard-over-HTTP and upgrade drills are still to come.
+
+**Tests and evidence (local, MariaDB 11.4.12):**
+- `composer ci`: Pint passed, Larastan 0 errors, Pest **417 tests / 1,157 assertions** in parallel (64 new in `InstallCommandTest`, `InstallerCommandsTest` and `CronLineTest`; the gate also passed twice in a row before the last three tests were added). `InstallCommandTest` covers:
+  - a full install into a throwaway database;
+  - schema equal to a plain migrate, and a deliberate column change detected;
+  - a second install refused, and resume after an interruption;
+  - changed database settings and a different super-admin refused;
+  - missing or invalid answers caught before `.env` is written;
+  - breached and short passwords, and a refused database password;
+  - a failed test email, a readable password file, and interactive prompts.
+- **AC 2 (schema matches a plain migrate):** proven in Pest on every run and by the install drill below.
+- **AC 1 (install drill):** on a freshly built `goproperty-0.6.0-rc.2.zip`, every step passed with MariaDB 11.4.12, including `check-installation` healthy (12 checks) and an identical schema snapshot. **Local caveat:** neither PHP build on this machine has `intl`. The real drill correctly stopped at the server check, so the local run used a scratch copy of the script that drops `intl` from the unpacked checker and restores it before `verify-package`. The repository script and the zip were unchanged. PHP 8.4.27 with sodium was used. The release drill (P00-04) also passed on the same zip.
+- Not run here: MySQL 8 and MariaDB 10.6 (no servers on this machine) and the workflows themselves (GitHub Actions blocked, P00-02). Those are exactly what the AC names, hence In review.
+
+**To finish:** once Actions starts jobs, run **Install drill** by hand (or let the nightly run) and confirm all four database jobs pass, then mark P00-06 complete.
+
+**Follow-ups:**
+- P00-08: `staff` guard and panel on `platform_staff`. Give the first staff account the `super-admin` role when roles exist (it is created without one). Enforce 2FA enrolment at first sign-in.
+- P00-10: `goproperty:staff-reset-2fa`, which the recovery runbook names.
+- P01-09: wizard steps on `InstallationSteps`; unlock with `SetupToken::verify()`; S3 storage setup and test (the CLI only warns for now); a drill that walks the wizard over HTTP.
+- Upgrade drill (previous release → new release), INSTALLER.md § 12.
+- If offline hosts matter: the breached-password check fails open but logs an error when the service is unreachable.
+
+**Next task:** P00-07 (module skeleton and Core).
 
 ### P00-05 — Complete (2026-10-26)
 

@@ -92,7 +92,7 @@ Layout: the same split shell as the login page ([UX_DESIGN.md § 3](UX_DESIGN.md
 | --- | --- | --- |
 | 1 | **Unlock** | § 4 |
 | 2 | **Server check** | Detailed report, grouped. **Blocking:** PHP ≥ 8.4 (web), extensions (`pdo_mysql`, `mbstring`, `intl`, `bcmath`, `gd` or `imagick`, `zip`, `fileinfo`, `openssl`, `sodium`, `exif`, `curl`, `dom`, `xml`, `tokenizer`, `ctype`), `max_execution_time` ≥ 30 s, writable `storage/*`, `bootstrap/cache` and `.env`'s folder (a real probe file is written and deleted), public-root safety (no `.env`, `artisan` or `composer.json` reachable from the web; document root = `public`), Vite manifest present, HTTPS. **Advisory:** `memory_limit` ≥ 256M, `upload_max_filesize` ≥ 20M, `proc_open`/`exec` (only used by `mysqldump`; the pure-PHP dumper works without them), free disk ≥ 2 GB, OPcache on. Each failure says how to fix it in cPanel and in Plesk |
-| 3 | **Site & database** | Fields: site address (`https://` origin, no path), staging or production, database type (MySQL 8 / MariaDB 10.6+), host, port, name, username, password. **Test connection** (3-second timeout, temporary connection). Refuses a database that already has tables unless they are GoProperty's own from an earlier attempt (table listing is limited to this database — on shared hosts the panel user can often see others). Writes `APP_URL`, `APP_ENV`, `DB_*`, the shared-hosting profile defaults (`QUEUE_CONNECTION=database`, `CACHE_STORE=file` for now, `PDF_DRIVER=dompdf`, `BROADCAST_CONNECTION=log`) and `APP_TIMEZONE=Africa/Lagos`. Values are validated (no control characters), quoted and escaped; the file is written atomically. The password is never shown again |
+| 3 | **Site & database** | Fields: site address (`https://` origin, no path), staging or production, database type (MySQL 8 / MariaDB 10.6+), host, port, name, username, password. **Test connection** (3-second timeout, temporary connection). Refuses a database that already has tables unless they are GoProperty's own from an earlier attempt (table listing is limited to this database — on shared hosts the panel user can often see others). Writes `APP_URL`, `APP_ENV`, `APP_DEBUG=false`, `DB_*`, `HOSTING_PROFILE=shared` (database queue, polling, dompdf, no broadcasting: [ARCHITECTURE.md § 12.1](ARCHITECTURE.md)), `CACHE_STORE=file` and `SESSION_DRIVER=file` until the tables exist, and `APP_TIMEZONE=Africa/Lagos`. Values are validated (no control characters), quoted and escaped; the file is written atomically. The password is never shown again |
 | 4 | **Build the database** | Runs the migrations **in small batches with a progress bar**: the page posts one batch at a time (a few migrations, each request kept under ~20 s), shows "34 of 112", and carries on by itself. Closing the tab is safe — reopening continues from Laravel's own `migrations` table. Then the idempotent seeders run (roles and permissions, default plans and prices, Transaction Tiers, default theme, email templates). See § 6 for failures |
 | 5 | **Email & file storage** | **Email:** provider (Postmark, Mailgun, SES or SMTP — never the host's `sendmail`, [ARCHITECTURE.md § 12.1](ARCHITECTURE.md)), credentials, from-address, then **Send a test email** to the owner's address (must succeed or be explicitly skipped). **File storage:** S3-compatible endpoint, bucket, region, keys, then **Test** (write, read, delete a small file). Secrets go to `.env`, never to the database. Paystack, Termii, Turnstile and backup destinations are set later in the console |
 | 6 | **First super-admin** | Creates the first `platform_staff` account with the `super-admin` role: name, work email, password (12+ characters, checked against breached-password lists). **2FA is set up right here:** QR code + manual key, confirm with a 6-digit code, then 8 recovery codes shown with "Download" / "Copy" and a required "I've saved my recovery codes" tick. Refused if any staff account already exists. Resuming after a timeout needs the same email and password |
@@ -125,21 +125,32 @@ Layout: the same split shell as the login page ([UX_DESIGN.md § 3](UX_DESIGN.md
 
 ## 7. Command-line install (SSH or VPS)
 
-The same services, without the browser:
+The same services as the wizard (`App\Installer\InstallationSteps`), without the browser:
 
 ```
-php artisan goproperty:install                  # interactive, asks the same questions as the wizard
+php artisan goproperty:install                  # interactive: asks for anything not given as an option
 php artisan goproperty:install --no-interaction \
-  --url=https://goproperty.ng --env=production \
-  --db-host=localhost --db-name=gp --db-user=gp --db-password-file=/home/USER/.gp-db-pass \
+  --env=production --url=https://goproperty.ng \
+  --db-driver=mysql --db-host=localhost --db-port=3306 \
+  --db-name=acct_gp --db-user=acct_gp --db-password-file=/home/USER/.gp-db-pass \
+  --mail-host=smtp.postmarkapp.com --mail-port=587 --mail-user=TOKEN \
+  --mail-password-file=/home/USER/.gp-mail-pass --mail-from=no-reply@goproperty.ng \
   --mail-test=owner@goproperty.ng \
-  --admin-name="Ada Obi" --admin-email=ada@goproperty.ng
+  --admin-name="Ada Obi" --admin-email=ada@goproperty.ng --admin-password-file=/home/USER/.gp-admin-pass
 ```
 
-- Passwords are read from a prompt or a file, never from a command-line argument (they would end up in shell history).
+- Order: server check → every answer collected and validated (so a typo never leaves a half-written `.env`) → `.env` and `APP_KEY` → test the database, write the site and database settings (`HOSTING_PROFILE=shared`, `APP_TIMEZONE=Africa/Lagos`, `APP_DEBUG=false`) → migrations in batches with progress, then the install seeders → email → first super-admin → finish → installation record.
+- `--env` is Laravel's own option; it must be `production` or `staging`. `--db-driver` defaults to `mysql`, the host to `localhost`, the port to 3306.
+- Passwords are read from a hidden prompt or a file (trailing new line removed; a warning if others can read it), never from a command-line argument (they would end up in shell history). The super-admin password needs 12+ characters and must not appear in a known breach.
+- **Email** is SMTP (Postmark, Mailgun and SES all offer it); with `--mail-test` a failed test email stops the install before it finishes. **File storage** (S3) is not asked by the command-line install yet: set `AWS_*` in `.env` (the wizard tests it, P01-09).
 - The super-admin's 2FA is enrolled at first console sign-in (it is mandatory, so the console won't open without it).
-- Prints the console path, the cron line and the installation record path at the end.
-- Other commands: `goproperty:setup-token`, `goproperty:check-installation {--json}` (runs the server check, compares the schema with the migrations, checks markers, defaults, the scheduler heartbeat and that every required scheduled job ran recently), `goproperty:verify-package`.
+- Safe to run again after an interruption: it reuses `APP_KEY`, continues the migrations and accepts the same super-admin email and password. It refuses other database settings than the ones the checkpoint recorded (§ 6), and refuses to run at all once installed.
+- Prints the console path, the cron line (§ 5: panel CLI binaries first) and the installation record path (`storage/app/private/installation-record.txt`, mode 0600, with `APP_KEY`: store it offline, then delete it).
+- Other commands:
+  - `goproperty:setup-token`: prints the unlock token once and stores only its hash.
+  - `goproperty:check-installation {--json}`: the server check, pending migrations and missing tables, the three markers, production settings (key, debug off, unique console path, https, hosting profile), and fresh scheduler and queue-tick heartbeats. Exits 1 on any failure.
+  - `goproperty:finish-install`: recovery for a finish that stopped at `cleanup_pending`.
+  - `goproperty:verify-package`.
 
 ## 8. Cron and background work without `exec`
 
@@ -152,7 +163,7 @@ php artisan goproperty:install --no-interaction \
 
 ## 9. Recovery (never over HTTP)
 
-`docs/runbooks/install-recovery.md` covers, with exact commands and File Manager equivalents:
+[docs/runbooks/install-recovery.md](docs/runbooks/install-recovery.md) covers, with exact commands and File Manager equivalents:
 
 - **Markers disagree** (for example the lock exists but the database row doesn't): a table of each combination and the fix.
 - **Lost console path:** read `ADMIN_PATH` from `.env`.
@@ -201,6 +212,7 @@ GoProperty's own production is normally upgraded by CI over SSH ([docs/runbooks/
 - **Built in P00-05** (`tests/Feature/Installer/`, `tests/Drill/FreshCopyDrillTest.php`): pre-key redirect and 503 with no database query, cookie or log line (also through a real `php -S` server with an unreachable database); "being set up" on public routes until both markers agree; every marker on its own, a forged or re-keyed checkpoint, and an unreachable recorded database each keep `/install` at 404; requirements checker against a simulated host; `.env` writer (escaping round-trip, duplicates, atomic write, mode 0600, values never echoed); database probe against real throwaway databases (scoped listing, foreign tables, finished install, wrong password, missing database, timeout); batched migrations (batch size, time budget, resume, failure by name); emptying only GoProperty's tables; seeders run twice give identical data; finalizer order and its fail-closed checkpoint.
 - **Feature tests:** pre-key routes (redirect/503, no DB query, no log noise), unlock (both methods, wrong token, rate limit, origin checks, HTTPS), grant (rotation, renewal, expiry → re-unlock), requirements checker, `.env` writer (escaping, duplicates, atomic write, password never echoed), database step (refuses foreign tables, scoped listing), batched migrations (resume after interruption), super-admin + 2FA, finish ordering (cleanup checkpoint first), `/install` 404 afterwards, public routes 503 before finish, no HTTP recovery route, cron-path detection.
 - **Release drill** (`scripts/release/verify-drill.sh`, on every release): the package's own `goproperty:verify-package` passes the zip and both unpacked layouts; a changed file, an added file and a changed zip entry are refused; both layouts serve pages and built assets; artisan and `index.php` print the old-PHP sentence on PHP 7.4 and 8.1.
-- **Install drill in CI** (every pull request that adds a migration, and nightly): build the package, verify it, unpack the **split** layout, serve it with shared-host limits (`max_execution_time=30`, `memory_limit=256M`, `disable_functions=exec,proc_open`), and walk the whole wizard over HTTP — including the file-check unlock and TOTP enrolment — on **MySQL 8 and MariaDB 10.6**. A second drill upgrades the previous release to the new one.
+- **Built in P00-06:** `goproperty:install` end to end into a real throwaway database (options, prompts, validation before writing, breached password, refused database password, failed test email, resume after interruption, changed database settings refused, second install refused), and a schema snapshot (`information_schema`: tables, columns, indexes, foreign keys, migrations) of the installed database equal to a plain `migrate` (`tests/Feature/Installer/InstallCommandTest.php`); setup token, `check-installation`, `finish-install`, cron-line detection.
+- **Install drill in CI** (`scripts/release/install-drill.sh`, workflow `install-drill.yml`: nightly, on pull requests touching migrations, seeders or the installer, and before every release): build the package, unpack the **split** layout, run `goproperty:install --no-interaction` with shared-host limits (`max_execution_time=30`, `memory_limit=256M`, `exec`/`proc_open`/pcntl disabled), refuse a second install, run cron once and pass `check-installation`, serve `public_html` (`/` 200, `/install` 404), pass `verify-package`, and compare the schema with a plain `migrate` of the same release, on **MySQL 8.0 and 8.4, MariaDB 10.6 and 11.4**. Still to come: walking the web wizard over HTTP, including the file-check unlock and TOTP enrolment (P01-09), and a second drill that upgrades the previous release to the new one.
 - **Schema check:** a database built by the installer must match one built by `migrate` exactly.
 - **Manual drills before launch:** a real install on a cPanel account and a Plesk account, one with SSH and one without, following the owner manual word for word.

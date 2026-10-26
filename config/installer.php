@@ -25,6 +25,9 @@ return [
         'unlock_file' => storage_path('app/install-unlock.txt'),
         'grant' => storage_path('app/private/install.grant'),
         'attempts' => storage_path('app/private/install.attempts'),
+        // Written once by the command-line install: version, site, console
+        // path, database and APP_KEY. Store it offline, then delete it.
+        'record' => storage_path('app/private/installation-record.txt'),
     ],
 
     /*

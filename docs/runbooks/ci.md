@@ -23,6 +23,8 @@ CI runs it once per database, because cPanel/Plesk hosts often provide MariaDB r
 
 These are the oldest and newest LTS releases of each engine that shared hosts still run.
 
+**Install drill** ([`.github/workflows/install-drill.yml`](../../.github/workflows/install-drill.yml)): builds the release package and installs its split layout from the command line under shared-host limits, then compares the schema with a plain `migrate` ([release.md § 3](release.md), [INSTALLER.md § 12](../../INSTALLER.md)). It runs nightly, on pull requests that touch migrations, seeders or the installer, before every release, and by hand, on the same four databases (`Install drill (MySQL 8.0)` …). It is not a required check, because most pull requests do not run it.
+
 A fifth job, `Old PHP guard`, runs `artisan` and `public/index.php` from the checkout on PHP 7.4 and 8.1 (Docker images `php:7.4-cli`, `php:8.1-cli`) and expects the one-sentence "GoProperty needs PHP 8.4 or newer" message instead of an error ([INSTALLER.md § 2](../../INSTALLER.md)). Each job also runs `npm ci` and `npm run build`, because views need the Vite manifest. Actions are pinned to commit SHAs; Dependabot proposes updates weekly.
 
 ## 2. Running it locally
