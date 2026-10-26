@@ -20,7 +20,7 @@ Each phase below is split into numbered tasks (`P00-01`, `P00-02`, …). Each ta
 | --- | --- | --- | --- | --- |
 | PRE | Decisions and accounts before coding | 0 | — | In progress |
 | P00 | Foundation, tooling, installer core, login pages & backups baseline | 1–2 | M0 | In progress |
-| P01 | Tenancy, auth, registration, Transaction Tiers, staff console core & web installer | 3–5 | M1 | Not started |
+| P01 | Tenancy, auth, registration, Transaction Tiers, staff console core & web installer | 3–5 | M1 | In progress |
 | P02 | Properties, units, owners & import (part 1) | 6–8 | M2 | Not started |
 | P03 | Leasing, branded documents & the customer money loop + import (part 2) | 9–12 | M3 | Not started |
 | P04 | Maintenance tickets | 13 | M4 | Not started |
@@ -74,13 +74,13 @@ Depends on: PRE-03 (test accounts) for P00-12 and P00-13; PRE-04 for P00-13.
 
 **Phase exit:** all P00 tasks complete; the install drill and CI are green on both databases.
 
-### P01 — Tenancy, auth, registration, Transaction Tiers, staff console core & web installer (Weeks 3–5) — Not started
+### P01 — Tenancy, auth, registration, Transaction Tiers, staff console core & web installer (Weeks 3–5) — In progress
 
 Depends on: P00.
 
 | ID | Deliverable | Acceptance |
 | --- | --- | --- |
-| P01-01 — **Not started** | Organization switcher for multi-org users; per-org role assignment via spatie teams | Two orgs created; a user in both can switch; data never crosses orgs (Pest tests probe cross-tenant access on every Phase-1 model); visiting `/o/{slug}` of an org you don't belong to returns 404 |
+| P01-01 — **In progress** | Organization switcher for multi-org users; per-org role assignment via spatie teams | Two orgs created; a user in both can switch; data never crosses orgs (Pest tests probe cross-tenant access on every Phase-1 model); visiting `/o/{slug}` of an org you don't belong to returns 404 |
 | P01-02 — **Not started** | Registration wizard ([ONBOARDING_COMPLIANCE.md § 2](ONBOARDING_COMPLIANCE.md)): account → email verification by link (no SMS) → organization (type, slug) → **Transaction Tier selection** → plan + trial → collections setup → import/first property, with a progress checklist. Property-owner signup with `platform_covered` handling; first user as `org-owner` | A new signup reaches the dashboard as `org-owner`; leaving mid-wizard resumes at the same step; property-owner signup sets `platform_covered` |
 | P01-03 — **Not started** | Transaction Tier applications: document upload (CAC, SCUML, IDs, proof of address, beneficial owners for Tier 3), compliance review queue in the console, approve/reject/more-info, document expiry tracking | A Tier 2 application with missing SCUML cannot be submitted; an approved one changes the org's tier and is audited |
 | P01-04 — **Not started** | Invitations (email + token): invite with roles; acceptance sets password and joins org | An invited user with role `agent` sees only what [ARCHITECTURE.md § 5](ARCHITECTURE.md) grants; expired/used tokens rejected |
@@ -88,7 +88,7 @@ Depends on: P00.
 | P01-06 — **Not started** | Platform console: customers list (orgs, users, statuses, tier), org suspend/reactivate | Suspending an org blocks its users' write actions within one request; reactivating restores them |
 | P01-07 — **Not started** | Console staff management: configurable roles (default set + custom roles from a permission catalogue), 2FA enforcement, two-person approvals ([PLATFORM_CONSOLE.md § 1](PLATFORM_CONSOLE.md)) | A two-person action cannot be approved by its requester; staff without 2FA are forced to enrol |
 | P01-08 — **Not started** | Impersonation with reason, permission-gated by staff role (`impersonate.read_only`; `impersonate.write` with two-person approval), 30-minute limit, banner, blocked money actions and a full GoProperty-side audit trail with a console impersonation log ([PLATFORM_CONSOLE.md § 6](PLATFORM_CONSOLE.md)). No organization consent setting and no notification to the organization (changed 2026-10-26 by the product owner; the `allow_support_access` column is dropped) | Impersonating staff cannot confirm a payment or view bank/Paystack keys (tested); staff without the impersonate permission cannot start a session (tested); start, end, reason, pages viewed and actions are recorded with both identities in the hash-chained audit log and shown in the console impersonation log (tested); no email or notification reaches the organization or user (tested) |
-| P01-09 — **Not started** | **Web installer wizard** ([INSTALLER.md § 4–5](INSTALLER.md)) on the auth-page shell: unlock by setup token **or file check**, session-bound grant renewed per step, server check, site & database (auto-created `.env`), batched migrations with progress bar and resume, email + S3 storage tests, first super-admin with **2FA enrolled in the wizard**, finish screen (console path, detected cron line, live cron heartbeat, installation record, next steps). The install drill walks the wizard over HTTP | Web install drill (file-check unlock, TOTP enrolment, finish) passes on MySQL 8 and MariaDB 10.6; after finish `/install` is 404 and no HTTP route can reset or re-run installation (tested) |
+| P01-09 — **In progress** | **Web installer wizard** ([INSTALLER.md § 4–5](INSTALLER.md)) on the auth-page shell: unlock by setup token **or file check**, session-bound grant renewed per step, server check, site & database (auto-created `.env`), batched migrations with progress bar and resume, email + S3 storage tests, first super-admin with **2FA enrolled in the wizard**, finish screen (console path, detected cron line, live cron heartbeat, installation record, next steps). The install drill walks the wizard over HTTP | Web install drill (file-check unlock, TOTP enrolment, finish) passes on MySQL 8 and MariaDB 10.6; after finish `/install` is 404 and no HTTP route can reset or re-run installation (tested) |
 
 **Phase exit:** all P01 tasks complete; cross-tenant tests cover every Phase-1 model.
 
