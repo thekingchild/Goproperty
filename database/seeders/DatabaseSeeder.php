@@ -7,6 +7,9 @@ namespace Database\Seeders;
 use App\Installer\InstallationMarkers;
 use App\Installer\InstallationRecord;
 use App\Installer\InstallStage;
+use App\Models\Organization;
+use App\Models\PlatformStaff;
+use App\Models\StaffStatus;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
@@ -15,6 +18,10 @@ use Illuminate\Support\Facades\DB;
 /**
  * Development data (`php artisan migrate --seed`). Production installs run
  * InstallSeeder only, through the installer.
+ *
+ * Demo sign-ins, local copies only:
+ * - customer: test@example.com / password (member of Demo Realty: /o/demo-realty)
+ * - staff:    staff@example.com / password (console at /{ADMIN_PATH})
  */
 class DatabaseSeeder extends Seeder
 {
@@ -24,15 +31,27 @@ class DatabaseSeeder extends Seeder
     {
         $this->call(InstallSeeder::class);
 
-        User::factory()->create([
+        $user = User::factory()->create([
             'name' => 'Test User',
             'email' => 'test@example.com',
         ]);
 
-        // Without both markers every page shows "being set up"
-        // (INSTALLER.md § 3). Only a local copy is marked here; real
-        // installs are finalized by the installer.
+        $organization = Organization::factory()->create([
+            'name' => 'Demo Realty',
+            'slug' => 'demo-realty',
+        ]);
+        $user->organizations()->attach($organization, ['is_default' => true]);
+
         if (app()->isLocal()) {
+            PlatformStaff::query()->create([
+                'name' => 'Demo Staff',
+                'email' => 'staff@example.com',
+                'password' => 'password',
+                'status' => StaffStatus::Active,
+            ]);
+
+            // Without both markers every page shows "being set up"
+            // (INSTALLER.md § 3). Real installs are finalized by the installer.
             $markers->writeLock('dev');
             $record->record(DB::connection(), InstallStage::Finalized, 'dev');
         }

@@ -39,7 +39,7 @@ The only money GoProperty itself receives is its **own subscription fee** (see [
 - The path comes from configuration (`ADMIN_PATH` in `.env`), default `gp-control` with a random suffix added by the installer, e.g. `/gp-control-k7m2qx` ([PLATFORM_CONSOLE.md § 10](PLATFORM_CONSOLE.md)). It is **never** `/admin`, `/administrator` or `/dashboard`, and is not linked from the public site or `robots.txt`.
 - A hidden path only cuts automated bot traffic; it is **not** the security control. The real controls are:
   - a separate `staff` guard and `platform_staff` table;
-  - a **separate session cookie** (`gp_staff_session`, `Path=/{ADMIN_PATH}`, `Secure`, `HttpOnly`, `SameSite=Strict`), set by panel middleware before the session starts, so customer and staff sessions never mix even on one domain;
+  - a **separate session cookie** (`gp_staff_session`, `Secure`, `HttpOnly`, `SameSite=Strict`, 30-minute idle timeout), chosen by global middleware (`UseConsoleSession`) before any session starts, so customer and staff sessions never mix even on one domain. Console pages, and Livewire updates sent from them, read only this cookie; customer pages never read it. It uses `Path=/` rather than the console path, because Livewire has one update endpoint at the site root (`/livewire-…/update`) that console pages must reach (decided 2026-10-26, P00-08);
   - mandatory 2FA, strict login rate limits, lockout and Turnstile;
   - optional IP allowlist (office/VPN IPs). Non-allowlisted requests get a plain 404;
   - 30-minute idle timeout and full audit.

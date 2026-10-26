@@ -5,12 +5,15 @@ declare(strict_types=1);
 use App\Http\Middleware\AwaitApplicationKey;
 use App\Http\Middleware\EnsureSiteInstalled;
 use App\Http\Middleware\SetOrganizationContext;
+use App\Http\Middleware\UseConsoleSession;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Middleware\SubstituteBindings;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 $app = Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -27,6 +30,9 @@ $app = Application::configure(basePath: dirname(__DIR__))
         $middleware->prepend([
             AwaitApplicationKey::class,
             EnsureSiteInstalled::class,
+            // Staff session cookie for console requests, before any session
+            // starts (ONBOARDING_COMPLIANCE.md § 1).
+            UseConsoleSession::class,
         ]);
 
         // /o/{organization} routes: the context must exist before route
@@ -35,6 +41,18 @@ $app = Application::configure(basePath: dirname(__DIR__))
         $middleware->prependToPriorityList(SubstituteBindings::class, SetOrganizationContext::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        // /admin and other guesses are plain 404s, logged as probes
+        // (ONBOARDING_COMPLIANCE.md § 1).
+        $exceptions->render(function (NotFoundHttpException $exception, Request $request) {
+            $probes = config('console.probe_paths', []);
+
+            if (is_array($probes) && $probes !== [] && $request->is(...array_filter($probes, 'is_string'))) {
+                Log::notice('Console path probe', ['path' => '/'.$request->path(), 'ip' => $request->ip()]);
+            }
+
+            return null;
+        });
+
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );

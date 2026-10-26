@@ -7,7 +7,8 @@
 #      limits: max_execution_time=30, memory_limit=256M, exec/proc_open and
 #      pcntl disabled
 #   3. a second install is refused; cron runs once; check-installation passes
-#   4. the site serves pages from public_html; /install is 404
+#   4. the site serves pages from public_html; /install is 404; the console
+#      sign-in answers at /{ADMIN_PATH}
 #   5. the installed copy still passes goproperty:verify-package
 #   6. its schema equals a plain `php artisan migrate` of the same release
 #
@@ -117,6 +118,9 @@ expect_status / 200
 expect_status /login 200
 expect_status /up 200
 expect_status /install 404
+expect_status "/$admin_path/login" 200
+expect_status "/$admin_path" 302
+expect_status /admin 404
 kill "$server_pid" && wait "$server_pid" 2>/dev/null || true
 server_pid=""
 if grep -qE 'PHP (Fatal|Warning)' "$work/server.log"; then

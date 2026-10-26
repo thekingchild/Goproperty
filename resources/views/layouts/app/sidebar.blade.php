@@ -20,13 +20,20 @@
 
             <flux:spacer />
 
+            {{-- Surfaces (ONBOARDING_COMPLIANCE.md § 1); the org switcher arrives with P00-09/P01-01. --}}
             <flux:sidebar.nav>
-                <flux:sidebar.item icon="folder-git-2" href="https://github.com/laravel/livewire-starter-kit" target="_blank">
-                    {{ __('Repository') }}
+                @foreach (auth()->user()->organizations()->orderBy('name')->get() as $organization)
+                    <flux:sidebar.item icon="building-office-2" :href="route('workspace.home', $organization)" :current="request()->is('o/'.$organization->slug.'*')" wire:navigate>
+                        {{ $organization->name }}
+                    </flux:sidebar.item>
+                @endforeach
+
+                <flux:sidebar.item icon="home-modern" :href="route('portal.home')" :current="request()->routeIs('portal.*')" wire:navigate>
+                    {{ __('My rentals') }}
                 </flux:sidebar.item>
 
-                <flux:sidebar.item icon="book-open-text" href="https://laravel.com/docs/starter-kits#livewire" target="_blank">
-                    {{ __('Documentation') }}
+                <flux:sidebar.item icon="key" :href="route('owner.home')" :current="request()->routeIs('owner.*')" wire:navigate>
+                    {{ __('My properties') }}
                 </flux:sidebar.item>
             </flux:sidebar.nav>
 

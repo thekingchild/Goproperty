@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Models\PlatformStaff;
 use App\Models\User;
 
 return [
@@ -44,6 +45,13 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        // GoProperty staff: the platform console only, with its own table
+        // and session cookie (ONBOARDING_COMPLIANCE.md § 1).
+        'staff' => [
+            'driver' => 'session',
+            'provider' => 'platform_staff',
+        ],
     ],
 
     /*
@@ -67,6 +75,11 @@ return [
         'users' => [
             'driver' => 'eloquent',
             'model' => env('AUTH_MODEL', User::class),
+        ],
+
+        'platform_staff' => [
+            'driver' => 'eloquent',
+            'model' => PlatformStaff::class,
         ],
 
         // 'users' => [

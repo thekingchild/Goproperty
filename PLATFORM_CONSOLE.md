@@ -2,7 +2,7 @@
 
 Companion documents: [ARCHITECTURE.md](ARCHITECTURE.md) · [ONBOARDING_COMPLIANCE.md](ONBOARDING_COMPLIANCE.md) · [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) · [UX_DESIGN.md](UX_DESIGN.md)
 
-The console is a Filament 5 panel served at a **configurable, non-obvious path** (`ADMIN_PATH`, default `gp-control` plus a random suffix from the installer, never `/admin` — see § 10) on the main domain, which suits shared hosting. It can move to its own subdomain later by configuration only ([ONBOARDING_COMPLIANCE.md § 1](ONBOARDING_COMPLIANCE.md)). It has a separate `staff` guard and `platform_staff` table, its own session cookie (scoped to the console path), mandatory 2FA, a short idle timeout (30 min), and an optional IP allowlist. Every action in it is audited.
+The console is a Filament 5 panel served at a **configurable, non-obvious path** (`ADMIN_PATH`, default `gp-control` plus a random suffix from the installer, never `/admin` — see § 10) on the main domain, which suits shared hosting. It can move to its own subdomain later by configuration only ([ONBOARDING_COMPLIANCE.md § 1](ONBOARDING_COMPLIANCE.md)). It has a separate `staff` guard and `platform_staff` table, its own session cookie (`gp_staff_session`, never read by customer pages), mandatory 2FA, a short idle timeout (30 min), and an optional IP allowlist. Every action in it is audited.
 
 ## 1. Staff & Configurable Roles
 

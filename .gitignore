@@ -27,6 +27,10 @@ Thumbs.db
 /vendor/
 /node_modules/
 /public/build/
+# Published by `php artisan filament:assets` on every Composer install.
+/public/css/filament/
+/public/js/filament/
+/public/fonts/filament/
 /public/hot
 /public/storage
 /public/fonts-manifest.dev.json

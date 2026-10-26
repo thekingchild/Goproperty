@@ -69,6 +69,11 @@ return [
 
     'admin_path' => env('ADMIN_PATH', 'gp-control'),
 
+    // Later, the console can move to its own host (e.g. a non-obvious
+    // ops.example.ng) by setting ADMIN_DOMAIN; ADMIN_PATH may then be empty
+    // (ONBOARDING_COMPLIANCE.md § 1).
+    'admin_domain' => env('ADMIN_DOMAIN'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone

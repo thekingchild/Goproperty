@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Filament\Models\Contracts\FilamentUser;
+use Filament\Panel;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -30,9 +32,15 @@ use Illuminate\Support\Carbon;
  */
 #[Fillable(['name', 'email', 'phone', 'password', 'status'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
-class PlatformStaff extends Authenticatable
+class PlatformStaff extends Authenticatable implements FilamentUser
 {
     protected $table = 'platform_staff';
+
+    /** Only active staff, and only the console panel. */
+    public function canAccessPanel(Panel $panel): bool
+    {
+        return $panel->getId() === 'console' && $this->status === StaffStatus::Active;
+    }
 
     /** @return array<string, string> */
     protected function casts(): array
