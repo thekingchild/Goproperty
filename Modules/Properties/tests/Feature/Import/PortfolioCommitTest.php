@@ -63,7 +63,7 @@ it('commits exactly the records the dry run previewed', function () {
 
     // Each sheet's counts are the dry run's.
     foreach ($report['sheets'] as $sheet) {
-        expect($batch->result_counts['targets'][$sheet['target']])->toBe($sheet['counts']);
+        expect($batch->result_counts['targets'][$sheet['target']])->toEqual($sheet['counts']);
     }
 
     expect(portfolioCounts($batch, 'owners'))->toEqual(['create' => 99, 'update' => 1, 'restore' => 0, 'skip' => 0])

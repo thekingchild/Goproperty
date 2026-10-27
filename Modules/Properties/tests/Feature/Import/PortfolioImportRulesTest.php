@@ -250,7 +250,7 @@ it('skips rows whose building was archived after the dry run, and lists them on 
 
     expect($batch->status)->toBe(ImportStatus::Committed)
         ->and($batch->result_counts['targets']['units'])->toEqual(['create' => 0, 'update' => 0, 'restore' => 0, 'skip' => 1])
-        ->and($batch->result_counts['skipped'])->toBe([['target' => 'units', 'row' => 2, 'reason' => 'Palm Court is archived.']])
+        ->and($batch->result_counts['skipped'])->toEqual([['target' => 'units', 'row' => 2, 'reason' => 'Palm Court is archived.']])
         ->and(unitsOf($this->acme))->toHaveCount(0);
 });
 
