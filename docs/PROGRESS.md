@@ -6,9 +6,9 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 ## Current state
 
-- **In progress:** P01-03 (Transaction Tier applications) and P01-04 (invitations). Each task is built in its own worktree and reviewed before it merges
+- **In progress:** P01-04 (invitations) and P01-05 (organization settings and branding). Each task is built in its own worktree and reviewed before it merges
 - **In review:** P01-09 (web installer wizard): done and verified locally on MariaDB 11.4; the Install drill on MySQL 8 and MariaDB 10.6 waits on GitHub Actions. P00-03 (hosting profiles), P00-04 (release package) and P00-06 (installer CLI + install drill): done and verified locally; each needs one green run in GitHub Actions (CI for P00-03, a tagged Release for P00-04, the Install drill on MySQL 8 and MariaDB 10.6 for P00-06) once Actions starts jobs. P00-12 (backups): built and drilled locally; needs one real run to an S3-compatible bucket and a Google Shared Drive (PRE-03 accounts)
-- **Next task:** P01-05 (organization settings and branding); PRE-01 to PRE-04 continue with the product owner
+- **Next task:** P01 phase exit, then P02 (see `docs/plans/P02-P03-subtasks.md`, decisions needed first); PRE-01 to PRE-04 continue with the product owner
 - **Blocked:** P00-02: GitHub Actions jobs are not being given a runner (account-level), and branch protection on `main` needs a repo admin. This also holds P00-03's CI check, P00-04's release run and P00-06's install drill
 - **Blocked:** P00-13 (staging): the deploy scripts, the deploy on merge and the deploy drill are built and drilled locally; it needs a staging host (PRE-04) and working Actions runners (P00-02)
 
@@ -18,7 +18,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | --- | --- | --- | --- |
 | PRE | 5 | 1 | In progress |
 | P00 | 13 | 7 | In progress |
-| P01 | 9 | 5 | In progress |
+| P01 | 9 | 6 | In progress |
 | P02 | 7 | 0 | Not started |
 | P03 | 13 | 0 | Not started |
 | P04 | 3 | 0 | Not started |
@@ -27,11 +27,48 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | P07 | 4 | 0 | Not started |
 | P08 | 4 | 0 | Not started |
 | P09 | 8 | 0 | Not started |
-| **Total** | **83** | **13** | |
+| **Total** | **83** | **14** | |
 
 ## Ledger (newest first)
 
 Each entry: task ID and status, date, what was delivered, tests run and results, follow-ups, next task.
+
+### P01-03 — Complete (2026-10-27): Transaction Tier applications, compliance documents, review queue, document expiry
+
+**Delivered** ([ONBOARDING_COMPLIANCE.md § 5.3](../ONBOARDING_COMPLIANCE.md) "How it is built", [PLATFORM_CONSOLE.md § 1C](../PLATFORM_CONSOLE.md)):
+- **Owner's page** `/o/{slug}/compliance/tier` (`workspace.compliance.tier`, Livewire `App\Livewire\Compliance\TierApplicationPage`; the checklist's Tier item and the workspace menu link to it). Start an application for a tier above the approved one (the signup `requested_tier` is suggested, `declared_annual_volume_kobo` copied), change the tier while draft, upload documents (number, holder name, issue/expiry dates where they apply), name the Tier 3 compliance contact, submit, see compliance's requests and rejected-document notes, answer and submit again. One open application per organization (`open_organization_id` unique). The organization keeps its approved tier meanwhile.
+- **Permissions:** new `compliance.view` (see the application; kept while suspended; org-owner only). Changing uses the existing `organization.compliance` (org-owner only). `TierApplicationPolicy` (viewAny/view/create/update). Administrators and agents 403; tenants, property owners and strangers 404.
+- **Impersonation (P01-08 merged):** `organization.compliance` is classed **always blocked while impersonating** (it changes compliance standing: staff never apply, upload or submit for a customer; this also blocks the signup wizard's Tier step during a session); `compliance.view` is not blocked. PLATFORM_CONSOLE.md § 6 updated; `ImpersonationGuardTest`'s blocked list updated.
+- **Required documents** (`App\Compliance\RequiredDocuments`, from `config/tiers.php` `required_documents` / `optional_documents` until P06-08): Tier 2 = owner ID, CAC certificate, CAC status report, SCUML certificate, proof of address (≤ 3 months), directors' IDs; Tier 3 adds beneficial owners, AML policy statement, state regulator registration, named compliance contact. Submitting is refused (service `ApplicationIncomplete` and page) while anything is missing.
+- **Uploads / storage** (`App\Compliance\ComplianceFiles`): own private disk `compliance` (local `storage/app/compliance`) or `compliance-s3` (`COMPLIANCE_DISK`, `COMPLIANCE_S3_*`, `config/compliance.php`); type sniffed with finfo (PDF/JPEG/PNG only), 8 MB cap, file encrypted with the app key under a random name, sha256 kept; document number, holder name and file name are encrypted casts. Livewire's plain temp upload is deleted right after. Kept separate from the P02-05 media library by design. Local compliance folder added to the nightly files backup; restore runbook updated.
+- **Console → Compliance** (`App\Platform\Filament`): **Tier applications** queue (`/tier-applications`, `tiers.review`; waiting first, oldest submission first, badge), application page with missing-items line, documents relation (number/name/Open only with `compliance.view_documents`), history; actions Start review, Request more information (`tiers.review`), Approve / Reject (`tiers.approve`; reason required for the audit log, optional note to the owner); per-document Accept / Reject (note shown to the owner). **Document expiry** list (`/document-expiry`). Read models `ReviewApplication`, `ReviewDocument` (read-only, audit morph = the customer model); policies `TierReviewPolicy`, `ReviewDocumentPolicy`.
+- **Decisions** (`App\Platform\Compliance\TierReview`): re-checks permission and state under a row lock inside the organization's context; approval accepts pending documents, moves `organizations.transaction_tier` through the one writer `App\Compliance\OrganizationTier` (audit `organization.tier_changed` with staff, reason, old/new; model's own entry suppressed), ticks the checklist Tier item; refused while a required document is rejected/missing. Rejection leaves the tier. Owners emailed on every decision/request (`TierApplicationDecided`, queued `notifications`, after commit; quotes only the note to the owner).
+- **Document files for staff:** `/{ADMIN_PATH}/compliance-documents/{id}/file` (`filament.console.compliance-document`): signed, 5-minute link + staff session + 2FA + `compliance.view_documents`; decrypted, checksum-checked (409 on mismatch), `no-store`, `nosniff`, `no-referrer`; every view audited (`compliance_document.viewed`).
+- **Expiry tracking** (`App\Platform\Compliance\DocumentExpiryCheck`, `Schedule::call` daily 03:15 `compliance-document-expiry`): documents of open/approved applications within 30 days → `expiring_notified_at`; past expiry → status `expired`; once per stage, audited, one email per organization per run (`ComplianceDocumentsExpiring`). **Tier is not changed on expiry** (docs only ask for reminders/flags).
+- **Audit:** log `compliance` for every owner and staff step (`tier_application.started/.tier_changed/.contact_saved/.submitted/.resubmitted/.review_started/.more_info_requested/.approved/.rejected`, `compliance_document.uploaded/.removed/.accepted/.rejected/.viewed/.expiring/.expired`, `organization.tier_changed`); no document numbers or names in entries.
+- **Schema** (2 migrations): `tier_applications`, `compliance_documents` (both organization-scoped, in `OrganizationScopedModels`). `App\Tenancy\OrganizationOwners` extracted from `OrganizationSuspension` (reused for emails).
+- **Docs:** DATABASE_SCHEMA.md § 1 / § 9, ONBOARDING_COMPLIANCE.md § 2 / § 5.3, PLATFORM_CONSOLE.md § 1A / new § 1C / § 6, ARCHITECTURE.md § 4 / § 7 / § 9, runbooks shared-hosting.md and restore.md, `.env.example`.
+
+**Tests and evidence (local, MariaDB 11.4):**
+- Orchestrator's review run (branch with latest `main`): `composer ci` Pint passed, Larastan 0 errors, Pest **1,212 tests: 1,211 passed, 1 skipped, 10,033 assertions**. A first run failed only in `FreshCopyDrillTest`, whose `php -S` took more than 5 s to listen while two suites ran at once; the drill now waits up to 20 s.
+- `composer ci` on the branch merged with main (P01-08): Pint passed, Larastan 0 errors, Pest **1,212 tests: 1,211 passed, 1 skipped (existing module-boundary check), 10,033 assertions**.
+- New: `tests/Feature/Compliance/TierApplicationTest.php` (27), `tests/Feature/Compliance/DocumentExpiryTest.php` (6), `tests/Feature/Console/TierReviewTest.php` (17 incl. datasets), helpers `tests/Support/compliance.php`.
+- **AC: a Tier 2 application with missing SCUML cannot be submitted:** `TierApplicationTest` › "refuses to submit a Tier 2 application without the SCUML certificate (service)" and "… (workspace page)" (real Livewire update over HTTP; then succeeds once uploaded), plus "refuses each missing Tier 2 document" (dataset of all six).
+- **AC: an approved one changes the org's tier and is audited:** `TierReviewTest` › "approves from the console: Tier 2, audited with the staff member and reason, owners emailed" (console action; tier 1→2, `tier_application.approved` + `organization.tier_changed` with staff causer and reason, no duplicate model entry, `goproperty:audit-verify` passes, checklist done, owner emailed), "moves a Tier 3 application to Tier 3", "does not change the tier on rejection".
+- Negative paths: non-owner members 403 / outsiders 404 / admin with a stolen snapshot 403; other organization's application and documents 404; suspended organization read-only (page visible, submit/contact/remove 403); impersonating staff (write mode) cannot submit or save; staff without permission (operations-manager, finance-admin, support-agent, technical-admin, analyst) 403 on queue, page, expiry list and file, service refuses; reviewer without `tiers.approve` cannot decide, without `compliance.view_documents` sees no numbers and cannot open files; file route refuses missing/tampered/expired signatures, customer sessions; disk holds ciphertext, not served; checksum mismatch 409; more-info loop; document rejection loop; expiry flagging once per stage, expired document stops counting, scheduler registration; upload sniffing (PHP/SVG/HTML refused), size cap, detail checks, proof of address age, Tier 3 requirements; cross-tenant probes for both new models.
+- Existing tests changed: `SuspendedOrganizationTest` kept-permission list (+`compliance.view`), `ImpersonationGuardTest` blocked list (+`organization.compliance`), `StaffTwoFactorEnforcementTest` walker (fills the new `record`/`document` parameters, signs the document link).
+- Not checked in a browser (the pages render in tests).
+
+**Follow-ups:**
+- Compliance files are encrypted with the app key. Rotating `APP_KEY` must re-encrypt them (or keep the old key in `APP_PREVIOUS_KEYS`); add this to the key-rotation runbook when one is written.
+- `auth.require_2fa_for` (Tier 2/3 owners) still not enforced: it touches sign-in rules (remember-me not offered, passkeys counting as two factors, where to send the user, Livewire requests), so it deserves its own change rather than a bolt-on here.
+- P06-08: move `required_documents` to `transaction_tiers` with the Tier settings screen (compliance-officer proposes, super-admin approves).
+- P06-09: `compliance_flags` for `document_expiring` / `document_expired` (now recorded on the document), yearly re-verification and a renewal upload flow for documents of an approved application (the owner can't replace an expired document after approval yet).
+- "Business bank account in the CAC-registered name" is checked by compliance by hand until bank accounts exist (P01-05 / P03-07).
+- Staff are not notified when an application is submitted (the queue badge shows it).
+- Document view audit entries have the document as subject, so they show in the global audit log, not in the application's History tab.
+
+**Next:** P01-04, P01-05.
 
 ### P01-08 — Complete (2026-10-27): support impersonation with reason, staff-role permissions, two-person write mode, 30-minute limit, banner, blocked actions, audit trail and console impersonation log
 

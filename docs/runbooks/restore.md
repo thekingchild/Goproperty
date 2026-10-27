@@ -10,7 +10,7 @@ Backups are described in [PLATFORM_CONSOLE.md § 4](../../PLATFORM_CONSOLE.md). 
 - **Where:** every active destination that takes that job (an S3-compatible bucket, a Google Drive Shared Drive folder). Folder names are `<root>/goproperty-db/YYYY-MM-DD-HH-MM-SS.zip`.
 - **Encryption:** each zip is AES-256 encrypted. The password is `BACKUP_ARCHIVE_PASSWORD` when set. Otherwise it is derived from `APP_KEY`: on any working copy of the site with the same `APP_KEY`, `php artisan goproperty:backup-password` prints it.
 - **Inside a database zip:** `db-dumps/<…>.sql`, a plain SQL dump made over PDO (`DROP TABLE IF EXISTS` / `CREATE TABLE` / `INSERT`).
-- **Inside a files zip:** `brand/`, `private/` and `public/` from `storage/app`.
+- **Inside a files zip:** `brand/`, `compliance/` (Transaction Tier documents on the local `compliance` disk, encrypted with the application key: restore with the same `APP_KEY`), `private/` and `public/` from `storage/app`.
 - **Retention:** every backup from the last day, one a day for 30 days, one a month for 12 months.
 - **Records:** each run is in `backup_runs` (status, file, size, verified). A failure is also a critical log line.
 
@@ -42,7 +42,7 @@ The command never writes to the site's own database. Restore into a new, empty d
 ## 4. Restore uploaded files
 
 1. **Open** the newest `goproperty-files/*.zip` the same way.
-2. **Copy** its `brand/`, `private/` and `public/` folders into `storage/app/`, over what is there.
+2. **Copy** its `brand/`, `compliance/`, `private/` and `public/` folders into `storage/app/`, over what is there.
 3. **Fix ownership** so the web server user owns them, and check a logo and an uploaded document open.
 
 ## 5. Monthly check

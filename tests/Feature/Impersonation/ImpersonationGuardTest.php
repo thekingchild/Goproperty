@@ -176,7 +176,7 @@ it('takes away exactly the always-blocked permissions in write mode, and every w
     app(OrganizationContext::class)->run($this->acme, fn () => expect($this->owner->fresh()->hasPermissionTo(OrganizationPermission::ConfirmPayments->value))->toBeTrue());
 });
 
-it('classes the money, bank, Paystack, billing, member, delete and import permissions as always blocked', function () {
+it('classes the money, bank, Paystack, billing, compliance, member, delete and import permissions as always blocked', function () {
     $blocked = array_values(array_map(
         fn (OrganizationPermission $permission): string => $permission->value,
         array_filter(OrganizationPermission::cases(), fn (OrganizationPermission $permission): bool => $permission->blockedWhileImpersonating()),
@@ -186,6 +186,7 @@ it('classes the money, bank, Paystack, billing, member, delete and import permis
         'organization.delete',
         'organization.billing',
         'organization.payment_settings',
+        'organization.compliance',
         'members.manage',
         'bills.manage',
         'payments.confirm',

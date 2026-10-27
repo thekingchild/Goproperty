@@ -42,6 +42,7 @@ Composer and Node on the server are **not** required: the release zip already co
    ADMIN_PATH=gp-control-xxxxxx        # set by goproperty:install
    HOSTING_PROFILE=shared              # database queue/cache/sessions, no broadcasting, polling, dompdf, queue tick on
    FILESYSTEM_DISK=s3                  # media lives in S3-compatible storage, not on the host
+   COMPLIANCE_DISK=compliance-s3       # Transaction Tier documents: their own private bucket (COMPLIANCE_S3_*)
    MAIL_MAILER=postmark                # or mailgun/ses — never the host's sendmail
    ```
    `HOSTING_PROFILE=shared` sets `QUEUE_CONNECTION=database`, `CACHE_STORE=database`, `SESSION_DRIVER=database`, `BROADCAST_CONNECTION=null`, `REALTIME_DRIVER=polling`, `PDF_DRIVER=dompdf` and `QUEUE_TICK_ENABLED=true`. Set one of those only to override it. Broadcasting is `null`, not `log`, so event payloads never land in the logs. `php artisan goproperty:hosting` shows what is active.

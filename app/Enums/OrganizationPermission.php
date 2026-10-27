@@ -32,6 +32,7 @@ enum OrganizationPermission: string
     case ManageBilling = 'organization.billing';
     case ManagePaymentSettings = 'organization.payment_settings';
     case ManageCompliance = 'organization.compliance';
+    case ViewCompliance = 'compliance.view';
     case ViewActivity = 'organization.activity';
     case ViewMembers = 'members.view';
     case ManageMembers = 'members.manage';
@@ -65,6 +66,7 @@ enum OrganizationPermission: string
     {
         return match ($this) {
             self::OpenWorkspace,
+            self::ViewCompliance,
             self::ViewActivity,
             self::ViewMembers,
             self::ViewProperties,
@@ -100,8 +102,12 @@ enum OrganizationPermission: string
      * (confirming or rejecting payments, payment proofs, issuing and voiding
      * bills, the subscription and billing transfers), bank accounts and
      * Paystack keys (viewing them too: a page that shows them checks this
-     * permission), members and roles, closing the organization, and data
-     * imports (commit and rollback, DATA_IMPORT.md § 5). Read-only sessions
+     * permission), members and roles, closing the organization, data
+     * imports (commit and rollback, DATA_IMPORT.md § 5), and Transaction Tier
+     * applications and compliance documents (`organization.compliance`: they
+     * change the organization's compliance standing, so staff never apply,
+     * upload or submit for a customer; seeing them, `compliance.view`, stays
+     * allowed). Read-only sessions
      * also lose every permission that writes (allowedWhileSuspended() false).
      * Every new permission must be placed here; the match has no default,
      * so one left out fails the build.
@@ -112,6 +118,7 @@ enum OrganizationPermission: string
             self::DeleteOrganization,
             self::ManageBilling,
             self::ManagePaymentSettings,
+            self::ManageCompliance,
             self::ManageMembers,
             self::ManageBills,
             self::ConfirmPayments,
@@ -119,7 +126,7 @@ enum OrganizationPermission: string
             self::ManageImports => true,
             self::OpenWorkspace,
             self::UpdateOrganization,
-            self::ManageCompliance,
+            self::ViewCompliance,
             self::ViewActivity,
             self::ViewMembers,
             self::ViewProperties,
@@ -147,6 +154,7 @@ enum OrganizationPermission: string
             self::ManageBilling => 'Pay the GoProperty subscription, change plan, accept billing transfers',
             self::ManagePaymentSettings => 'Manage bank accounts and the organization\'s Paystack keys',
             self::ManageCompliance => 'Apply for a Transaction Tier and upload compliance documents',
+            self::ViewCompliance => 'See the Transaction Tier application, its review and document expiry',
             self::ViewActivity => 'See the organization\'s activity log',
             self::ViewMembers => 'See members and their roles',
             self::ManageMembers => 'Invite members, change their roles, remove them',

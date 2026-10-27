@@ -46,7 +46,8 @@ it('sends a fresh copy to the installer without the database or the error log', 
     try {
         $ready = false;
 
-        for ($i = 0; $i < 50 && ! $ready; $i++) {
+        // Up to ~20 s: under a loaded parallel run `php -S` can take a while to listen.
+        for ($i = 0; $i < 200 && ! $ready; $i++) {
             try {
                 Http::timeout(1)->get("{$base}/install.css");
                 $ready = true;

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers\Filament;
 
+use App\Http\Controllers\Console\ComplianceDocumentController;
 use App\Http\Controllers\Console\SchedulerHeartbeatController;
 use App\Http\Controllers\Console\ThemePreviewController;
 use App\Http\Middleware\StaffAccountState;
@@ -109,6 +110,12 @@ final class ConsolePanelProvider extends PanelProvider
 
                     // Scheduler and queue-tick heartbeats, polled by the installer's finish screen.
                     Route::get('system/heartbeat', SchedulerHeartbeatController::class)->name('system-heartbeat');
+
+                    // A compliance document's file: signed, short-lived, permission-checked and audited (ARCHITECTURE.md § 9).
+                    Route::get('compliance-documents/{document}/file', ComplianceDocumentController::class)
+                        ->whereNumber('document')
+                        ->middleware(['signed', 'throttle:60,1'])
+                        ->name('compliance-document');
                 });
             })
             ->discoverResources(in: app_path('Platform/Filament/Resources'), for: 'App\\Platform\\Filament\\Resources')

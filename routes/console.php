@@ -9,6 +9,7 @@ use App\Backup\BackupVerifier;
 use App\Hosting\Heartbeats;
 use App\Hosting\Queue\QueueTick;
 use App\Platform\Approvals\ApprovalService;
+use App\Platform\Compliance\DocumentExpiryCheck;
 use App\Platform\Impersonation\Impersonations;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -77,6 +78,12 @@ Schedule::call(fn (ApprovalService $approvals) => $approvals->expireStale())
 Schedule::call(fn (Impersonations $impersonations) => $impersonations->endExpired())
     ->name('impersonation-timeout')
     ->everyMinute();
+
+// Transaction Tier documents near or past their expiry date: flagged once
+// per stage, owners emailed (ONBOARDING_COMPLIANCE.md § 5.3–5.4).
+Schedule::call(fn (DocumentExpiryCheck $check) => $check->run())
+    ->name('compliance-document-expiry')
+    ->dailyAt('03:15');
 
 // Keep this last: it can use most of the minute, and events run in order.
 Schedule::call(fn (QueueTick $tick) => $tick->run())

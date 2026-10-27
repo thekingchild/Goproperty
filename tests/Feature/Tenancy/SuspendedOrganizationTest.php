@@ -260,6 +260,7 @@ it('keeps exactly the reading, exporting and paying permissions while suspended'
     expect($kept)->toBe([
         'workspace.access',
         'organization.billing',
+        'compliance.view',
         'organization.activity',
         'members.view',
         'properties.view',

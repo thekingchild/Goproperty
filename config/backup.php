@@ -31,6 +31,11 @@ return [
                 // Uploaded media and documents; the code comes from the release zip.
                 'include' => [
                     storage_path('app/brand'),
+                    // Transaction Tier documents on the local `compliance`
+                    // disk (already encrypted by the app). A `compliance-s3`
+                    // bucket is mirrored outside the app, like other large
+                    // media (PLATFORM_CONSOLE.md § 4).
+                    storage_path('app/compliance'),
                     storage_path('app/private'),
                     storage_path('app/public'),
                 ],

@@ -7,8 +7,10 @@ use App\Models\Organization;
 use App\Models\PlatformStaff;
 use App\Models\StaffRole;
 use App\Models\StaffStatus;
+use App\Models\TierApplication;
 use App\Models\User;
 use App\Notifications\StaffInvitation;
+use App\Platform\Compliance\DocumentLinks;
 use App\Platform\Filament\Auth\AcceptStaffInvitation;
 use App\Platform\Filament\Pages\Settings\BrandAppearance;
 use App\Platform\Filament\Resources\Staff\StaffResource;
@@ -17,9 +19,12 @@ use App\Platform\Staff\StaffPermission;
 use App\Platform\Staff\StaffRoles;
 use Filament\Facades\Filament;
 use Illuminate\Routing\Route;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Route as Router;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
 use Livewire\Livewire;
 use PragmaRX\Google2FA\Google2FA;
 
@@ -32,6 +37,7 @@ use PragmaRX\Google2FA\Google2FA;
 
 beforeEach(function () {
     Filament::setCurrentPanel(Filament::getPanel('console'));
+    Storage::fake('compliance');
     seedStaffRoles();
     $this->setUp = route('filament.console.auth.multi-factor-authentication.set-up-required');
 });
@@ -53,6 +59,12 @@ function consolePageUrls(PlatformStaff $someone): array
     $role = StaffRole::query()->where('name', 'analyst')->firstOrFail();
     $organization = null;
     $customerUser = null;
+    $application = null;
+    $tierApplication = function (): TierApplication {
+        $organization = Organization::factory()->create();
+
+        return tierApplication($organization, joinAs(User::factory()->create(), $organization));
+    };
     $urls = [];
 
     foreach (Router::getRoutes()->getRoutes() as $route) {
@@ -68,6 +80,7 @@ function consolePageUrls(PlatformStaff $someone): array
         foreach ($route->parameterNames() as $parameter) {
             $parameters[$parameter] = match ($parameter) {
                 'record' => match (true) {
+                    str_contains($route->uri(), 'tier-applications') => ($application ??= $tierApplication())->id,
                     str_contains($route->uri(), 'staff-roles') => $role->id,
                     str_contains($route->uri(), 'customer-users') => ($customerUser ??= User::factory()->create())->id,
                     str_contains($route->uri(), 'customers') => ($organization ??= Organization::factory()->create())->id,
@@ -83,11 +96,15 @@ function consolePageUrls(PlatformStaff $someone): array
                     default => $someone->id,
                 },
                 'surface' => 'landing',
+                // A compliance document's file (P01-03), reached through its signed link.
+                'document' => DB::table('compliance_documents')->where('tier_application_id', ($application ??= $tierApplication())->id)->value('id'),
                 default => throw new RuntimeException("Fill the {$parameter} parameter of {$name} in this test."),
             };
         }
 
-        $urls[] = route($name, $parameters);
+        $urls[] = $name === DocumentLinks::ROUTE
+            ? URL::temporarySignedRoute($name, now()->addMinutes(5), $parameters)
+            : route($name, $parameters);
     }
 
     return $urls;
@@ -99,7 +116,7 @@ it('sends staff without 2FA to enrol from every console page, whatever their rol
 
     // The list really covers the console: staff, roles, approvals, settings, previews.
     expect(count($urls))->toBeGreaterThan(12)
-        ->and(implode(' ', $urls))->toContain('/staff-roles', '/approvals', '/settings/brand', '/theme-preview/landing', '/staff/'.$staff->id, '/customers/', '/customer-users/', '/impersonation-log/');
+        ->and(implode(' ', $urls))->toContain('/staff-roles', '/approvals', '/settings/brand', '/theme-preview/landing', '/staff/'.$staff->id, '/customers/', '/customer-users/', '/tier-applications/', '/document-expiry', '/compliance-documents/', '/impersonation-log/');
 
     foreach ($urls as $url) {
         $this->actingAs($staff, 'staff')->get($url)->assertRedirect($this->setUp);

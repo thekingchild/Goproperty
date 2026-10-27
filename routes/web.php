@@ -13,6 +13,7 @@ use App\Http\Controllers\Workspace\SwitchOrganizationController;
 use App\Http\Controllers\Workspace\WorkspaceHomeController;
 use App\Http\Middleware\PublicPageHeaders;
 use App\Http\Middleware\SignInPageHeaders;
+use App\Livewire\Compliance\TierApplicationPage;
 use App\Livewire\Onboarding\CreateOrganization;
 use App\Livewire\Onboarding\SetupWizard;
 use App\Theme\BrandAssets;
@@ -102,6 +103,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         // Signup wizard, Tier step onwards (ONBOARDING_COMPLIANCE.md § 2).
         Route::livewire('setup', SetupWizard::class)->name('setup');
+
+        // Transaction Tier application, org-owner only (ONBOARDING_COMPLIANCE.md § 5.3).
+        Route::livewire('compliance/tier', TierApplicationPage::class)->name('compliance.tier');
     });
 
     // Cross-organization portals: they never set an organization context

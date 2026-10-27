@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Platform\Customers;
 
 use App\Audit\AuditContext;
-use App\Enums\OrganizationRole;
 use App\Enums\OrganizationStatus;
 use App\Models\Organization;
 use App\Models\PlatformStaff;
@@ -13,6 +12,7 @@ use App\Models\User;
 use App\Notifications\OrganizationReactivatedNotice;
 use App\Notifications\OrganizationSuspendedNotice;
 use App\Platform\Staff\StaffPermission;
+use App\Tenancy\OrganizationOwners;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -38,7 +38,10 @@ final class OrganizationSuspension
 
     public const int NOTE_MAX = 1000;
 
-    public function __construct(private readonly AuditContext $audit) {}
+    public function __construct(
+        private readonly AuditContext $audit,
+        private readonly OrganizationOwners $owners,
+    ) {}
 
     /** @throws CustomerChangeRefused */
     public function suspend(PlatformStaff $actor, Organization $organization, string $reason, ?string $noteToOwner = null): Organization
@@ -104,24 +107,7 @@ final class OrganizationSuspension
      */
     public function owners(Organization $organization): Collection
     {
-        $owners = DB::table('model_has_roles')
-            ->join('roles', 'roles.id', '=', 'model_has_roles.role_id')
-            ->where('roles.name', OrganizationRole::Owner->value)
-            ->whereNull('roles.organization_id')
-            ->where('model_has_roles.organization_id', $organization->getKey())
-            ->where('model_has_roles.model_type', (new User)->getMorphClass())
-            ->select('model_has_roles.model_id');
-
-        $members = DB::table('organization_user')
-            ->where('organization_id', $organization->getKey())
-            ->select('user_id');
-
-        return User::query()
-            ->whereIn('id', $owners)
-            ->whereIn('id', $members)
-            ->whereNotNull('email')
-            ->orderBy('id')
-            ->get();
+        return $this->owners->withEmail($organization);
     }
 
     /**

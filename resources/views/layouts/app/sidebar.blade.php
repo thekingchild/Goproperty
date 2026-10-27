@@ -20,6 +20,11 @@
                     <flux:sidebar.item icon="home" :href="route('workspace.home', app(\App\Tenancy\OrganizationContext::class)->get())" :current="request()->routeIs('workspace.home')" wire:navigate>
                         {{ __('Home') }}
                     </flux:sidebar.item>
+                    @can('viewAny', \App\Models\TierApplication::class)
+                        <flux:sidebar.item icon="shield-check" :href="route('workspace.compliance.tier', app(\App\Tenancy\OrganizationContext::class)->get())" :current="request()->routeIs('workspace.compliance.*')" wire:navigate>
+                            {{ __('Transaction Tier') }}
+                        </flux:sidebar.item>
+                    @endcan
                 @else
                     <flux:sidebar.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>
                         {{ __('Dashboard') }}

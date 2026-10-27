@@ -49,6 +49,32 @@ return [
             'report' => false,
         ],
 
+        // Transaction Tier documents (config/compliance.php): private,
+        // encrypted by the app, opened by staff only through the console's
+        // signed and audited route. Never served directly.
+        'compliance' => [
+            'driver' => 'local',
+            'root' => storage_path('app/compliance'),
+            'visibility' => 'private',
+            'throw' => true,
+            'report' => false,
+        ],
+
+        // The production choice (COMPLIANCE_DISK=compliance-s3): a separate,
+        // stricter private bucket from any other media (ARCHITECTURE.md § 9).
+        'compliance-s3' => [
+            'driver' => 's3',
+            'key' => env('COMPLIANCE_S3_ACCESS_KEY_ID'),
+            'secret' => env('COMPLIANCE_S3_SECRET_ACCESS_KEY'),
+            'region' => env('COMPLIANCE_S3_REGION', 'us-east-1'),
+            'bucket' => env('COMPLIANCE_S3_BUCKET'),
+            'endpoint' => env('COMPLIANCE_S3_ENDPOINT'),
+            'use_path_style_endpoint' => (bool) env('COMPLIANCE_S3_USE_PATH_STYLE_ENDPOINT', false),
+            'visibility' => 'private',
+            'throw' => true,
+            'report' => false,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

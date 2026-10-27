@@ -5,13 +5,18 @@ declare(strict_types=1);
 namespace Tests\Support;
 
 use App\Enums\ChecklistItem;
+use App\Enums\ComplianceDocumentType;
 use App\Enums\OnboardingStep;
+use App\Enums\TransactionTier;
+use App\Models\ComplianceDocument;
 use App\Models\Membership;
 use App\Models\OnboardingChecklistItem;
 use App\Models\OrganizationOnboarding;
+use App\Models\TierApplication;
 use App\Models\User;
 use Closure;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 use LogicException;
 
 /**
@@ -32,6 +37,17 @@ final class OrganizationScopedModels
             Membership::class => fn (): Model => Membership::query()->create(['user_id' => User::factory()->create()->id]),
             OrganizationOnboarding::class => fn (): Model => OrganizationOnboarding::query()->create(['step' => OnboardingStep::Tier]),
             OnboardingChecklistItem::class => fn (): Model => OnboardingChecklistItem::query()->create(['item' => ChecklistItem::Plan]),
+            TierApplication::class => fn (): Model => TierApplication::query()->create(['from_tier' => TransactionTier::One, 'requested_tier' => TransactionTier::Two]),
+            ComplianceDocument::class => fn (): Model => ComplianceDocument::query()->create([
+                'type' => ComplianceDocumentType::ScumlCertificate,
+                'disk' => 'compliance',
+                'path' => 'probe/'.Str::uuid()->toString().'.enc',
+                'original_name' => 'scuml.pdf',
+                'mime' => 'application/pdf',
+                'size_bytes' => 1024,
+                'sha256' => str_repeat('0', 64),
+                'document_number' => 'SCUML-123',
+            ]),
         ];
     }
 
