@@ -6,9 +6,9 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 ## Current state
 
-- **In progress:** P01-05 (organization settings and branding). Each task is built in its own worktree and reviewed before it merges
+- **In progress:** none Each task is built in its own worktree and reviewed before it merges
 - **In review:** P01-09 (web installer wizard): done and verified locally on MariaDB 11.4; the Install drill on MySQL 8 and MariaDB 10.6 waits on GitHub Actions. P00-03 (hosting profiles), P00-04 (release package) and P00-06 (installer CLI + install drill): done and verified locally; each needs one green run in GitHub Actions (CI for P00-03, a tagged Release for P00-04, the Install drill on MySQL 8 and MariaDB 10.6 for P00-06) once Actions starts jobs. P00-12 (backups): built and drilled locally; needs one real run to an S3-compatible bucket and a Google Shared Drive (PRE-03 accounts)
-- **Next task:** P01 phase exit, then P02 (see `docs/plans/P02-P03-subtasks.md`, decisions needed first); PRE-01 to PRE-04 continue with the product owner
+- **Next task:** P02, starting with wave 1 (P02-01a and P02-05) from `docs/plans/P02-P03-subtasks.md`, after the product owner settles that plan's open decisions; PRE-01 to PRE-04 continue with the product owner
 - **Blocked:** P00-02: GitHub Actions jobs are not being given a runner (account-level), and branch protection on `main` needs a repo admin. This also holds P00-03's CI check, P00-04's release run and P00-06's install drill
 - **Blocked:** P00-13 (staging): the deploy scripts, the deploy on merge and the deploy drill are built and drilled locally; it needs a staging host (PRE-04) and working Actions runners (P00-02)
 
@@ -18,7 +18,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | --- | --- | --- | --- |
 | PRE | 5 | 1 | In progress |
 | P00 | 13 | 7 | In progress |
-| P01 | 9 | 7 | In progress |
+| P01 | 9 | 8 | In review (P01-09 waits on GitHub Actions) |
 | P02 | 7 | 0 | Not started |
 | P03 | 13 | 0 | Not started |
 | P04 | 3 | 0 | Not started |
@@ -27,11 +27,64 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | P07 | 4 | 0 | Not started |
 | P08 | 4 | 0 | Not started |
 | P09 | 8 | 0 | Not started |
-| **Total** | **83** | **15** | |
+| **Total** | **83** | **16** | |
 
 ## Ledger (newest first)
 
 Each entry: task ID and status, date, what was delivered, tests run and results, follow-ups, next task.
+
+### P01 — all tasks built; phase In review (2026-10-27)
+
+Eight of nine P01 tasks are Complete; P01-09 (web installer) is In review only because its Install drill must also pass on MySQL 8 and MariaDB 10.6 in GitHub Actions, which has no runners yet (P00-02). The phase exit check "cross-tenant tests cover every Phase-1 model" passes: `CrossTenantAccessTest` fails if any `BelongsToOrganization` model is missing from `tests/Support/OrganizationScopedModels.php`, and every P01 model is listed. Mark the phase Complete when the Install drill is green in Actions.
+
+How P01 was built: one task per git worktree with its own MariaDB 11.4, at most two at a time, each reviewed and re-run through `composer ci` by the orchestrator, merged into `main` as one squashed commit per task with its ledger entry. P01-08's scope was changed by the product owner before work started (no organization consent setting, no notification to the organization; permissions and a GoProperty-side audit trail instead).
+
+**Decisions made during P01 for the product owner to confirm** (details in each task's entry below):
+- P01-01: property owners use `/owner`, not the agency workspace; tenants never open `/o/{slug}`.
+- P01-02: signup Turnstile in `after_failures` mode shows from the 4th signup per IP in 15 minutes; the chosen plan is kept in `organizations.signup_plan_key` until P06-01.
+- P01-03: tier stays unchanged when a document expires (flag and email only); `organization.compliance` is blocked while impersonating; compliance files are encrypted with the app key.
+- P01-05: bank accounts are org-owner only; the account-name check uses GoProperty's own Paystack key (no money moves); a primary colour below 3:1 is rejected and 3:1–4.5:1 is darkened for text.
+- P01-06: cancelled organizations are read-only like suspended ones; billing stays allowed while suspended so a customer can pay.
+- P01-07: a lone super-admin may grant the first second super-admin without approval (bootstrap); default role names cannot be renamed; reactivating staff restores their roles without approval.
+- P01-08: in-house impersonation instead of `lab404/laravel-impersonate`; `bills.manage` and `payments.submit_proof` blocked as money actions.
+
+### P01-05 — Complete (2026-10-27): organization settings: profile, bank accounts with name check, branding with live invoice and receipt preview
+
+**Delivered** ([BRANDING_DOCUMENTS.md § 1](../BRANDING_DOCUMENTS.md) "How it is built", [ONBOARDING_COMPLIANCE.md § 4.1](../ONBOARDING_COMPLIANCE.md) "How the bank accounts are built"):
+- **Settings area in the workspace:** a sidebar item "Settings" and tabs Profile · Payment collection · Branding · Members (`x-workspace.settings-nav`; Members is P01-04's page). Each tab shows only to members who may open it; the pages check again.
+- **Permissions** (two new, both classed in `allowedWhileSuspended()` and `blockedWhileImpersonating()`): `settings.view` (owner, admin; kept while suspended; not blocked) and `payment_settings.view` (owner only; kept while suspended; **always blocked while impersonating**). Saving profile/branding uses `organization.update` (owner, admin); bank accounts use `organization.payment_settings` (owner only, already blocked). `OrganizationPolicy::viewSettings/updateProfile/updateBranding/viewPaymentSettings`, new `OrganizationBankAccountPolicy`.
+- **Profile** (`/o/{slug}/settings/profile`, `App\Livewire\Settings\OrganizationProfilePage`, service `App\Organizations\OrganizationProfile`): name, web address, address, state, LGA, CAC number (encrypted; audited as "changed" only). A new web address must be free (`OrganizationSlug`), the old one goes into `previous_slugs` (redirects keep working via `SetOrganizationContext`), an organization may take back its own old address, at most 10 old addresses. From Tier 2 the registered name and CAC number are locked (compliance checked them).
+- **Bank accounts** (`/o/{slug}/settings/collections`, the checklist's collections route; `App\Livewire\Settings\PaymentCollectionPage`, marked `#[BlockedWhileImpersonating]`; service `App\Banking\BankAccounts`, the only writer): add, edit (empty number keeps the stored one; numbers never go back to the browser), check name again, make primary, deactivate, reactivate, remove (soft delete). Up to 10 accounts; exactly one primary among the usable ones. Account numbers are `encrypted` casts, shown masked (`···6789`), with `account_number_last4` and an HMAC `account_fingerprint` for duplicates. Audited under log `payment_settings` (bank and masked number only). First usable account ticks the checklist's collections item. Bank list: `config/banks.php` (Paystack codes, `App\Banking\BankCatalogue`).
+- **Account-name check (decision):** `App\Banking\BankAccountNameResolver` (container-bound to `PaystackBankAccountNameResolver`, `GET /bank/resolve`) with **GoProperty's own Paystack secret** (`PAYSTACK_SECRET_KEY`, `config/services.php`): the lookup moves no money, so invariant 8 holds, and every organization needs the check before it has its own Paystack. Outcomes: matched (saved with the bank's spelling), mismatched (refused, nothing saved, "Use “BANK NAME”" offered), not found (refused), unavailable (no key, Paystack down → saved as "Name not checked", usable, "Check name" later). A later check finding another name makes the account unusable and moves the primary. `App\Banking\AccountNameMatcher` ignores case, word order, punctuation and company suffixes, and accepts a bank name cut short. 10 lookups an hour per organization.
+- **Branding** (`/o/{slug}/settings/branding`, `App\Livewire\Settings\BrandingPage`, service `App\Branding\BrandingSettings`, value object `App\Branding\Branding` over `organizations.branding`): trading name, logo, signature, stamp, primary and accent colours, letterhead (address, RC number, phone, email, website), invoice/receipt/lease prefixes, invoice notes (≤ 600), receipt footer (≤ 300), layout modern/classic/compact, email sender name, hide the "Generated with" line (Scale/Enterprise only, from `signup_plan_key` until P06-01). Every rule is enforced on the server.
+- **Contrast (decision; BRANDING § 1 says "darker shade used", the AC says "rejected"):** a primary below 3:1 against white is rejected with the ratio in the message; 3–4.5:1 is accepted and documents use the nearest darker shade reaching 4.5:1 for text and text-bearing panels (`App\Branding\BrandColours`, reusing `App\Theme\Color`); an accent closer than 3:1 to the primary is rejected.
+- **Uploads:** `App\Branding\BrandingFiles`: ≤ 1 MB, finfo-sniffed PNG/JPEG/WebP only (no SVG), ≤ 5000 px a side, minimum width (logo 300 px), re-encoded to PNG (drops payloads and EXIF), trimmed, scaled down, content-hash names on the private `BRANDING_DISK` (default `local`, `organization-branding/{org}/{role}/`; already in the files backup). Served by `/o/{slug}/settings/branding/files/{role}/{hash}` (`BrandingFileController`: logo for workspace members, signature/stamp only with `settings.view`; `nosniff`, sandbox CSP); data URIs in PDFs. Old files kept for issued documents. P02-05 absorbs them (ARCHITECTURE.md § 9 says how).
+- **Live preview** from the unsaved form: `App\Documents\BrandingPreview` renders `resources/views/documents/invoice.blade.php` and `receipt.blade.php` (partials `styles` with the three layouts, `letterhead`, `footer`; `App\Documents\DocumentBranding`, sample data `App\Documents\SampleDocuments`) into script-less `srcdoc` frames scaled to the column; a chosen logo shows before saving (Livewire temporary URL, after the server checks it). Table layouts, hex colours and simple CSS only (§ 5); page 794 × 1122 px, footer `position: fixed`. P03-05 reuses the templates with real data.
+- **Schema:** one migration, `organization_bank_accounts` (organization-scoped, in `OrganizationScopedModels`).
+- **Docs:** BRANDING_DOCUMENTS.md § 1 "How it is built", ONBOARDING_COMPLIANCE.md § 4.1, DATABASE_SCHEMA.md (`organizations.branding` keys, `organization_bank_accounts`), ARCHITECTURE.md § 4 (kept permissions), § 5 (Settings permissions), § 9 (branding images, P02-05 hand-over), § 10 (bank accounts), PLATFORM_CONSOLE.md § 6 (`payment_settings.view` blocked), `.env.example` (`PAYSTACK_SECRET_KEY`).
+
+**Tests and evidence (local, MariaDB 11.4):**
+- Orchestrator's review run (branch with latest `main`): `composer ci` Pint passed, Larastan 0 errors, Pest **1,336 tests: 1,335 passed, 1 skipped, 11,254 assertions**.
+- `composer ci` on the branch merged with main (P01-04): Pint passed, Larastan 0 errors, Pest **1,336 tests: 1,335 passed, 1 skipped (the existing module-boundary check), 11,254 assertions**, 0 failed.
+- New: `tests/Feature/OrganizationSettings/BankAccountsTest.php` (19), `BrandingSettingsTest.php` (37), `OrganizationProfileTest.php` (10), `tests/Unit/Branding/BrandingRulesTest.php` (22), helpers `tests/Support/organization-settings.php`. All Paystack HTTP faked (`Http::preventStrayRequests()`).
+- **AC: bank numbers encrypted at rest:** `BankAccountsTest` › "stores the account number encrypted, decrypts it for the app, and never shows it whole" (raw column is not and does not contain the number, `Crypt::decryptString` gives it back, the model decrypts it, hidden from arrays, page shows `···6789` only, no audit row holds it).
+- **AC: low-contrast colours rejected:** `BrandingSettingsTest` › "rejects a primary colour too light for white paper, on the server, saving nothing" (4 colours), "refuses a low-contrast colour sent straight to the server, past the page" (real Livewire update over HTTP), "rejects an accent too close to the primary", "accepts a mid-contrast colour and uses a darker shade for text on it"; unit cases in `BrandingRulesTest`.
+- **AC: preview reflects unsaved changes:** `BrandingSettingsTest` › "renders the sample invoice and receipt from the unsaved form, and saves nothing until Save" (Livewire test: trading name, colour, prefixes, notes, footer, classic layout all in the preview; organization, audit log and checklist untouched; then Save persists), "keeps showing the saved colour while a colour is half typed", "shows a chosen logo in the preview before it is saved…".
+- Also: name check matched (request URL, params, bearer key asserted) / mismatched (service and page, "Use the bank's name") / not found / unavailable (no key: nothing sent; 503) and checking later; later mismatch moves the primary; lookup limit; duplicates and malformed numbers; primary, deactivate, reactivate, remove (soft delete) with the audit event list; edit keeps the number; admins and agents 403, tenants/property owners/strangers 404; other organization's account ids 404 on every action; impersonating staff (both modes) get 403 on the page with nothing shown, Livewire calls refused, Settings menu hides it; suspended: page read-only, writes 403. Branding: every validation rule, Scale-only footer, upload refusals (PHP renamed .png, SVG, SVG renamed .png, HTML renamed .jpg, over 1 MB, too narrow) on the service and on choosing the file, stored re-encoded PNG and its route (agent sees logo not signature, strangers and other organizations 404), remove logo, admins can save / agents 403, suspended read-only, read-only support cannot save, dompdf renders the invoice and receipt in all three layouts. Profile: save with CAC encrypted and audited, web address change with redirect and taking back an old address, taken/reserved/malformed addresses, Tier 2 lock, roles, suspended, settings links.
+- Existing tests changed: `SuspendedOrganizationTest` kept list (+`settings.view`, `payment_settings.view`), `ImpersonationGuardTest` blocked list (+`payment_settings.view`).
+- **In a browser** (built-in browser, `php -S`, seeded demo data in a throwaway database, dropped afterwards; assets built with `npm run build`): Settings tabs; Branding at 1440 px with the preview beside the form and at 375 px below it (no horizontal scroll); typing a trading name and a yellow primary updated the preview live, showed both contrast messages, and Save was refused on the server; receipt tab; Payment collection: adding a GTBank account with no Paystack key saved it as "Name not checked", primary, masked.
+
+**Follow-ups:**
+- P03-05: register Inter with dompdf (with DejaVu Sans the full sample invoice spills onto a second page in modern/classic), QR codes, amount in words, branding snapshot (`Branding::toArray()`), numbering from `document_counters` with the prefixes; decide what a prefix change means for counters.
+- P02-05: absorb `logo_file` / `signature_file` / `stamp_file` into media rows (`logo_media_id`, `signature_media_id`, new `stamp_media_id` in the json) and prune unreferenced files.
+- P03-07: statement import and matching on `organization_bank_accounts`; its "org bank accounts with Paystack account-name check" part is done here.
+- P03-08: add the Paystack connection to Settings → Payment collection (same permissions).
+- P06-01: read the footer-line plan rule from the subscription instead of `signup_plan_key`.
+- Compliance can now see whether the bank account name matches the CAC name ("Business bank account in the CAC-registered name", P01-03 follow-up) once the console shows bank accounts (not built here).
+- APP_KEY rotation changes bank account fingerprints (duplicate detection) as well as the encrypted numbers; add to the key-rotation runbook.
+- P01-04's invitation acceptance page can show the logo with `app(BrandingFiles::class)->dataUri($organization, Branding::fromOrganization($organization)->logoFile)` (works for guests, no route needed).
+
+**Next:** P01 phase exit.
 
 ### P01-04 — Complete (2026-10-27): member invitations (email + token), roles, removal, acceptance page
 

@@ -79,6 +79,14 @@ Proposed new modules: Leasing, Billing, Payments, Collections (bank statements),
 
 ## Decisions needed from the product owner before P02 starts
 
+**Settled or changed by P01 (2026-10-27):**
+- Item 4 (lookups without an organization context): P01-04 reads an invitation's `organization_id` by token hash (one unscoped column), then loads the row inside that organization with `OrganizationContext::run`. Reuse this pattern for `/pay`, `/verify` and webhooks unless the product owner wants another.
+- Item 8 (uploads before the media library): P01-03 keeps compliance files on their own encrypted private disk (separate by design); P01-05 keeps branding images on a private disk and ARCHITECTURE.md § 9 says how P02-05 absorbs them.
+- Item 12: bank accounts and the Paystack account-name check (using GoProperty's own key) are done in P01-05, so P03-07a only imports statements. Tenants never pass the `/o/{slug}` check (P01-01).
+- P02-04 and P03-01b reuse the `invitations` table from P01-04 (`kind`, `roles`, `target_organization_id`, channels).
+- Every new `OrganizationPermission` must be classed in `allowedWhileSuspended()` (P01-06) and `blockedWhileImpersonating()` (P01-08).
+
+
 1. **Module setup.** `phpunit.xml`, `tests/Pest.php` and `phpstan.neon` ignore `Modules/`, and `scripts/release/stage.sh` removes `tests/` but not `Modules/*/tests`. P02-01a fixes both before any module code counts as tested.
 2. **Module list.** ARCH § 8 names only Leasing, Billing, Tickets, BuildingGroup, Reminders, SaasBilling and Platform. This plan adds Properties, Tenants, Import, Payments, Collections, OnlinePayments and Expenses. Separately, AGENT § 5 puts Livewire in `App\Livewire\<Area>`, while ARCH § 8 rule 2 says the module owns its components.
 3. **Naming and cycle maths.** `CycleCalculator` is `Modules\Leasing` in AGENT § 3.3 but `App\Leasing` in ARCH § 6.3. The column is `next_due_date` in ARCH § 6.3–6.4 but `next_billing_date` in DB § 3. ARCH § 6.4's "7-day lead window" and DB § 3's `due_day_offset` have no stated link. Month-end anchoring is undefined: after a 31 Jan start, is the next period start 1 Mar or 28 Feb?

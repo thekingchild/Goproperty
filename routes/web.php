@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Branding\BrandingFiles;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\BrandAssetController;
 use App\Http\Controllers\Invitations\AcceptInvitationController;
@@ -9,6 +10,7 @@ use App\Http\Controllers\Marketing\MarketingController;
 use App\Http\Controllers\Marketing\SeoController;
 use App\Http\Controllers\Onboarding\RegisterController;
 use App\Http\Controllers\Onboarding\VerifyEmailController;
+use App\Http\Controllers\Workspace\BrandingFileController;
 use App\Http\Controllers\Workspace\DashboardController;
 use App\Http\Controllers\Workspace\SwitchOrganizationController;
 use App\Http\Controllers\Workspace\WorkspaceHomeController;
@@ -17,6 +19,9 @@ use App\Http\Middleware\SignInPageHeaders;
 use App\Livewire\Compliance\TierApplicationPage;
 use App\Livewire\Onboarding\CreateOrganization;
 use App\Livewire\Onboarding\SetupWizard;
+use App\Livewire\Settings\BrandingPage;
+use App\Livewire\Settings\OrganizationProfilePage;
+use App\Livewire\Settings\PaymentCollectionPage;
 use App\Livewire\Workspace\Members;
 use App\Theme\BrandAssets;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
@@ -122,6 +127,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         // Settings → Members: members, roles and invitations (ARCHITECTURE.md § 5).
         Route::livewire('settings/members', Members::class)->name('settings.members');
+
+        // Settings: profile and branding (org-owner, org-admin), payment
+        // collection (org-owner; BRANDING_DOCUMENTS.md § 1, ONBOARDING_COMPLIANCE.md § 4).
+        Route::livewire('settings/profile', OrganizationProfilePage::class)->name('settings.profile');
+        Route::livewire('settings/collections', PaymentCollectionPage::class)->name('settings.collections');
+        Route::livewire('settings/branding', BrandingPage::class)->name('settings.branding');
+        Route::get('settings/branding/files/{role}/{file}', BrandingFileController::class)
+            ->whereIn('role', array_keys(BrandingFiles::ROLES))
+            ->where('file', '[a-f0-9]{32}')
+            ->name('settings.branding.file');
 
         // Transaction Tier application, org-owner only (ONBOARDING_COMPLIANCE.md § 5.3).
         Route::livewire('compliance/tier', TierApplicationPage::class)->name('compliance.tier');

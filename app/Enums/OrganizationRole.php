@@ -53,9 +53,10 @@ enum OrganizationRole: string
         return match ($this) {
             // Full control, including billing responsibility and closing the organization.
             self::Owner => P::cases(),
-            // Day-to-day operations; no billing responsibility, payment
-            // settings, compliance or closing the organization.
-            self::Admin => [P::OpenWorkspace, P::UpdateOrganization, P::ViewMembers, P::ManageMembers, ...$operations, P::ViewReports, P::ManageImports],
+            // Day-to-day operations, profile and branding; no billing
+            // responsibility, bank accounts or Paystack (where tenants' money
+            // goes: owner only), compliance or closing the organization.
+            self::Admin => [P::OpenWorkspace, P::UpdateOrganization, P::ViewSettings, P::ViewMembers, P::ManageMembers, ...$operations, P::ViewReports, P::ManageImports],
             // Operational staff; building assignment narrows this in policies.
             self::Agent => [P::OpenWorkspace, ...$operations],
             // Owner portal only (/owner), own properties only (policies narrow it).

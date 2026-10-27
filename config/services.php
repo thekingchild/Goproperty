@@ -30,6 +30,17 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    // GoProperty's own Paystack account (its subscription income, BILLING_PAYMENTS.md).
+    // Organizations' bank account names are checked with this key too: the
+    // account-name lookup moves no money, so using the platform's key keeps
+    // invariant 8 (ONBOARDING_COMPLIANCE.md § 0, § 4.1). With no key the
+    // accounts are saved as "name not checked" (App\Banking\BankAccounts).
+    'paystack' => [
+        'secret_key' => env('PAYSTACK_SECRET_KEY'),
+        'base_url' => env('PAYSTACK_BASE_URL', 'https://api.paystack.co'),
+        'timeout' => (int) env('PAYSTACK_TIMEOUT', 8),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

@@ -28,9 +28,11 @@ enum OrganizationPermission: string
 
     case OpenWorkspace = 'workspace.access';
     case UpdateOrganization = 'organization.update';
+    case ViewSettings = 'settings.view';
     case DeleteOrganization = 'organization.delete';
     case ManageBilling = 'organization.billing';
     case ManagePaymentSettings = 'organization.payment_settings';
+    case ViewPaymentSettings = 'payment_settings.view';
     case ManageCompliance = 'organization.compliance';
     case ViewCompliance = 'compliance.view';
     case ViewActivity = 'organization.activity';
@@ -66,6 +68,8 @@ enum OrganizationPermission: string
     {
         return match ($this) {
             self::OpenWorkspace,
+            self::ViewSettings,
+            self::ViewPaymentSettings,
             self::ViewCompliance,
             self::ViewActivity,
             self::ViewMembers,
@@ -101,8 +105,8 @@ enum OrganizationPermission: string
      * "always blocked"; App\Tenancy\ImpersonationGuard): money actions
      * (confirming or rejecting payments, payment proofs, issuing and voiding
      * bills, the subscription and billing transfers), bank accounts and
-     * Paystack keys (viewing them too: a page that shows them checks this
-     * permission), members and roles, closing the organization, data
+     * Paystack keys (viewing them too: the Payment collection page needs
+     * `payment_settings.view`, also blocked), members and roles, closing the organization, data
      * imports (commit and rollback, DATA_IMPORT.md § 5), and Transaction Tier
      * applications and compliance documents (`organization.compliance`: they
      * change the organization's compliance standing, so staff never apply,
@@ -118,6 +122,7 @@ enum OrganizationPermission: string
             self::DeleteOrganization,
             self::ManageBilling,
             self::ManagePaymentSettings,
+            self::ViewPaymentSettings,
             self::ManageCompliance,
             self::ManageMembers,
             self::ManageBills,
@@ -126,6 +131,7 @@ enum OrganizationPermission: string
             self::ManageImports => true,
             self::OpenWorkspace,
             self::UpdateOrganization,
+            self::ViewSettings,
             self::ViewCompliance,
             self::ViewActivity,
             self::ViewMembers,
@@ -150,9 +156,11 @@ enum OrganizationPermission: string
         return match ($this) {
             self::OpenWorkspace => 'Open the organization\'s workspace (/o/{slug})',
             self::UpdateOrganization => 'Edit the organization profile and branding',
+            self::ViewSettings => 'See the organization profile and branding settings',
             self::DeleteOrganization => 'Close the organization',
             self::ManageBilling => 'Pay the GoProperty subscription, change plan, accept billing transfers',
             self::ManagePaymentSettings => 'Manage bank accounts and the organization\'s Paystack keys',
+            self::ViewPaymentSettings => 'See bank accounts (masked) and the Paystack connection',
             self::ManageCompliance => 'Apply for a Transaction Tier and upload compliance documents',
             self::ViewCompliance => 'See the Transaction Tier application, its review and document expiry',
             self::ViewActivity => 'See the organization\'s activity log',

@@ -30,6 +30,11 @@
                             {{ __('Members') }}
                         </flux:sidebar.item>
                     @endcan
+                    @if (auth()->user()->can('viewSettings', app(\App\Tenancy\OrganizationContext::class)->get()) || auth()->user()->can('viewPaymentSettings', app(\App\Tenancy\OrganizationContext::class)->get()))
+                        <flux:sidebar.item icon="cog-6-tooth" :href="route(auth()->user()->can('viewSettings', app(\App\Tenancy\OrganizationContext::class)->get()) ? 'workspace.settings.profile' : 'workspace.settings.collections', app(\App\Tenancy\OrganizationContext::class)->get())" :current="request()->routeIs('workspace.settings.profile', 'workspace.settings.collections', 'workspace.settings.branding')" wire:navigate>
+                            {{ __('Settings') }}
+                        </flux:sidebar.item>
+                    @endif
                 @else
                     <flux:sidebar.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>
                         {{ __('Dashboard') }}

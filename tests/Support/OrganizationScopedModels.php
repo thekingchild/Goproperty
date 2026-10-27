@@ -12,6 +12,7 @@ use App\Models\ComplianceDocument;
 use App\Models\Invitation;
 use App\Models\Membership;
 use App\Models\OnboardingChecklistItem;
+use App\Models\OrganizationBankAccount;
 use App\Models\OrganizationOnboarding;
 use App\Models\TierApplication;
 use App\Models\User;
@@ -38,6 +39,14 @@ final class OrganizationScopedModels
             Membership::class => fn (): Model => Membership::query()->create(['user_id' => User::factory()->create()->id]),
             OrganizationOnboarding::class => fn (): Model => OrganizationOnboarding::query()->create(['step' => OnboardingStep::Tier]),
             OnboardingChecklistItem::class => fn (): Model => OnboardingChecklistItem::query()->create(['item' => ChecklistItem::Plan]),
+            OrganizationBankAccount::class => fn (): Model => OrganizationBankAccount::query()->create([
+                'bank_code' => '058',
+                'bank_name' => 'Guaranty Trust Bank (GTBank)',
+                'account_number' => $number = (string) random_int(1_000_000_000, 9_999_999_999),
+                'account_number_last4' => substr($number, -4),
+                'account_fingerprint' => hash('sha256', $number),
+                'account_name' => 'Probe Realty Ltd',
+            ]),
             Invitation::class => fn (): Model => tap(new Invitation, fn (Invitation $invitation): bool => $invitation->forceFill([
                 'email' => fake()->unique()->safeEmail(),
                 'roles' => ['agent'],

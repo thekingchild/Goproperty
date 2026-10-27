@@ -20,7 +20,7 @@ Each phase below is split into numbered tasks (`P00-01`, `P00-02`, …). Each ta
 | --- | --- | --- | --- | --- |
 | PRE | Decisions and accounts before coding | 0 | — | In progress |
 | P00 | Foundation, tooling, installer core, login pages & backups baseline | 1–2 | M0 | In progress |
-| P01 | Tenancy, auth, registration, Transaction Tiers, staff console core & web installer | 3–5 | M1 | In progress |
+| P01 | Tenancy, auth, registration, Transaction Tiers, staff console core & web installer | 3–5 | M1 | In review |
 | P02 | Properties, units, owners & import (part 1) | 6–8 | M2 | Not started |
 | P03 | Leasing, branded documents & the customer money loop + import (part 2) | 9–12 | M3 | Not started |
 | P04 | Maintenance tickets | 13 | M4 | Not started |
@@ -74,7 +74,7 @@ Depends on: PRE-03 (test accounts) for P00-12 and P00-13; PRE-04 for P00-13.
 
 **Phase exit:** all P00 tasks complete; the install drill and CI are green on both databases.
 
-### P01 — Tenancy, auth, registration, Transaction Tiers, staff console core & web installer (Weeks 3–5) — In progress
+### P01 — Tenancy, auth, registration, Transaction Tiers, staff console core & web installer (Weeks 3–5) — In review (all tasks built; P01-09 waits on the GitHub Actions install drill)
 
 Depends on: P00.
 
@@ -84,7 +84,7 @@ Depends on: P00.
 | P01-02 — **Complete (2026-10-27)** | Registration wizard ([ONBOARDING_COMPLIANCE.md § 2](ONBOARDING_COMPLIANCE.md)): account → email verification by link (no SMS) → organization (type, slug) → **Transaction Tier selection** → plan + trial → collections setup → import/first property, with a progress checklist. Property-owner signup with `platform_covered` handling; first user as `org-owner` | A new signup reaches the dashboard as `org-owner`; leaving mid-wizard resumes at the same step; property-owner signup sets `platform_covered` |
 | P01-03 — **Complete (2026-10-27)** | Transaction Tier applications: document upload (CAC, SCUML, IDs, proof of address, beneficial owners for Tier 3), compliance review queue in the console, approve/reject/more-info, document expiry tracking | A Tier 2 application with missing SCUML cannot be submitted; an approved one changes the org's tier and is audited |
 | P01-04 — **Complete (2026-10-27)** | Invitations (email + token): invite with roles; acceptance sets password and joins org | An invited user with role `agent` sees only what [ARCHITECTURE.md § 5](ARCHITECTURE.md) grants; expired/used tokens rejected |
-| P01-05 — **In progress** | Org settings: profile, bank accounts (encrypted, name-checked), **branding** ([BRANDING_DOCUMENTS.md § 1](BRANDING_DOCUMENTS.md)): logo, colours with contrast check, letterhead, signature/stamp, prefixes, notes, layout choice, live invoice/receipt preview | Bank numbers encrypted at rest; low-contrast colours rejected; preview reflects unsaved changes |
+| P01-05 — **Complete (2026-10-27)** | Org settings: profile, bank accounts (encrypted, name-checked), **branding** ([BRANDING_DOCUMENTS.md § 1](BRANDING_DOCUMENTS.md)): logo, colours with contrast check, letterhead, signature/stamp, prefixes, notes, layout choice, live invoice/receipt preview | Bank numbers encrypted at rest; low-contrast colours rejected; preview reflects unsaved changes |
 | P01-06 — **Complete (2026-10-27)** | Platform console: customers list (orgs, users, statuses, tier), org suspend/reactivate | Suspending an org blocks its users' write actions within one request; reactivating restores them |
 | P01-07 — **Complete (2026-10-26)** | Console staff management: configurable roles (default set + custom roles from a permission catalogue), 2FA enforcement, two-person approvals ([PLATFORM_CONSOLE.md § 1](PLATFORM_CONSOLE.md)) | A two-person action cannot be approved by its requester; staff without 2FA are forced to enrol |
 | P01-08 — **Complete (2026-10-27)** | Impersonation with reason, permission-gated by staff role (`impersonate.read_only`; `impersonate.write` with two-person approval), 30-minute limit, banner, blocked money actions and a full GoProperty-side audit trail with a console impersonation log ([PLATFORM_CONSOLE.md § 6](PLATFORM_CONSOLE.md)). No organization consent setting and no notification to the organization (changed 2026-10-26 by the product owner; the `allow_support_access` column is dropped) | Impersonating staff cannot confirm a payment or view bank/Paystack keys (tested); staff without the impersonate permission cannot start a session (tested); start, end, reason, pages viewed and actions are recorded with both identities in the hash-chained audit log and shown in the console impersonation log (tested); no email or notification reaches the organization or user (tested) |

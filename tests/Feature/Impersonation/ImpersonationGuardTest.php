@@ -186,6 +186,7 @@ it('classes the money, bank, Paystack, billing, compliance, member, delete and i
         'organization.delete',
         'organization.billing',
         'organization.payment_settings',
+        'payment_settings.view',
         'organization.compliance',
         'members.manage',
         'bills.manage',

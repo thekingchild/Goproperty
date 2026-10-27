@@ -56,6 +56,38 @@ final class OrganizationPolicy
         return $this->view($user, $organization) && $this->holds($user, $organization, OrganizationPermission::UpdateOrganization);
     }
 
+    /**
+     * Settings → Profile and Branding (BRANDING_DOCUMENTS.md § 1:
+     * org-owner / org-admin). Kept while suspended, so the pages still open
+     * read-only; saving needs updateProfile / updateBranding.
+     */
+    public function viewSettings(User $user, Organization $organization): bool
+    {
+        return $this->view($user, $organization) && $this->holds($user, $organization, OrganizationPermission::ViewSettings);
+    }
+
+    /** Name, web address, address, state, LGA, CAC number. */
+    public function updateProfile(User $user, Organization $organization): bool
+    {
+        return $this->view($user, $organization) && $this->holds($user, $organization, OrganizationPermission::UpdateOrganization);
+    }
+
+    /** Logo, colours, letterhead, signature, prefixes, notes, layout. */
+    public function updateBranding(User $user, Organization $organization): bool
+    {
+        return $this->updateProfile($user, $organization);
+    }
+
+    /**
+     * Settings → Payment collection: bank accounts, later the Paystack
+     * connection (ONBOARDING_COMPLIANCE.md § 4). Org-owner only, and never
+     * while GoProperty staff impersonate the user (the permission is blocked).
+     */
+    public function viewPaymentSettings(User $user, Organization $organization): bool
+    {
+        return $this->view($user, $organization) && $this->holds($user, $organization, OrganizationPermission::ViewPaymentSettings);
+    }
+
     private function holds(User $user, Organization $organization, OrganizationPermission $permission): bool
     {
         return app(OrganizationContext::class)->run($organization, static function () use ($user, $permission): bool {
