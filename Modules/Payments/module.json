@@ -1,0 +1,11 @@
+{
+    "name": "Payments",
+    "alias": "payments",
+    "description": "Tenant payments: recording, confirmation and allocation across bills, tenant credit (ARCHITECTURE.md § 6.4)",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\Payments\\Providers\\PaymentsServiceProvider"
+    ],
+    "files": []
+}

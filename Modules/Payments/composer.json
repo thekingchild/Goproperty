@@ -1,0 +1,28 @@
+{
+    "name": "goproperty/payments",
+    "description": "Tenant payments: recording, confirmation and allocation across bills, tenant credit (ARCHITECTURE.md § 6.4)",
+    "authors": [
+        {
+            "name": "GoProperty",
+            "email": ""
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [],
+            "aliases": {
+
+            }
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Modules\\Payments\\": "app/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Modules\\Payments\\Tests\\": "tests/"
+        }
+    }
+}

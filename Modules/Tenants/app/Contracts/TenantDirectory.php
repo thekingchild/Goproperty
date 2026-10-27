@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Tenants\Contracts;
 
 use App\Models\User;
+use Illuminate\Database\Query\Builder;
 use LogicException;
 
 /**
@@ -57,4 +58,20 @@ interface TenantDirectory
      * @throws LogicException outside a database transaction
      */
     public function lockActive(int $tenantId): ?TenantSummary;
+
+    /**
+     * Whether the member's building narrowing (an agent assigned to
+     * buildings, Access\TenantNarrowing) lets them see the tenant, archived
+     * ones too. No permission check: for modules whose records follow a
+     * tenant (payments, P03-10a) and check their own permission. False when
+     * there is no such tenant here.
+     */
+    public function narrowingAllows(User $member, int $tenantId): bool;
+
+    /**
+     * A sub-query selecting the ids of the tenants (archived ones too) the
+     * member's building narrowing lets them see, for `whereIn(…)` on another
+     * module's tenant column; null when the member sees every tenant.
+     */
+    public function narrowedIdsQuery(User $member): ?Builder;
 }

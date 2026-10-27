@@ -40,6 +40,13 @@ use Modules\Leasing\Enums\DepositEntryType;
 use Modules\Leasing\Models\Lease;
 use Modules\Leasing\Models\LeaseContract;
 use Modules\Leasing\Models\LeaseDepositEntry;
+use Modules\Payments\Contracts\PaymentMethod;
+use Modules\Payments\Contracts\PaymentSource;
+use Modules\Payments\Enums\CreditReason;
+use Modules\Payments\Models\Payment;
+use Modules\Payments\Models\PaymentAllocation;
+use Modules\Payments\Models\TenantCreditBalance;
+use Modules\Payments\Models\TenantCreditEntry;
 use Modules\Properties\Models\AgentAssignment;
 use Modules\Properties\Models\OwnerProfile;
 use Modules\Properties\Models\Property;
@@ -140,6 +147,22 @@ final class OrganizationScopedModels
                 'label' => 'Rent',
                 'amount_kobo' => Money::naira(1_500_000),
             ])->save()),
+            // Rows on their own (PaymentService and TenantCredit are the writers; the probes are about the rows).
+            Payment::class => fn (): Model => self::payment(),
+            PaymentAllocation::class => fn (): Model => tap(new PaymentAllocation, fn (PaymentAllocation $allocation): bool => $allocation->forceFill([
+                'payment_id' => self::payment()->id,
+                'bill_id' => self::bill()->id,
+                'amount_kobo' => Money::naira(100_000),
+            ])->save()),
+            TenantCreditEntry::class => fn (): Model => tap(new TenantCreditEntry, fn (TenantCreditEntry $entry): bool => $entry->forceFill([
+                'tenant_profile_id' => TenantProfile::factory()->create()->id,
+                'amount_kobo' => Money::naira(50_000),
+                'reason' => CreditReason::Overpayment,
+            ])->save()),
+            TenantCreditBalance::class => fn (): Model => tap(new TenantCreditBalance, fn (TenantCreditBalance $balance): bool => $balance->forceFill([
+                'tenant_profile_id' => TenantProfile::factory()->create()->id,
+                'balance_kobo' => Money::naira(50_000),
+            ])->save()),
             // Owned by the offering organization; the receiving one reads it
             // only through Modules\SaasBilling\Transfers\IncomingTransfers.
             BillingTransferRequest::class => fn (): Model => tap(new BillingTransferRequest, fn (BillingTransferRequest $transfer): bool => $transfer->forceFill([
@@ -188,6 +211,18 @@ final class OrganizationScopedModels
             'issued_at' => now(),
             'branding_snapshot' => ['version' => 1],
             'verification_code' => strtoupper(Str::random(10)),
+        ])->save());
+    }
+
+    /** A payment waiting for confirmation from a new tenant, in the current organization. */
+    private static function payment(): Payment
+    {
+        return tap(new Payment, fn (Payment $payment): bool => $payment->forceFill([
+            'tenant_profile_id' => TenantProfile::factory()->create()->id,
+            'amount_kobo' => Money::naira(100_000),
+            'method' => PaymentMethod::BankTransfer,
+            'source' => PaymentSource::Manual,
+            'paid_at' => '2027-01-01',
         ])->save());
     }
 

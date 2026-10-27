@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Modules\Tenants\Profiles;
 
 use App\Models\User;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use LogicException;
+use Modules\Properties\Contracts\BuildingAccess;
 use Modules\Tenants\Access\TenantNarrowing;
 use Modules\Tenants\Contracts\TenantDirectory;
 use Modules\Tenants\Contracts\TenantSummary;
@@ -17,7 +19,7 @@ use Modules\Tenants\Models\TenantProfile;
 /** The Tenants module's answer to Contracts\TenantDirectory, through the organization scope. */
 final readonly class TenantDirectoryService implements TenantDirectory
 {
-    public function __construct(private TenantNarrowing $narrowing) {}
+    public function __construct(private TenantNarrowing $narrowing, private BuildingAccess $access) {}
 
     public function find(int $tenantId, ?User $for = null): ?TenantSummary
     {
@@ -75,6 +77,22 @@ final readonly class TenantDirectoryService implements TenantDirectory
         $tenant = TenantProfile::query()->whereKey($tenantId)->lockForUpdate()->first();
 
         return $tenant instanceof TenantProfile ? self::summary($tenant) : null;
+    }
+
+    public function narrowingAllows(User $member, int $tenantId): bool
+    {
+        $tenant = TenantProfile::query()->withTrashed()->find($tenantId);
+
+        return $tenant instanceof TenantProfile && $this->narrowing->allows($member, $tenant);
+    }
+
+    public function narrowedIdsQuery(User $member): ?Builder
+    {
+        if ($this->access->limitedTo($member) === null) {
+            return null;
+        }
+
+        return $this->narrowing->tenants(TenantProfile::query()->withTrashed(), $member)->select('id')->toBase();
     }
 
     private static function summary(TenantProfile $tenant): TenantSummary
