@@ -267,9 +267,15 @@ it('never deletes a tenant row for good: the module archives (soft delete) and h
 
 it('searches by name, phone and email, filters by KYC status and portal access, and pages on the server', function () {
     inOrganization($this->acme, function (): void {
-        TenantProfile::factory()->count(TenantIndex::PER_PAGE + 5)->sequence(fn ($sequence) => ['first_name' => 'Tenant', 'last_name' => sprintf('N%03d', $sequence->index)])->create();
+        TenantProfile::factory()->count(TenantIndex::PER_PAGE + 5)->sequence(fn ($sequence) => [
+            'first_name' => 'Tenant',
+            'last_name' => sprintf('N%03d', $sequence->index),
+            // Fixed contacts: random ones could match a search term below.
+            'email' => sprintf('tenant%03d@example.test', $sequence->index),
+            'phone' => sprintf('+2348120000%03d', $sequence->index),
+        ])->create();
         TenantProfile::factory()->withNin()->create(['first_name' => 'Chiamaka', 'last_name' => 'Eze', 'email' => 'chiamaka@eze.ng', 'phone' => '+2348091112222', 'kyc_status' => KycStatus::Verified]);
-        TenantProfile::factory()->create(['first_name' => 'Kunle', 'last_name' => 'Adeyemi', 'user_id' => User::factory()->create()->id]);
+        TenantProfile::factory()->create(['first_name' => 'Kunle', 'last_name' => 'Adeyemi', 'email' => 'kunle@adeyemi.test', 'phone' => '+2348130000001', 'user_id' => User::factory()->create(['name' => 'Kunle Adeyemi', 'email' => 'kunle.user@adeyemi.test'])->id]);
     });
 
     // Ordered by last name: Adeyemi, Eze, then N000…
