@@ -153,6 +153,9 @@ it('answers 404 for another organization\'s owner guessed by ID, on every page a
     LivewireHttp::update($this, $list, [], [['restore', [$archivedForeign->id]]])->assertNotFound();
 
     // Saving the own owner's form with the foreign id swapped in: the id is locked.
+    // Livewire answers a tampered snapshot with 419 in production (debug off);
+    // CI's .env turns debug on, so pin it here.
+    config(['app.debug' => false]);
     $form = ownersSnapshot($this->owner, "/{$own->id}");
     $tampered = json_decode($form, true);
     $tampered['data']['ownerId'] = $foreign->id;
