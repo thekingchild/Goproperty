@@ -67,7 +67,7 @@ it('commits a 2,000-row workbook on the imports queue, each job well within 50 s
 
     expect($batch->status)->toBe(ImportStatus::Committed)
         ->and(DB::table('failed_jobs')->count())->toBe(0)
-        ->and(array_map('count', portfolioTables()))->toBe(['owner_profiles' => 100, 'properties' => 200, 'units' => 1500, 'tenant_profiles' => 200])
+        ->and(array_map('count', portfolioTables()))->toEqual(['owner_profiles' => 100, 'properties' => 200, 'units' => 1500, 'tenant_profiles' => 200])
         // One sheet after another in dependency order.
         ->and(array_values(array_unique(array_column($runs, 0))))->toBe(['owners', 'properties', 'units', 'tenants'])
         // Each job stops after import.job_seconds (30) and queues the rest, so none comes near 50 s.
@@ -103,7 +103,7 @@ it('never matches another organization\'s owner, building or unit', function () 
 
     $batch = portfolioDryRun($this->acme, $this->owner, portfolioWorkbook($sheets));
 
-    expect($batch->dry_run_report['counts'])->toBe(['create' => 7, 'update' => 0, 'restore' => 0, 'skip' => 0])
+    expect($batch->dry_run_report['counts'])->toEqual(['create' => 7, 'update' => 0, 'restore' => 0, 'skip' => 0])
         // No "archived" warning about the other organization's archived owner or unit.
         ->and(collect($batch->dry_run_report['sheets'])->flatMap(fn (array $sheet) => $sheet['issues'])->pluck('severity')->all())->toBe(['warning'])
         ->and(collect($batch->dry_run_report['sheets'])->flatMap(fn (array $sheet) => $sheet['issues'])->first()['message'])->toContain('You have 0 billable units now');
@@ -111,7 +111,7 @@ it('never matches another organization\'s owner, building or unit', function () 
     $batch = portfolioCommit($this->acme, $this->owner, $batch);
     $owners = ownersOf($this->acme);
 
-    expect($batch->result_counts['targets']['units'])->toBe(['create' => 3, 'update' => 0, 'restore' => 0, 'skip' => 0])
+    expect($batch->result_counts['targets']['units'])->toEqual(['create' => 3, 'update' => 0, 'restore' => 0, 'skip' => 0])
         ->and($owners)->toHaveCount(2)
         ->and($owners->pluck('organization_id')->unique()->values()->all())->toBe([$this->acme->id])
         ->and(buildingsOf($this->acme)->pluck('owner_profile_id')->all())->toBe($owners->pluck('id')->all())

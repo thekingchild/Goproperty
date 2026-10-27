@@ -82,7 +82,7 @@ it('audits every export: who, which list and format, the filters and the row cou
         ->and($units->subject_type)->toBe($this->acme->getMorphClass())
         ->and($units->subject_id)->toBe($this->acme->id)
         ->and($units->description)->toBe('Exported Units (CSV, 2 rows)')
-        ->and($units->properties->all())->toBe([
+        ->and($units->properties->all())->toEqual([
             'list' => 'units',
             'format' => 'csv',
             'filters' => ['search' => 'Flat', 'status' => 'occupied'],

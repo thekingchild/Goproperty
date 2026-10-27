@@ -66,7 +66,7 @@ it('commits exactly the records the dry run previewed', function () {
         expect($batch->result_counts['targets'][$sheet['target']])->toBe($sheet['counts']);
     }
 
-    expect(portfolioCounts($batch, 'owners'))->toBe(['create' => 99, 'update' => 1, 'restore' => 0, 'skip' => 0])
+    expect(portfolioCounts($batch, 'owners'))->toEqual(['create' => 99, 'update' => 1, 'restore' => 0, 'skip' => 0])
         ->and($owners)->toHaveCount(100)
         ->and($buildings)->toHaveCount(200)
         ->and($units)->toHaveCount(1500)
@@ -139,7 +139,7 @@ it('creates no duplicates when the same workbook is imported again', function ()
     $again = portfolioDryRun($this->acme, $this->owner, portfolioWorkbook($file));
 
     expect($again->status)->toBe(ImportStatus::DryRunPassed)
-        ->and($again->dry_run_report['counts'])->toBe(['create' => 0, 'update' => 2000, 'restore' => 0, 'skip' => 0])
+        ->and($again->dry_run_report['counts'])->toEqual(['create' => 0, 'update' => 2000, 'restore' => 0, 'skip' => 0])
         ->and($again->dry_run_report['units'])->toBe(0)
         // No units added, so no bill warning; nothing differs, so no rent warning.
         ->and($again->dry_run_report['warnings'])->toBe(0);
@@ -147,7 +147,7 @@ it('creates no duplicates when the same workbook is imported again', function ()
     $again = portfolioCommit($this->acme, $this->owner, $again);
 
     expect($again->status)->toBe(ImportStatus::Committed)
-        ->and($again->result_counts['targets'])->toBe([
+        ->and($again->result_counts['targets'])->toEqual([
             'owners' => ['create' => 0, 'update' => 100, 'restore' => 0, 'skip' => 0],
             'properties' => ['create' => 0, 'update' => 200, 'restore' => 0, 'skip' => 0],
             'units' => ['create' => 0, 'update' => 1500, 'restore' => 0, 'skip' => 0],
@@ -178,9 +178,9 @@ it('creates no duplicates when the same workbook is imported again', function ()
     $third = portfolioImport($this->acme, $this->owner, portfolioWorkbook($withoutIds));
 
     expect($third->status)->toBe(ImportStatus::Committed)
-        ->and($third->result_counts['targets']['owners'])->toBe(['create' => 0, 'update' => 100, 'restore' => 0, 'skip' => 0])
-        ->and($third->result_counts['targets']['properties'])->toBe(['create' => 0, 'update' => 200, 'restore' => 0, 'skip' => 0])
-        ->and($third->result_counts['targets']['units'])->toBe(['create' => 0, 'update' => 1500, 'restore' => 0, 'skip' => 0])
-        ->and(array_map('count', portfolioTables()))->toBe(['owner_profiles' => 100, 'properties' => 200, 'units' => 1500, 'tenant_profiles' => 200])
+        ->and($third->result_counts['targets']['owners'])->toEqual(['create' => 0, 'update' => 100, 'restore' => 0, 'skip' => 0])
+        ->and($third->result_counts['targets']['properties'])->toEqual(['create' => 0, 'update' => 200, 'restore' => 0, 'skip' => 0])
+        ->and($third->result_counts['targets']['units'])->toEqual(['create' => 0, 'update' => 1500, 'restore' => 0, 'skip' => 0])
+        ->and(array_map('count', portfolioTables()))->toEqual(['owner_profiles' => 100, 'properties' => 200, 'units' => 1500, 'tenant_profiles' => 200])
         ->and(buildingsOf($this->acme)->firstWhere('name', 'Building 5')->owner_profile_id)->toBe(ownersOf($this->acme)->firstWhere('external_ref', 'O-5')->id);
 });

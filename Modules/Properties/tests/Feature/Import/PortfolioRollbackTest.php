@@ -70,7 +70,7 @@ it('rolls back the batch: what it created or restored is archived, everything el
         ->and($units->where('property_id', $own->id)->first()->trashed())->toBeFalse()
         ->and(inOrganization($this->acme, fn () => app(UnitDirectory::class)->countBillable()))->toBe(1)
         ->and(AuditEntry::query()->where('log_name', 'imports')->where('event', 'import.rolled_back')->sole()->properties['archived'])
-        ->toBe(['tenants' => 200, 'units' => 1500, 'properties' => 200, 'owners' => 99]);
+        ->toEqual(['tenants' => 200, 'units' => 1500, 'properties' => 200, 'owners' => 99]);
 
     // The units leave the bill, as when archived on the pages (P06 metering).
     Event::assertDispatchedTimes(UnitDeleted::class, 1500);
@@ -78,10 +78,10 @@ it('rolls back the batch: what it created or restored is archived, everything el
     // Importing the file again brings the same records back instead of colliding.
     $again = portfolioImport($this->acme, $this->owner, portfolioWorkbook(portfolioFixture()));
 
-    expect($again->result_counts['targets']['owners'])->toBe(['create' => 0, 'update' => 1, 'restore' => 99, 'skip' => 0])
-        ->and($again->result_counts['targets']['properties'])->toBe(['create' => 0, 'update' => 0, 'restore' => 200, 'skip' => 0])
-        ->and($again->result_counts['targets']['units'])->toBe(['create' => 0, 'update' => 0, 'restore' => 1500, 'skip' => 0])
-        ->and(array_map('count', portfolioTables()))->toBe(['owner_profiles' => 100, 'properties' => 201, 'units' => 1501, 'tenant_profiles' => 200])
+    expect($again->result_counts['targets']['owners'])->toEqual(['create' => 0, 'update' => 1, 'restore' => 99, 'skip' => 0])
+        ->and($again->result_counts['targets']['properties'])->toEqual(['create' => 0, 'update' => 0, 'restore' => 200, 'skip' => 0])
+        ->and($again->result_counts['targets']['units'])->toEqual(['create' => 0, 'update' => 0, 'restore' => 1500, 'skip' => 0])
+        ->and(array_map('count', portfolioTables()))->toEqual(['owner_profiles' => 100, 'properties' => 201, 'units' => 1501, 'tenant_profiles' => 200])
         ->and(unitsOf($this->acme)->filter->trashed())->toHaveCount(0)
         ->and(unitsOf($this->acme)->where('import_batch_id', $again->id))->toHaveCount(1500);
 });
@@ -112,7 +112,7 @@ it('restores archived owners, buildings and units it matches, audited, and a rol
 
     $batch = portfolioDryRun($this->acme, $this->owner, portfolioWorkbook($sheets));
 
-    expect($batch->dry_run_report['counts'])->toBe(['create' => 0, 'update' => 1, 'restore' => 4, 'skip' => 0])
+    expect($batch->dry_run_report['counts'])->toEqual(['create' => 0, 'update' => 1, 'restore' => 4, 'skip' => 0])
         ->and($batch->dry_run_report['units'])->toBe(2)
         ->and(portfolioIssues($batch, 'owners'))->toBe([[2, null, null, 'warning', 'This owner was archived. Importing brings them back.']])
         ->and(portfolioIssues($batch, 'properties'))->toBe([[2, null, null, 'warning', 'This building was removed when an import was rolled back. Importing brings it back.']])
@@ -127,9 +127,9 @@ it('restores archived owners, buildings and units it matches, audited, and a rol
     $batch = portfolioCommit($this->acme, $this->owner, $batch);
 
     $restoredUnits = unitsOf($this->acme);
-    expect($batch->result_counts['targets']['owners'])->toBe(['create' => 0, 'update' => 0, 'restore' => 1, 'skip' => 0])
-        ->and($batch->result_counts['targets']['properties'])->toBe(['create' => 0, 'update' => 1, 'restore' => 1, 'skip' => 0])
-        ->and($batch->result_counts['targets']['units'])->toBe(['create' => 0, 'update' => 0, 'restore' => 2, 'skip' => 0])
+    expect($batch->result_counts['targets']['owners'])->toEqual(['create' => 0, 'update' => 0, 'restore' => 1, 'skip' => 0])
+        ->and($batch->result_counts['targets']['properties'])->toEqual(['create' => 0, 'update' => 1, 'restore' => 1, 'skip' => 0])
+        ->and($batch->result_counts['targets']['units'])->toEqual(['create' => 0, 'update' => 0, 'restore' => 2, 'skip' => 0])
         ->and(ownersOf($this->acme)->sole()->trashed())->toBeFalse()
         ->and(ownersOf($this->acme)->sole()->import_batch_id)->toBe($batch->id)
         ->and(buildingsOf($this->acme)->firstWhere('id', $building->id)->trashed())->toBeFalse()

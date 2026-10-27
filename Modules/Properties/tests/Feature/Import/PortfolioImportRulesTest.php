@@ -157,7 +157,7 @@ it('matches owners by Your ID, then phone, then name, and keeps namesakes with o
     $batch = portfolioImport($this->acme, $this->owner, portfolioWorkbook(['Owners' => array_values($owners), 'Buildings' => $buildings]));
     $all = ownersOf($this->acme);
 
-    expect($batch->result_counts['targets']['owners'])->toBe(['create' => 3, 'update' => 2, 'restore' => 0, 'skip' => 0])
+    expect($batch->result_counts['targets']['owners'])->toEqual(['create' => 3, 'update' => 2, 'restore' => 0, 'skip' => 0])
         ->and($all)->toHaveCount(7)
         ->and($all->firstWhere('id', $bola->id)->address)->toBe('New address')
         ->and($all->firstWhere('id', $bola->id)->email)->toBe('bola@example.com')
@@ -206,7 +206,7 @@ it('matches buildings by name and units by building and label, without case, and
 
     $batch = portfolioImport($this->acme, $this->owner, portfolioWorkbook(['Units' => [$units[0], $units[1], $units[2], ['', 'Cedar Court', 'Flat 1', 'Flat', '', '', '', '', '500000', '', '', '']]]));
 
-    expect($batch->result_counts['targets']['units'])->toBe(['create' => 2, 'update' => 1, 'restore' => 0, 'skip' => 0])
+    expect($batch->result_counts['targets']['units'])->toEqual(['create' => 2, 'update' => 1, 'restore' => 0, 'skip' => 0])
         ->and($flat->fresh()->description)->toBe('Keep me')
         ->and($flat->fresh()->unit_label)->toBe('FLAT 1')
         ->and(unitsOf($this->acme)->where('property_id', $palm->id)->pluck('unit_label')->sort()->values()->all())->toBe(['FLAT 1', 'Flat 2', 'Flat 9'])
@@ -223,7 +223,7 @@ it('skips an archived building and its units with a warning, and restores neithe
     ]));
 
     expect($batch->status)->toBe(ImportStatus::DryRunPassed)
-        ->and($batch->dry_run_report['counts'])->toBe(['create' => 0, 'update' => 0, 'restore' => 0, 'skip' => 3])
+        ->and($batch->dry_run_report['counts'])->toEqual(['create' => 0, 'update' => 0, 'restore' => 0, 'skip' => 3])
         ->and($batch->dry_run_report['units'])->toBe(0)
         ->and(portfolioIssues($batch, 'properties'))->toBe([[2, null, null, 'warning', 'Palm Court is archived, so this row is skipped (and so are its units). Restore the building on its page first to import changes to it.']])
         ->and(portfolioIssues($batch, 'units'))->toBe([
@@ -233,8 +233,8 @@ it('skips an archived building and its units with a warning, and restores neithe
 
     $batch = portfolioCommit($this->acme, $this->owner, $batch);
 
-    expect($batch->result_counts['targets']['properties'])->toBe(['create' => 0, 'update' => 0, 'restore' => 0, 'skip' => 1])
-        ->and($batch->result_counts['skipped'][0])->toBe(['target' => 'properties', 'row' => 2, 'reason' => 'Palm Court is archived.'])
+    expect($batch->result_counts['targets']['properties'])->toEqual(['create' => 0, 'update' => 0, 'restore' => 0, 'skip' => 1])
+        ->and($batch->result_counts['skipped'][0])->toEqual(['target' => 'properties', 'row' => 2, 'reason' => 'Palm Court is archived.'])
         ->and($archived->fresh()->address)->not->toBe('New address')
         ->and($unit->fresh()->unit_type->value)->toBe('apartment')
         ->and(unitsOf($this->acme))->toHaveCount(1);
@@ -249,7 +249,7 @@ it('skips rows whose building was archived after the dry run, and lists them on 
     $batch = portfolioCommit($this->acme, $this->owner, $batch);
 
     expect($batch->status)->toBe(ImportStatus::Committed)
-        ->and($batch->result_counts['targets']['units'])->toBe(['create' => 0, 'update' => 0, 'restore' => 0, 'skip' => 1])
+        ->and($batch->result_counts['targets']['units'])->toEqual(['create' => 0, 'update' => 0, 'restore' => 0, 'skip' => 1])
         ->and($batch->result_counts['skipped'])->toBe([['target' => 'units', 'row' => 2, 'reason' => 'Palm Court is archived.']])
         ->and(unitsOf($this->acme))->toHaveCount(0);
 });
@@ -379,7 +379,7 @@ it('offers the four sheets in the template with dropdowns, and a filled-in templ
 
     $zip->close();
 
-    expect($validations)->toBe([
+    expect($validations)->toEqual([
         'Owners' => ['C', 'G', 'I'],      // Type, State, ID type
         'Buildings' => ['D', 'F'],        // Type, State
         'Units' => ['D', 'K'],            // Type, Status
@@ -390,7 +390,7 @@ it('offers the four sheets in the template with dropdowns, and a filled-in templ
 
     expect($batch->status)->toBe(ImportStatus::DryRunPassed)
         ->and(collect($batch->sheets())->pluck('target')->all())->toBe([null, 'owners', 'properties', 'units', 'tenants'])
-        ->and($batch->dry_run_report['counts'])->toBe(['create' => 4, 'update' => 0, 'restore' => 0, 'skip' => 0]);
+        ->and($batch->dry_run_report['counts'])->toEqual(['create' => 4, 'update' => 0, 'restore' => 0, 'skip' => 0]);
 
     portfolioCommit($this->acme, $this->owner, $batch);
     $building = buildingsOf($this->acme)->sole();

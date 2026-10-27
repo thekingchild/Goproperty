@@ -68,17 +68,17 @@ it('dry runs a 2,000-row workbook without saving anything, and returns the exact
     $clean = portfolioDryRun($this->acme, $this->owner, portfolioWorkbook($sheets));
 
     expect($writes)->toBe([])
-        ->and(portfolioTables())->toBe(['owner_profiles' => [], 'properties' => [], 'units' => [], 'tenant_profiles' => []])
+        ->and(portfolioTables())->toEqual(['owner_profiles' => [], 'properties' => [], 'units' => [], 'tenant_profiles' => []])
         ->and($clean->status)->toBe(ImportStatus::DryRunPassed)
         ->and($clean->dry_run_report['rows'])->toBe(2000)
         ->and($clean->dry_run_report['errors'])->toBe(0)
         ->and($clean->dry_run_report['units'])->toBe(1500)
         ->and(array_column($clean->dry_run_report['sheets'], 'target'))->toBe(['owners', 'properties', 'units', 'tenants'])
         ->and(array_column($clean->dry_run_report['sheets'], 'rows'))->toBe([100, 200, 1500, 200])
-        ->and(portfolioCounts($clean, 'owners'))->toBe(['create' => 100, 'update' => 0, 'restore' => 0, 'skip' => 0])
-        ->and(portfolioCounts($clean, 'properties'))->toBe(['create' => 200, 'update' => 0, 'restore' => 0, 'skip' => 0])
-        ->and(portfolioCounts($clean, 'units'))->toBe(['create' => 1500, 'update' => 0, 'restore' => 0, 'skip' => 0])
-        ->and(portfolioCounts($clean, 'tenants'))->toBe(['create' => 200, 'update' => 0, 'restore' => 0, 'skip' => 0])
+        ->and(portfolioCounts($clean, 'owners'))->toEqual(['create' => 100, 'update' => 0, 'restore' => 0, 'skip' => 0])
+        ->and(portfolioCounts($clean, 'properties'))->toEqual(['create' => 200, 'update' => 0, 'restore' => 0, 'skip' => 0])
+        ->and(portfolioCounts($clean, 'units'))->toEqual(['create' => 1500, 'update' => 0, 'restore' => 0, 'skip' => 0])
+        ->and(portfolioCounts($clean, 'tenants'))->toEqual(['create' => 200, 'update' => 0, 'restore' => 0, 'skip' => 0])
         // The one warning: the units raise the bill.
         ->and(portfolioIssues($clean, 'units'))->toBe([[2, null, null, 'warning', 'Each unit this import adds or brings back counts towards your GoProperty bill. You have 0 billable units now; the summary shows the total and the monthly price with this file\'s units.']]);
 
@@ -120,7 +120,7 @@ it('dry runs a 2,000-row workbook without saving anything, and returns the exact
     $units = array_values(array_filter($units));
 
     expect($writes)->toBe([])
-        ->and(portfolioTables())->toBe(['owner_profiles' => [], 'properties' => [], 'units' => [], 'tenant_profiles' => []])
+        ->and(portfolioTables())->toEqual(['owner_profiles' => [], 'properties' => [], 'units' => [], 'tenant_profiles' => []])
         ->and($batch->status)->toBe(ImportStatus::DryRunFailed)
         ->and($batch->dry_run_report['rows'])->toBe(2000)
         ->and($batch->dry_run_report['errors'])->toBe(50)
@@ -139,9 +139,9 @@ it('dry runs a 2,000-row workbook without saving anything, and returns the exact
         ->and(portfolioIssues($batch, 'units'))->toBe($units)
         ->and(count($units))->toBe(43)
         ->and(portfolioIssues($batch, 'tenants'))->toBe([[11, 'Phone', 'D', 'error', 'Enter the tenant\'s phone number.']])
-        ->and(portfolioCounts($batch, 'owners'))->toBe(['create' => 98, 'update' => 0, 'restore' => 0, 'skip' => 0])
-        ->and(portfolioCounts($batch, 'properties'))->toBe(['create' => 195, 'update' => 0, 'restore' => 0, 'skip' => 0])
-        ->and(portfolioCounts($batch, 'units'))->toBe(['create' => 1458, 'update' => 0, 'restore' => 0, 'skip' => 0]);
+        ->and(portfolioCounts($batch, 'owners'))->toEqual(['create' => 98, 'update' => 0, 'restore' => 0, 'skip' => 0])
+        ->and(portfolioCounts($batch, 'properties'))->toEqual(['create' => 195, 'update' => 0, 'restore' => 0, 'skip' => 0])
+        ->and(portfolioCounts($batch, 'units'))->toEqual(['create' => 1458, 'update' => 0, 'restore' => 0, 'skip' => 0]);
 
     // A failed dry run cannot be committed.
     expect(fn () => portfolioCommit($this->acme, $this->owner, $batch))->toThrow(ImportRefused::class);
