@@ -1,0 +1,11 @@
+{
+    "name": "Billing",
+    "alias": "billing",
+    "description": "Bills to tenants: rent bill generation, bill pages, the bill ledger (ARCHITECTURE.md § 6.4)",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\Billing\\Providers\\BillingServiceProvider"
+    ],
+    "files": []
+}

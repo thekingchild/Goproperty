@@ -27,6 +27,10 @@ use Closure;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 use LogicException;
+use Modules\Billing\Enums\BillableType;
+use Modules\Billing\Enums\BillType;
+use Modules\Billing\Models\Bill;
+use Modules\Billing\Models\BillItem;
 use Modules\Import\Enums\ImportFileType;
 use Modules\Import\Models\ImportBatch;
 use Modules\Import\Models\ImportColumnMapping;
@@ -117,6 +121,13 @@ final class OrganizationScopedModels
                 'type' => DepositEntryType::Held,
                 'amount_kobo' => Money::naira(150_000),
             ])->save()),
+            // Rows on their own (BillIssuer is the writer; the probes are about the rows).
+            Bill::class => fn (): Model => self::bill(),
+            BillItem::class => fn (): Model => tap(new BillItem, fn (BillItem $item): bool => $item->forceFill([
+                'bill_id' => self::bill()->id,
+                'label' => 'Rent',
+                'amount_kobo' => Money::naira(1_500_000),
+            ])->save()),
             // Owned by the offering organization; the receiving one reads it
             // only through Modules\SaasBilling\Transfers\IncomingTransfers.
             BillingTransferRequest::class => fn (): Model => tap(new BillingTransferRequest, fn (BillingTransferRequest $transfer): bool => $transfer->forceFill([
@@ -139,6 +150,32 @@ final class OrganizationScopedModels
             'start_date' => '2027-01-01',
             'end_date' => '2027-12-31',
             'rent_amount_kobo' => Money::naira(1_500_000),
+        ])->save());
+    }
+
+    /** A rent bill of a new draft lease, in the current organization. */
+    private static function bill(): Bill
+    {
+        $lease = self::lease();
+
+        return tap(new Bill, fn (Bill $bill): bool => $bill->forceFill([
+            'type' => BillType::Rent,
+            'billable_type' => BillableType::Lease,
+            'billable_id' => $lease->id,
+            'lease_id' => $lease->id,
+            'tenant_profile_id' => $lease->tenant_profile_id,
+            'property_id' => $lease->property_id,
+            'unit_id' => $lease->unit_id,
+            'payment_reference' => 'GP-'.strtoupper(Str::random(7)),
+            'number' => 'INV-PRB-2027-'.random_int(100_000, 999_999),
+            'description' => 'Rent, 01/01/2027 to 31/12/2027',
+            'amount_kobo' => Money::naira(1_500_000),
+            'due_date' => '2027-01-01',
+            'period_start' => '2027-01-01',
+            'period_end' => '2027-12-31',
+            'issued_at' => now(),
+            'branding_snapshot' => ['version' => 1],
+            'verification_code' => strtoupper(Str::random(10)),
         ])->save());
     }
 

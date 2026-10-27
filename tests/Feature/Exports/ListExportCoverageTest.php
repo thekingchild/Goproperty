@@ -27,6 +27,7 @@ use Tests\Fixtures\Livewire\UnexportedListProbe;
 require_once __DIR__.'/helpers.php';
 require_once __DIR__.'/../../../Modules/Tenants/tests/Feature/helpers.php';
 require_once __DIR__.'/../../../Modules/Leasing/tests/Feature/helpers.php';
+require_once __DIR__.'/../../../Modules/Billing/tests/Feature/helpers.php';
 
 /*
  * P02-07 AC "every list page exports" (IMPLEMENTATION_PLAN.md § 3;
@@ -61,6 +62,9 @@ beforeEach(function () {
     assignIn($this->acme, $this->agent, $this->palm);
     $kemi = tenantIn($this->acme, ['first_name' => 'Kemi', 'last_name' => 'Adebayo']);
     draftLease($this->acme, $this->owner, $flat, $kemi);
+    // A lease of the same flat running from today gets its first bill (P03-04b); the draft waits.
+    activeLease($this->acme, $this->owner, $flat, tenantIn($this->acme, ['first_name' => 'Tunde', 'last_name' => 'Bakare']), ['startDate' => now()->toDateString(), 'endDate' => now()->addYear()->toDateString()]);
+    runBillGeneration();
     inOrganization($this->acme, function (): void {
         ImportBatch::query()->create(['kind' => 'workbook', 'file_type' => 'xlsx', 'file_name' => 'portfolio.xlsx', 'status' => ImportStatus::Uploaded, 'created_by_user_id' => $this->owner->id]);
         app(MemberInvitations::class)->invite($this->owner, 'new.agent@acme.ng', [OrganizationRole::Agent]);
@@ -187,7 +191,7 @@ it('gives every workspace list page a working export, in Excel and CSV', functio
     $offered = array_values(array_unique($offered));
     sort($offered);
     expect($offered)->toBe(array_keys($registry->keys()))
-        ->toBe(['billing_transfers_made', 'billing_transfers_received', 'building_agents', 'buildings', 'imports', 'leases', 'member_invitations', 'members', 'owners', 'tenants', 'units']);
+        ->toBe(['billing_transfers_made', 'billing_transfers_received', 'bills', 'building_agents', 'buildings', 'imports', 'leases', 'member_invitations', 'members', 'owners', 'tenants', 'units']);
 });
 
 it('makes every Livewire component that pages through a list use the export', function () {

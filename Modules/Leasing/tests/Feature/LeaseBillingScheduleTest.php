@@ -5,10 +5,12 @@ declare(strict_types=1);
 use App\Models\Organization;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\DB;
 use Modules\Leasing\Contracts\BillableLease;
 use Modules\Leasing\Contracts\BillingCycle;
 use Modules\Leasing\Contracts\LeaseBillingSchedule;
 use Modules\Leasing\Leases\LeaseService;
+use Modules\Leasing\Models\Lease;
 
 require_once __DIR__.'/helpers.php';
 
@@ -81,4 +83,25 @@ it('moves a lease on one period at a time, once, and stops after its end date', 
         // The next period starts after the end date: nothing left to bill.
         ->and(inOrganization($this->acme, fn () => app(LeaseBillingSchedule::class)->find($lease->id)))->toBeNull()
         ->and(inOrganization($this->acme, fn () => app(LeaseBillingSchedule::class)->advance(999_999, CarbonImmutable::parse('2027-01-31'))))->toBeNull();
+});
+
+it('locks a billable lease for Billing inside a transaction and gives it as it is now (P03-04b)', function () {
+    $active = activeLease($this->acme, $this->owner, unitIn($this->acme, $this->palm), tenantIn($this->acme), ['billingCycle' => 'monthly', 'rent' => '125,000']);
+    $draft = draftLease($this->acme, $this->owner, unitIn($this->acme, $this->palm), tenantIn($this->acme));
+    $schedule = fn (): LeaseBillingSchedule => app(LeaseBillingSchedule::class);
+
+    $locked = inOrganization($this->acme, fn () => DB::transaction(fn () => $schedule()->lock($active->id)));
+    expect($locked)->toBeInstanceOf(BillableLease::class)
+        ->and($locked->nextBillingDate->toDateString())->toBe('2027-01-01')
+        ->and(inOrganization($this->acme, fn () => DB::transaction(fn () => $schedule()->lock($draft->id))))->toBeNull()
+        ->and(inOrganization($this->acme, fn () => DB::transaction(fn () => $schedule()->lock(999_999))))->toBeNull();
+
+    // Billed to its end: nothing left to lock for billing.
+    inOrganization($this->acme, fn () => Lease::query()->whereKey($active->id)->update(['next_billing_date' => '2028-01-01']));
+    expect(inOrganization($this->acme, fn () => DB::transaction(fn () => $schedule()->lock($active->id))))->toBeNull();
+
+    // Another organization's lease is not there.
+    $other = Organization::factory()->create(['slug' => 'other-realty']);
+    $foreign = activeLease($other, joinAs(User::factory()->create(), $other), unitIn($other, buildingIn($other)), tenantIn($other));
+    expect(inOrganization($this->acme, fn () => DB::transaction(fn () => $schedule()->lock($foreign->id))))->toBeNull();
 });

@@ -8,6 +8,8 @@ use Carbon\CarbonImmutable;
 use DateTimeInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Support\Facades\DB;
+use LogicException;
 use Modules\Leasing\Contracts\BillableLease;
 use Modules\Leasing\Contracts\CycleCalculator;
 use Modules\Leasing\Contracts\LeaseBillingSchedule;
@@ -87,6 +89,24 @@ final readonly class LeaseRecords implements LeaseBillingSchedule, TenantLeases
         $lease = self::billable()->find($leaseId);
 
         return $lease instanceof Lease ? self::billableLease($lease) : null;
+    }
+
+    public function lock(int $leaseId): ?BillableLease
+    {
+        if (DB::transactionLevel() === 0) {
+            throw new LogicException('Lock a lease for billing inside a transaction.');
+        }
+
+        $lease = Lease::query()->whereKey($leaseId)->lockForUpdate()->first();
+
+        if (! $lease instanceof Lease
+            || ! in_array($lease->status, [LeaseStatus::Active, LeaseStatus::Renewed], true)
+            || $lease->next_billing_date === null
+            || $lease->next_billing_date->greaterThan($lease->end_date)) {
+            return null;
+        }
+
+        return self::billableLease($lease);
     }
 
     public function advance(int $leaseId, DateTimeInterface $periodStart): ?CarbonImmutable

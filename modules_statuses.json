@@ -3,5 +3,6 @@
     "Import": true,
     "Tenants": true,
     "SaasBilling": true,
-    "Leasing": true
+    "Leasing": true,
+    "Billing": true
 }

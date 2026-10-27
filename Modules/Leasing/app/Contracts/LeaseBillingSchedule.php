@@ -39,6 +39,19 @@ interface LeaseBillingSchedule
     public function find(int $leaseId): ?BillableLease;
 
     /**
+     * Lock the lease's row until the caller's transaction ends (SELECT …
+     * FOR UPDATE) and return it as it is now, if it is billable (null
+     * otherwise: ended, terminated, billed to its end, or unknown). Billing
+     * locks the lease before it bills a period, so two runs of bill
+     * generation on one lease wait for each other and the second sees the
+     * lease already moved on (P03-04b). Lock order: the lease before any
+     * bill row.
+     *
+     * @throws LogicException outside a transaction
+     */
+    public function lock(int $leaseId): ?BillableLease;
+
+    /**
      * Move the lease past the period starting $periodStart (its bill was
      * made): `next_billing_date` becomes the next period's start. Does
      * nothing when the lease is already past that period (a re-run).

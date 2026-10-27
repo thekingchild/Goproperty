@@ -55,7 +55,7 @@ Sections, top to bottom:
 3. **Billed to** (tenant name, phone, email) and **Property** (building, unit, address, lease number, cycle), side by side.
 4. **Line items:** description + short note, period, amount. Rent, service charge, levies, utilities, agency/legal/caution fees on first-year bills.
 5. **Totals:** subtotal, credit applied, paid to date, and a large **Amount due** panel with the due date.
-6. **How to pay:** the agency's bank, account name, account number and the bill's **payment reference** (`GP-7KQ2M`) to put in the narration. If the agency has connected Paystack and the amount is within its online limit, a **Pay online** button and short link appear beside it.
+6. **How to pay:** the agency's bank, account name, account number and the bill's **payment reference** (`GP-7KQ2M9X`) to put in the narration. If the agency has connected Paystack and the amount is within its online limit, a **Pay online** button and short link appear beside it.
 7. **Notes** (agency terms) and signature line.
 8. **QR code + verification code**: scanning opens `goproperty.ng/verify/{code}`, which confirms the invoice is genuine and shows its current status.
 9. **Footer:** company name, document number, page x of y, "Generated with GoProperty".

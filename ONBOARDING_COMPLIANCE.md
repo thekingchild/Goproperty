@@ -174,7 +174,7 @@ Each organization enables one or both channels under **Settings → Payment coll
 ### 4.1 Bank transfer (always available)
 
 - The agency adds one or more bank accounts. The account name is checked via Paystack's account-name lookup before saving.
-- Every bill gets a short unique **payment reference** (e.g. `GP-7KQ2M`), shown on the invoice, in the SMS/WhatsApp reminder, and on the tenant's pay page: "Put this in your transfer narration."
+- Every bill gets a short unique **payment reference** (e.g. `GP-7KQ2M9X`: `GP-` and 7 characters without I, L, O or U; P03-04b), shown on the invoice, in the SMS/WhatsApp reminder, and on the tenant's pay page: "Put this in your transfer narration."
 - **Bank statement import:** the agency uploads its statement (CSV/XLSX at launch, PDF later). Column mapping is saved per bank. GoProperty matches each credit:
   - reference found in the narration → **high-confidence** match;
   - same amount + payer name similar to the tenant → **suggested** match;
