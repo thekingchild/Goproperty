@@ -176,7 +176,7 @@ enum OrganizationPermission: string
             self::UpdateOrganization => 'Edit the organization profile and branding',
             self::ViewSettings => 'See the organization profile and branding settings',
             self::DeleteOrganization => 'Close the organization',
-            self::ManageBilling => 'Pay the GoProperty subscription, change plan, accept billing transfers',
+            self::ManageBilling => 'Pay the GoProperty subscription, change plan, offer the bill to another organization or take one over (billing transfers)',
             self::ManagePaymentSettings => 'Manage bank accounts and the organization\'s Paystack keys',
             self::ViewPaymentSettings => 'See bank accounts (masked) and the Paystack connection',
             self::ManageCompliance => 'Apply for a Transaction Tier and upload compliance documents',

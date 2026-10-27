@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Members;
 
 use App\Audit\AccessLog;
+use App\Enums\InvitationKind;
 use App\Enums\InvitationStatus;
 use App\Models\Invitation;
 use App\Models\Organization;
@@ -68,7 +69,7 @@ final readonly class InvitationAcceptance
         }
 
         return $this->context->run($organization, function () use ($token, $organization): ?Invitation {
-            $invitation = Invitation::query()->where('token_hash', MemberInvitations::hash($token))->first();
+            $invitation = Invitation::query()->where('token_hash', MemberInvitations::hash($token))->where('kind', InvitationKind::User)->first();
 
             if ($invitation === null) {
                 return null;
@@ -186,7 +187,7 @@ final readonly class InvitationAcceptance
             }
 
             return DB::transaction(function () use ($token, $account): User {
-                $invitation = Invitation::query()->where('token_hash', MemberInvitations::hash($token))->lockForUpdate()->first();
+                $invitation = Invitation::query()->where('token_hash', MemberInvitations::hash($token))->where('kind', InvitationKind::User)->lockForUpdate()->first();
 
                 if ($invitation === null || ! $invitation->isUsable()) {
                     throw new InvitationUnavailable;
@@ -220,14 +221,18 @@ final readonly class InvitationAcceptance
         return new AcceptedInvitation($user, $organization);
     }
 
-    /** The organization of the invitation with this token (one unscoped column read), if any. */
+    /**
+     * The organization of the member invitation with this token (one
+     * unscoped column read), if any. Other kinds (a billing transfer's link,
+     * P02-04) are not opened here: they bring nobody into the organization.
+     */
     private function organizationFor(string $token): ?Organization
     {
         if ($token === '' || strlen($token) > 128) {
             return null;
         }
 
-        $id = DB::table('invitations')->where('token_hash', MemberInvitations::hash($token))->value('organization_id');
+        $id = DB::table('invitations')->where('token_hash', MemberInvitations::hash($token))->where('kind', InvitationKind::User->value)->value('organization_id');
 
         return is_numeric($id) ? Organization::query()->find((int) $id) : null;
     }

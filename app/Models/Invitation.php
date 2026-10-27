@@ -20,7 +20,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * like every customer-domain model; the acceptance page finds its
  * organization from the token first (App\Members\InvitationAcceptance).
  * Changed only through App\Members\MemberInvitations and
- * InvitationAcceptance; only the token's SHA-256 is stored.
+ * InvitationAcceptance (kind `user`), and the SaasBilling module's
+ * BillingTransferService (kind `org_billing_transfer`, the link of a
+ * billing transfer); only the token's SHA-256 is stored.
  *
  * @property int $id
  * @property int $organization_id
@@ -29,6 +31,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string|null $phone
  * @property list<string> $roles role names (OrganizationRole values)
  * @property int|null $target_organization_id
+ * @property int|null $billing_transfer_id the billing transfer an `org_billing_transfer` invitation carries (P02-04)
  * @property string $token_hash
  * @property InvitationChannel $channel
  * @property InvitationStatus $status

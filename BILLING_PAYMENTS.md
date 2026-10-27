@@ -182,6 +182,8 @@ Rules:
 4. The initiator is notified of every state change. The platform console shows pending transfers (support visibility).
 5. Reversal = a new transfer request in the other direction; no edit of a completed transfer.
 
+**As built (P02-04, ahead of P06; [ARCHITECTURE.md § 6.1](ARCHITECTURE.md)).** `Modules\SaasBilling\Transfers\BillingTransferService` records offer, accept, decline, withdraw and expiry with this state machine; any other transition is refused and changes nothing. Only organizations already on GoProperty can be offered a bill (by web address or an owner's email); inviting an organization that is not yet on GoProperty is a later addition. The offering organization is the current payer and owns the row. The amount on the accept screen is the offering organization's plan price for its billable units today (before VAT; the plan chosen at signup until P06-01's subscription exists), and acceptance records it. Until P06-06, acceptance records the handover only: `payer_organization_id` does not move yet, no payment method is re-enrolled, `completed_at` stays empty, and the accepting organization gets no access to the other's buildings. P06-06 applies the switch, including to transfers completed before it ships.
+
 ## 8. Refunds & Credit Notes
 
 - Paystack refunds via API, only by `finance-admin` (second approval above the two-person threshold — [PLATFORM_CONSOLE.md § 1](PLATFORM_CONSOLE.md)), always tied to a `platform_payment`, audit-logged, invoice returns to `open` unless a credit note replaces it.

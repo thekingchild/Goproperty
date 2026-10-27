@@ -1,0 +1,11 @@
+{
+    "name": "SaasBilling",
+    "alias": "saasbilling",
+    "description": "GoProperty's own subscription billing; from P02-04 the org-to-org billing transfers (BILLING_PAYMENTS.md § 7)",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\SaasBilling\\Providers\\SaasBillingServiceProvider"
+    ],
+    "files": []
+}

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Policies;
 
+use App\Enums\InvitationKind;
 use App\Enums\OrganizationPermission;
 use App\Enums\OrganizationRole;
 use App\Members\RoleGrants;
@@ -18,7 +19,9 @@ use Spatie\Permission\Exceptions\PermissionDoesNotExist;
  * sending again and revoking need `members.manage` and the right to grant
  * every role involved (RoleGrants: only an owner invites an owner).
  * Invitations of another organization are never found (organization scope),
- * so they answer 404 before any policy runs.
+ * so they answer 404 before any policy runs. Only member invitations (kind
+ * `user`) are handled here: a billing transfer's link (P02-04) changes only
+ * through the SaasBilling module's BillingTransferService.
  *
  * Member changes are always blocked while GoProperty staff impersonate a
  * user (PLATFORM_CONSOLE.md § 6), through `members.manage` and the marks
@@ -43,13 +46,13 @@ final class InvitationPolicy
     #[BlockedWhileImpersonating]
     public function resend(User $user, Invitation $invitation): bool
     {
-        return $this->grants->mayGrantAll($user, $invitation->roleEnums());
+        return $invitation->kind === InvitationKind::User && $this->grants->mayGrantAll($user, $invitation->roleEnums());
     }
 
     #[BlockedWhileImpersonating]
     public function revoke(User $user, Invitation $invitation): bool
     {
-        return $this->grants->mayGrantAll($user, $invitation->roleEnums());
+        return $invitation->kind === InvitationKind::User && $this->grants->mayGrantAll($user, $invitation->roleEnums());
     }
 
     private function holds(User $user, OrganizationPermission $permission): bool

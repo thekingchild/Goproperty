@@ -29,6 +29,7 @@ use Modules\Import\Models\ImportColumnMapping;
 use Modules\Properties\Models\OwnerProfile;
 use Modules\Properties\Models\Property;
 use Modules\Properties\Models\Unit;
+use Modules\SaasBilling\Models\BillingTransferRequest;
 use Modules\Tenants\Models\TenantProfile;
 
 /**
@@ -97,6 +98,12 @@ final class OrganizationScopedModels
             Property::class => fn (): Model => Property::factory()->ownedBy(OwnerProfile::factory()->create())->create(),
             Unit::class => fn (): Model => Unit::factory()->in(Property::factory()->create())->create(),
             TenantProfile::class => fn (): Model => TenantProfile::factory()->withNin()->create(),
+            // Owned by the offering organization; the receiving one reads it
+            // only through Modules\SaasBilling\Transfers\IncomingTransfers.
+            BillingTransferRequest::class => fn (): Model => tap(new BillingTransferRequest, fn (BillingTransferRequest $transfer): bool => $transfer->forceFill([
+                'to_organization_id' => Organization::factory()->create()->id,
+                'expires_at' => now()->addDays(14),
+            ])->save()),
         ];
     }
 

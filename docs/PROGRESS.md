@@ -6,9 +6,9 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 ## Current state
 
-- **In progress:** P02-03 (agent assignment) and P02-04 (billing transfers), each in its own worktree (`docs/plans/P02-P03-subtasks.md`). Done in P02: P02-01 (01a, 01b), P02-02, P02-05, P02-06a, P02-06b
+- **In progress:** P02-03 (agent assignment) and P02-06c (owner/building/unit import targets), each in its own worktree (`docs/plans/P02-P03-subtasks.md`). Done in P02: P02-01 (01a, 01b), P02-02, P02-04, P02-05, P02-06a, P02-06b
 - **In review:** P00-02 (CI): all four database jobs are green in GitHub Actions; branch protection on `main` is off by the product owner's decision (2026-10-27) while P02 and P03 are built, so tasks keep merging straight to `main`; turn it on afterwards (`docs/runbooks/ci.md` § 3) and mark P00-02 complete. P00-12 (backups): built and drilled locally; needs one real run to an S3-compatible bucket and a Google Shared Drive (PRE-03 accounts)
-- **Next task:** P02-06c, then P02-07 and the P02 exit check; PRE-01 to PRE-04 continue with the product owner
+- **Next task:** P02-07 (exports), then the P02 exit check; PRE-01 to PRE-04 continue with the product owner
 - **Blocked:** P00-13 (staging): the deploy scripts, the deploy on merge and the deploy drill are built and drilled locally; it needs a staging host (PRE-04). Until then the Deploy workflow fails at "Check deploy settings" on every push to `main`
 
 ## Board
@@ -18,7 +18,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | PRE | 5 | 1 | In progress |
 | P00 | 13 | 10 | In progress |
 | P01 | 9 | 9 | Complete (2026-10-27) |
-| P02 | 7 | 3 | In progress |
+| P02 | 7 | 4 | In progress |
 | P03 | 13 | 0 | Not started |
 | P04 | 3 | 0 | Not started |
 | P05 | 6 | 0 | Not started |
@@ -26,11 +26,68 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | P07 | 4 | 0 | Not started |
 | P08 | 4 | 0 | Not started |
 | P09 | 8 | 0 | Not started |
-| **Total** | **83** | **23** | |
+| **Total** | **83** | **24** | |
 
 ## Ledger (newest first)
 
 Each entry: task ID and status, date, what was delivered, tests run and results, follow-ups, next task.
+
+### P02-04 — Complete (2026-10-27): SaasBilling module, org-to-org billing transfers and BillingTransferService
+
+**Delivered** ([BILLING_PAYMENTS.md § 7](../BILLING_PAYMENTS.md), [ARCHITECTURE.md § 5, § 6.1, § 7, § 8](../ARCHITECTURE.md), [DATABASE_SCHEMA.md § 1, § 7](../DATABASE_SCHEMA.md); `docs/plans/P02-P03-subtasks.md` P02-04):
+- **Module `Modules/SaasBilling`** (`module:make`, trimmed: no sample controller, seeder, event provider or config; in `modules_statuses.json`). `SaasBillingServiceProvider` registers `BillingTransferRequestPolicy`, the Livewire namespace `saasbilling::`, the sidebar item "Billing transfers" (order 950, owners only) and the hourly expiry job (`Schedule::job`, `billing` queue, `20 * * * *`). It reads units only through `Modules\Properties\Contracts\UnitDirectory::countBillable()` (the module-boundary test passes).
+- **Schema:** module migration `2026_11_05_040101_create_billing_transfer_requests_table.php`: `organization_id` (the offering organization = current payer; owns the row), `to_organization_id`, `subscription_id` (nullable, no FK until P06-01), `status` (`pending`, `completed`, `declined`, `cancelled`, `expired`), `plan_key` / `billable_units` / `monthly_amount_kobo` (recorded on acceptance), `initiated_by_user_id`, `responded_by_user_id`, `responded_at`, `cancelled_at`, `expires_at`, `completed_at` (left empty for the P06-06 payer switch); named indexes `(organization_id, status, expires_at)`, `(to_organization_id, status)`, `(status, expires_at)`. Module migration `2026_11_05_040102` adds `invitations.billing_transfer_id` (FK, restrict). Core migration `2026_11_05_040001_create_notifications_table.php` (Laravel database notifications).
+- **Model and enum:** `Modules\SaasBilling\Models\BillingTransferRequest` (`BelongsToOrganization`, `MoneyCast` amount, `isOpen()`, `isPastExpiry()`; in `tests/Support/OrganizationScopedModels.php`, all `CrossTenantAccessTest` probes); `Enums\BillingTransferStatus` (`canMoveTo()`: only pending moves, once; maps to the invitation status). `App\Enums\InvitationKind::OrgBillingTransfer`.
+- **`Transfers\BillingTransferService`, the only writer** of transfers and of `org_billing_transfer` invitations: `initiate` (one open offer per organization, organization row locked; transfer + invitation with the link's token hash, both 14 days), `accept` (receiving owner checked in their own context, then written inside the offering organization's context; refuses if the monthly amount differs from the one the screen showed; records plan, units and amount), `decline`, `cancel` (offering organization only), `expire` (system, past date only), `expireDue`. Each step locks the row, refuses any transition the state machine does not allow with `BillingTransferRefused` and nothing changed, keeps the invitation's status in step, is audited (log `billing_transfers`, the transfer as subject, both organization ids) and sends one notification set (mail + database, queued on `notifications`, after commit): `BillingTransferOffered` → each owner of the receiving organization; `BillingTransferAnswered` (accepted / declined / expired) → the owner who offered, or the offering organization's owners if they are no longer one; `BillingTransferWithdrawn` → the receiving owners. No payer field is written; no membership or role is granted.
+- **Lookups without a scope bypass (decision 2):** `Transfers\IncomingTransfers` (the receiving side's inbox and accept screen) reads `id, organization_id` of rows whose `to_organization_id` is the current organization (from `OrganizationContext`), then loads each inside the offering organization's context. `Transfers\TransferLinks` opens `/billing-transfers/{token}` exactly as P01-04 does (organization by token hash, one column; then load in context); only a workspace member of the receiving organization gets anywhere (else 404, nothing recorded); first opening recorded; a pending offer past its date is expired there (through the service). `Transfers\TransferTargets` finds the receiving organization by web address (`goproperty.ng/o/{slug}`, bare slug, old slug) or an owner's email (one organization only); unknown, ambiguous, suspended and cancelled organizations all get the same message.
+- **Amount:** `Transfers\MonthlyBills` = the plan chosen at signup (`signup_plan_key`, else `PlanCatalogue::bestFor(units)`) `priceFor(countBillable())`, before VAT (7.5% shown separately).
+- **Pages (Livewire in the module):** `/o/{slug}/billing-transfers` (`Livewire\BillingTransfers`): the bill today, the offer form (10 attempts an hour per organization), offers made (Withdraw while open), offers received (the invite inbox, Review/Details). `/o/{slug}/billing-transfers/{transfer}` (`Livewire\BillingTransferReview`): "You are taking over the GoProperty subscription bill for {amount}/month from {date}." with plan/units breakdown, VAT note, "no access to their buildings", Accept / Decline (confirm dialogs); closed offers show their outcome. `Http\Controllers\OpenTransferLinkController` for the emailed link. Actions are `#[BlockedWhileImpersonating]`.
+- **Core changes:** `InvitationAcceptance` (link lookup and acceptance), `InvitationPolicy::resend/revoke` and Settings → Members (`Members::invitations()`, resend/revoke lookups) handle kind `user` only, so a transfer link can never be accepted as a member invitation or revoked from Members. `organization.billing`'s description now names billing transfers. `WorkspaceNavigationTest` owner list gains `billing-transfers` (new item, not a weakened check).
+- **Docs:** DATABASE_SCHEMA.md § 1 (`billing_transfer_requests` as built incl. how the receiving side reads it; `invitations` kind/`billing_transfer_id`/writers), § 7 (`notifications`); ARCHITECTURE.md § 5 (Billing transfers paragraph), § 6.1 (how billing transfers are built), § 7 (hourly expiry row), § 8 (SaasBilling built from P02-04); BILLING_PAYMENTS.md § 7 ("As built" note).
+
+**Tests and evidence (local, MariaDB 11.4):**
+- `composer ci` on the final commit: Pint passed, Larastan 0 errors, Pest **1,704 tests: 1,704 passed, 13,897 assertions**, 0 failed.
+- New: `Modules/SaasBilling/tests/Feature/BillingTransferServiceTest.php` (16 tests + datasets = 29 cases), `BillingTransferPagesTest.php` (10 tests + datasets = 12 cases), helpers `helpers.php`; `CrossTenantAccessTest` dataset `BillingTransferRequest` (5 probes). The module's tests and `CrossTenantAccessTest` also pass with `APP_DEBUG=true` (with `tests/Feature/Members`: 147 tests, 993 assertions).
+- **AC: invite, accept and decline recorded through `BillingTransferService`:** `BillingTransferServiceTest` › "records an offer, an acceptance and a decline through BillingTransferService" (row + invitation of kind `org_billing_transfer` with token hash and target; accept records responder, ₦24,000 = 2,400,000 kobo, 30 units, `starter`, `completed_at` null; decline; four audit entries with causers); "records a withdrawal by the offering organization"; `BillingTransferPagesTest` › "offers the bill from the billing transfers page", "shows the offer in the receiving inbox and accepts it on the accept screen, which states the amount", "declines on the accept screen, and refuses an amount that changed while the screen was open".
+- **AC: invalid transitions rejected:** "rejects invalid transitions and changes nothing" (11 cases: accept after decline, decline after accept, accept twice, accept after withdrawal, withdraw after accept/decline, expire after accept, accept after expiry, accept/decline/withdraw once past the date but not yet recorded; transfer and invitation rows byte-identical, no audit, no notification); "refuses to expire an offer before its 14 days"; "refuses an answer from the wrong organization and a withdrawal by the receiver"; "refuses an amount that changed since the accept screen showed it"; "refuses an offer to itself, to an organization that cannot take it, and a second open offer".
+- **Sub: only org-owners initiate or respond:** "lets only org-owners offer and answer" (admin, agent, property owner, tenant); `BillingTransferPagesTest` › "shows the pages and the sidebar item to owners only" (403, no sidebar item).
+- **Sub: expires after 14 days (time travel through the scheduled job):** "expires unanswered offers after 14 days through the scheduled job" (the `billing-transfers-expire` CallbackEvent run at 14 days − 1 minute: still pending; +2 minutes: expired, invitation expired, initiator told once; answered offer untouched; re-run changes nothing); `BillingTransferPagesTest` › "records the expiry when the link is opened after 14 days".
+- **Sub: blocked during impersonation:** `BillingTransferPagesTest` › "blocks billing transfers while GoProperty staff impersonate" (read-only and write mode: pages, link and accept/decline/offer calls 403, `impersonation.blocked` audited, nothing changed).
+- **Sub: no payer field written:** "writes no payer field and gives no access when an offer is accepted" (no `payer_organization_id` column, no `subscriptions` table, `completed_at` null, both organization rows unchanged, `organization_user` and `model_has_roles` unchanged, receiving owner gets 404 on the offering organization's buildings).
+- **Cross-org probes:** `CrossTenantAccessTest` (`BillingTransferRequest`); `BillingTransferPagesTest` › "answers 404 for offers of, or to, another organization" (other org's owner, the offering org's own id, foreign workspace, withdraw with a foreign id, accept-screen snapshot replayed in another workspace); "opens the emailed link in the receiving workspace, and nowhere else" (guest → login; stranger, offering owner, unknown token → 404; `/invitations/{token}` → 404); "keeps the transfer link out of Settings → Members"; "keeps the incoming list to the offers made to this organization".
+- **Notifications once per transition:** "notifies once per transition, by email and in the app" (offer → each of two receiving owners once; accept/decline → initiator once each; withdraw → receiving owners once; channels exactly mail + database); "tells the organization's owners when the owner who offered is no longer one"; "stores the in-app copy of a notification" (row in `notifications`, link to the workspace page, no token).
+- Others: "keeps billing transfers read-only while the organization is suspended"; "works out the bill from the plan catalogue and the billable units"; "finds organizations on GoProperty by web address or an owner's email, and nothing else".
+- Not run: release/install drills (no installer change; `InstallCommandTest` runs every module migration). No browser smoke: pages exercised through HTTP/Livewire tests only.
+
+**Orchestrator review:** merged `main` (`cf6c1dd`) into the branch with no conflicts, re-ran `composer ci`: Pint passed, Larastan 0 errors, Pest 1,707 passed, 13,900 assertions. Read `IncomingTransfers`: the receiving side reads only `id` and `organization_id` of rows addressed to the current organization (raw query, no scope removal), then loads each row inside the offering organization's context — the P01-04 lookup pattern.
+
+**Decisions to confirm:**
+- Orchestrator decision 1 (modules): SaasBilling is a module with its Livewire components; ARCHITECTURE.md § 8 marks it built.
+- Orchestrator decision 2 (cross-org lookups): the link uses P01-04's token-hash pattern; the receiving side's inbox reads only `id, organization_id` by `to_organization_id = current organization` then loads in the offering organization's context (`IncomingTransfers`). No `withoutGlobalScopes()`.
+- Orchestrator decision 4 (plan gating): BILLING § 1.2 gates nothing built here (billing transfers are in every plan).
+- Orchestrator decision 5 (P02-04 ahead of P06): `subscription_id` nullable without FK; statuses = BILLING § 7 (DB § 1 updated: `accepted` folded into `completed`, `expired` added); acceptance records only (no payer write, no access to buildings, no membership); only organizations already on GoProperty, by web address or an owner's email.
+- **The row belongs to the offering organization** (`organization_id`, replacing DB § 1's `from_organization_id`): it is the current payer, its bill moves and it may withdraw. The receiving side reads it as above and writes only through the service.
+- **No new permission:** `organization.billing` (org-owner only; blocked while impersonating) already covers billing transfers in its description and in PLATFORM_CONSOLE.md § 6. It stays allowed while suspended (paying), but offer/withdraw/accept/decline are writes, so a suspended organization's owners only view (central guard). Impersonating staff cannot open the page at all.
+- **Who initiates:** any organization's owner may offer its own bill (ARCH § 6.1 "a property owner invites an agency, or vice versa"); the receiver always takes the bill over (BILLING § 7 rule 2).
+- **`completed_at` stays empty** until P06-06 actually moves the payer (DB § 1's definition); status `completed` is set on acceptance (BILLING § 7).
+- **Amount** = the offering organization's plan price for its billable units today, before VAT, monthly; "from {date}" = the day of acceptance. Accepting passes the amount shown and is refused if it changed. The amount is also in the offer email and audit entry.
+- **One open offer per organization**; a pending offer past its date does not block a new one.
+- **Expiry** is recorded by the hourly job or when the link is opened; accept/decline/withdraw past the date are refused without recording it (the job does).
+- **Recipients:** offer and withdrawal → all owners (with email) of the receiving organization, one shared link; answers and expiry → the owner who offered (else the offering organization's owners). Withdrawal does not notify the offering side (it acted). Mail + database; no in-app list UI yet.
+- **Target lookup:** owner email must be an `org-owner` of exactly one organization; unknown/ambiguous/suspended/cancelled all answer the same message; 10 attempts an hour per organization to limit probing.
+- **Core:** member invitation code now ignores kinds other than `user` (otherwise a transfer link could create a user with no email through `/invitations/{token}`).
+
+**Contradictions found (resolved by the decisions above):** DB § 1 (`from_organization_id`, `accepted`, no `expired`) vs BILLING § 7; BILLING § 7 (accept switches the payer in the same transaction) vs decision 5 (P06-06); DB § 1 said only Core writes `invitations` (now also BillingTransferService for its kind); plan row "property owner invites agency" vs ARCH § 6.1 "or vice versa".
+
+**Follow-ups:**
+- P06-01: FK on `billing_transfer_requests.subscription_id` and set it on offer; `MonthlyBills` reads the plans table/subscription instead of `PlanCatalogue` + `signup_plan_key`; annual plans.
+- P06-06: the payer switch on acceptance (`subscriptions.payer_organization_id`, payment-method re-enrolment, `completed_at`), applied also to transfers completed before it ships (`status = completed`, `completed_at` null); reversal when the current payer is not the subscription's organization.
+- Platform console: pending transfers for support (BILLING § 7 rule 4).
+- Inviting an organization not yet on GoProperty (decision 5 follow-up).
+- An in-app notifications list (rows are stored now); phone-only owners get no offer notification (`OrganizationOwners::withEmail`).
+- `platform_covered` offering organizations: decide what handing over a platform-paid bill means (now shown at the plan price).
+
+**Next:** P02 exit tasks (P02-06c, P02-07) after wave 4 merges.
 
 ### P02-06b — Complete (2026-10-27): Tenants module (tenant profiles, policy, permissions) and the tenants import target
 

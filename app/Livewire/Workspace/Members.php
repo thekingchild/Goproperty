@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Livewire\Workspace;
 
+use App\Enums\InvitationKind;
 use App\Enums\InvitationStatus;
 use App\Enums\OrganizationRole;
 use App\Members\MemberChangeRefused;
@@ -101,7 +102,7 @@ final class Members extends Component
     #[BlockedWhileImpersonating]
     public function resend(int $invitationId, MemberInvitations $invitations): void
     {
-        $invitation = Invitation::query()->findOrFail($invitationId);
+        $invitation = Invitation::query()->where('kind', InvitationKind::User)->findOrFail($invitationId);
         $this->authorize('resend', $invitation);
 
         if ($this->attempt(fn () => $invitations->resend($this->user(), $invitation), 'invitations')) {
@@ -112,7 +113,7 @@ final class Members extends Component
     #[BlockedWhileImpersonating]
     public function revoke(int $invitationId, MemberInvitations $invitations): void
     {
-        $invitation = Invitation::query()->findOrFail($invitationId);
+        $invitation = Invitation::query()->where('kind', InvitationKind::User)->findOrFail($invitationId);
         $this->authorize('revoke', $invitation);
 
         if ($this->attempt(fn () => $invitations->revoke($this->user(), $invitation), 'invitations')) {
@@ -228,6 +229,7 @@ final class Members extends Component
     {
         return Invitation::query()
             ->with('invitedBy')
+            ->where('kind', InvitationKind::User)
             ->whereIn('status', [InvitationStatus::Pending, InvitationStatus::Expired])
             ->orderByDesc('sent_at')
             ->limit(100)

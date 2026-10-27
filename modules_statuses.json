@@ -1,5 +1,6 @@
 {
     "Properties": true,
     "Import": true,
-    "Tenants": true
+    "Tenants": true,
+    "SaasBilling": true
 }

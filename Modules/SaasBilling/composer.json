@@ -1,0 +1,29 @@
+{
+    "name": "goproperty/saasbilling",
+    "description": "GoProperty's own subscription billing; from P02-04 the org-to-org billing transfers (BILLING_PAYMENTS.md § 7)",
+    "authors": [
+        {
+            "name": "GoProperty",
+            "email": ""
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [],
+            "aliases": {
+
+            }
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Modules\\SaasBilling\\": "app/",
+            "Modules\\SaasBilling\\Database\\Factories\\": "database/factories/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Modules\\SaasBilling\\Tests\\": "tests/"
+        }
+    }
+}
