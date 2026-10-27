@@ -10,7 +10,7 @@ The quality gate from [AGENT.md § 2](../../AGENT.md) runs in GitHub Actions on 
 2. `phpstan analyse`: Larastan at level 7 (`phpstan.neon`; the plan's minimum is 6)
 3. `php artisan test --parallel`: the Pest suite, one database per worker (`testing_test_1`, `testing_test_2`, …)
 
-The suite runs on the **shared-hosting profile** (`HOSTING_PROFILE=shared`: database cache and sessions, no broadcasting, polling, dompdf); only the queue runs jobs inline. It includes the cron drill (`tests/Drill/CronDrillTest.php`), which starts `php artisan schedule:run` with `exec`, `proc_open` and pcntl disabled and checks that a queued job ran ([INSTALLER.md § 8](../../INSTALLER.md)). The **Deploy** and **Release** workflows call this workflow first ([shared-hosting.md § 3](shared-hosting.md), [release.md](release.md)).
+The suite runs on the **shared-hosting profile** (`HOSTING_PROFILE=shared`: database cache and sessions, no broadcasting, polling, dompdf); only the queue runs jobs inline. It includes the cron drill (`tests/Drill/CronDrillTest.php`), which starts `php artisan schedule:run` with `exec`, `proc_open` and pcntl disabled and checks that a queued job ran ([INSTALLER.md § 8](../../INSTALLER.md)). The document numbering drill (`tests/Drill/DocumentNumberingDrillTest.php`, P03-04a) starts six PHP processes that take numbers at once on their own database connections, some rolling back, and checks the numbers are exactly 1…N. The **Deploy** and **Release** workflows call this workflow first ([shared-hosting.md § 3](shared-hosting.md), [release.md](release.md)).
 
 CI runs it once per database, because cPanel/Plesk hosts often provide MariaDB rather than MySQL ([ARCHITECTURE.md § 2](../../ARCHITECTURE.md)):
 

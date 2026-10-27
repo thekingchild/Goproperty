@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Support;
 
+use App\Documents\DocumentCounter;
+use App\Documents\DocumentType;
 use App\Documents\Verification\DocumentVerification;
 use App\Enums\ChecklistItem;
 use App\Enums\ComplianceDocumentType;
@@ -94,6 +96,7 @@ final class OrganizationScopedModels
                 'responsive_images' => [],
             ]),
             DocumentVerification::class => fn (): Model => DocumentVerification::query()->create(['kind' => 'probe', 'code' => strtoupper(Str::random(10))]),
+            DocumentCounter::class => fn (): Model => DocumentCounter::query()->create(['doc_type' => DocumentType::Invoice, 'year' => 2026, 'last_seq' => 1]),
             OwnerProfile::class => fn (): Model => OwnerProfile::factory()->withNin()->create(),
             // A batch row on its own (no file): the probes are about the rows.
             ImportBatch::class => fn (): Model => ImportBatch::query()->create(['kind' => 'workbook', 'file_type' => ImportFileType::Xlsx, 'file_name' => 'probe.xlsx']),

@@ -94,9 +94,9 @@ final readonly class DocumentBranding
         ], static fn (?string $line): bool => $line !== null && $line !== ''));
     }
 
-    /** "INV-ADR-2027-000142" for a sequence number (ARCHITECTURE.md § 6.5). */
+    /** "INV-ADR-2027-000142" for a sequence number, as DocumentNumberer formats it (ARCHITECTURE.md § 6.5). */
     public function number(string $prefix, int $year, int $sequence): string
     {
-        return $prefix.'-'.$year.'-'.str_pad((string) $sequence, 6, '0', STR_PAD_LEFT);
+        return DocumentNumberer::format($prefix, $year, $sequence);
     }
 }
