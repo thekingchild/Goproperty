@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Properties\Providers;
 
+use App\Exports\ListExports;
 use App\Members\MemberRemoved;
 use App\Models\User;
 use App\Navigation\WorkspaceNavigation;
@@ -21,6 +22,10 @@ use Modules\Properties\Contracts\UnitDirectory;
 use Modules\Properties\Import\OwnersImportTarget;
 use Modules\Properties\Import\PropertiesImportTarget;
 use Modules\Properties\Import\UnitsImportTarget;
+use Modules\Properties\Lists\BuildingAgentList;
+use Modules\Properties\Lists\OwnerList;
+use Modules\Properties\Lists\PropertyList;
+use Modules\Properties\Lists\UnitList;
 use Modules\Properties\Models\OwnerProfile;
 use Modules\Properties\Models\Property;
 use Modules\Properties\Models\Unit;
@@ -41,7 +46,8 @@ use Nwidart\Modules\Support\ModuleServiceProvider;
  * (App\Members\MemberRemoved), and makes owners, buildings and units
  * importable by registering their targets into the Import module's
  * registry (through its contract, AGENT.md § 4; nothing happens when the
- * Import module is off).
+ * Import module is off), and registers its lists' exports (Lists\*,
+ * App\Exports\ListExports).
  */
 final class PropertiesServiceProvider extends ModuleServiceProvider
 {
@@ -86,6 +92,14 @@ final class PropertiesServiceProvider extends ModuleServiceProvider
             $targets->register(OwnersImportTarget::class);
             $targets->register(PropertiesImportTarget::class);
             $targets->register(UnitsImportTarget::class);
+        });
+
+        // Every list of the module exports (P02-07).
+        $this->callAfterResolving(ListExports::class, static function (ListExports $exports): void {
+            $exports->register(OwnerList::class);
+            $exports->register(PropertyList::class);
+            $exports->register(UnitList::class);
+            $exports->register(BuildingAgentList::class);
         });
 
         $this->callAfterResolving(WorkspaceNavigation::class, static function (WorkspaceNavigation $navigation): void {

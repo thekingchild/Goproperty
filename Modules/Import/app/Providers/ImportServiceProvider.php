@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Import\Providers;
 
+use App\Exports\ListExports;
 use App\Models\User;
 use App\Navigation\WorkspaceNavigation;
 use App\Navigation\WorkspaceNavItem;
@@ -12,6 +13,7 @@ use Illuminate\Support\Facades\Gate;
 use Livewire\Livewire;
 use Modules\Import\Contracts\ImportTargets;
 use Modules\Import\Jobs\PurgeImportUploads;
+use Modules\Import\Lists\ImportBatchList;
 use Modules\Import\Models\ImportBatch;
 use Modules\Import\Policies\ImportBatchPolicy;
 use Modules\Import\Targets\TargetRegistry;
@@ -52,6 +54,9 @@ final class ImportServiceProvider extends ModuleServiceProvider
         Gate::policy(ImportBatch::class, ImportBatchPolicy::class);
 
         Livewire::addNamespace($this->nameLower, classNamespace: 'Modules\\Import\\Livewire');
+
+        // The import history exports (P02-07).
+        $this->callAfterResolving(ListExports::class, static fn (ListExports $exports) => $exports->register(ImportBatchList::class));
 
         $this->callAfterResolving(WorkspaceNavigation::class, static function (WorkspaceNavigation $navigation): void {
             $navigation->add(new WorkspaceNavItem(

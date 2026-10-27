@@ -89,5 +89,5 @@ Importing a lease that started years ago must not bill the tenant for past years
 
 ## 6. Also Supported
 
-- **Export** of every list to Excel/CSV, so agencies are never locked in.
+- **Export** of every list to Excel/CSV, so agencies are never locked in. Built in P02-07 ([ARCHITECTURE.md § 6.13](ARCHITECTURE.md)): each list's Export button downloads what the list shows now (filters, search, the member's narrowing), streamed, audited; the owners, buildings and units exports use this page's import headers, so an exported file imports again (ID numbers are exported masked only, so they are not re-imported).
 - A GoProperty "assisted import" service (staff run the import for the customer) can be offered on higher plans. Staff prepare the file, mapping and dry run; the org-owner reviews the dry-run summary and clicks **Commit** themselves.

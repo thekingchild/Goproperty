@@ -362,6 +362,24 @@ describe('who may see and change branding', function () {
 });
 
 describe('rendering (BRANDING_DOCUMENTS.md § 5)', function () {
+    // P02 phase exit (IMPLEMENTATION_PLAN.md § 3): "branding settings (P01-05) render on a sample document page".
+    it('renders the saved branding on the sample invoice and receipt when the page is opened again', function () {
+        expect(brandingErrors($this->acme, $this->owner, ['tradingName' => 'Lekki Homes', 'primaryColor' => '#7C2D12', 'layout' => 'classic'], ['logo' => pngUpload('logo.png')]))->toBe([]);
+        app(OrganizationContext::class)->clear();
+
+        $this->actingAs($this->owner)->get('/o/acme-homes/settings/branding')->assertOk()
+            ->assertSee('Lekki Homes')
+            ->assertSee('background: #7c2d12;', false)
+            ->assertSee('INV-ADR-')
+            ->assertSee('RCT-ADR-')
+            ->assertSee('Rent is payable in advance.')
+            ->assertSee('Thank you.')
+            ->assertSee('DejaVu Serif')
+            // The saved logo, not the monogram shown without one.
+            ->assertSee('class=&quot;logo&quot;', false)
+            ->assertDontSee('class=&quot;monogram&quot;', false);
+    });
+
     // One A4 page for up to 8 lines is P03-05's acceptance: dompdf has no
     // Inter yet and its DejaVu Sans fallback sets taller lines.
     it('renders the sample invoice and receipt with dompdf in every layout', function (DocumentLayout $layout) {

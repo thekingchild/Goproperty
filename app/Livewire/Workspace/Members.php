@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace App\Livewire\Workspace;
 
 use App\Enums\InvitationKind;
-use App\Enums\InvitationStatus;
 use App\Enums\OrganizationRole;
+use App\Exports\Livewire\WithListExports;
+use App\Members\InvitationList;
 use App\Members\MemberChangeRefused;
 use App\Members\MemberInvitations;
+use App\Members\MemberList;
 use App\Members\Members as MemberService;
 use App\Members\RoleGrants;
 use App\Models\Invitation;
@@ -18,7 +20,6 @@ use App\Tenancy\BlockedWhileImpersonating;
 use App\Tenancy\OrganizationContext;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
@@ -41,11 +42,15 @@ use Livewire\Component;
  * MembershipPolicy) and the services check again. Member changes are
  * blocked while GoProperty staff impersonate (`members.manage` and the
  * marks below) and while the organization is suspended (central guard).
+ * Both lists export (WithListExports; not while staff impersonate: contact
+ * details).
  */
 #[Layout('layouts::app')]
 #[Title('Members')]
 final class Members extends Component
 {
+    use WithListExports;
+
     #[Locked]
     public int $organizationId;
 
@@ -192,48 +197,25 @@ final class Members extends Component
 
     /**
      * Members who work in the workspace (or hold no role yet), with their
-     * workspace roles; tenants and property owners have their own lists.
+     * workspace roles, by name (MemberList: the export's rows too).
      *
      * @return Collection<int, array{membership: Membership, user: User, roles: list<OrganizationRole>, others: list<string>}>
      */
     private function members(): Collection
     {
-        $memberships = Membership::query()->with('user')->get();
-        $names = DB::table('model_has_roles')
-            ->join('roles', 'roles.id', '=', 'model_has_roles.role_id')
-            ->where('model_has_roles.organization_id', $this->organizationId)
-            ->where('model_has_roles.model_type', (new User)->getMorphClass())
-            ->whereIn('model_has_roles.model_id', $memberships->pluck('user_id'))
-            ->get(['model_has_roles.model_id', 'roles.name'])
-            ->groupBy('model_id');
-
-        return $memberships
-            ->map(function (Membership $membership) use ($names): array {
-                $held = $names->get($membership->user_id, collect())->pluck('name')->map(static fn (mixed $name): string => (string) $name)->all();
-                $roles = array_values(array_filter(RoleGrants::memberRoles(), static fn (OrganizationRole $role): bool => in_array($role->value, $held, true)));
-
-                return [
-                    'membership' => $membership,
-                    'user' => $membership->user,
-                    'roles' => $roles,
-                    'others' => array_values(array_diff($held, array_map(static fn (OrganizationRole $role): string => $role->value, $roles))),
-                ];
-            })
-            ->filter(static fn (array $row): bool => $row['roles'] !== [] || $row['others'] === [])
-            ->sortBy(static fn (array $row): string => mb_strtolower($row['user']->name))
-            ->values();
+        return collect(app(MemberList::class)->rows($this->user(), []))->values();
     }
 
     /** @return Collection<int, Invitation> */
     private function invitations(): Collection
     {
-        return Invitation::query()
-            ->with('invitedBy')
-            ->where('kind', InvitationKind::User)
-            ->whereIn('status', [InvitationStatus::Pending, InvitationStatus::Expired])
-            ->orderByDesc('sent_at')
-            ->limit(100)
-            ->get();
+        return app(InvitationList::class)->query($this->user(), [])->with('invitedBy')->limit(InvitationList::PAGE_LIMIT)->get();
+    }
+
+    /** The members and invitations lists export (P02-07); neither has filters. */
+    protected function listExports(): array
+    {
+        return ['members' => [], 'member_invitations' => []];
     }
 
     /** @return list<string> */

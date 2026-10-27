@@ -21,8 +21,8 @@ Each phase below is split into numbered tasks (`P00-01`, `P00-02`, …). Each ta
 | PRE | Decisions and accounts before coding | 0 | — | In progress |
 | P00 | Foundation, tooling, installer core, login pages & backups baseline | 1–2 | M0 | In progress |
 | P01 | Tenancy, auth, registration, Transaction Tiers, staff console core & web installer | 3–5 | M1 | Complete (2026-10-27) |
-| P02 | Properties, units, owners & import (part 1) | 6–8 | M2 | In progress |
-| P03 | Leasing, branded documents & the customer money loop + import (part 2) | 9–12 | M3 | Not started |
+| P02 | Properties, units, owners & import (part 1) | 6–8 | M2 | Complete (2026-10-27) |
+| P03 | Leasing, branded documents & the customer money loop + import (part 2) | 9–12 | M3 | In progress |
 | P04 | Maintenance tickets | 13 | M4 | Not started |
 | P05 | Reminders, notifications, email templates & WhatsApp | 14–15 | M5 | Not started |
 | P06 | SaaS billing, compliance monitoring & full platform console | 16–18 | M6 | Not started |
@@ -92,7 +92,7 @@ Depends on: P00.
 
 **Phase exit:** all P01 tasks complete; cross-tenant tests cover every Phase-1 model.
 
-### P02 — Properties, units, owners & import part 1 (Weeks 6–8) — In progress
+### P02 — Properties, units, owners & import part 1 (Weeks 6–8) — Complete (2026-10-27)
 
 Depends on: P01. Sub-tasks, run order and open decisions: [docs/plans/P02-P03-subtasks.md](docs/plans/P02-P03-subtasks.md).
 
@@ -104,11 +104,11 @@ Depends on: P01. Sub-tasks, run order and open decisions: [docs/plans/P02-P03-su
 | P02-04 — **Complete (2026-10-27)** | Org-to-org invitation UI: property owner invites agency; agency invite inbox; **billing transfer accept screen** with explicit amount (state machine in [BILLING_PAYMENTS.md § 7](BILLING_PAYMENTS.md)) — invite + accept/decline record lands now. **Superseded 2026-10-27 by the management handover: P03-14 reworks this flow; the payer switch is dropped** | Invite, accept and decline are recorded through `BillingTransferService`; invalid transitions rejected |
 | P02-05 — **Complete (2026-10-27)** | Media library (photos, thumbnails) on S3-compatible storage with signed URLs | Uploads validated (mime sniff, size); signed URLs expire; another org's media is not reachable |
 | P02-06 — **Complete (2026-10-27)** (done as P02-06a engine, 06b tenants, 06c owners/buildings/units; see `docs/PROGRESS.md`) | **Import engine** ([DATA_IMPORT.md](DATA_IMPORT.md)): streaming reader, column mapping with saved mappings, downloadable template, **dry run** with error/warning report, queued commit, batch rollback within 7 days, `external_ref` upserts — for owners, properties, units and tenants | Dry run of a 2,000-row workbook saves nothing and returns exact errors per row; commit creates exactly the previewed records; re-importing the same file creates no duplicates; rollback removes the batch |
-| P02-07 — **Not started** | Excel/CSV export of every list | Every list page exports; exports respect the current filters and org scope |
+| P02-07 — **Complete (2026-10-27)** | Excel/CSV export of every list | Every list page exports; exports respect the current filters and org scope |
 
 **Phase exit:** all P02 tasks complete; branding settings (P01-05) render on a sample document page.
 
-### P03 — Leasing, branded documents & the customer money loop + import part 2 (Weeks 9–12) — *the heart* — Not started
+### P03 — Leasing, branded documents & the customer money loop + import part 2 (Weeks 9–12) — *the heart* — In progress
 
 Depends on: P02. Sub-tasks, run order and open decisions: [docs/plans/P02-P03-subtasks.md](docs/plans/P02-P03-subtasks.md).
 

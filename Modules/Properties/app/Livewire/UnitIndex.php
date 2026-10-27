@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Modules\Properties\Livewire;
 
+use App\Exports\Livewire\WithListExports;
 use App\Models\User;
 use App\Tenancy\OrganizationContext;
 use Illuminate\Contracts\View\View;
-use Illuminate\Database\Eloquent\Builder;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
@@ -17,6 +17,7 @@ use Livewire\WithPagination;
 use Modules\Properties\Assignments\AgentNarrowing;
 use Modules\Properties\Enums\UnitStatus;
 use Modules\Properties\Enums\UnitType;
+use Modules\Properties\Lists\UnitList;
 use Modules\Properties\Models\Property;
 use Modules\Properties\Models\Unit;
 
@@ -33,7 +34,8 @@ use Modules\Properties\Models\Unit;
  * Members with `properties.view` see it (UnitPolicy::viewAny); an agent
  * assigned to buildings sees only those buildings' units, and only those
  * buildings in the filter (AgentNarrowing). Editing happens on the unit's
- * own page, which checks UnitPolicy again.
+ * own page, which checks UnitPolicy again. The rows come from
+ * Lists\UnitList, which also exports them (P02-07, Export button).
  *
  * Runs inside the `organization` middleware, replayed for Livewire updates:
  * every request has the organization's context and the component refuses
@@ -43,7 +45,7 @@ use Modules\Properties\Models\Unit;
 #[Title('Units')]
 final class UnitIndex extends Component
 {
-    use WithPagination;
+    use WithListExports, WithPagination;
 
     public const int PER_PAGE = 25;
 
@@ -92,35 +94,11 @@ final class UnitIndex extends Component
         $this->resetPage();
     }
 
-    public function render(OrganizationContext $context, AgentNarrowing $narrowing): View
+    public function render(OrganizationContext $context, AgentNarrowing $narrowing, UnitList $list): View
     {
         $user = $this->user();
-        $search = mb_substr(trim($this->search), 0, 100);
-        $buildingId = ctype_digit($this->building) ? (int) $this->building : null;
-        $status = UnitStatus::tryFrom($this->status);
-        $type = UnitType::tryFrom($this->type);
-
-        $units = $narrowing->units(Unit::query(), $user)
-            ->with('property')
-            // Not the units of a building an import rollback removed.
-            ->whereHas('property')
-            ->when($buildingId !== null, fn (Builder $query) => $query->where('property_id', $buildingId))
-            ->when($status !== null, fn (Builder $query) => $query->where('status', $status))
-            ->when($type !== null, fn (Builder $query) => $query->where('unit_type', $type))
-            ->when($search !== '', function (Builder $query) use ($search): void {
-                $like = '%'.str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $search).'%';
-
-                $query->where(fn (Builder $query) => $query
-                    ->where('unit_label', 'like', $like)
-                    ->orWhereHas('property', fn (Builder $building) => $building->where('name', 'like', $like)));
-            })
-            // By building name, then label with "Flat 2" before "Flat 10".
-            ->orderBy(Property::query()->select('name')->whereColumn('properties.id', 'units.property_id'))
-            ->orderBy('property_id')
-            ->orderByRaw('CHAR_LENGTH(units.unit_label)')
-            ->orderBy('unit_label')
-            ->orderBy('id')
-            ->paginate(self::PER_PAGE);
+        $filters = $list->filters($this->listExports()['units']);
+        $units = $list->query($user, $filters)->with('property')->paginate(self::PER_PAGE);
 
         // Whether units can be edited: the same answer for every unit of an
         // active building on the page (the list is already narrowed), so
@@ -130,12 +108,23 @@ final class UnitIndex extends Component
         return view('properties::livewire.unit-index', [
             'organization' => $context->get(),
             'units' => $units,
-            'filtered' => $search !== '' || $buildingId !== null || $status !== null || $type !== null,
+            'filtered' => $filters !== [],
             'canEdit' => $sample instanceof Unit && $user->can('update', $sample),
             'buildings' => $narrowing->buildings(Property::query(), $user)->orderBy('name')->orderBy('id')->pluck('name', 'id')->all(),
             'statuses' => UnitStatus::cases(),
             'types' => UnitType::cases(),
         ]);
+    }
+
+    /** The list on the page, with its filters (UnitList; the Export button). */
+    protected function listExports(): array
+    {
+        return ['units' => [
+            'search' => $this->search,
+            'building' => $this->building,
+            'status' => $this->status,
+            'type' => $this->type,
+        ]];
     }
 
     private function user(): User

@@ -6,6 +6,7 @@ namespace Modules\Properties\Policies;
 
 use App\Enums\OrganizationPermission;
 use App\Models\User;
+use App\Tenancy\BlockedWhileImpersonating;
 use App\Tenancy\OrganizationContext;
 use Illuminate\Auth\Access\Response;
 use Modules\Properties\Assignments\AgentNarrowing;
@@ -22,7 +23,8 @@ use Spatie\Permission\Exceptions\PermissionDoesNotExist;
  *
  * The central guards apply on top: in a suspended organization only the
  * reads pass (OrganizationWriteGuard), and while GoProperty staff
- * impersonate, archiving is refused (`delete`, ImpersonationGuard).
+ * impersonate, archiving is refused (`delete`, ImpersonationGuard) and so
+ * is exporting the list (`export`: people's contact details).
  *
  * Agent narrowing (P02-03): owners are not assigned themselves, so an agent
  * limited to some buildings sees the owners of those buildings only; any
@@ -38,6 +40,18 @@ final class OwnerProfilePolicy
     public function viewAny(User $user): bool
     {
         return $this->holds($user, OrganizationPermission::ViewOwners);
+    }
+
+    /**
+     * Export the owners list (P02-07; Lists\OwnerList, already narrowed).
+     * It holds people's contact details, so GoProperty staff may look at
+     * the list while impersonating but never take a copy away
+     * (PLATFORM_CONSOLE.md § 6).
+     */
+    #[BlockedWhileImpersonating]
+    public function export(User $user): bool
+    {
+        return $this->viewAny($user);
     }
 
     public function view(User $user, OwnerProfile $owner): Response|bool

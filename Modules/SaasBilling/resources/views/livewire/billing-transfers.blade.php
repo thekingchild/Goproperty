@@ -37,7 +37,12 @@
     </section>
 
     <section aria-labelledby="outgoing-heading" class="flex flex-col gap-3">
-        <flux:heading size="lg" level="2" id="outgoing-heading">{{ __('Offers you made') }}</flux:heading>
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <flux:heading size="lg" level="2" id="outgoing-heading">{{ __('Offers you made') }}</flux:heading>
+            @if ($outgoing->isNotEmpty())
+                <x-list-export list="billing_transfers_made" size="sm" />
+            @endif
+        </div>
         @error('outgoing')<flux:callout variant="danger" icon="x-circle" :heading="$message" role="alert" />@enderror
 
         @if ($outgoing->isEmpty())
@@ -73,7 +78,12 @@
     </section>
 
     <section aria-labelledby="incoming-heading" class="flex flex-col gap-3">
-        <flux:heading size="lg" level="2" id="incoming-heading">{{ __('Offers to you') }}</flux:heading>
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <flux:heading size="lg" level="2" id="incoming-heading">{{ __('Offers to you') }}</flux:heading>
+            @if ($incoming->isNotEmpty())
+                <x-list-export list="billing_transfers_received" size="sm" />
+            @endif
+        </div>
 
         @if ($incoming->isEmpty())
             <flux:text>{{ __('No organization has offered you its bill.') }}</flux:text>

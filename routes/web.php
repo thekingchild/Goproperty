@@ -13,6 +13,7 @@ use App\Http\Controllers\Onboarding\RegisterController;
 use App\Http\Controllers\Onboarding\VerifyEmailController;
 use App\Http\Controllers\Workspace\BrandingFileController;
 use App\Http\Controllers\Workspace\DashboardController;
+use App\Http\Controllers\Workspace\ListExportController;
 use App\Http\Controllers\Workspace\SwitchOrganizationController;
 use App\Http\Controllers\Workspace\WorkspaceHomeController;
 use App\Http\Middleware\PublicPageHeaders;
@@ -150,6 +151,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         // Transaction Tier application, org-owner only (ONBOARDING_COMPLIANCE.md § 5.3).
         Route::livewire('compliance/tier', TierApplicationPage::class)->name('compliance.tier');
+
+        // A list export's one-time download (App\Exports\ListExportRequests;
+        // the ticket comes from the list's Export button).
+        Route::get('exports/{ticket}', ListExportController::class)
+            ->where('ticket', '[A-Za-z0-9]{40}')
+            ->middleware('throttle:60,1')
+            ->name('exports.download');
     });
 
     // Cross-organization portals: they never set an organization context

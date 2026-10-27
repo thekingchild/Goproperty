@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Properties\Livewire;
 
+use App\Exports\Livewire\WithListExports;
 use App\Media\MediaUrls;
 use App\Models\User;
 use App\Support\NigerianStates;
@@ -18,9 +19,8 @@ use Livewire\Component;
 use Livewire\WithPagination;
 use Modules\Properties\Assignments\AgentNarrowing;
 use Modules\Properties\Buildings\Properties;
-use Modules\Properties\Enums\PropertyStatus;
 use Modules\Properties\Enums\PropertyType;
-use Modules\Properties\Enums\UnitStatus;
+use Modules\Properties\Lists\PropertyList;
 use Modules\Properties\Models\OwnerProfile;
 use Modules\Properties\Models\Property;
 
@@ -34,6 +34,7 @@ use Modules\Properties\Models\Property;
  *
  * An agent assigned to buildings sees only those (P02-03, AgentNarrowing):
  * the list, the owner filter and the actions' lookups are all limited.
+ * The rows come from Lists\PropertyList, which also exports them (P02-07).
  *
  * Runs inside the `organization` middleware, replayed for Livewire updates:
  * every request has the organization's context and the component refuses
@@ -44,7 +45,7 @@ use Modules\Properties\Models\Property;
 #[Title('Buildings')]
 final class PropertyIndex extends Component
 {
-    use WithPagination;
+    use WithListExports, WithPagination;
 
     public const int PER_PAGE = 25;
 
@@ -117,33 +118,13 @@ final class PropertyIndex extends Component
         $this->notice = __(':name was restored.', ['name' => $property->name]);
     }
 
-    public function render(OrganizationContext $context, MediaUrls $urls, AgentNarrowing $narrowing): View
+    public function render(OrganizationContext $context, MediaUrls $urls, AgentNarrowing $narrowing, PropertyList $list): View
     {
         $user = $this->user();
-        $search = trim($this->search);
-        $type = PropertyType::tryFrom($this->type);
-        $state = in_array($this->state, NigerianStates::ALL, true) ? $this->state : null;
-        $ownerId = ctype_digit($this->owner) ? (int) $this->owner : null;
+        $filters = $list->filters($this->listExports()['buildings']);
 
-        $properties = $narrowing->buildings(Property::query(), $user)
+        $properties = PropertyList::withUnitCounts($list->query($user, $filters))
             ->with(['owner', 'coverPhoto'])
-            // Unit and occupancy counts in the same query (no query per row).
-            ->withCount(['units', 'units as occupied_units_count' => fn (Builder $query) => $query->where('status', UnitStatus::Occupied)])
-            ->where('status', $this->archived ? PropertyStatus::Archived : PropertyStatus::Active)
-            ->when($type !== null, fn (Builder $query) => $query->where('property_type', $type))
-            ->when($state !== null, fn (Builder $query) => $query->where('state', $state))
-            ->when($ownerId !== null, fn (Builder $query) => $query->where('owner_profile_id', $ownerId))
-            ->when($search !== '', function (Builder $query) use ($search): void {
-                $like = '%'.str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $search).'%';
-
-                $query->where(fn (Builder $query) => $query
-                    ->where('name', 'like', $like)
-                    ->orWhere('address', 'like', $like)
-                    ->orWhere('landmark', 'like', $like)
-                    ->orWhere('lga', 'like', $like));
-            })
-            ->orderBy('name')
-            ->orderBy('id')
             ->paginate(self::PER_PAGE);
 
         $thumbnails = [];
@@ -154,7 +135,7 @@ final class PropertyIndex extends Component
             }
         }
 
-        $filtered = $search !== '' || $type !== null || $state !== null || $ownerId !== null;
+        $filtered = array_diff_key($filters, ['archived' => true]) !== [];
         // Every row of a page has the same status, so one check answers for all.
         $sample = $properties->first();
 
@@ -173,6 +154,18 @@ final class PropertyIndex extends Component
                 ->whereHas('properties', fn (Builder $buildings) => $narrowing->buildings($buildings, $user))
                 ->orderBy('display_name')->pluck('display_name', 'id')->all(),
         ]);
+    }
+
+    /** The list on the page, with its filters (PropertyList; the Export button). */
+    protected function listExports(): array
+    {
+        return ['buildings' => [
+            'search' => $this->search,
+            'archived' => $this->archived,
+            'type' => $this->type,
+            'state' => $this->state,
+            'owner' => $this->owner,
+        ]];
     }
 
     private function user(): User

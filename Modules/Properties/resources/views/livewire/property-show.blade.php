@@ -92,7 +92,12 @@
 
     @if ($canAssignAgents || $agents !== [])
         <section class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900" data-test="building-agents">
-            <flux:heading size="lg" level="2">{{ __('Agents') }}</flux:heading>
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <flux:heading size="lg" level="2">{{ __('Agents') }}</flux:heading>
+                @if ($agents !== [])
+                    <x-list-export list="building_agents" size="sm" />
+                @endif
+            </div>
             <flux:text class="mt-1">{{ __('An agent assigned to buildings sees and works on those buildings only. Agents with no building see every building.') }}</flux:text>
 
             @if ($agents === [])
@@ -150,12 +155,15 @@
                     @endif
                 </flux:text>
             </div>
-            @if ($canAddUnits)
-                <div class="flex flex-wrap gap-2">
+            <div class="flex flex-wrap gap-2">
+                @if ($unitCounts->total() > 0)
+                    <x-list-export list="units" size="sm" />
+                @endif
+                @if ($canAddUnits)
                     <flux:button size="sm" icon="plus" :href="route('workspace.units.create', [$organization, $property])" wire:navigate data-test="add-unit">{{ __('Add unit') }}</flux:button>
                     <flux:button size="sm" variant="primary" icon="squares-plus" :href="route('workspace.units.bulk', [$organization, $property])" wire:navigate data-test="add-units-bulk">{{ __('Add several units') }}</flux:button>
-                </div>
-            @endif
+                @endif
+            </div>
         </div>
 
         @if ($unitCounts->total() > 0)

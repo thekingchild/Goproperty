@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\SaasBilling\Livewire;
 
+use App\Exports\Livewire\WithListExports;
 use App\Models\User;
 use App\Tenancy\BlockedWhileImpersonating;
 use App\Tenancy\OrganizationContext;
@@ -13,6 +14,7 @@ use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
 use Livewire\Component;
+use Modules\SaasBilling\Lists\BillingTransfersMadeList;
 use Modules\SaasBilling\Models\BillingTransferRequest;
 use Modules\SaasBilling\Transfers\BillingTransferRefused;
 use Modules\SaasBilling\Transfers\BillingTransferService;
@@ -40,6 +42,8 @@ use Modules\SaasBilling\Transfers\TransferTargets;
 #[Title('Billing transfers')]
 final class BillingTransfers extends Component
 {
+    use WithListExports;
+
     /** Offer attempts (found or not) per organization per hour. */
     public const int ATTEMPTS_PER_HOUR = 10;
 
@@ -127,17 +131,23 @@ final class BillingTransfers extends Component
         $this->notice = "Your offer to {$transfer->toOrganization->name} was withdrawn.";
     }
 
-    public function render(OrganizationContext $context, MonthlyBills $bills, IncomingTransfers $incoming): View
+    public function render(OrganizationContext $context, MonthlyBills $bills, IncomingTransfers $incoming, BillingTransfersMadeList $made): View
     {
         $organization = $context->get();
 
         return view('saasbilling::livewire.billing-transfers', [
             'organization' => $organization,
             'bill' => $bills->for($organization),
-            'outgoing' => BillingTransferRequest::query()->with(['toOrganization', 'initiatedBy', 'respondedBy'])->orderByDesc('id')->limit(20)->get(),
+            'outgoing' => $made->query($this->user(), [])->limit(BillingTransfersMadeList::PAGE_LIMIT)->get(),
             'incoming' => $incoming->recent(),
             'validDays' => BillingTransferService::VALID_DAYS,
         ]);
+    }
+
+    /** Both lists export (P02-07, Lists\BillingTransfersMadeList and …ReceivedList); no filters. */
+    protected function listExports(): array
+    {
+        return ['billing_transfers_made' => [], 'billing_transfers_received' => []];
     }
 
     private function user(): User

@@ -48,7 +48,10 @@
     @endif
 
     <section aria-labelledby="members-heading" class="flex flex-col gap-3">
-        <flux:heading size="lg" level="2" id="members-heading">{{ __('Members') }} <span class="text-zinc-500">({{ $members->count() }})</span></flux:heading>
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <flux:heading size="lg" level="2" id="members-heading">{{ __('Members') }} <span class="text-zinc-500">({{ $members->count() }})</span></flux:heading>
+            <x-list-export list="members" size="sm" />
+        </div>
         @error('members')<flux:callout variant="danger" icon="x-circle" :heading="$message" />@enderror
 
         <ul class="divide-y divide-zinc-100 rounded-xl border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-700 dark:bg-zinc-900" data-test="members-list">
@@ -105,7 +108,12 @@
     </section>
 
     <section aria-labelledby="invitations-heading" class="flex flex-col gap-3">
-        <flux:heading size="lg" level="2" id="invitations-heading">{{ __('Invitations') }}</flux:heading>
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <flux:heading size="lg" level="2" id="invitations-heading">{{ __('Invitations') }}</flux:heading>
+            @if ($invitations->isNotEmpty())
+                <x-list-export list="member_invitations" size="sm" />
+            @endif
+        </div>
         @error('invitations')<flux:callout variant="danger" icon="x-circle" :heading="$message" />@enderror
 
         @if ($invitations->isEmpty())

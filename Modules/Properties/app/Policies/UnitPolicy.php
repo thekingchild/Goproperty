@@ -49,6 +49,12 @@ final class UnitPolicy
         return $this->holds($user, OrganizationPermission::ViewProperties);
     }
 
+    /** Export the units list (P02-07; Lists\UnitList, already narrowed). */
+    public function export(User $user): bool
+    {
+        return $this->viewAny($user);
+    }
+
     public function view(User $user, Unit $unit): Response|bool
     {
         return $this->reachable($user, $unit) ?? $this->viewAny($user);

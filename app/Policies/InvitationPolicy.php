@@ -36,6 +36,17 @@ final class InvitationPolicy
         return $this->holds($user, OrganizationPermission::ViewMembers);
     }
 
+    /**
+     * Export the invitations list (P02-07, App\Members\InvitationList):
+     * email addresses, so not while GoProperty staff impersonate
+     * (PLATFORM_CONSOLE.md § 6).
+     */
+    #[BlockedWhileImpersonating]
+    public function export(User $user): bool
+    {
+        return $this->viewAny($user);
+    }
+
     /** @param  list<OrganizationRole>  $roles */
     #[BlockedWhileImpersonating]
     public function create(User $user, array $roles): bool

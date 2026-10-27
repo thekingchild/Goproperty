@@ -35,6 +35,16 @@ final class BillingTransferRequestPolicy
         return $this->holdsBilling($user);
     }
 
+    /**
+     * Export the offers made or received (P02-07, Lists\BillingTransferList).
+     * Billing transfers are always blocked while staff impersonate.
+     */
+    #[BlockedWhileImpersonating]
+    public function export(User $user): bool
+    {
+        return $this->holdsBilling($user);
+    }
+
     public function view(User $user, BillingTransferRequest $transfer): bool
     {
         return ($this->isOffering($transfer) || $this->isReceiving($transfer)) && $this->holdsBilling($user);

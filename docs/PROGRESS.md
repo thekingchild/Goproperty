@@ -6,9 +6,9 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 ## Current state
 
-- **In progress:** P02-07 (exports) in its own worktree (`docs/plans/P02-P03-subtasks.md`). Done in P02: P02-01 to P02-06
+- **In progress:** P03 wave 1 (P03-05a document kit, P03-02 cycle calculator), each in its own worktree (`docs/plans/P02-P03-subtasks.md`); the product owner asked for P03 to start with default answers to its open questions, recorded in that plan
 - **In review:** P00-02 (CI): all four database jobs are green in GitHub Actions; branch protection on `main` is off by the product owner's decision (2026-10-27) while P02 and P03 are built, so tasks keep merging straight to `main`; turn it on afterwards (`docs/runbooks/ci.md` § 3) and mark P00-02 complete. P00-12 (backups): built and drilled locally; needs one real run to an S3-compatible bucket and a Google Shared Drive (PRE-03 accounts)
-- **Next task:** the P02 exit check after P02-07; PRE-01 to PRE-04 continue with the product owner
+- **Next task:** P03 waves 2–14 in order, two at a time; PRE-01 to PRE-04 continue with the product owner
 - **Blocked:** P00-13 (staging): the deploy scripts, the deploy on merge and the deploy drill are built and drilled locally; it needs a staging host (PRE-04). Until then the Deploy workflow fails at "Check deploy settings" on every push to `main`
 
 ## Board
@@ -18,19 +18,82 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | PRE | 5 | 1 | In progress |
 | P00 | 13 | 10 | In progress |
 | P01 | 9 | 9 | Complete (2026-10-27) |
-| P02 | 7 | 6 | In progress |
-| P03 | 13 | 0 | Not started |
+| P02 | 7 | 7 | Complete (2026-10-27) |
+| P03 | 15 | 0 | In progress |
 | P04 | 3 | 0 | Not started |
 | P05 | 6 | 0 | Not started |
 | P06 | 11 | 0 | Not started |
 | P07 | 4 | 0 | Not started |
 | P08 | 4 | 0 | Not started |
 | P09 | 8 | 0 | Not started |
-| **Total** | **83** | **26** | |
+| **Total** | **85** | **27** | |
 
 ## Ledger (newest first)
 
 Each entry: task ID and status, date, what was delivered, tests run and results, follow-ups, next task.
+
+### P02 — Complete (2026-10-27): properties, units, owners, import part 1, exports
+
+All seven P02 tasks are Complete (P02-01 as 01a/01b, P02-06 as 06a/06b/06c), each built in its own worktree, reviewed and re-run through `composer ci` by the orchestrator, and merged as one squashed commit; GitHub CI is green on MySQL 8.0/8.4 and MariaDB 10.6/11.4 after each merge. The exit check is in the P02-07 entry below: P01-05's live invoice/receipt preview counts as "branding renders on a sample document page" (new test in `BrandingSettingsTest`), so no new task ID was needed. Decisions to confirm are listed in each task's entry; the product owner's 2026-10-27 review of P02-01 to P02-04 replaced the billing transfer with the management handover (P03-14) and made evidence files undeletable. Still open: whether an agent with no building assignment sees every building (as built) or none behind an organization setting.
+
+### P02-07 — Complete (2026-10-27): Excel/CSV export of every workspace list (Core `App\Exports`), streamed, audited, wired into every list; P02 exit check
+
+**Delivered** ([DATA_IMPORT.md § 6](../DATA_IMPORT.md), [ARCHITECTURE.md § 6.13](../ARCHITECTURE.md) (new), [PLATFORM_CONSOLE.md § 6](../PLATFORM_CONSOLE.md), AGENT.md § 5; `docs/plans/P02-P03-subtasks.md` P02-07):
+- **Core `App\Exports`:** `ListExport` (key, title, `filters()` cleaning, `authorize()`, `columns(User)`, `rows()`, `count()`), `QueryListExport` (an Eloquent query read with `lazy(500)`, `exportQuery()` adds eager loads), registry `ListExports` (singleton; Core registers its lists in `AppServiceProvider`, modules from their providers with `callAfterResolving`; classes made fresh each time), `ExportColumn`, `ExportCell` (cell formatting + formula neutralising), `ExportDate`, `ExportFormat` (csv/xlsx), `ListFilters` (search ≤ 100, flag, id, option, LIKE escaping), `ListExportRequests` (start + download), `ListExportWriter` (streaming), `ExportAudit`, `ListExportRefused`.
+- **One query per list, shared by the page and the export:** each list's query moved out of its Livewire component into a list class that the page now paginates and the export streams: `Modules\Properties\Lists\OwnerList`, `PropertyList`, `UnitList` (also the building page's status board: building + status), `BuildingAgentList` (P02-03 assignments, names as on the page); `Modules\Import\Lists\ImportBatchList`; `Modules\SaasBilling\Lists\BillingTransfersMadeList`, `BillingTransfersReceivedList` (through `IncomingTransfers::all()`, new); Core `App\Members\MemberList`, `InvitationList` (Settings → Members). So filters, search, sort, organization scope and agent narrowing are the page's by construction.
+- **Reusable Livewire action:** trait `App\Exports\Livewire\WithListExports` (`listExports()` returns each list on the page with its current filters; `export($list, $format)` marked `#[AllowedWhileSuspended]`; `canExport()`), Blade component `<x-list-export list="…" />` (Excel/CSV menu, shown only when the member may export, refusal shown under it). Wired into Owners, Buildings, Units, the building page (agents and units), Import history, Billing transfers (offers made and received), Members (members and invitations).
+- **Download in two steps:** `export()` checks the list's policy, the rate limit (30 per member per organization per hour) and the size (≤ 50,000 rows; otherwise "narrow it down"), stores a one-time ticket in the cache (5 minutes; member, organization, list, format, cleaned filters: a search never goes into a URL) and redirects to `GET /o/{slug}/exports/{ticket}` (`App\Http\Controllers\Workspace\ListExportController`, `throttle:60,1`). The download is the member's own in that organization (404 otherwise; another member's attempt does not burn it), used once, re-checks the policy, writes the audit entry, then streams.
+- **Streaming, nothing left behind:** `StreamedResponse`; CSV row by row (UTF-8 BOM, CRLF, `fputcsv` without escape char); Excel through OpenSpout into a private per-export folder under `storage/framework/exports`, zipped into the response, the folder deleted in a `finally` (a failed read sends no half workbook).
+- **Cells:** money from kobo as naira with two decimals (`Money::toDecimalString`, text: no float), times in Africa/Lagos `Y-m-d H:i`, enums by `label()`, booleans Yes/No, whole numbers as numbers; Excel cells built as `StringCell`/`NumericCell` explicitly (OpenSpout's `Cell::fromValue` turns "=…" into a formula). Formula injection: text starting with = + - @ tab CR gets a leading apostrophe in both formats, headers too; plain numbers (`-1`, `+2348031234567`) are kept. No encrypted field is exported: the owners list has "ID (masked)" (`OwnerProfile::maskedId()`), no list has bank details. Owners/buildings/units headers are the import's, so an exported CSV imports back as updates (tested).
+- **Policies (`export…` abilities, reads):** `OwnerProfilePolicy::export`, `PropertyPolicy::export`, `PropertyPolicy::exportAgents` (= `view` of the building: a narrowed agent's other building answers 404), `UnitPolicy::export`, `ImportBatchPolicy::export`, `BillingTransferRequestPolicy::export`, `MembershipPolicy::export`, `InvitationPolicy::export`. No new permission.
+- **Audit:** log `exports`, event `list.exported`, organization as subject, member as causer (staff + session during impersonation): list, format, cleaned filters, row count ("Exported Units (CSV, 2 rows)").
+- **AGENT.md § 5:** "Lists: every new workspace list uses the list export" (how, column rules, policy ability, the coverage test).
+- **Docs:** ARCHITECTURE.md § 6.13 List exports (new); PLATFORM_CONSOLE.md § 6 (exports of contact details refused to impersonating staff); DATA_IMPORT.md § 6 (built; re-import of exports).
+
+**Tests and evidence (local, MariaDB 11.4):**
+- `composer ci` on the final commit: Pint passed, Larastan 0 errors, Pest **1,801 tests: 1,801 passed, 15,449 assertions**, 0 failed (was 1,763 on `main`). The new tests also pass with `APP_DEBUG=true` (37 tests, 829 assertions, plus the new branding test).
+- New: `tests/Feature/Exports/ListExportCoverageTest.php` (4), `ListExportScopeTest.php` (6), `ListExportSafetyTest.php` (16 incl. datasets), `ListExportAccessTest.php` (8 incl. datasets), `ListExportReimportTest.php` (3), helpers `tests/Feature/Exports/helpers.php`, fixtures `tests/Fixtures/Exports/ProbeList.php`, `tests/Fixtures/Livewire/UnexportedListProbe.php`; one test added to `tests/Feature/OrganizationSettings/BrandingSettingsTest.php` (P02 exit). All exports go through the real page → Livewire update `export()` → download over HTTP.
+- **AC: every list page exports:** `ListExportCoverageTest` › "gives every workspace list page a working export, in Excel and CSV" (walks `WorkspaceNavigation` (every sidebar page except Home, Transaction Tier, Settings, which are not lists) plus the building page; each page shows Export buttons; every button exports in both formats with the list's headers and rows; the set of lists offered equals the registry: 9 lists); "makes every Livewire component that pages through a list use the export" (static scan of Core and module Livewire components using `WithPagination`); "fails the check for a new list page without an export" (a fixture paginated page added to the sidebar is reported); "shows the Export button only to members who may export the list".
+- **AC: exports respect the current filters and org scope:** `ListExportScopeTest` › "exports exactly the rows the page shows with its current filters, on every page and in its order, never another organization's" (30 units over 2 pages, same order as the page; filters typed on the page and from the URL; unknown values ignored as on the page; another org's building id gives nothing; the other org exports only its own; buildings by state/type/archived; building page status board), "exports the owners the page shows: search, archived, and never another organization's", "exports the billing offers made and received by this organization only" (an offer between two other organizations never appears).
+- **Narrowed agent:** `ListExportScopeTest` › "gives a narrowed agent only the buildings assigned to them, in every list" (units, buildings, owners (and their building count), building agents; a crafted building filter gives nothing; another building's agents export 404; an unassigned agent sees all).
+- **No encrypted values:** `ListExportSafetyTest` › "never exports an encrypted value: ID numbers are masked, in CSV and Excel" (plaintext NIN/CAC and the stored ciphertext absent; masked values present; no list has an ID/bank number column).
+- **Formula injection:** `ListExportSafetyTest` › "neutralises formula injection in CSV and Excel, keeping plain numbers" (=HYPERLINK, -2+3+cmd|, @SUM, +cmd| prefixed in both formats; phone kept; no `<f>` in the sheet XML, cells `inlineStr`), plus an 11-case dataset on `ExportCell`.
+- **Large export streams with bounded memory:** `ListExportSafetyTest` › "streams a 5,000-row export a chunk at a time, without holding the list in memory" (csv and xlsx: `StreamedResponse`; output counted as it leaves (5,001 CSV lines); ≥ 10 `limit 500` selects; peak memory below half of loading the list at once and below 16 MB (measured ≈ 2.3 MB CSV / 3.0 MB Excel against ≈ 19 MB); no temp file left).
+- **No temp file:** `ListExportSafetyTest` › "leaves no temporary file behind when an Excel export fails half way, and sends no half workbook".
+- **Audited:** `ListExportAccessTest` › "audits every export: who, which list and format, the filters and the row count" (hash-chained entry; pressing Export alone writes nothing).
+- **Roles, tickets, impersonation, suspension, limits:** `ListExportAccessTest` › "hands out a one-time download for this member in this organization only, valid five minutes", "lets only members who may see the list export it, and checks again at the download", "keeps exports working in a suspended organization", "lets impersonating staff export lists without contact details, and refuses the rest" (read-only and write: units/buildings export, audited with staff + session; owners and members pages open without the button, `export()` 403, the owner's earlier owners ticket 403 for staff; 3 `impersonation.blocked` entries), "limits how many exports a member makes in an hour", "refuses a list too long for one export, asking to narrow it".
+- **Re-import:** `ListExportReimportTest` › "imports its own owners, buildings and units exports again, as updates of the same records" (3-case dataset through the real import dry run: 0 errors, 0 creates).
+- Existing list tests (unit list query count, owners, buildings, imports, billing transfers, members) pass unchanged on the refactored queries.
+
+**Orchestrator review:** merged `main` (with the product owner's handover/evidence docs and the P03 defaults) into the branch with no conflicts, re-ran `composer ci`: Pint passed, Larastan 0 errors, Pest 1,801 passed, 15,449 assertions.
+
+**Decisions to confirm:**
+- Orchestrator decision 1 (modules): list classes live in the module that owns the list (`Modules\<Name>\Lists`), registered from the module's provider; Core `App\Exports` names no module (module-boundary test passes). Core's own lists (members, invitations) are in `App\Members`.
+- Orchestrator decision 2 (cross-org lookups): the "offers to you" export reads through SaasBilling's existing `IncomingTransfers` (P01-04 pattern), new `all()`; no scope removed.
+- Orchestrator decision 4 (plan gating): BILLING § 1.2 lists import & export on every plan, so exports are ungated; nothing for P06-01.
+- **Impersonation (PLATFORM_CONSOLE § 6 / P01-08):** exports are reads (allowed in read-only sessions, as § 6 said), **except lists of people's contact details** (owners, members, invitations; tenants when P03-01a adds the list), refused in both modes by `#[BlockedWhileImpersonating]` on the `export…` policy ability (central Gate hook; refusals audited by `ResumeImpersonation`). Buildings (owner names only), units, a building's agents (names only, as on the page) and imports export, audited with both identities. PLATFORM_CONSOLE § 6 updated.
+- **Download via a one-time ticket** rather than returning the file from the Livewire call (Livewire buffers a download in memory and base64-encodes it) or a plain filtered GET link (filters such as a phone-number search would be in URLs and logs).
+- **Money as text "1500000.00"** in both formats (`Money::toDecimalString`): an Excel number cell would need a float (AGENT § 3 rule 2). Spreadsheets convert the CSV column to numbers on opening; in Excel the cells are text until converted. Whole numbers (bedrooms, counts) are numeric cells.
+- **Dates** ISO-like `2026-10-27 14:05` in Africa/Lagos (the app runs in UTC), unambiguous in every spreadsheet locale, instead of the pages' `d/m/Y`.
+- **Formula neutralising keeps plain numbers** (`-1`, `+2348031234567`): they cannot call anything, and prefixing every phone number would spoil the column.
+- **Limits:** 30 exports per member per organization per hour; 50,000 rows per export (shared hosts' request time limits); the Excel header row is bold, no column widths.
+- **Exports hold the whole list**, not the page: the members' invitations (page shows the latest 100) and billing transfers made (page shows 20) export all rows of the same query.
+- Owners export counts only the buildings the member sees; the buildings export has the Owner column only for members who may see owners (`OwnerProfilePolicy::viewAny`), as the building page does.
+- Not lists (no export, recorded in the coverage test): Home, Transaction Tier application, Settings forms (incl. bank accounts: secrets, owner-only, blocked while impersonating), an import's report page (its problems already download as an Excel file).
+
+**P02 exit check** (IMPLEMENTATION_PLAN.md § 3: "all P02 tasks complete; branding settings (P01-05) render on a sample document page"):
+- **All P02 tasks complete:** P02-01 (01a, 01b), P02-02, P02-03, P02-04, P02-05, P02-06 (06a, 06b, 06c) are Complete in the plan and the ledger; P02-07 completes with this entry (every AC above proven by a named test). The sub-task ACs of `docs/plans/P02-P03-subtasks.md` each map to a named test in their ledger entries.
+- **Branding renders on a sample document page: yes, P01-05's live invoice/receipt preview counts; no new ID needed.** Settings → Branding (`/o/{slug}/settings/branding`, `App\Livewire\Settings\BrandingPage`) renders the sample invoice and receipt (`App\Documents\BrandingPreview` with `resources/views/documents/invoice.blade.php`/`receipt.blade.php`, sample data `App\Documents\SampleDocuments`) with the organization's branding: logo (now from the media library, P02-05), trading name, colours, letterhead, prefixes, notes, footer, layout. Evidence: `BrandingSettingsTest` › "renders the saved branding on the sample invoice and receipt when the page is opened again" (new: saved branding with a logo, a fresh GET of the page shows the trading name, colour, prefixes, notes, footer, classic layout font and the logo instead of the monogram), › "renders the sample invoice and receipt from the unsaved form, and saves nothing until Save", › "renders the sample invoice and receipt with dompdf in every layout" (PDF bytes from the saved branding, all three layouts). P03-05 reuses the same templates with real bills.
+- **Also green:** `composer ci` (above), including `CrossTenantAccessTest` (P02-07 adds no model).
+
+**Follow-ups:**
+- P03-01a (tenants list), P03-03a (leases), P03-04b (bills), P03-12 (expenses) and every later list: use `WithListExports` and a `ListExport` (AGENT § 5; the coverage test fails otherwise). The tenants list holds contact details: mark `TenantProfilePolicy::export` `#[BlockedWhileImpersonating]`; never export `id_value` (masked only).
+- P08-01 reports: "CSV + PDF export" of dashboards can reuse `ListExportWriter`/`ExportCell` (a report is a list of rows).
+- The portals (`/portal`, `/owner`, P03/P04) set no organization context; if they get exports, they need their own scoping (not built).
+- Excel money cells are text (see decisions); if the product owner wants numeric money cells, `Money` would need a sanctioned conversion for spreadsheets.
+- The rate limit and row cap are constants (`ListExportRequests::PER_HOUR`, `MAX_ROWS`); make them settings if customers ask.
+
+**Next:** P02 is complete (exit check above): mark the P02 phase heading and § 2 Status complete; then P03 wave 1 per `docs/plans/P02-P03-subtasks.md`.
 
 ### P02-06c — Complete (2026-10-27): owner, building and unit import targets and the full 4-sheet workbook; P02-06 complete
 

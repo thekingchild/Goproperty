@@ -53,6 +53,22 @@ final class PropertyPolicy
         return $this->reachable($user, $property) ?? $this->viewAny($user);
     }
 
+    /** Export the buildings list (P02-07; Lists\PropertyList, already narrowed). */
+    public function export(User $user): bool
+    {
+        return $this->viewAny($user);
+    }
+
+    /**
+     * Export the agents of a building (P02-07; Lists\BuildingAgentList):
+     * whoever sees the building sees its agents (names only, as on the
+     * page).
+     */
+    public function exportAgents(User $user, Property $property): Response|bool
+    {
+        return $this->view($user, $property);
+    }
+
     public function create(User $user): bool
     {
         return ! $this->restricted() && $this->holds($user, OrganizationPermission::ManagePropertyPortfolio);

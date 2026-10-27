@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Exports\ListExports;
+use App\Members\InvitationList;
+use App\Members\MemberList;
 use App\Navigation\WorkspaceNavigation;
 use App\Settings\SettingDefinition;
 use App\Settings\SettingsRegistry;
 use App\Tenancy\OrganizationContext;
 use App\Theme\ThemeContext;
 use Carbon\CarbonImmutable;
+use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\ServiceProvider;
@@ -31,6 +35,16 @@ class AppServiceProvider extends ServiceProvider
         // The workspace sidebar: Core's pages, then whatever modules add
         // from their providers (callAfterResolving).
         $this->app->singleton(WorkspaceNavigation::class, static fn (): WorkspaceNavigation => WorkspaceNavigation::withCoreItems());
+
+        // The lists that export (P02-07): Core's, then whatever modules add
+        // from their providers (callAfterResolving).
+        $this->app->singleton(ListExports::class, static function (Application $app): ListExports {
+            $exports = new ListExports($app);
+            $exports->register(MemberList::class);
+            $exports->register(InvitationList::class);
+
+            return $exports;
+        });
 
         $this->app->singleton(SettingsRegistry::class, function (): SettingsRegistry {
             $registry = new SettingsRegistry;

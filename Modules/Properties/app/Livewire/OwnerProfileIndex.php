@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Modules\Properties\Livewire;
 
+use App\Exports\Livewire\WithListExports;
 use App\Models\User;
 use App\Tenancy\OrganizationContext;
 use Illuminate\Contracts\View\View;
-use Illuminate\Database\Eloquent\Builder;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
@@ -15,6 +15,7 @@ use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Modules\Properties\Assignments\AgentNarrowing;
+use Modules\Properties\Lists\OwnerList;
 use Modules\Properties\Models\OwnerProfile;
 use Modules\Properties\Owners\OwnerProfiles;
 
@@ -24,7 +25,8 @@ use Modules\Properties\Owners\OwnerProfiles;
  * name, email and phone and an Active / Archived switch. Members with
  * `owners.view` see the list; with `owners.manage` they archive and
  * restore (soft deletes only). An agent limited to some buildings sees the
- * owners of those buildings only (P02-03, AgentNarrowing).
+ * owners of those buildings only (P02-03, AgentNarrowing). The rows come
+ * from Lists\OwnerList, which also exports them (P02-07, Export button).
  *
  * Runs inside the `organization` middleware, replayed for Livewire updates:
  * every request has the organization's context and the component refuses
@@ -35,7 +37,7 @@ use Modules\Properties\Owners\OwnerProfiles;
 #[Title('Owners')]
 final class OwnerProfileIndex extends Component
 {
-    use WithPagination;
+    use WithListExports, WithPagination;
 
     public const int PER_PAGE = 25;
 
@@ -98,34 +100,21 @@ final class OwnerProfileIndex extends Component
         $this->notice = __(':name was restored.', ['name' => $owner->display_name]);
     }
 
-    public function render(OrganizationContext $context, AgentNarrowing $narrowing): View
+    public function render(OrganizationContext $context, OwnerList $list): View
     {
-        $search = trim($this->search);
-
-        $owners = $narrowing->owners(OwnerProfile::query(), $this->user())
-            ->when($this->archived, fn (Builder $query) => $query->onlyTrashed())
-            ->when($search !== '', function (Builder $query) use ($search): void {
-                $like = '%'.str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $search).'%';
-                $digits = preg_replace('/\D/', '', $search) ?? '';
-
-                $query->where(function (Builder $query) use ($like, $digits): void {
-                    $query->where('display_name', 'like', $like)->orWhere('email', 'like', $like);
-
-                    // Phones are stored as +234…; "0803 123" finds +234803123….
-                    if (strlen($digits) >= 4) {
-                        $query->orWhere('phone', 'like', '%'.(str_starts_with($digits, '0') ? substr($digits, 1) : $digits).'%');
-                    }
-                });
-            })
-            ->orderBy('display_name')
-            ->orderBy('id')
-            ->paginate(self::PER_PAGE);
+        $owners = $list->query($this->user(), $list->filters($this->listExports()['owners']))->paginate(self::PER_PAGE);
 
         return view('properties::livewire.owner-profile-index', [
             'organization' => $context->get(),
             'owners' => $owners,
             'canManage' => $this->user()->can('create', OwnerProfile::class),
         ]);
+    }
+
+    /** The list on the page, with its filters (OwnerList; the Export button). */
+    protected function listExports(): array
+    {
+        return ['owners' => ['search' => $this->search, 'archived' => $this->archived]];
     }
 
     private function user(): User

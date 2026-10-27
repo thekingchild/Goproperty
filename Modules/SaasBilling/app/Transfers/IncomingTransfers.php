@@ -47,6 +47,21 @@ final readonly class IncomingTransfers
             ->values();
     }
 
+    /**
+     * Every offer addressed to the current organization, in the same order
+     * as recent() (the export of the invite inbox, P02-07). An organization
+     * receives a handful of offers (offering is rate-limited), so they are
+     * read at once.
+     *
+     * @return Collection<int, BillingTransferRequest>
+     */
+    public function all(): Collection
+    {
+        return $this->load($this->addressedHere()->orderByDesc('id'))
+            ->sortBy(static fn (BillingTransferRequest $transfer): array => [$transfer->isOpen() ? 0 : 1, -$transfer->id])
+            ->values();
+    }
+
     private function addressedHere(): Builder
     {
         return DB::table('billing_transfer_requests')->where('to_organization_id', $this->context->id());

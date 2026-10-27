@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Properties\Livewire;
 
+use App\Exports\Livewire\WithListExports;
 use App\Media\Media;
 use App\Media\MediaUrls;
 use App\Media\UploadValidator;
@@ -49,6 +50,9 @@ use Modules\Properties\Units\Units;
  * audited). An assigned agent sees only their buildings; a building outside
  * a narrowed agent's assignments answers 404 here (PropertyPolicy).
  *
+ * Exports (P02-07): the agents and the status board's units export
+ * (WithListExports).
+ *
  * Photos are checked by App\Media\UploadValidator as soon as they are
  * chosen and again when saved (MediaUploads), and shown through signed,
  * expiring links (MediaUrls) made after the page's own `view` check. The
@@ -60,7 +64,7 @@ use Modules\Properties\Units\Units;
 #[Title('Building')]
 final class PropertyShow extends Component
 {
-    use WithFileUploads;
+    use WithFileUploads, WithListExports;
 
     #[Locked]
     public int $organizationId;
@@ -275,6 +279,19 @@ final class PropertyShow extends Component
             'maxPhotos' => PropertyPhotos::MAX_PHOTOS,
             'flash' => session('building-status'),
         ]);
+    }
+
+    /**
+     * The building's two lists (P02-07): its agents (Lists\BuildingAgentList)
+     * and its units as the status board shows them (Lists\UnitList with the
+     * building and the board's status).
+     */
+    protected function listExports(): array
+    {
+        return [
+            'building_agents' => ['building' => $this->propertyId],
+            'units' => ['building' => $this->propertyId, 'status' => $this->boardStatus],
+        ];
     }
 
     /** @return array<string, mixed> */

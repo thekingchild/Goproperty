@@ -4,6 +4,10 @@
     only for what the member may do; the unit's page checks its policy again.
 --}}
 <x-page :heading="__('Units')" :description="__('Every flat, shop and office in the buildings :organization manages.', ['organization' => $organization->name])">
+    <x-slot:actions>
+        <x-list-export list="units" />
+    </x-slot:actions>
+
     <div class="flex flex-col gap-3">
         <div class="w-full sm:max-w-sm">
             <flux:input wire:model.live.debounce.400ms="search" icon="magnifying-glass" type="search" :placeholder="__('Search by unit or building')" :aria-label="__('Search units')" maxlength="100" data-test="unit-search" />

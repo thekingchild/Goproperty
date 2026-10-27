@@ -34,6 +34,12 @@ final class ImportBatchPolicy
         return $this->holds($user, OrganizationPermission::ViewImports);
     }
 
+    /** Export the import history (P02-07, Lists\ImportBatchList). */
+    public function export(User $user): bool
+    {
+        return $this->viewAny($user);
+    }
+
     public function view(User $user, ImportBatch $batch): bool
     {
         return $this->belongsHere($batch) && $this->viewAny($user);

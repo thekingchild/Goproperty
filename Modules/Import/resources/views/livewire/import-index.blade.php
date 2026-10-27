@@ -3,12 +3,15 @@
     Rows stack into cards on phones (UX_DESIGN.md § 6).
 --}}
 <x-page :heading="__('Import')" :description="__('Bring your records across from Excel or CSV. Every import starts with a dry run: nothing is saved until you commit.')">
-    @if ($canImport)
-        <x-slot:actions>
+    <x-slot:actions>
+        @if ($batches->isNotEmpty())
+            <x-list-export list="imports" />
+        @endif
+        @if ($canImport)
             <flux:button icon="arrow-down-tray" :href="route('workspace.imports.template', $organization)" data-test="download-template">{{ __('Download template') }}</flux:button>
             <flux:button variant="primary" icon="arrow-up-tray" :href="route('workspace.imports.create', $organization)" wire:navigate data-test="new-import">{{ __('New import') }}</flux:button>
-        </x-slot:actions>
-    @endif
+        @endif
+    </x-slot:actions>
 
     @if ($batches->isEmpty())
         <x-empty-state icon="arrow-up-tray" :heading="__('No imports yet')" :description="__('Download the template, fill in your owners, buildings, units and tenants, and upload it. Or upload your own spreadsheet and match its columns.')">

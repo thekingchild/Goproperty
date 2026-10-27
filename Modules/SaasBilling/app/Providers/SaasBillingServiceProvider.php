@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\SaasBilling\Providers;
 
+use App\Exports\ListExports;
 use App\Models\User;
 use App\Navigation\WorkspaceNavigation;
 use App\Navigation\WorkspaceNavItem;
@@ -11,6 +12,8 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Livewire;
 use Modules\SaasBilling\Jobs\ExpireBillingTransfers;
+use Modules\SaasBilling\Lists\BillingTransfersMadeList;
+use Modules\SaasBilling\Lists\BillingTransfersReceivedList;
 use Modules\SaasBilling\Models\BillingTransferRequest;
 use Modules\SaasBilling\Policies\BillingTransferRequestPolicy;
 use Nwidart\Modules\Support\ModuleServiceProvider;
@@ -43,6 +46,12 @@ final class SaasBillingServiceProvider extends ModuleServiceProvider
         Gate::policy(BillingTransferRequest::class, BillingTransferRequestPolicy::class);
 
         Livewire::addNamespace($this->nameLower, classNamespace: 'Modules\\SaasBilling\\Livewire');
+
+        // Both billing transfer lists export (P02-07).
+        $this->callAfterResolving(ListExports::class, static function (ListExports $exports): void {
+            $exports->register(BillingTransfersMadeList::class);
+            $exports->register(BillingTransfersReceivedList::class);
+        });
 
         $this->callAfterResolving(WorkspaceNavigation::class, static function (WorkspaceNavigation $navigation): void {
             $navigation->add(new WorkspaceNavItem(

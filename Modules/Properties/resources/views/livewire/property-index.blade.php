@@ -4,11 +4,12 @@
     for what the member may do; every action checks its policy again.
 --}}
 <x-page :heading="__('Buildings')" :description="__('The buildings :organization manages.', ['organization' => $organization->name])">
-    @if ($canAdd)
-        <x-slot:actions>
+    <x-slot:actions>
+        <x-list-export list="buildings" />
+        @if ($canAdd)
             <flux:button variant="primary" icon="plus" :href="route('workspace.buildings.create', $organization)" wire:navigate data-test="add-building">{{ __('Add building') }}</flux:button>
-        </x-slot:actions>
-    @endif
+        @endif
+    </x-slot:actions>
 
     @error('archive')
         <flux:callout variant="warning" icon="exclamation-triangle" :heading="$message" role="alert" data-test="buildings-warning" />

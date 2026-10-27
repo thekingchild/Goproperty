@@ -37,6 +37,18 @@ final class MembershipPolicy
         }
     }
 
+    /**
+     * Export the members list (P02-07, App\Members\MemberList): names,
+     * emails and phones are people's contact details, so GoProperty staff
+     * may look at the list while impersonating but never take a copy away
+     * (PLATFORM_CONSOLE.md § 6).
+     */
+    #[BlockedWhileImpersonating]
+    public function export(User $user): bool
+    {
+        return $this->viewAny($user);
+    }
+
     /** @param  list<OrganizationRole>  $roles */
     #[BlockedWhileImpersonating]
     public function changeRoles(User $user, Membership $membership, array $roles): bool
