@@ -8,9 +8,9 @@ Most agencies run on Excel, notebooks and WhatsApp. They can only switch to GoPr
 
 | # | Sheet | Key columns | Notes |
 | --- | --- | --- | --- |
-| 1 | Owners | Name / company, phone, email, address, bank (optional) | Landlords whose buildings the agency manages |
-| 2 | Properties | Property name, owner, address, state, LGA, type, amenities | Owner matched by name/phone from sheet 1 or existing data |
-| 3 | Units | Property, unit label, type, bedrooms, rent, service charge, status | Status can be left blank — derived from leases |
+| 1 | Owners | Name (a person's first and last name, or the company name), type (person or company), phone, email, address, state, LGA, ID type and number (NIN or CAC number), notes | Landlords whose buildings the agency manages. Bank details are not imported yet: owner profiles have no bank fields |
+| 2 | Properties (the "Buildings" sheet) | Building name, owner, type, address, state, LGA, landmark, amenities (comma separated), year built, description | Owner named by name, phone or Your ID, from sheet 1 or existing data; empty when the agency owns the building. Each building in a file needs its own name |
+| 3 | Units | Building (name or Your ID), unit label, type, bedrooms, bathrooms, size, floor, rent and service charge (yearly), status, description | Status can be left blank (vacant): occupied and reserved come from leases, so the sheet imports them as vacant with a warning and never changes the status of a unit a lease holds |
 | 4 | Tenants | First/last name (a full name under First name is split), phone (required), email, address, occupation, next of kin (name, phone, relationship), ID type and number (NIN, international passport, driver's licence, voter's card) | Phone is the matching key; the ID number is kept encrypted and never shown in reports; imported tenants are unverified (KYC) |
 | 5 | Leases (ongoing rents) | Unit, tenant, start date, end date, billing cycle, rent amount, service charge, **paid until**, deposit held, auto-renew | Creates active leases without back-billing (§ 3) |
 | 6 | Opening balances | Tenant, unit, amount owed (or credit), as-of date, description | Creates one "Opening balance" bill or a credit per tenant |
@@ -50,13 +50,15 @@ flowchart LR
 ### Re-running and updates
 
 - Each row can carry the agency's own ID (`external_ref`). Re-importing the same file updates existing records instead of duplicating them.
-- Without an `external_ref`, matching uses natural keys: tenant by phone, property by name, unit by property + label.
-- Matching includes archived records: an archived match is brought back (restored) instead of being added twice, and the dry run warns about it.
+- Without an `external_ref`, matching uses natural keys: owner by phone, then by name (an owner on file with another phone number is a different owner, and the dry run says so), tenant by phone, property by name, unit by property + label (without case). A name shared by two records on file is an error asking for the phone or Your ID. A unit never moves to another building by import.
+- Matching includes archived records: an archived match is brought back (restored) instead of being added twice, and the dry run warns about it. A building archived on its page is the exception: its row and its units' rows are skipped with a warning (restoring it would put its units back on the GoProperty bill, and a rollback could not archive it again), so the agency restores it on its page first.
 - On an update, an empty cell keeps what is on file (built so far for tenants); a tenant whose ID number changes becomes unverified again.
 
 ### Undo
 
 An import batch can be **rolled back within 7 days** if none of its records have been used since (no payments recorded, no bills sent). Rollback soft-deletes the batch's records and is audited. After that, records are edited individually.
+
+"Used" so far: a tenant given portal access; a unit a lease holds (occupied or reserved); a building holding a unit that is not the batch's own; an owner named by a building that is not the batch's own (including one the import itself gave that owner). Rolling back never strands a record that is not the batch's. Leases, bills and payments are added with them (P03-13a).
 
 ## 3. Ongoing Rents and Balances (the important part)
 

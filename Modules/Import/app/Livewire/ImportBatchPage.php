@@ -22,6 +22,7 @@ use Modules\Import\Livewire\Concerns\InWorkspace;
 use Modules\Import\Mapping\MappingSuggester;
 use Modules\Import\Mapping\SheetMapping;
 use Modules\Import\Models\ImportBatch;
+use Modules\Properties\Contracts\UnitDirectory;
 
 /**
  * One import, /o/{organization}/imports/{batch}: the steps after the
@@ -150,7 +151,7 @@ final class ImportBatchPage extends Component
             'mappedSheets' => $batch->sheets(),
             'targets' => $targets->all(),
             'report' => is_array($report) ? $report : null,
-            'subscription' => $units > 0 ? $this->subscription($context->get(), $plans, $units) : null,
+            'subscription' => $units > 0 ? $this->subscription($context->get(), $plans, $units, $batch->status->isPreparing() ? self::billableUnits() : null) : null,
             'canEdit' => $user->can('update', $batch),
             'canCommit' => $batch->status === ImportStatus::DryRunPassed && $user->can('commit', $batch),
             'canRollback' => $batch->status->hasCommitted() && $batch->rollbackEndsAt()?->isFuture() === true && $user->can('rollback', $batch),
@@ -161,15 +162,32 @@ final class ImportBatchPage extends Component
     /**
      * The subscription effect of the units in the file (DATA_IMPORT.md
      * § 2.3), from the plan catalogue only until SaaS billing exists (P02
-     * decision 6): the organization's chosen plan, priced for those units.
+     * decision 6): the organization's chosen plan (else the best one for
+     * the total), priced for the units it has now plus the file's. `$now`
+     * is the billable count before the import (UnitDirectory::
+     * countBillable(), the Properties module's contract), known until the
+     * import is committed; null shows the file's units alone.
      *
-     * @return array{units: int, plan: string, monthly: Money}
+     * @return array{units: int, now: int|null, plan: string, before: Money|null, monthly: Money}
      */
-    private function subscription(Organization $organization, PlanCatalogue $plans, int $units): array
+    private function subscription(Organization $organization, PlanCatalogue $plans, int $units, ?int $now): array
     {
-        $plan = collect($plans->plans())->first(fn ($plan): bool => $plan->key === $organization->signup_plan_key) ?? $plans->bestFor($units);
+        $total = $units + ($now ?? 0);
+        $plan = collect($plans->plans())->first(fn ($plan): bool => $plan->key === $organization->signup_plan_key) ?? $plans->bestFor($total);
 
-        return ['units' => $units, 'plan' => $plan->name, 'monthly' => $plan->priceFor($units)];
+        return [
+            'units' => $units,
+            'now' => $now,
+            'plan' => $plan->name,
+            'before' => $now !== null ? $plan->priceFor($now) : null,
+            'monthly' => $plan->priceFor($total),
+        ];
+    }
+
+    /** The organization's billable units now, when the Properties module is on. */
+    private static function billableUnits(): ?int
+    {
+        return app()->bound(UnitDirectory::class) ? app(UnitDirectory::class)->countBillable() : null;
     }
 
     private function fillMapping(ImportBatch $batch): void

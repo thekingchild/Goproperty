@@ -6,9 +6,9 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 ## Current state
 
-- **In progress:** P02-06c (owner/building/unit import targets) in its own worktree (`docs/plans/P02-P03-subtasks.md`). Done in P02: P02-01 (01a, 01b), P02-02, P02-03, P02-04, P02-05, P02-06a, P02-06b
+- **In progress:** P02-07 (exports) in its own worktree (`docs/plans/P02-P03-subtasks.md`). Done in P02: P02-01 to P02-06
 - **In review:** P00-02 (CI): all four database jobs are green in GitHub Actions; branch protection on `main` is off by the product owner's decision (2026-10-27) while P02 and P03 are built, so tasks keep merging straight to `main`; turn it on afterwards (`docs/runbooks/ci.md` § 3) and mark P00-02 complete. P00-12 (backups): built and drilled locally; needs one real run to an S3-compatible bucket and a Google Shared Drive (PRE-03 accounts)
-- **Next task:** P02-07 (exports), then the P02 exit check; PRE-01 to PRE-04 continue with the product owner
+- **Next task:** the P02 exit check after P02-07; PRE-01 to PRE-04 continue with the product owner
 - **Blocked:** P00-13 (staging): the deploy scripts, the deploy on merge and the deploy drill are built and drilled locally; it needs a staging host (PRE-04). Until then the Deploy workflow fails at "Check deploy settings" on every push to `main`
 
 ## Board
@@ -18,7 +18,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | PRE | 5 | 1 | In progress |
 | P00 | 13 | 10 | In progress |
 | P01 | 9 | 9 | Complete (2026-10-27) |
-| P02 | 7 | 5 | In progress |
+| P02 | 7 | 6 | In progress |
 | P03 | 13 | 0 | Not started |
 | P04 | 3 | 0 | Not started |
 | P05 | 6 | 0 | Not started |
@@ -26,11 +26,71 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | P07 | 4 | 0 | Not started |
 | P08 | 4 | 0 | Not started |
 | P09 | 8 | 0 | Not started |
-| **Total** | **83** | **25** | |
+| **Total** | **83** | **26** | |
 
 ## Ledger (newest first)
 
 Each entry: task ID and status, date, what was delivered, tests run and results, follow-ups, next task.
+
+### P02-06c — Complete (2026-10-27): owner, building and unit import targets and the full 4-sheet workbook; P02-06 complete
+
+With P02-06a (engine) and P02-06b (tenants), the parent **P02-06 is complete**: every AC of its row passes through the real engine on a generated 2,000-row workbook.
+
+**Delivered** ([DATA_IMPORT.md](../DATA_IMPORT.md) § 1 rows 1–3, § 2 "Re-running and updates", "Undo"; [DATABASE_SCHEMA.md](../DATABASE_SCHEMA.md) § 1, § 3, § 8A; [ARCHITECTURE.md § 6.12](../ARCHITECTURE.md); `docs/plans/P02-P03-subtasks.md` P02-06c):
+- **Targets** in `Modules/Properties/app/Import`, registered from `PropertiesServiceProvider` into `Modules\Import\Contracts\ImportTargets` (`callAfterResolving`, contract only; bound as singletons so one dry run's memory of what the file adds is shared between sheets): `OwnersImportTarget` (key `owners`, "Owners", order 10), `PropertiesImportTarget` (key `properties`, sheet "Buildings", order 20), `UnitsImportTarget` (key `units`, "Units", order 30); Tenants stays at 40, so the commit order is owners → buildings → units → tenants (→ leases later). Shared cell checks in `ImportCells` (Your ID ≤ 100 and once per sheet, plain text, Nigerian state incl. "Abuja" → FCT).
+  - **Owners:** Name (a person's "First Last", split on the last space; or a company name), Type (Person/Company; empty = Person or what is on file), Phone, Email, Address, State, LGA, ID type (NIN / CAC number / None), ID number (never echoed; NIN 11 digits, CAC like RC 1234567), Notes. Matching: Your ID, then phone (E.164), then display name; an owner on file with **another** phone is a namesake (new owner + warning), one with **no** phone is matched by name and gains the number; a name or phone shared by two owners on file is an error asking for Your ID or the phone. Duplicates in the file: same ID or phone, or the same name when either row has no phone.
+  - **Buildings:** Building name, Owner (name, phone or Your ID; from the Owners sheet of the same file or on file; empty = the organization owns it), Type (labels plus "Flats", "Office", "Mixed"…), Address, State, LGA, Landmark, Amenities (comma separated, through `Amenities::normalize`, ≤ 30 × 40 chars), Year built, Description. Matching: Your ID, then name in the organization; a name used twice in the file, or by two buildings on file, is an error. New buildings get `Buildings\Properties::freeSlug()`. Type, address and state are required for a new building only.
+  - **Units:** Building (name or Your ID), Unit, Type (labels plus "Self con", "Mini flat"…), Bedrooms, Bathrooms, Size (sq m), Floor, Rent per year, Service charge per year (kobo via `ImportRow::amountKobo`/`Money`, ≤ ₦10bn, never negative), Status, Description. Matching: Your ID, then building + label (without case, like the unique index); a unit never moves to another building by import; renaming through Your ID checks the label is free. New units need type and rent.
+  - **Archived matches** (decision 3): soft-deleted owners, buildings (removed by a rollback) and units are restored, warned about in the dry run, audited one by one (`owner.restored` log `owners`; `property.restored`, `unit.restored` log `properties`, with batch id and row), carry the batch's id; restored units send `UnitCreated(restored: true)`.
+  - **Empty cells keep what is on file**; creates and updates are audited by the batch (`import.committed` counts), as in 06b. Created/restored units send `UnitCreated`, rolled-back units `UnitDeleted` (P06 metering), like the units writer.
+  - **Warnings:** "The rent on file is ₦1,200,000 a year; this import changes it to ₦1,350,000."; once per dry run "Each unit this import adds or brings back counts towards your GoProperty bill. You have N billable units now; …" (`UnitDirectory::countBillable()`). The review page's subscription effect now reads "This file adds X units to the N you have. On the <plan> plan, N+X units cost ₦… a month (before VAT), against ₦… now." (`PlanCatalogue` + `UnitDirectory::countBillable()` through the Properties contract, while the batch is not yet committed; decision 6).
+  - **Unit status** (P02-02 rule): the sheet sets vacant / under maintenance / unavailable; "Occupied"/"Reserved" (also "Let", "Booked"…) import as vacant (or the status on file) with a warning; a unit a lease holds keeps its status (warning if the file says otherwise).
+  - **Archived buildings** (status `archived`) are skipped with a warning, and so are their units' rows (also when archived between dry run and commit: listed as skipped on the report).
+  - **`usedSince`:** units — a unit of the batch is occupied or reserved (a lease holds it); buildings — a building of the batch holds a unit that is not the batch's; owners — a building that is not the batch's names an owner of the batch. Rollback order units → buildings → owners never strands a record that is not the batch's.
+  - **Later sheets:** the dry run remembers owners (`ref:`, `phone:`, `name:`, `name-twice:`), buildings (`ref:`, `name:`) and units (`ref:`, `label:<building>|<label>`) for the Leases sheet (P03-13a).
+- **Template:** the downloadable template now has the four sheets Owners, Buildings, Units, Tenants (plus Instructions and the hidden Lists sheet) with dropdowns for Owner type, State, ID type; Building type, State; Unit type, Status; Tenant ID type. The example rows refer to each other (the example building names the example owner, the example unit the example building), and an unchanged template imports one record per sheet.
+- **Docs:** DATA_IMPORT.md § 1 rows 1–3 as built (bank details not imported: owner profiles have no bank fields), § 2 matching rules, archived buildings, what "used" means; DATABASE_SCHEMA.md § 1 `owner_profiles`, § 3 `properties`/`units` (import writers), § 8A (provenance built for the four tables); ARCHITECTURE.md § 6.12 "Targets built so far".
+
+**Tests and evidence (local, MariaDB 11.4):**
+- `composer ci` on the final commit: Pint passed, Larastan 0 errors, Pest **1,763 tests: 1,763 passed, 14,570 assertions**, 0 failed (was 1,740 on `main`). The 23 new tests (262 assertions) and `ImportFilesTest` also pass with `APP_DEBUG=true`.
+- New: `Modules/Properties/tests/Feature/Import/PortfolioImportTest.php` (2), `PortfolioCommitTest.php` (2), `PortfolioRollbackTest.php` (2), `PortfolioQueueTest.php` (2; the 2,000-row tests are split over four files so the parallel suite spreads them), `PortfolioImportRulesTest.php` (11 + a 5-role dataset = 15), helpers `helpers.php` (the 2,000-row fixture is generated in the test: 100 owners, 200 buildings, 1,500 units, 200 tenants; no binary committed). All through the real engine (`ImportBatches::upload` → `dryRun` → `commit` → `CommitImportSheet` → `rollback`).
+- **AC: dry run of a 2,000-row workbook saves nothing and returns exact errors per row:** `PortfolioImportTest` › "dry runs a 2,000-row workbook without saving anything, and returns the exact errors of each row" (every SQL write recorded: none outside `import_batches`, the audit log, media and cache; the four tables empty; clean file passes with exact counts per sheet; with 10 bad cells across the 4 sheets, all 50 errors asserted as [row, header, letter, severity, message], including the 43 Units rows that name an invalid building and the 4 Buildings rows that name an invalid owner; commit refused).
+- **AC: commit creates exactly the previewed records:** `PortfolioCommitTest` › "commits exactly the records the dry run previewed" (result counts per sheet = dry-run counts incl. an update of an owner on file; 100/200/1,500/200 rows; provenance; the 5 preview rows of each sheet equal the saved records; values and kobo amounts; `UnitCreated` × 1,500; `countBillable()` 1,500; no per-record audit for creates).
+- **AC: re-importing the same file creates no duplicates:** `PortfolioCommitTest` › "creates no duplicates when the same workbook is imported again" (2,000 updates, 0 warnings, tables identical apart from `updated_at`, first batch's provenance kept; the same file without any Your ID matches owners by phone/name, buildings by name, units by building + label, tenants by phone: still 100/200/1,500/200).
+- **AC: rollback removes the batch:** `PortfolioRollbackTest` › "rolls back the batch: what it created or restored is archived, everything else stays" (99 owners, 200 buildings, 1,500 units, 200 tenants soft deleted; the updated owner and the organization's own building and unit stay; `UnitDeleted` × 1,500; billable count back to 1; audit counts per target; importing again restores them all instead of colliding).
+- **Each commit job under 50 s on the shared profile (in-process queue tick):** `PortfolioQueueTest` › "commits a 2,000-row workbook on the imports queue, each job well within 50 seconds on the shared profile" (database queue, `QueueTick::run()`, jobs in order owners → properties → units → tenants, none ≥ 35 s, no failed jobs).
+- **Cross-org:** `PortfolioQueueTest` › "never matches another organization's owner, building or unit" (same names, phones, IDs and labels, some archived, in another org: unknown here, no restore warnings, 7 creates, their rows unchanged incl. after a rollback).
+- **Archived matches restored:** `PortfolioRollbackTest` › "restores archived owners, buildings and units it matches, audited, and a rollback archives them again".
+- Rules (`PortfolioImportRulesTest`): exact errors for every kind of bad cell; owner matching and namesakes; building/unit matching without case, ambiguous names, no moving units, renames; archived buildings skipped (dry run and archived after the dry run); unit statuses; rent and bill warnings and the page's plan effect; rollback refused once used (lease status, a unit added on the pages, a building added for an imported owner); the 4-sheet template with its dropdowns imports its examples; only org-owner/org-admin may import (5-role dataset); a one-sheet units CSV with an agency's own headers.
+- Existing test changed (not weakened): `ImportFilesTest` › "offers a template with instructions, a sheet per target and dropdowns for fixed values": the real Owners, Buildings and Units sheets now join the fixture sheets in commit order, the hidden Lists sheet moved to index 7 and its first column is padded to the 37 states.
+- Timing (local, sync queue): dry run of the 2,000 rows ≈ 7 s in the request; commit ≈ 16 s in total.
+
+**Orchestrator review:** branch already contained `main` (`6087846`); re-ran `composer ci`: Pint passed, Larastan 0 errors, Pest 1,763 passed, 14,570 assertions.
+
+**Decisions to confirm:**
+- Orchestrator decision 1 (modules): the three targets live in `Modules/Properties/app/Import`; the Import page reads the current billable count through `Modules\Properties\Contracts\UnitDirectory` (allowed by the module-boundary test; skipped when the binding is missing).
+- Orchestrator decision 2 (cross-org lookups): none; everything runs inside the batch's organization context, no scope removed (only `withTrashed()`).
+- Orchestrator decision 3 (soft deletes vs unique keys): soft-deleted owners, buildings and units matched by Your ID or natural key are restored and audited; unique indexes unchanged.
+- Orchestrator decision 4 (plan gating): BILLING § 1.2 gates nothing here (Excel import, owners, buildings, units are in every plan); assisted import is still a P06 follow-up (06a).
+- Orchestrator decision 6 (imports): the bill effect uses `PlanCatalogue` (the signup plan, else the best plan for the total) priced for the current `countBillable()` plus the file's units.
+- **Only org-owner and org-admin import** (`imports.manage`), and they are never narrowed (P02-03), so agent narrowing does not apply to imports; tested with a 5-role dataset.
+- **Buildings archived on their page are skipped, not restored** (DATA_IMPORT § 2 says archived matches are brought back): for buildings, archiving is a status (P02-01b), restoring it would put its units back on the bill, and a rollback (soft delete) could not put it back to "archived". Only buildings soft-deleted by a rollback are restored. DATA_IMPORT § 2 updated.
+- **Owner matching**: Your ID → phone → name; a namesake on file with another phone is a different owner (warning), one without a phone is matched and gains the number. Owner names are one "Name" column (split for people) plus Type, rather than separate first/last/company columns.
+- **Building names must differ within a file** (units name their building by it); two buildings on file with one name need Your ID.
+- **Unit statuses**: occupied/reserved in the sheet import as vacant (or keep what is on file) with a warning instead of an error, since DATA_IMPORT says status "can be left blank — derived from leases" and agencies' sheets often say "Occupied".
+- **"Rent differs" warning** compares the file's rent with the unit's rent on file (the lease-vs-unit-default warning comes with leases, P03-13a). Expected yearly collections stay 0 for units (asking rents are not collections; leases add them).
+- **What "used" means** (rollback): see Delivered. An import that names one of its **new** owners for a building already on file cannot be rolled back until that building's owner changes (safe, possibly strict).
+- **Audit**: per-record entries only for restores; creates/updates are in `import.committed` (06b's choice for the job budget).
+- **Bank details** in DATA_IMPORT § 1 row 1 are not imported: `owner_profiles` has no bank columns (DB § 1). Docs say so.
+
+**Follow-ups:**
+- P03-13a: Leases sheet can rely on `ImportRun::knows('units', 'label:<building key>|<label>')` / `ref:`; extend `UnitsImportTarget::usedSince` (and buildings/owners) to leases, bills and payments; "tenant phone already exists in another lease" and "rent differs from unit default" (lease rent vs unit rent) warnings.
+- Owner bank details (DATA_IMPORT § 1 row 1) need columns on `owner_profiles` (or a payout-account table) first.
+- P06-01/P06: plan gating unchanged; metering can count the `UnitCreated`/`UnitDeleted` the import now sends.
+- P02-07: export on the import history (06a follow-up still open).
+- Performance: ~8 ms a row on commit locally (2–3 lookups per row validated twice); fine for the 30 s job budget, worth a per-run lookup cache if 10,000-row unit sheets feel slow on shared hosts.
+
+**Next:** P02-07 (exports), then the P02 exit check.
 
 ### P02-03 — Complete (2026-10-27): agent ↔ building assignment, agent narrowing in policies and every list, and the unit list (`/o/{slug}/units`)
 

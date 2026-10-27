@@ -11,12 +11,16 @@ use App\Navigation\WorkspaceNavItem;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Livewire;
+use Modules\Import\Contracts\ImportTargets;
 use Modules\Properties\Assignments\AgentNarrowing;
 use Modules\Properties\Assignments\DropRemovedMemberAssignments;
 use Modules\Properties\Buildings\PropertyDirectoryService;
 use Modules\Properties\Contracts\BuildingAccess;
 use Modules\Properties\Contracts\PropertyDirectory;
 use Modules\Properties\Contracts\UnitDirectory;
+use Modules\Properties\Import\OwnersImportTarget;
+use Modules\Properties\Import\PropertiesImportTarget;
+use Modules\Properties\Import\UnitsImportTarget;
 use Modules\Properties\Models\OwnerProfile;
 use Modules\Properties\Models\Property;
 use Modules\Properties\Models\Unit;
@@ -33,8 +37,11 @@ use Nwidart\Modules\Support\ModuleServiceProvider;
  * Livewire components (namespace `properties::`, classes in
  * Modules\Properties\Livewire), its workspace sidebar items, the contracts
  * other modules use (Contracts\PropertyDirectory, UnitDirectory,
- * BuildingAccess), and drops a removed member's building assignments
- * (App\Members\MemberRemoved).
+ * BuildingAccess), drops a removed member's building assignments
+ * (App\Members\MemberRemoved), and makes owners, buildings and units
+ * importable by registering their targets into the Import module's
+ * registry (through its contract, AGENT.md § 4; nothing happens when the
+ * Import module is off).
  */
 final class PropertiesServiceProvider extends ModuleServiceProvider
 {
@@ -55,6 +62,12 @@ final class PropertiesServiceProvider extends ModuleServiceProvider
         $this->app->bind(PropertyDirectory::class, PropertyDirectoryService::class);
         $this->app->bind(UnitDirectory::class, UnitDirectoryService::class);
         $this->app->bind(BuildingAccess::class, AgentNarrowing::class);
+
+        // One of each, so a dry run's memory of the names a sheet adds is
+        // shared with the sheets that refer to them.
+        $this->app->singleton(OwnersImportTarget::class);
+        $this->app->singleton(PropertiesImportTarget::class);
+        $this->app->singleton(UnitsImportTarget::class);
     }
 
     public function boot(): void
@@ -68,6 +81,12 @@ final class PropertiesServiceProvider extends ModuleServiceProvider
         Event::listen(MemberRemoved::class, DropRemovedMemberAssignments::class);
 
         Livewire::addNamespace($this->nameLower, classNamespace: 'Modules\\Properties\\Livewire');
+
+        $this->callAfterResolving(ImportTargets::class, static function (ImportTargets $targets): void {
+            $targets->register(OwnersImportTarget::class);
+            $targets->register(PropertiesImportTarget::class);
+            $targets->register(UnitsImportTarget::class);
+        });
 
         $this->callAfterResolving(WorkspaceNavigation::class, static function (WorkspaceNavigation $navigation): void {
             $navigation->add(new WorkspaceNavItem(

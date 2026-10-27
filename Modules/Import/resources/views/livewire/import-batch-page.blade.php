@@ -135,7 +135,11 @@
 
             @if ($subscription)
                 <flux:text class="text-sm" data-test="subscription-effect">
-                    {{ __('This file adds :units units. On the :plan plan, :units units cost :price a month (before VAT; units you already have are added to this).', ['units' => number_format($subscription['units']), 'plan' => $subscription['plan'], 'price' => $subscription['monthly']->format()]) }}
+                    @if ($subscription['now'] !== null)
+                        {{ __('This file adds :units units to the :now you have. On the :plan plan, :total units cost :price a month (before VAT), against :before now.', ['units' => number_format($subscription['units']), 'now' => number_format($subscription['now']), 'total' => number_format($subscription['now'] + $subscription['units']), 'plan' => $subscription['plan'], 'price' => $subscription['monthly']->format(), 'before' => $subscription['before']?->format()]) }}
+                    @else
+                        {{ __('This file adds :units units. On the :plan plan, :units units cost :price a month (before VAT; units you already have are added to this).', ['units' => number_format($subscription['units']), 'plan' => $subscription['plan'], 'price' => $subscription['monthly']->format()]) }}
+                    @endif
                 </flux:text>
             @endif
             @if (($report['yearly_collections_kobo'] ?? 0) > 0)
