@@ -56,6 +56,7 @@ enum OrganizationPermission: string
     case SubmitPaymentProof = 'payments.submit_proof';
     case ViewStatements = 'statements.view';
     case ImportStatements = 'statements.import';
+    case MatchStatements = 'statements.match';
     case ApproveReceiptVoids = 'receipts.approve_void';
     case ViewTickets = 'tickets.view';
     case CreateTickets = 'tickets.create';
@@ -111,6 +112,7 @@ enum OrganizationPermission: string
             self::ManageBills,
             self::ConfirmPayments,
             self::ImportStatements,
+            self::MatchStatements,
             self::ApproveReceiptVoids,
             self::CreateTickets,
             self::RespondToTickets,
@@ -135,7 +137,8 @@ enum OrganizationPermission: string
      * closing the organization, data
      * imports (commit and rollback, DATA_IMPORT.md § 5), bank statement
      * uploads (what they bring in becomes payments once matched, P03-07a;
-     * seeing statements stays allowed), and Transaction Tier
+     * seeing statements stays allowed) and statement matching (it records
+     * and confirms payments, P03-07b), and Transaction Tier
      * applications and compliance documents (`organization.compliance`: they
      * change the organization's compliance standing, so staff never apply,
      * upload or submit for a customer; seeing them, `compliance.view`, stays
@@ -160,6 +163,7 @@ enum OrganizationPermission: string
             self::ApproveReceiptVoids,
             self::SubmitPaymentProof,
             self::ImportStatements,
+            self::MatchStatements,
             self::ManageImports => true,
             self::OpenWorkspace,
             self::UpdateOrganization,
@@ -223,6 +227,7 @@ enum OrganizationPermission: string
             self::SubmitPaymentProof => 'Upload proof of a payment',
             self::ViewStatements => 'See uploaded bank statements and their lines (account numbers masked)',
             self::ImportStatements => 'Upload bank statements (CSV or Excel) of the organization\'s bank accounts',
+            self::MatchStatements => 'Match bank statement credits to tenants\' bills by hand (one credit split across bills too), look for matches again and confirm high-confidence matches in bulk',
             self::ApproveReceiptVoids => 'Approve another member\'s request to void a receipt (the second approver; voids a receipt alone only when no other owner or administrator exists)',
             self::ViewTickets => 'See maintenance tickets',
             self::CreateTickets => 'Raise maintenance tickets',

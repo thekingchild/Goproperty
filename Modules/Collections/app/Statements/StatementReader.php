@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Modules\Collections\Enums\LineDirection;
 use Modules\Collections\Enums\MatchStatus;
 use Modules\Collections\Enums\StatementStatus;
+use Modules\Collections\Jobs\MatchStatementLines;
 use Modules\Collections\Models\BankStatementImport;
 use Modules\Collections\Models\BankStatementLine;
 use Modules\Import\Contracts\SpreadsheetReader;
@@ -164,6 +165,11 @@ final readonly class StatementReader
                     'lines_unreadable' => $unreadableCount,
                 ])
                 ->log('Bank statement read');
+
+            // Its credits are matched to bills next (P03-07b), once this commits.
+            if ($credits > 0) {
+                MatchStatementLines::dispatch($locked->organization_id, $locked->id);
+            }
         }, 3);
     }
 

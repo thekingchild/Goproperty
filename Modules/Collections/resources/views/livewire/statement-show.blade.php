@@ -1,6 +1,7 @@
 {{--
-    A bank statement (Modules\Collections\Livewire\StatementShow): the import report, then the lines.
+    A bank statement (Modules\Collections\Livewire\StatementShow): the import report, matching, then the lines.
     Credits still to match are the candidates for matching (P03-07b); debits are never offered.
+    Matching actions show only with statements.match; the server checks again.
 --}}
 <x-page :heading="$statement->accountLabel()" :description="$statement->file_name">
     <x-slot:actions>
@@ -13,6 +14,10 @@
 
     @if (session('statement-status'))
         <flux:callout variant="success" icon="check-circle" :heading="session('statement-status')" role="status" data-test="statement-flash" />
+    @endif
+
+    @if ($notice)
+        <flux:callout variant="success" icon="check-circle" :heading="$notice" role="status" data-test="matching-notice" />
     @endif
 
     <section @if ($reading) wire:poll.5s @endif class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900" data-test="statement-report">
@@ -73,6 +78,39 @@
         </flux:text>
     </section>
 
+    @if (! $reading && $statement->lines_credit > 0)
+        <section class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900" data-test="statement-matching">
+            <flux:heading size="lg" level="2">{{ __('Matching') }}</flux:heading>
+            <flux:text class="mt-1">{{ __('Credits with a bill\'s payment reference in the narration, or the amount a bill owes and a name like the tenant\'s, become payments waiting for confirmation in Payments. Agents confirm those of their tenants there.') }}</flux:text>
+
+            <dl class="mt-4 grid gap-4 sm:grid-cols-3">
+                <div>
+                    <dt class="text-sm text-zinc-500 dark:text-zinc-400">{{ __('Matched') }}</dt>
+                    <dd class="text-zinc-900 dark:text-white" data-test="matching-matched">{{ $matching['matched'] }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-zinc-500 dark:text-zinc-400">{{ __('Waiting for confirmation') }}</dt>
+                    <dd class="text-zinc-900 dark:text-white" data-test="matching-waiting">{{ $matching['waiting'] }} @if ($matching['high'] > 0)<span class="text-sm text-zinc-500 dark:text-zinc-400">· {{ __(':count with the reference', ['count' => $matching['high']]) }}</span>@endif</dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-zinc-500 dark:text-zinc-400">{{ __('Still to match') }}</dt>
+                    <dd class="text-zinc-900 dark:text-white" data-test="matching-open">{{ $matching['open'] }}</dd>
+                </div>
+            </dl>
+
+            @if ($canMatch)
+                <div class="mt-4 flex flex-wrap gap-2">
+                    @if ($matching['high'] > 0)
+                        <flux:button variant="primary" icon="check" wire:click="confirmHighConfidence" wire:confirm="{{ __('Confirm the :count payments matched by their bill reference? Receipts go to the tenants, and a confirmed payment cannot be changed or deleted.', ['count' => $matching['high']]) }}" data-test="confirm-high-confidence">{{ trans_choice('Confirm :count match with the reference|Confirm :count matches with the reference', $matching['high'], ['count' => $matching['high']]) }}</flux:button>
+                    @endif
+                    @if ($matching['open'] > 0)
+                        <flux:button icon="magnifying-glass" wire:click="findMatches" data-test="find-matches">{{ __('Look for matches again') }}</flux:button>
+                    @endif
+                </div>
+            @endif
+        </section>
+    @endif
+
     <div class="flex flex-col gap-3">
         <div class="flex flex-wrap items-center gap-2" role="group" aria-label="{{ __('Which lines') }}">
             <flux:button size="sm" :variant="$direction === 'credit' && $status === 'unmatched' ? 'primary' : 'ghost'" wire:click="showCandidates" data-test="show-candidates">{{ __('Credits to match') }}</flux:button>
@@ -118,6 +156,24 @@
                         <flux:badge size="sm" :color="$line->match_status->color()" data-test="match-{{ $line->id }}">{{ __($line->match_status->label()) }}</flux:badge>
                     </div>
                 </li>
+                @if ($line->payment_id !== null || ($credit && $line->isOfferedForMatching() && ($canMatch || $line->match_attempts > 0)))
+                    <li class="flex flex-wrap items-center gap-2 bg-zinc-50 px-4 py-2 text-sm dark:bg-zinc-800/50" wire:key="line-match-{{ $line->id }}" data-line-match="{{ $line->id }}">
+                        @if ($line->payment_id !== null)
+                            <span class="text-zinc-700 dark:text-zinc-300" data-test="line-tenant-{{ $line->id }}">{{ $tenantNames[$line->tenant_profile_id] ?? __('A tenant') }}</span>
+                            @if ($line->match_confidence)
+                                <span class="text-zinc-500 dark:text-zinc-400" data-test="line-confidence-{{ $line->id }}">· {{ __($line->match_confidence->label()) }}</span>
+                            @endif
+                            <a href="{{ route('workspace.payments.show', [$organization, $line->payment_id]) }}" wire:navigate class="underline" data-test="line-payment-{{ $line->id }}">{{ __('Open the payment') }}</a>
+                        @else
+                            @if ($line->match_attempts > 0)
+                                <span class="text-zinc-500 dark:text-zinc-400" data-test="line-rejected-{{ $line->id }}">{{ __('Its matched payment was rejected.') }}</span>
+                            @endif
+                            @if ($canMatch)
+                                <a href="{{ route('workspace.statements.match', [$organization, $statement->id, $line->id]) }}" wire:navigate class="underline" data-test="match-by-hand-{{ $line->id }}">{{ __('Match by hand') }}</a>
+                            @endif
+                        @endif
+                    </li>
+                @endif
             @endforeach
         </ul>
 

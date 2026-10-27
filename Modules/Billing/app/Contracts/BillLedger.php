@@ -51,6 +51,16 @@ interface BillLedger
     public function openBills(int $tenantProfileId): array;
 
     /**
+     * The organization's bills that still ask for money and owe exactly
+     * $outstanding now, oldest due date first, at most $limit: statement
+     * matching's "same amount" candidates (P03-07b, ONBOARDING_COMPLIANCE.md
+     * § 4.1), read without a lock.
+     *
+     * @return list<BillBalance>
+     */
+    public function openBillsOwing(Money $outstanding, int $limit = 20): array;
+
+    /**
      * Lock the bills (in id order) until the caller's transaction ends and
      * return their current balances, keyed by id. Ids the organization does
      * not have are left out.

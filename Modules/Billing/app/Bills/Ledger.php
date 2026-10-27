@@ -47,6 +47,24 @@ final readonly class Ledger implements BillLedger
             ->all());
     }
 
+    public function openBillsOwing(Money $outstanding, int $limit = 20): array
+    {
+        if (! $outstanding->isPositive()) {
+            return [];
+        }
+
+        // amount = paid + outstanding: an addition, so unsigned columns never underflow (MySQL).
+        return array_values(Bill::query()
+            ->whereIn('status', [BillStatus::Unpaid, BillStatus::PartiallyPaid, BillStatus::Overdue])
+            ->whereRaw('amount_kobo = paid_kobo + ?', [$outstanding->kobo])
+            ->orderBy('due_date')
+            ->orderBy('id')
+            ->limit(max(1, $limit))
+            ->get()
+            ->map(self::toBalance(...))
+            ->all());
+    }
+
     public function lock(array $billIds): array
     {
         self::requireTransaction();

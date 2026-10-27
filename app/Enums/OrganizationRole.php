@@ -66,8 +66,10 @@ enum OrganizationRole: string
             // building (P02-03). Bank statements (P03-07a) are the whole
             // account's history, every building's money and the agency's
             // own outgoings, with no building to narrow by: owners and
-            // administrators only.
-            self::Admin => [P::OpenWorkspace, P::UpdateOrganization, P::ViewSettings, P::ViewMembers, P::ManageMembers, P::ViewOwners, P::ManageOwners, P::ManagePropertyPortfolio, P::AssignAgents, ...$operations, P::ViewStatements, P::ImportStatements, P::ApproveReceiptVoids, P::ViewReports, P::ViewImports, P::ManageImports],
+            // administrators only, and so is matching their credits by
+            // hand and in bulk (P03-07b; agents confirm the matched
+            // payments of their tenants in the payments queue).
+            self::Admin => [P::OpenWorkspace, P::UpdateOrganization, P::ViewSettings, P::ViewMembers, P::ManageMembers, P::ViewOwners, P::ManageOwners, P::ManagePropertyPortfolio, P::AssignAgents, ...$operations, P::ViewStatements, P::ImportStatements, P::MatchStatements, P::ApproveReceiptVoids, P::ViewReports, P::ViewImports, P::ManageImports],
             // Operational staff: they edit buildings and units but do not add
             // or archive buildings. Once assigned to buildings (P02-03), an
             // agent sees and works on those buildings only (the policies and

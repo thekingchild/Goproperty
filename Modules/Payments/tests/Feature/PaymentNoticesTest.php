@@ -146,14 +146,15 @@ describe('sub: each transition notifies the tenant exactly once (mail + database
         $cash = inOrganization($this->acme, fn () => app(PaymentService::class)->recordAndConfirm($this->owner, paymentInput($this->kemi, '5,000', ['method' => 'cash', 'note' => 'At the office'])));
         $paystack = inOrganization($this->acme, fn () => app(PaymentRecorder::class)->recordConfirmed(receiptDraftFor($this->kemi->id, 'paystack:T-9', 7_000)));
         $statement = inOrganization($this->acme, fn () => app(PaymentRecorder::class)->record(receiptDraftFor($this->kemi->id, 'statement-line:3', 9_000)));
-        // The same statement line again: recorded once, told once.
+        // The same statement line again: recorded once.
         inOrganization($this->acme, fn () => app(PaymentRecorder::class)->record(receiptDraftFor($this->kemi->id, 'statement-line:3', 9_000)));
 
+        // A statement match waiting for confirmation is the agency's reading of
+        // its own statement: the tenant hears only once it is confirmed (P03-07b).
         expect(paymentNoticesTo($this->portal))->toBe([
             ['payment.confirmed', $cash->id, ['database', 'mail']],
             ['payment.confirmed', $paystack->paymentId, ['database', 'mail']],
-            ['payment.recorded', $statement->paymentId, ['database', 'mail']],
-        ]);
+        ])->and($statement->paymentId)->toBeInt();
     });
 
     it('tells nobody about a step that is refused or rolled back', function () {

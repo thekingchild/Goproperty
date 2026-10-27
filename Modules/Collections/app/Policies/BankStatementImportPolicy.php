@@ -16,7 +16,8 @@ use Spatie\Permission\Exceptions\PermissionDoesNotExist;
  * (ONBOARDING_COMPLIANCE.md § 4.1, ARCHITECTURE.md § 5 "Bank statements"):
  * org-owners and org-admins only. `statements.view` lists the statements,
  * opens one with its report and lines, and exports both lists (no contact
- * details: dates, narrations, amounts); `statements.import` uploads one.
+ * details: dates, narrations, amounts); `statements.import` uploads one;
+ * `statements.match` matches its credits (P03-07b).
  *
  * Agents hold neither (P03-07a decision): a statement is the whole
  * account's history, every building's rent and the agency's own
@@ -64,6 +65,21 @@ final class BankStatementImportPolicy
     public function create(User $user): bool
     {
         return $this->holds($user, OrganizationPermission::ImportStatements);
+    }
+
+    /**
+     * Match a statement's credits (P03-07b): look for matches again,
+     * confirm the high-confidence ones in bulk, match a credit by hand
+     * (split across bills too). `statements.match`, owners and
+     * administrators; the payments it records and confirms need the
+     * payment permissions too (Contracts\PaymentRecorder). Agents confirm
+     * the matched payments of their tenants in the payments queue instead
+     * (product owner decision 10).
+     */
+    #[BlockedWhileImpersonating]
+    public function match(User $user, ?BankStatementImport $statement = null): bool
+    {
+        return ($statement === null || $this->belongsHere($statement)) && $this->holds($user, OrganizationPermission::MatchStatements);
     }
 
     /** Statements are evidence: never edited. */

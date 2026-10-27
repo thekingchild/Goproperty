@@ -21,8 +21,8 @@ use Modules\Collections\Enums\MatchStatus;
  * One transaction of an uploaded bank statement (DATABASE_SCHEMA.md § 4
  * `bank_statement_lines`), kept once however many statements show it
  * (`line_hash`, unique per organization; Statements\LineHash).
- * Organization-scoped; written by Statements\StatementReader (and the
- * matching of P03-07b).
+ * Organization-scoped; written by Statements\StatementReader, and its
+ * match by Matching\LineMatches only (P03-07b).
  *
  * Only credits are candidates for matching (offeredForMatching()); a debit
  * is money leaving the account, never a tenant's payment, so it is
@@ -46,8 +46,12 @@ use Modules\Collections\Enums\MatchStatus;
  * @property int $occurrence the line's number among identical lines of its statement
  * @property MatchStatus $match_status
  * @property MatchConfidence|null $match_confidence
- * @property int|null $suggested_bill_id
- * @property int|null $payment_id
+ * @property int|null $suggested_bill_id the bill the match was for (the reference found, the bill of the same amount)
+ * @property int|null $tenant_profile_id the tenant of the line's payment
+ * @property int|null $payment_id the payment recorded from the line (waiting or confirmed); unique
+ * @property int $match_attempts payments recorded from the line so far (a rejected one counts)
+ * @property CarbonImmutable|null $matched_at
+ * @property int|null $matched_by_user_id null: the automatic matcher
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  */
@@ -56,7 +60,10 @@ final class BankStatementLine extends Model
     use BelongsToOrganization;
 
     /** @var array<string, mixed> */
-    protected $attributes = ['match_status' => 'unmatched', 'occurrence' => 1, 'narration' => ''];
+    protected $attributes = ['match_status' => 'unmatched', 'occurrence' => 1, 'narration' => '', 'match_attempts' => 0];
+
+    /** The prefix of the PaymentRecorder idempotency key of a line's payment (decision 10). */
+    public const string KEY_PREFIX = 'statement-line:';
 
     protected static function booted(): void
     {
@@ -72,8 +79,9 @@ final class BankStatementLine extends Model
     }
 
     /**
-     * The lines matching may work on (P03-07b): credits not matched yet.
-     * Debits never are.
+     * The lines matching may work on (P03-07b): credits nobody has matched
+     * yet (a `suggested` line already has its payment waiting for
+     * confirmation). Debits never are.
      *
      * @param  Builder<self>  $query
      * @return Builder<self>
@@ -81,7 +89,18 @@ final class BankStatementLine extends Model
     public function scopeOfferedForMatching(Builder $query): Builder
     {
         return $query->where('direction', LineDirection::Credit->value)
-            ->whereIn('match_status', [MatchStatus::Unmatched->value, MatchStatus::Suggested->value]);
+            ->where('match_status', MatchStatus::Unmatched->value);
+    }
+
+    /**
+     * The PaymentRecorder idempotency key of the line's payment number
+     * $attempt: `statement-line:{id}` for the first (decision 10), then
+     * `statement-line:{id}:{n}` after a rejection. Two attempts to match the
+     * line at once compute the same key, so they make one payment.
+     */
+    public function paymentKey(int $attempt): string
+    {
+        return self::KEY_PREFIX.$this->id.($attempt > 1 ? ':'.$attempt : '');
     }
 
     /** Whether matching may work on this line. */
@@ -114,6 +133,8 @@ final class BankStatementLine extends Model
             'match_confidence' => MatchConfidence::class,
             'row_number' => 'integer',
             'occurrence' => 'integer',
+            'match_attempts' => 'integer',
+            'matched_at' => 'immutable_datetime',
         ];
     }
 }

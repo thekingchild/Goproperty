@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 use Illuminate\Support\Facades\Route;
 use Modules\Collections\Http\Controllers\StatementFileController;
+use Modules\Collections\Livewire\LineMatch;
 use Modules\Collections\Livewire\StatementIndex;
 use Modules\Collections\Livewire\StatementShow;
 use Modules\Collections\Livewire\StatementUpload;
 
 /*
- * Workspace pages of the Collections module (bank statements, P03-07a).
+ * Workspace pages of the Collections module (bank statements, P03-07a;
+ * matching a credit by hand, P03-07b).
  * `organization` checks membership (404 otherwise) and sets the
  * organization context before route model binding, so {statement}
  * resolves only inside the organization (ARCHITECTURE.md § 4).
@@ -18,5 +20,6 @@ Route::middleware(['auth', 'verified', 'organization'])->prefix('o/{organization
     Route::livewire('statements', StatementIndex::class)->name('statements.index');
     Route::livewire('statements/upload', StatementUpload::class)->name('statements.create');
     Route::livewire('statements/{statement}', StatementShow::class)->whereNumber('statement')->name('statements.show');
+    Route::livewire('statements/{statement}/lines/{line}/match', LineMatch::class)->whereNumber(['statement', 'line'])->name('statements.match');
     Route::get('statements/{statement}/file', StatementFileController::class)->whereNumber('statement')->middleware('throttle:30,1')->name('statements.file');
 });

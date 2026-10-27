@@ -7,6 +7,7 @@ namespace Modules\Payments\Listeners;
 use App\Models\Organization;
 use App\Tenancy\OrganizationContext;
 use Illuminate\Contracts\Events\ShouldHandleEventsAfterCommit;
+use Modules\Payments\Contracts\PaymentSource;
 use Modules\Payments\Events\PaymentConfirmed;
 use Modules\Payments\Events\PaymentRecorded;
 use Modules\Payments\Events\PaymentRejected;
@@ -18,6 +19,7 @@ use Throwable;
 /**
  * Tells the tenant about every payment transition (P03-10b; ARCHITECTURE.md
  * § 6.4): recorded, confirmed (with the receipt), rejected, receipt voided.
+ * Statement matches (P03-07b) are told only when confirmed.
  * After the transition's transaction commits, so a refused or rolled-back
  * step tells nobody; once per transition (Notices\TenantNotices keeps a row
  * per payment and event). A failure to notify is reported and never undoes
@@ -32,6 +34,13 @@ final readonly class TellTenantAboutPayment implements ShouldHandleEventsAfterCo
 
     public function handle(PaymentRecorded|PaymentConfirmed|PaymentRejected|ReceiptVoided $event): void
     {
+        // A statement match is the agency's guess from its bank statement, not
+        // something the tenant sent: it may be someone else's money. The tenant
+        // hears only once the agency confirms it (P03-07b).
+        if (($event instanceof PaymentRecorded || $event instanceof PaymentRejected) && $event->source === PaymentSource::StatementMatch->value) {
+            return;
+        }
+
         $organization = Organization::query()->find($event->organizationId);
 
         if ($organization === null) {

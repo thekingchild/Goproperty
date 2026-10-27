@@ -8,12 +8,16 @@ use App\Exports\ListExports;
 use App\Models\User;
 use App\Navigation\WorkspaceNavigation;
 use App\Navigation\WorkspaceNavItem;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Livewire;
+use Modules\Collections\Listeners\FollowStatementPayments;
 use Modules\Collections\Lists\StatementLineList;
 use Modules\Collections\Lists\StatementList;
 use Modules\Collections\Models\BankStatementImport;
 use Modules\Collections\Policies\BankStatementImportPolicy;
+use Modules\Payments\Events\PaymentConfirmed;
+use Modules\Payments\Events\PaymentRejected;
 use Nwidart\Modules\Support\ModuleServiceProvider;
 
 /**
@@ -23,8 +27,9 @@ use Nwidart\Modules\Support\ModuleServiceProvider;
  * (`collections::`) and migrations; this one adds the statement pages
  * (routes, Livewire namespace `collections::`, classes in
  * Modules\Collections\Livewire), BankStatementImportPolicy, the sidebar
- * item "Bank statements" and the two lists' exports (statements and
- * statement lines).
+ * item "Bank statements", the two lists' exports (statements and
+ * statement lines) and the listener that keeps a matched line in step
+ * with its payment (Payments' PaymentConfirmed / PaymentRejected, P03-07b).
  */
 final class CollectionsServiceProvider extends ModuleServiceProvider
 {
@@ -44,6 +49,10 @@ final class CollectionsServiceProvider extends ModuleServiceProvider
         Gate::policy(BankStatementImport::class, BankStatementImportPolicy::class);
 
         Livewire::addNamespace($this->nameLower, classNamespace: 'Modules\\Collections\\Livewire');
+
+        // Inside the payment's transaction: the line and its payment never disagree.
+        Event::listen(PaymentConfirmed::class, FollowStatementPayments::class);
+        Event::listen(PaymentRejected::class, FollowStatementPayments::class);
 
         // Every list of the module exports (P02-07).
         $this->callAfterResolving(ListExports::class, static function (ListExports $exports): void {
