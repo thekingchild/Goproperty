@@ -10,6 +10,7 @@ use Modules\Properties\Livewire\PropertyIndex;
 use Modules\Properties\Livewire\PropertyShow;
 use Modules\Properties\Livewire\UnitBulkForm;
 use Modules\Properties\Livewire\UnitForm;
+use Modules\Properties\Livewire\UnitIndex;
 
 /*
  * Workspace pages of the Properties module. `organization` checks
@@ -29,6 +30,9 @@ Route::middleware(['auth', 'verified', 'organization'])->prefix('o/{organization
     Route::livewire('buildings/create', PropertyForm::class)->name('buildings.create');
     Route::livewire('buildings/{property}', PropertyShow::class)->name('buildings.show');
     Route::livewire('buildings/{property}/edit', PropertyForm::class)->name('buildings.edit');
+
+    // Every unit across the buildings (P02-03; narrowed for assigned agents).
+    Route::livewire('units', UnitIndex::class)->name('units.index');
 
     // Units of a building (DATABASE_SCHEMA.md § 3); the unit must be the building's.
     Route::livewire('buildings/{property}/units/create', UnitForm::class)->name('units.create');

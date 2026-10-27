@@ -4,14 +4,18 @@ declare(strict_types=1);
 
 namespace Modules\Properties\Buildings;
 
+use App\Models\User;
+use Modules\Properties\Assignments\AgentNarrowing;
 use Modules\Properties\Contracts\PropertyDirectory;
 use Modules\Properties\Contracts\PropertySummary;
 use Modules\Properties\Enums\PropertyStatus;
 use Modules\Properties\Models\Property;
 
 /** The Properties module's answer to Contracts\PropertyDirectory, through the organization scope. */
-final class PropertyDirectoryService implements PropertyDirectory
+final readonly class PropertyDirectoryService implements PropertyDirectory
 {
+    public function __construct(private AgentNarrowing $narrowing) {}
+
     public function find(int $propertyId): ?PropertySummary
     {
         $property = Property::query()->with('owner')->find($propertyId);
@@ -35,10 +39,12 @@ final class PropertyDirectoryService implements PropertyDirectory
         return Property::query()->whereKey($propertyId)->where('status', PropertyStatus::Active)->exists();
     }
 
-    public function activeOptions(): array
+    public function activeOptions(?User $for = null): array
     {
+        $query = $for === null ? Property::query() : $this->narrowing->buildings(Property::query(), $for);
+
         /** @var array<int, string> */
-        return Property::query()->where('status', PropertyStatus::Active)->orderBy('name')->orderBy('id')->pluck('name', 'id')->all();
+        return $query->where('status', PropertyStatus::Active)->orderBy('name')->orderBy('id')->pluck('name', 'id')->all();
     }
 
     public function countActive(): int

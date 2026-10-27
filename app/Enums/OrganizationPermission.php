@@ -43,6 +43,7 @@ enum OrganizationPermission: string
     case ViewProperties = 'properties.view';
     case ManageProperties = 'properties.manage';
     case ManagePropertyPortfolio = 'properties.portfolio';
+    case AssignAgents = 'properties.assign_agents';
     case ViewTenants = 'tenants.view';
     case ManageTenants = 'tenants.manage';
     case ViewLeases = 'leases.view';
@@ -98,6 +99,7 @@ enum OrganizationPermission: string
             self::ManageOwners,
             self::ManageProperties,
             self::ManagePropertyPortfolio,
+            self::AssignAgents,
             self::ManageTenants,
             self::ManageLeases,
             self::ManageBills,
@@ -118,7 +120,8 @@ enum OrganizationPermission: string
      * (confirming or rejecting payments, payment proofs, issuing and voiding
      * bills, the subscription and billing transfers), bank accounts and
      * Paystack keys (viewing them too: the Payment collection page needs
-     * `payment_settings.view`, also blocked), members and roles, closing the organization, data
+     * `payment_settings.view`, also blocked), members and roles (assigning
+     * agents to buildings too: it decides what a member sees), closing the organization, data
      * imports (commit and rollback, DATA_IMPORT.md § 5), and Transaction Tier
      * applications and compliance documents (`organization.compliance`: they
      * change the organization's compliance standing, so staff never apply,
@@ -137,6 +140,7 @@ enum OrganizationPermission: string
             self::ViewPaymentSettings,
             self::ManageCompliance,
             self::ManageMembers,
+            self::AssignAgents,
             self::ManageBills,
             self::ConfirmPayments,
             self::SubmitPaymentProof,
@@ -189,6 +193,7 @@ enum OrganizationPermission: string
             self::ViewProperties => 'See buildings and units',
             self::ManageProperties => 'Edit buildings and their photos, and their units',
             self::ManagePropertyPortfolio => 'Add, archive and restore buildings and units',
+            self::AssignAgents => 'Choose which agents work on a building (an assigned agent sees only their buildings)',
             self::ViewTenants => 'See tenants\' details (ID numbers masked)',
             self::ManageTenants => 'Add, edit, archive and restore tenants',
             self::ViewLeases => 'See leases',

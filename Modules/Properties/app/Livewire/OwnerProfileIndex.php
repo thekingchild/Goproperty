@@ -14,6 +14,7 @@ use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Modules\Properties\Assignments\AgentNarrowing;
 use Modules\Properties\Models\OwnerProfile;
 use Modules\Properties\Owners\OwnerProfiles;
 
@@ -22,7 +23,8 @@ use Modules\Properties\Owners\OwnerProfiles;
  * (DATABASE_SCHEMA.md § 1), paginated on the server, with a search over
  * name, email and phone and an Active / Archived switch. Members with
  * `owners.view` see the list; with `owners.manage` they archive and
- * restore (soft deletes only).
+ * restore (soft deletes only). An agent limited to some buildings sees the
+ * owners of those buildings only (P02-03, AgentNarrowing).
  *
  * Runs inside the `organization` middleware, replayed for Livewire updates:
  * every request has the organization's context and the component refuses
@@ -75,9 +77,9 @@ final class OwnerProfileIndex extends Component
         $this->resetPage();
     }
 
-    public function archive(int $ownerId, OwnerProfiles $owners): void
+    public function archive(int $ownerId, OwnerProfiles $owners, AgentNarrowing $narrowing): void
     {
-        $owner = OwnerProfile::query()->findOrFail($ownerId);
+        $owner = $narrowing->owners(OwnerProfile::query(), $this->user())->findOrFail($ownerId);
         $this->authorize('delete', $owner);
         $this->resetErrorBag();
         $this->notice = null;
@@ -87,20 +89,20 @@ final class OwnerProfileIndex extends Component
         $this->notice = __(':name was archived. Find it under Archived to restore it.', ['name' => $owner->display_name]);
     }
 
-    public function restore(int $ownerId, OwnerProfiles $owners): void
+    public function restore(int $ownerId, OwnerProfiles $owners, AgentNarrowing $narrowing): void
     {
-        $owner = OwnerProfile::query()->onlyTrashed()->findOrFail($ownerId);
+        $owner = $narrowing->owners(OwnerProfile::query()->onlyTrashed(), $this->user())->findOrFail($ownerId);
         $this->authorize('restore', $owner);
 
         $owners->restore($this->user(), $owner);
         $this->notice = __(':name was restored.', ['name' => $owner->display_name]);
     }
 
-    public function render(OrganizationContext $context): View
+    public function render(OrganizationContext $context, AgentNarrowing $narrowing): View
     {
         $search = trim($this->search);
 
-        $owners = OwnerProfile::query()
+        $owners = $narrowing->owners(OwnerProfile::query(), $this->user())
             ->when($this->archived, fn (Builder $query) => $query->onlyTrashed())
             ->when($search !== '', function (Builder $query) use ($search): void {
                 $like = '%'.str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $search).'%';

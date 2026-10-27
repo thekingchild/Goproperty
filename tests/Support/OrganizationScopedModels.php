@@ -26,6 +26,7 @@ use LogicException;
 use Modules\Import\Enums\ImportFileType;
 use Modules\Import\Models\ImportBatch;
 use Modules\Import\Models\ImportColumnMapping;
+use Modules\Properties\Models\AgentAssignment;
 use Modules\Properties\Models\OwnerProfile;
 use Modules\Properties\Models\Property;
 use Modules\Properties\Models\Unit;
@@ -97,6 +98,7 @@ final class OrganizationScopedModels
             ImportColumnMapping::class => fn (): Model => ImportColumnMapping::query()->create(['kind' => 'tenants', 'name' => 'Probe '.Str::random(6), 'mapping' => ['phone' => 'phone']]),
             Property::class => fn (): Model => Property::factory()->ownedBy(OwnerProfile::factory()->create())->create(),
             Unit::class => fn (): Model => Unit::factory()->in(Property::factory()->create())->create(),
+            AgentAssignment::class => fn (): Model => AgentAssignment::factory()->of(User::factory()->create(), Property::factory()->create())->create(),
             TenantProfile::class => fn (): Model => TenantProfile::factory()->withNin()->create(),
             // Owned by the offering organization; the receiving one reads it
             // only through Modules\SaasBilling\Transfers\IncomingTransfers.

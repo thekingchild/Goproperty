@@ -58,6 +58,9 @@ function withQuery(string $url, string $key, string $value): string
 
 describe('serving a file', function () {
     it('streams the original privately to anyone holding a valid link', function () {
+        // A second ticking over between making the link and serving it
+        // would make max-age 899 under load.
+        $this->freezeTime();
         $url = $this->urls->temporary($this->photo);
 
         expect($url)->toStartWith('http://localhost/media/'.$this->acme->id.'/'.$this->photo->uuid.'?expires=')

@@ -12,6 +12,7 @@ use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
 use Livewire\Component;
+use Modules\Properties\Assignments\AgentNarrowing;
 use Modules\Properties\Buildings\Amenities;
 use Modules\Properties\Buildings\Properties;
 use Modules\Properties\Enums\PropertyType;
@@ -25,6 +26,9 @@ use Modules\Properties\Models\Property;
  * it), address, amenities and details. `properties.portfolio` adds;
  * `properties.manage` edits an active building (PropertyPolicy, checked
  * again by Buildings\Properties). Photos are added on the building's page.
+ * The owner picker lists the owners the member may see (an agent limited to
+ * some buildings sees those buildings' owners only, P02-03); the writer
+ * refuses any other.
  *
  * The building id is locked and the building loaded through the
  * organization scope on every save, so another organization's building
@@ -122,7 +126,7 @@ final class PropertyForm extends Component
         $this->redirectRoute('workspace.buildings.show', ['organization' => $this->organizationSlug(), 'property' => $property->slug], navigate: true);
     }
 
-    public function render(OrganizationContext $context): View
+    public function render(OrganizationContext $context, AgentNarrowing $narrowing): View
     {
         $property = $this->propertyId !== null ? $this->property() : null;
         $currentOwnerId = $property?->owner_profile_id;
@@ -134,7 +138,7 @@ final class PropertyForm extends Component
             'states' => NigerianStates::ALL,
             'suggestedAmenities' => Amenities::SUGGESTED,
             // Active owners, plus the building's own owner if it was archived since.
-            'owners' => OwnerProfile::query()->withTrashed()
+            'owners' => $narrowing->owners(OwnerProfile::query()->withTrashed(), $this->user())
                 ->where(fn ($query) => $query->whereNull('deleted_at')->when($currentOwnerId !== null, fn ($query) => $query->orWhere('id', $currentOwnerId)))
                 ->orderBy('display_name')
                 ->get(['id', 'display_name', 'deleted_at']),

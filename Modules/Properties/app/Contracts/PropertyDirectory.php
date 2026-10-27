@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Modules\Properties\Contracts;
 
+use App\Models\User;
+
 /**
  * How other modules read buildings (ARCHITECTURE.md § 6.2, § 8 rule 3):
  * never the Properties module's models or tables. Answers for the current
@@ -13,7 +15,10 @@ namespace Modules\Properties\Contracts;
  * are not found either; archived ones are, with `archived` true.
  *
  * Read-only, and no permission check: the caller checks its own policy for
- * the user it acts for. Bound in PropertiesServiceProvider.
+ * the user it acts for. A picker shown to a member passes that member, so
+ * an agent assigned to buildings is offered only those (P02-03; other
+ * checks by building go through Contracts\BuildingAccess). Bound in
+ * PropertiesServiceProvider.
  */
 interface PropertyDirectory
 {
@@ -33,11 +38,12 @@ interface PropertyDirectory
     public function isActive(int $propertyId): bool;
 
     /**
-     * Active buildings for a picker, by name.
+     * Active buildings for a picker, by name: every one, or with $for the
+     * ones that member sees (an assigned agent's buildings only).
      *
      * @return array<int, string> id => name
      */
-    public function activeOptions(): array;
+    public function activeOptions(?User $for = null): array;
 
     /** How many active buildings the organization has. */
     public function countActive(): int;

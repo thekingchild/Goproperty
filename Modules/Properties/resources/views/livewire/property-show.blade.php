@@ -90,6 +90,54 @@
         </section>
     </div>
 
+    @if ($canAssignAgents || $agents !== [])
+        <section class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900" data-test="building-agents">
+            <flux:heading size="lg" level="2">{{ __('Agents') }}</flux:heading>
+            <flux:text class="mt-1">{{ __('An agent assigned to buildings sees and works on those buildings only. Agents with no building see every building.') }}</flux:text>
+
+            @if ($agents === [])
+                <flux:text class="mt-3" data-test="no-agents">{{ __('No agent is assigned to this building.') }}</flux:text>
+            @else
+                <ul class="mt-3 flex flex-col divide-y divide-zinc-100 dark:divide-zinc-800" data-test="agent-list">
+                    @foreach ($agents as $row)
+                        <li class="flex flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between" wire:key="agent-{{ $row['user']->id }}" data-agent="{{ $row['user']->id }}">
+                            <div class="flex min-w-0 flex-col">
+                                <span class="truncate font-medium text-zinc-900 dark:text-white">{{ $row['user']->name }}</span>
+                                @unless ($row['limited'])
+                                    <span class="text-sm text-zinc-500 dark:text-zinc-400">{{ __('Owner or administrator: sees every building') }}</span>
+                                @endunless
+                            </div>
+                            @if ($canAssignAgents)
+                                <flux:button size="xs" variant="ghost" wire:click="unassignAgent({{ $row['user']->id }})" wire:confirm="{{ __('Take :name off :building?', ['name' => $row['user']->name, 'building' => $property->name]) }}" data-test="unassign-agent-{{ $row['user']->id }}">{{ __('Take off') }}</flux:button>
+                            @endif
+                        </li>
+                    @endforeach
+                </ul>
+            @endif
+
+            @if ($canAssignAgents)
+                @if ($assignableAgents->isEmpty())
+                    <flux:text class="mt-3 text-sm">{{ __('Every agent of your organization is on this building, or you have no agents yet. Invite agents under Settings → Members.') }}</flux:text>
+                @else
+                    <form wire:submit="assignAgent" class="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end" novalidate>
+                        <div class="w-full sm:max-w-xs">
+                            <flux:select wire:model="agentToAssign" :label="__('Assign an agent')" size="sm" data-test="agent-select">
+                                <option value="">{{ __('Choose an agent') }}</option>
+                                @foreach ($assignableAgents as $agent)
+                                    <option value="{{ $agent->id }}">{{ $agent->name }}</option>
+                                @endforeach
+                            </flux:select>
+                        </div>
+                        <flux:button type="submit" size="sm" variant="primary" icon="user-plus" data-test="assign-agent">{{ __('Assign') }}</flux:button>
+                    </form>
+                @endif
+                @error('agent')
+                    <flux:text class="mt-2 text-sm text-red-600 dark:text-red-400" role="alert" data-test="agent-error">{{ $message }}</flux:text>
+                @enderror
+            @endif
+        </section>
+    @endif
+
     <section class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900" data-test="building-units">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>

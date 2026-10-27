@@ -61,10 +61,14 @@ enum OrganizationRole: string
             // are day-to-day work for administrators and agents alike: an agent
             // signing a lease adds its tenant. Which buildings the
             // organization manages (adding, archiving, restoring one;
-            // P02-01b) is also theirs: agents work on existing buildings.
-            self::Admin => [P::OpenWorkspace, P::UpdateOrganization, P::ViewSettings, P::ViewMembers, P::ManageMembers, P::ViewOwners, P::ManageOwners, P::ManagePropertyPortfolio, ...$operations, P::ViewReports, P::ViewImports, P::ManageImports],
+            // P02-01b) is also theirs: agents work on existing buildings, and
+            // owners and administrators choose which agents work on which
+            // building (P02-03).
+            self::Admin => [P::OpenWorkspace, P::UpdateOrganization, P::ViewSettings, P::ViewMembers, P::ManageMembers, P::ViewOwners, P::ManageOwners, P::ManagePropertyPortfolio, P::AssignAgents, ...$operations, P::ViewReports, P::ViewImports, P::ManageImports],
             // Operational staff: they edit buildings and units but do not add
-            // or archive buildings; building assignment narrows this in policies.
+            // or archive buildings. Once assigned to buildings (P02-03), an
+            // agent sees and works on those buildings only (the policies and
+            // lists narrow it, Modules\Properties\Assignments\AgentNarrowing).
             self::Agent => [P::OpenWorkspace, P::ViewOwners, ...$operations],
             // Owner portal only (/owner), own properties only (policies narrow it).
             self::PropertyOwner => [P::ViewProperties, P::ViewLeases, P::ViewBills, P::ViewPayments, P::ViewTickets, P::RespondToTickets, P::ViewReports],

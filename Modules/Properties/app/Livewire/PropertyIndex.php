@@ -16,6 +16,7 @@ use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Modules\Properties\Assignments\AgentNarrowing;
 use Modules\Properties\Buildings\Properties;
 use Modules\Properties\Enums\PropertyStatus;
 use Modules\Properties\Enums\PropertyType;
@@ -30,6 +31,9 @@ use Modules\Properties\Models\Property;
  * owner, and an Active / Archived switch, all kept in the URL. Members with
  * `properties.view` see the list; with `properties.portfolio` they add,
  * archive and restore buildings (a status change, never a delete).
+ *
+ * An agent assigned to buildings sees only those (P02-03, AgentNarrowing):
+ * the list, the owner filter and the actions' lookups are all limited.
  *
  * Runs inside the `organization` middleware, replayed for Livewire updates:
  * every request has the organization's context and the component refuses
@@ -94,9 +98,9 @@ final class PropertyIndex extends Component
         $this->resetPage();
     }
 
-    public function archive(int $propertyId, Properties $properties): void
+    public function archive(int $propertyId, Properties $properties, AgentNarrowing $narrowing): void
     {
-        $property = Property::query()->findOrFail($propertyId);
+        $property = $narrowing->buildings(Property::query(), $this->user())->findOrFail($propertyId);
         $this->authorize('delete', $property);
 
         // Refused (ValidationException, key `archive`) while a lease holds one of its units.
@@ -104,23 +108,24 @@ final class PropertyIndex extends Component
         $this->notice = __(':name was archived. Find it under Archived to restore it.', ['name' => $property->name]);
     }
 
-    public function restore(int $propertyId, Properties $properties): void
+    public function restore(int $propertyId, Properties $properties, AgentNarrowing $narrowing): void
     {
-        $property = Property::query()->findOrFail($propertyId);
+        $property = $narrowing->buildings(Property::query(), $this->user())->findOrFail($propertyId);
         $this->authorize('restore', $property);
 
         $properties->restore($this->user(), $property);
         $this->notice = __(':name was restored.', ['name' => $property->name]);
     }
 
-    public function render(OrganizationContext $context, MediaUrls $urls): View
+    public function render(OrganizationContext $context, MediaUrls $urls, AgentNarrowing $narrowing): View
     {
+        $user = $this->user();
         $search = trim($this->search);
         $type = PropertyType::tryFrom($this->type);
         $state = in_array($this->state, NigerianStates::ALL, true) ? $this->state : null;
         $ownerId = ctype_digit($this->owner) ? (int) $this->owner : null;
 
-        $properties = Property::query()
+        $properties = $narrowing->buildings(Property::query(), $user)
             ->with(['owner', 'coverPhoto'])
             // Unit and occupancy counts in the same query (no query per row).
             ->withCount(['units', 'units as occupied_units_count' => fn (Builder $query) => $query->where('status', UnitStatus::Occupied)])
@@ -158,13 +163,15 @@ final class PropertyIndex extends Component
             'properties' => $properties,
             'thumbnails' => $thumbnails,
             'filtered' => $filtered,
-            'canAdd' => $this->user()->can('create', Property::class),
-            'canArchive' => $sample instanceof Property && ! $this->archived && $this->user()->can('delete', $sample),
-            'canRestore' => $sample instanceof Property && $this->archived && $this->user()->can('restore', $sample),
+            'canAdd' => $user->can('create', Property::class),
+            'canArchive' => $sample instanceof Property && ! $this->archived && $user->can('delete', $sample),
+            'canRestore' => $sample instanceof Property && $this->archived && $user->can('restore', $sample),
             'types' => PropertyType::cases(),
             'states' => NigerianStates::ALL,
-            // Owners who own a building, for the filter (archived owners too).
-            'owners' => OwnerProfile::query()->withTrashed()->whereHas('properties')->orderBy('display_name')->pluck('display_name', 'id')->all(),
+            // Owners who own a building the member sees, for the filter (archived owners too).
+            'owners' => OwnerProfile::query()->withTrashed()
+                ->whereHas('properties', fn (Builder $buildings) => $narrowing->buildings($buildings, $user))
+                ->orderBy('display_name')->pluck('display_name', 'id')->all(),
         ]);
     }
 

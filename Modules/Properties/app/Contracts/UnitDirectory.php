@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Properties\Contracts;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use InvalidArgumentException;
 use LogicException;
@@ -17,7 +18,9 @@ use LogicException;
  * not found either.
  *
  * No permission check: the caller checks its own policy for the user it
- * acts for. Bound in PropertiesServiceProvider.
+ * acts for (an assigned agent's buildings: Contracts\BuildingAccess).
+ * countBillable() is the organization's bill and is never narrowed. Bound
+ * in PropertiesServiceProvider.
  */
 interface UnitDirectory
 {
@@ -47,8 +50,12 @@ interface UnitDirectory
     /** The building's units by status (zeros for an unknown building). */
     public function countsForProperty(int $propertyId): UnitCounts;
 
-    /** The organization's units by status, in buildings that are not archived. */
-    public function counts(): UnitCounts;
+    /**
+     * The organization's units by status, in buildings that are not
+     * archived; with $for, only those of the buildings that member sees
+     * (an assigned agent's, P02-03), for a count shown to them.
+     */
+    public function counts(?User $for = null): UnitCounts;
 
     /**
      * Units the GoProperty bill counts (BILLING_PAYMENTS.md § 1.4): every

@@ -6,7 +6,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 ## Current state
 
-- **In progress:** P02-03 (agent assignment) and P02-06c (owner/building/unit import targets), each in its own worktree (`docs/plans/P02-P03-subtasks.md`). Done in P02: P02-01 (01a, 01b), P02-02, P02-04, P02-05, P02-06a, P02-06b
+- **In progress:** P02-06c (owner/building/unit import targets) in its own worktree (`docs/plans/P02-P03-subtasks.md`). Done in P02: P02-01 (01a, 01b), P02-02, P02-03, P02-04, P02-05, P02-06a, P02-06b
 - **In review:** P00-02 (CI): all four database jobs are green in GitHub Actions; branch protection on `main` is off by the product owner's decision (2026-10-27) while P02 and P03 are built, so tasks keep merging straight to `main`; turn it on afterwards (`docs/runbooks/ci.md` § 3) and mark P00-02 complete. P00-12 (backups): built and drilled locally; needs one real run to an S3-compatible bucket and a Google Shared Drive (PRE-03 accounts)
 - **Next task:** P02-07 (exports), then the P02 exit check; PRE-01 to PRE-04 continue with the product owner
 - **Blocked:** P00-13 (staging): the deploy scripts, the deploy on merge and the deploy drill are built and drilled locally; it needs a staging host (PRE-04). Until then the Deploy workflow fails at "Check deploy settings" on every push to `main`
@@ -18,7 +18,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | PRE | 5 | 1 | In progress |
 | P00 | 13 | 10 | In progress |
 | P01 | 9 | 9 | Complete (2026-10-27) |
-| P02 | 7 | 4 | In progress |
+| P02 | 7 | 5 | In progress |
 | P03 | 13 | 0 | Not started |
 | P04 | 3 | 0 | Not started |
 | P05 | 6 | 0 | Not started |
@@ -26,11 +26,68 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | P07 | 4 | 0 | Not started |
 | P08 | 4 | 0 | Not started |
 | P09 | 8 | 0 | Not started |
-| **Total** | **83** | **24** | |
+| **Total** | **83** | **25** | |
 
 ## Ledger (newest first)
 
 Each entry: task ID and status, date, what was delivered, tests run and results, follow-ups, next task.
+
+### P02-03 — Complete (2026-10-27): agent ↔ building assignment, agent narrowing in policies and every list, and the unit list (`/o/{slug}/units`)
+
+**Delivered** ([DATABASE_SCHEMA.md § 3](../DATABASE_SCHEMA.md) `agent_building`, [ARCHITECTURE.md § 5](../ARCHITECTURE.md) "Agent assignment and narrowing", § 6.2, § 13; `docs/plans/P02-P03-subtasks.md` P02-03):
+- **Schema:** module migration `Modules/Properties/database/migrations/2026_11_05_000101_create_agent_building_table.php`: `organization_id` (restrict), `user_id` and `property_id` (cascade on delete), timestamps, no soft deletes. Unique `(organization_id, user_id, property_id)` (the documented `(user_id, property_id)` pair, with `organization_id` leading per ARCH § 4; it also serves the "this agent's buildings" lookup); index `(organization_id, property_id)`.
+- **Model:** `Modules\Properties\Models\AgentAssignment` (`BelongsToOrganization`, table `agent_building`), `AgentAssignmentFactory` (`of($user, $property)`); added to `tests/Support/OrganizationScopedModels.php` (all 5 `CrossTenantAccessTest` probes).
+- **Permission:** new `properties.assign_agents` (`OrganizationPermission::AssignAgents`; org-owner, org-admin), `allowedWhileSuspended()` false, `blockedWhileImpersonating()` **true** (it decides what a member sees, like a role change; PLATFORM_CONSOLE.md § 6 updated). Seeding the role map is enough on existing installs (`InstallSeeder`).
+- **Writer (audited, log `properties`, building as subject):** `Modules\Properties\Assignments\AgentAssignments`: `assign` / `unassign` (each checks `PropertyPolicy::assignAgents` for the actor; building row locked; assigning twice changes nothing; unique-index race returns the existing row), `assignable()` (members holding `agent` and neither `org-owner` nor `org-admin`), `agentsOf()` (current members only, flagged when an owner/admin role makes the assignment moot), `dropMember()`. Events `property.agent_assigned` / `property.agent_unassigned` (with `user_id`; `reason = member_removed` when dropped with a membership).
+- **Narrowing:** `Modules\Properties\Assignments\AgentNarrowing` (implements the new contract `Modules\Properties\Contracts\BuildingAccess`: `limitedTo(User): ?list<int>`, `allows(User, id)`), plus `buildings()`, `units()`, `owners()` query limiters. Applied in:
+  - `PropertyPolicy` (view/update/addPhotos/deletePhoto/delete/restore/assignAgents), `UnitPolicy` (view/create/update/delete/restore) and `OwnerProfilePolicy::view`: a record outside a narrowed agent's buildings answers **404** (`Response::denyAsNotFound()`), checked before the ability's own rule so even an archived building's existence is not given away. The writers (`Properties`, `PropertyPhotos`, `Units`, `CreateUnitsInBulk`) inherit it through their `Gate::forUser()->authorize()` calls.
+  - Lists: buildings list (rows, archive/restore lookups, owner filter), owners list (rows and lookups), owner page (its buildings and their count), building form owner picker (+ the writer refuses an owner the actor may not `view`), the new unit list (rows and building filter), `PropertyDirectory::activeOptions(?User $for)` and `UnitDirectory::counts(?User $for)` (new optional parameter; `countBillable()` never narrows). The status board needs no extra limit: its building page is already 404 for unassigned buildings. `PropertyShow::render` and `OwnerProfileForm::render` re-check `view`, so an agent taken off a building loses an open page on the next update.
+- **Membership removal:** Core `App\Members\Members::remove` now sends `App\Members\MemberRemoved` (plain ids) inside its transaction; the Properties module listens (`Assignments\DropRemovedMemberAssignments`) and deletes that member's assignments in that organization, audited — rolled back with the removal if anything later fails.
+- **Building page:** "Agents" section (`data-test="building-agents"`): assigned members for everyone who sees the building; for `assignAgents` holders a select of the organization's unassigned agents, Assign and "Take off" (with confirm). Hidden controls while suspended/impersonating/archived.
+- **Unit list** `Modules\Properties\Livewire\UnitIndex` at `/o/{slug}/units` (`workspace.units.index`), sidebar item "Units" (order 250, `viewAny Unit`): every live unit of every non-removed building, 25 a page on the server, debounced search (400 ms) over unit label and building name, filters building / status / type, all in the URL; ordered by building name, then label length and label ("Flat 2" before "Flat 10"); one query with the buildings eager loaded; edit link per unit of an active building when the member may edit (one policy check per page, not per row); units of archived buildings marked and read-only.
+- **Docs:** DATABASE_SCHEMA.md § 3 `agent_building` as built; ARCHITECTURE.md § 5 (new "Agent assignment and narrowing" paragraph, Units paragraph, policy-rules bullet), § 6.2 (BuildingAccess), § 13 (unit list as built); PLATFORM_CONSOLE.md § 6 (assignment always blocked while impersonating).
+
+**Tests and evidence (local, MariaDB 11.4):**
+- `composer ci` on the final commit: Pint passed, Larastan 0 errors, Pest **1,691 tests: 1,691 passed, 13,867 assertions** (was 1,658 on `main`). The new tests (`Modules/Properties/tests/Feature/Assignments`, 28 tests, 367 assertions) and the `AgentAssignment` cross-tenant probes also pass with `APP_DEBUG=true`.
+- Flaky, not this task: the first `composer ci` run failed once in `SignedMediaRouteTest` › "streams the original privately to anyone holding a valid link" (`Cache-Control: max-age=899` vs expected `900`: a second passed between signing the link and serving it under parallel load); it passed alone and in the second full run. Suggest asserting `max-age=89x|900` or freezing time there.
+- New: `Modules/Properties/tests/Feature/Assignments/AgentAssignmentTest.php` (11 incl. dataset), `AgentNarrowingTest.php` (11), `UnitIndexTest.php` (6), helpers `helpers.php`; `CrossTenantAccessTest` dataset `AgentAssignment` (5).
+- **AC: a unit of org B is not addressable by an org A user via ID guessing:** `UnitIndexTest` › "never shows or reaches a unit of another organization guessed by ID, on the unit list or any unit or building page and action" (unit list rows, `?building=<B id>`, search, Livewire filter; unit edit by foreign id under own/foreign slug and numeric id; create/bulk/show/edit of the foreign building; `archiveUnit`/`restoreUnit`/`unassignAgent` and buildings-list `archive`/`restore` with foreign ids → 404; locked `unitId` and `propertyId` swapped → 419 with debug pinned off; member of both orgs gets Acme-only rows; foreign rows unchanged). Existing `UnitPagesTest` › "answers 404 for another organization's unit…" and `CrossTenantAccessTest` (`Unit`, `AgentAssignment`) still green.
+- **AC: a narrowed agent sees only assigned buildings:** `AgentNarrowingTest` › "shows a narrowed agent only the assigned buildings, on every list and page" (buildings list active/archived/search/owner filter, building pages 200 vs 404, edit pages, status board incl. filter, unit pages, unit list incl. building filter options and guessed ids, owners list and owner pages, owner page's buildings); "answers 404 to a narrowed agent for other buildings' actions sent straight to the server" (owner snapshots replayed: render, `makeCover`, building form save, unit form save → 404; `archiveUnit`/`restoreUnit` → 404; writers throw `AuthorizationException` with status 404; nothing changed; own unit saves); "answers the narrowed agent's policy checks per building, with 404 outside the assignments"; "narrows the directories other modules show to the member"; "offers a narrowed agent only their buildings' owners on the building form, and refuses any other"; "lets an agent with no assignment see every building…"; "never narrows owners or administrators…"; "counts only the current organization's assignments"; "shuts the building page on a narrowed agent who is taken off it while it is open".
+- **Assignment only by org-owner/org-admin, audited:** `AgentAssignmentTest` › "lets owners and administrators assign the organization's agents to a building and take them off, audited" (dataset owner/admin), "grants properties.assign_agents to owners and administrators only, and classes it for the central guards", "lets only owners and administrators assign agents, by policy and on the server" (7 roles incl. other org and stranger; agent replaying the owner's snapshot → 403; writer refuses), "assigns only members who are agents here, and each one once", "refuses to assign agents to an archived building, even one archived after the page loaded", "lists a building's assigned members, current members only…".
+- **Suspended org read-only:** `AgentAssignmentTest` › "shows assignments read-only while the organization is suspended" (list shown, no controls, calls 403, writer refuses; narrowing still applies); `AgentNarrowingTest` › "keeps the narrowing while the organization is suspended"; `UnitIndexTest` › "shows the unit list read-only while the organization is suspended".
+- **Impersonation:** `AgentAssignmentTest` › "never lets impersonating staff assign agents, in write mode too…"; `AgentNarrowingTest` › "narrows impersonating staff exactly like the agent they act as" (write mode); `UnitIndexTest` › "shows impersonating staff the unit list, read-only in a read-only session".
+- **Membership removal:** `AgentAssignmentTest` › "drops a removed member's assignments with the membership, audited, so a returning member starts unassigned" (other org's assignments kept); "keeps the assignments when the removal rolls back, as they go in its transaction".
+- **Sub: unit list has no N+1:** `UnitIndexTest` › "loads the unit list without a query per unit or building (no N+1)" (queries on `units|properties|agent_building` counted for 1 unit vs 61 units across 13 buildings incl. an archived one, for an owner and a narrowed agent; equal). Checked: removing `->with('property')` makes it fail (28 vs 4).
+- Unit list behaviour: `UnitIndexTest` › "lists every unit across the buildings, 25 a page on the server, with filters and a debounced search kept in the URL" (pages 25/5, order, URL filters, Livewire search resets the page, clear filters), "opens the unit list for workspace roles only, with edit links only where the member may edit".
+- Existing tests changed (none weakened): `WorkspaceNavigationTest` (sidebar gains `units` for owner/admin/agent), `ImpersonationGuardTest` › "classes the money, bank, … permissions as always blocked" (+`properties.assign_agents`), `OrganizationScopedModels` (+`AgentAssignment`).
+- Not run: release/install drills (new module migration only; `InstallCommandTest` covers module migrations). No browser smoke: pages exercised through HTTP/Livewire tests only.
+
+**Orchestrator review:** merged `main` (with P02-04) into the branch; resolved the sidebar test conflict by keeping both new items (`units`, `billing-transfers`). Fixed the timing flake the agent reported in `SignedMediaRouteTest` (max-age 899 vs 900 under load) by freezing time in that test. Re-ran `composer ci`: Pint passed, Larastan 0 errors, Pest 1,740 passed, 14,308 assertions.
+
+**Decisions to confirm:**
+- Orchestrator decision 1 (modules): everything lives in `Modules/Properties` (Livewire `UnitIndex` in the module). Core gained only the `App\Members\MemberRemoved` event (Core never imports the module; the module listens).
+- Orchestrator decision 2 (cross-org lookups): none needed; everything is inside the organization context, no scope removed.
+- Orchestrator decision 3 (soft deletes vs unique keys): `agent_building` has no soft deletes; unassigning deletes the link row (audited). Not one of AGENT § 3 rule 7's records (org, tenant, bill, payment, subscription data).
+- Orchestrator decision 4 (plan gating): agent assignment is built ungated; BILLING § 1.2 limits it to Scale (follow-up for P06-01).
+- **Agent with no assignments sees every building** (ARCH § 5 "`agent` visibility *can be* narrowed … recommended for larger agencies"; the plan row says "optional narrowing"). Narrowing is per agent: one assignment narrows that agent; taking them off their last building widens them again. The alternative reading (ARCH § 5's table "manage assigned buildings" → an unassigned agent sees nothing) would lock every agent of every existing organization out until assigned.
+- **Who is narrowed:** members holding `agent` and neither `org-owner` nor `org-admin` (role-based, not permission-based, so suspension or read-only impersonation never turns an owner into a narrowed member). Only such members can be assigned; assignments of an agent later promoted are kept but ignored (shown as "sees every building").
+- **Owners are narrowed too:** a narrowed agent sees only the owners of their buildings (list, owner page 404 otherwise, owner page lists only their buildings, building-form picker and the writer's owner check). Owners are not assigned themselves (P02-01a follow-up).
+- **404, not 403,** for another building/unit/owner of a narrowed agent (`Response::denyAsNotFound()`), so a guessed slug or id behaves like another organization's.
+- **New permission `properties.assign_agents`** rather than reusing `properties.portfolio` or `members.manage`: owners/admins hold it; it is **blocked while impersonating** (a member-access change, AGENT § 4 "member or role change") and dropped while suspended.
+- Assignment only on **active** buildings (an archived building is read-only); unassigning on an archived building waits for a restore.
+- Unique index `(organization_id, user_id, property_id)` instead of the documented `(user_id, property_id)` (same uniqueness, since a building has one organization; satisfies ARCH § 4); DB § 3 updated.
+- Membership removal drops assignments through a Core event sent inside `Members::remove`'s transaction (atomic), rather than only ignoring non-members (non-members cannot open the workspace anyway; the building page also lists current members only).
+- Unit list: units of archived buildings listed (marked, read-only); units of buildings removed by an import rollback and archived units not listed (archived units stay on their building's page). Search covers label and building name.
+
+**Follow-ups:**
+- P06-01: gate agent ↔ building assignment to the Scale plan (BILLING § 1.2): `PropertyPolicy::assignAgents` / the Agents section. Decide what happens to existing assignments on a downgrade (suggest: keep them, stop narrowing).
+- P02-07: export on the units list (`UnitIndex`) and on the building's agents list ("assignments" in the P02-07 row); exports must use the same narrowed queries.
+- P03 (Leasing, Billing, Tickets, Building Groups): narrow lists and policies through `Modules\Properties\Contracts\BuildingAccess` (agents' leases, bills, payments to confirm, tickets of their buildings); P02-06b's `tenants.manage` for agents can be narrowed the same way (P03-01a).
+- ARCH § 5 ticket rule "tenant ↔ assigned agent": P03's ticket module can read "assigned agent" from `BuildingAccess`/assignments (consider a contract method listing a building's agents then).
+- The owner portal (`/owner`) is untouched by narrowing.
+- Status board still shows every unit of a building (no paging), as P02-02 noted.
+
+**Next:** P02-06c (wave 5).
 
 ### P02-04 — Complete (2026-10-27): SaasBilling module, org-to-org billing transfers and BillingTransferService
 

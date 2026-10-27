@@ -4,12 +4,17 @@ declare(strict_types=1);
 
 namespace Modules\Properties\Providers;
 
+use App\Members\MemberRemoved;
 use App\Models\User;
 use App\Navigation\WorkspaceNavigation;
 use App\Navigation\WorkspaceNavItem;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Livewire;
+use Modules\Properties\Assignments\AgentNarrowing;
+use Modules\Properties\Assignments\DropRemovedMemberAssignments;
 use Modules\Properties\Buildings\PropertyDirectoryService;
+use Modules\Properties\Contracts\BuildingAccess;
 use Modules\Properties\Contracts\PropertyDirectory;
 use Modules\Properties\Contracts\UnitDirectory;
 use Modules\Properties\Models\OwnerProfile;
@@ -26,8 +31,10 @@ use Nwidart\Modules\Support\ModuleServiceProvider;
  * buildings and their units. The base provider loads the module's views
  * (`properties::`) and migrations; this one adds its policies, its
  * Livewire components (namespace `properties::`, classes in
- * Modules\Properties\Livewire), its workspace sidebar items, and the
- * contracts other modules use (Contracts\PropertyDirectory, UnitDirectory).
+ * Modules\Properties\Livewire), its workspace sidebar items, the contracts
+ * other modules use (Contracts\PropertyDirectory, UnitDirectory,
+ * BuildingAccess), and drops a removed member's building assignments
+ * (App\Members\MemberRemoved).
  */
 final class PropertiesServiceProvider extends ModuleServiceProvider
 {
@@ -47,6 +54,7 @@ final class PropertiesServiceProvider extends ModuleServiceProvider
         // For other modules (ARCHITECTURE.md § 6.2, § 8 rule 3).
         $this->app->bind(PropertyDirectory::class, PropertyDirectoryService::class);
         $this->app->bind(UnitDirectory::class, UnitDirectoryService::class);
+        $this->app->bind(BuildingAccess::class, AgentNarrowing::class);
     }
 
     public function boot(): void
@@ -56,6 +64,8 @@ final class PropertiesServiceProvider extends ModuleServiceProvider
         Gate::policy(OwnerProfile::class, OwnerProfilePolicy::class);
         Gate::policy(Property::class, PropertyPolicy::class);
         Gate::policy(Unit::class, UnitPolicy::class);
+
+        Event::listen(MemberRemoved::class, DropRemovedMemberAssignments::class);
 
         Livewire::addNamespace($this->nameLower, classNamespace: 'Modules\\Properties\\Livewire');
 
@@ -68,6 +78,15 @@ final class PropertiesServiceProvider extends ModuleServiceProvider
                 active: ['workspace.buildings.*'],
                 visible: static fn (User $user): bool => $user->can('viewAny', Property::class),
                 order: 200,
+            ));
+            $navigation->add(new WorkspaceNavItem(
+                key: 'units',
+                label: 'Units',
+                icon: 'home-modern',
+                route: 'workspace.units.index',
+                active: ['workspace.units.index'],
+                visible: static fn (User $user): bool => $user->can('viewAny', Unit::class),
+                order: 250,
             ));
             $navigation->add(new WorkspaceNavItem(
                 key: 'owners',

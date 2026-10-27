@@ -189,6 +189,8 @@ it('classes the money, bank, Paystack, billing, compliance, member, delete and i
         'payment_settings.view',
         'organization.compliance',
         'members.manage',
+        // Which buildings an agent sees (P02-03): a member-access change.
+        'properties.assign_agents',
         'bills.manage',
         'payments.confirm',
         'payments.submit_proof',

@@ -56,7 +56,7 @@ final readonly class Properties
     {
         Gate::forUser($by)->authorize('create', Property::class);
 
-        $values = $this->validated($input, null);
+        $values = $this->validated($by, $input, null);
 
         for ($attempt = 1; ; $attempt++) {
             try {
@@ -89,7 +89,7 @@ final readonly class Properties
     {
         Gate::forUser($by)->authorize('update', $property);
 
-        $values = $this->validated($input, $property);
+        $values = $this->validated($by, $input, $property);
 
         return DB::transaction(function () use ($by, $property, $values): Property {
             $property = Property::query()->whereKey($property->getKey())->lockForUpdate()->firstOrFail();
@@ -189,7 +189,7 @@ final readonly class Properties
      *
      * @throws ValidationException
      */
-    private function validated(array $input, ?Property $existing): array
+    private function validated(User $by, array $input, ?Property $existing): array
     {
         $text = static function (mixed $value): ?string {
             $value = is_string($value) ? trim((string) preg_replace('/\s+/u', ' ', $value)) : '';
@@ -222,10 +222,12 @@ final readonly class Properties
         Validator::make($values, [
             'name' => ['required', 'string', 'min:2', 'max:160', 'not_regex:/[<>]/'],
             'propertyType' => ['required', Rule::in(PropertyType::values())],
-            'ownerProfileId' => ['nullable', function (string $attribute, mixed $value, \Closure $fail) use ($ownerId, $existing): void {
+            'ownerProfileId' => ['nullable', function (string $attribute, mixed $value, \Closure $fail) use ($by, $ownerId, $existing): void {
                 $owner = $ownerId !== null ? OwnerProfile::query()->withTrashed()->find($ownerId) : null;
 
-                if ($owner === null) {
+                // A new owner must be one the member may see (an agent limited
+                // to some buildings sees those buildings' owners only, P02-03).
+                if ($owner === null || ($existing?->owner_profile_id !== $owner->id && ! Gate::forUser($by)->allows('view', $owner))) {
                     $fail(__('Choose an owner from the list.'));
                 } elseif ($owner->trashed() && $existing?->owner_profile_id !== $owner->id) {
                     $fail(__(':name is archived. Restore the owner first, or choose another one.', ['name' => $owner->display_name]));

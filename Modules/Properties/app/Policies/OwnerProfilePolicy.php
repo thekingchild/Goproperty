@@ -7,6 +7,8 @@ namespace Modules\Properties\Policies;
 use App\Enums\OrganizationPermission;
 use App\Models\User;
 use App\Tenancy\OrganizationContext;
+use Illuminate\Auth\Access\Response;
+use Modules\Properties\Assignments\AgentNarrowing;
 use Modules\Properties\Models\OwnerProfile;
 use Spatie\Permission\Exceptions\PermissionDoesNotExist;
 
@@ -21,19 +23,36 @@ use Spatie\Permission\Exceptions\PermissionDoesNotExist;
  * The central guards apply on top: in a suspended organization only the
  * reads pass (OrganizationWriteGuard), and while GoProperty staff
  * impersonate, archiving is refused (`delete`, ImpersonationGuard).
+ *
+ * Agent narrowing (P02-03): owners are not assigned themselves, so an agent
+ * limited to some buildings sees the owners of those buildings only; any
+ * other owner answers 404 (Response::denyAsNotFound).
  */
 final class OwnerProfilePolicy
 {
-    public function __construct(private readonly OrganizationContext $context) {}
+    public function __construct(
+        private readonly OrganizationContext $context,
+        private readonly AgentNarrowing $narrowing,
+    ) {}
 
     public function viewAny(User $user): bool
     {
         return $this->holds($user, OrganizationPermission::ViewOwners);
     }
 
-    public function view(User $user, OwnerProfile $owner): bool
+    public function view(User $user, OwnerProfile $owner): Response|bool
     {
-        return $this->belongsHere($owner) && $this->viewAny($user);
+        if (! $this->belongsHere($owner)) {
+            return false;
+        }
+
+        $buildings = $this->narrowing->limitedTo($user);
+
+        if ($buildings !== null && ! $owner->properties()->whereIn('properties.id', $buildings)->exists()) {
+            return Response::denyAsNotFound();
+        }
+
+        return $this->viewAny($user);
     }
 
     public function create(User $user): bool

@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Modules\Properties\Units;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use LogicException;
+use Modules\Properties\Assignments\AgentNarrowing;
 use Modules\Properties\Contracts\UnitCounts;
 use Modules\Properties\Contracts\UnitDirectory;
 use Modules\Properties\Contracts\UnitSummary;
@@ -18,7 +20,7 @@ use Modules\Properties\Models\Unit;
 /** The Properties module's answer to Contracts\UnitDirectory, through the organization scope. */
 final readonly class UnitDirectoryService implements UnitDirectory
 {
-    public function __construct(private Units $units) {}
+    public function __construct(private Units $units, private AgentNarrowing $narrowing) {}
 
     public function find(int $unitId): ?UnitSummary
     {
@@ -43,9 +45,9 @@ final readonly class UnitDirectoryService implements UnitDirectory
         return self::countsOf(Unit::query()->where('property_id', $propertyId));
     }
 
-    public function counts(): UnitCounts
+    public function counts(?User $for = null): UnitCounts
     {
-        return self::countsOf(self::billable());
+        return self::countsOf($for === null ? self::billable() : $this->narrowing->units(self::billable(), $for));
     }
 
     public function countBillable(): int

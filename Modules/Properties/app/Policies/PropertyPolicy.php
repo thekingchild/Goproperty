@@ -8,6 +8,8 @@ use App\Enums\OrganizationPermission;
 use App\Enums\OrganizationStatus;
 use App\Models\User;
 use App\Tenancy\OrganizationContext;
+use Illuminate\Auth\Access\Response;
+use Modules\Properties\Assignments\AgentNarrowing;
 use Modules\Properties\Models\Property;
 use Spatie\Permission\Exceptions\PermissionDoesNotExist;
 
@@ -25,21 +27,30 @@ use Spatie\Permission\Exceptions\PermissionDoesNotExist;
  * apply on top: in a suspended organization only the reads pass
  * (OrganizationWriteGuard), and while GoProperty staff impersonate,
  * archiving (`delete`) and removing a photo (`deletePhoto`) are refused
- * (ImpersonationGuard). P02-03 narrows agents to their assigned buildings
- * here.
+ * (ImpersonationGuard).
+ *
+ * Agent narrowing (P02-03, ARCHITECTURE.md § 5): an agent with building
+ * assignments sees and edits only those buildings; any other building
+ * answers 404 (Response::denyAsNotFound), as another organization's does.
+ * `properties.assign_agents` (org-owner, org-admin) chooses a building's
+ * agents (assignAgents); it is dropped while suspended and while staff
+ * impersonate (it decides what a member sees, like a role change).
  */
 final class PropertyPolicy
 {
-    public function __construct(private readonly OrganizationContext $context) {}
+    public function __construct(
+        private readonly OrganizationContext $context,
+        private readonly AgentNarrowing $narrowing,
+    ) {}
 
     public function viewAny(User $user): bool
     {
         return $this->holds($user, OrganizationPermission::ViewProperties);
     }
 
-    public function view(User $user, Property $property): bool
+    public function view(User $user, Property $property): Response|bool
     {
-        return $this->belongsHere($property) && $this->viewAny($user);
+        return $this->reachable($user, $property) ?? $this->viewAny($user);
     }
 
     public function create(User $user): bool
@@ -48,36 +59,63 @@ final class PropertyPolicy
     }
 
     /** Edit an active building's details. */
-    public function update(User $user, Property $property): bool
+    public function update(User $user, Property $property): Response|bool
     {
-        return $this->belongsHere($property) && ! $property->isArchived()
-            && $this->holds($user, OrganizationPermission::ManageProperties);
+        return $this->reachable($user, $property)
+            ?? (! $property->isArchived() && $this->holds($user, OrganizationPermission::ManageProperties));
     }
 
     /** Add photos to an active building, or choose its cover. */
-    public function addPhotos(User $user, Property $property): bool
+    public function addPhotos(User $user, Property $property): Response|bool
     {
         return $this->update($user, $property);
     }
 
     /** Remove one of an active building's photos (the file is deleted). */
-    public function deletePhoto(User $user, Property $property): bool
+    public function deletePhoto(User $user, Property $property): Response|bool
     {
         return $this->update($user, $property);
     }
 
     /** Archive (a status change, never a delete; AGENT.md § 3 rule 7). */
-    public function delete(User $user, Property $property): bool
+    public function delete(User $user, Property $property): Response|bool
     {
-        return $this->belongsHere($property) && ! $property->isArchived()
-            && $this->holds($user, OrganizationPermission::ManagePropertyPortfolio);
+        return $this->reachable($user, $property)
+            ?? (! $property->isArchived() && $this->holds($user, OrganizationPermission::ManagePropertyPortfolio));
     }
 
     /** Bring an archived building back. */
-    public function restore(User $user, Property $property): bool
+    public function restore(User $user, Property $property): Response|bool
     {
-        return $this->belongsHere($property) && $property->isArchived() && ! $this->restricted()
-            && $this->holds($user, OrganizationPermission::ManagePropertyPortfolio);
+        return $this->reachable($user, $property)
+            ?? ($property->isArchived() && ! $this->restricted() && $this->holds($user, OrganizationPermission::ManagePropertyPortfolio));
+    }
+
+    /**
+     * Assign agents to an active building and take them off it
+     * (Assignments\AgentAssignments). Owners and administrators only; Scale
+     * plan only once plans gate features (BILLING_PAYMENTS.md § 1.2, P06-01).
+     */
+    public function assignAgents(User $user, Property $property): Response|bool
+    {
+        return $this->reachable($user, $property)
+            ?? (! $property->isArchived() && $this->holds($user, OrganizationPermission::AssignAgents));
+    }
+
+    /**
+     * Null when the building is this organization's and within the member's
+     * assignments (the ability's own rule decides); false for another
+     * organization's or a removed building; 404 for a building outside a
+     * narrowed agent's assignments, whatever the ability, so its existence
+     * is not given away.
+     */
+    private function reachable(User $user, Property $property): Response|false|null
+    {
+        if (! $this->belongsHere($property)) {
+            return false;
+        }
+
+        return $this->narrowing->allows($user, $property->id) ? null : Response::denyAsNotFound();
     }
 
     private function belongsHere(Property $property): bool

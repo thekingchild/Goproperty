@@ -1,0 +1,148 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Properties\Livewire;
+
+use App\Models\User;
+use App\Tenancy\OrganizationContext;
+use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Builder;
+use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
+use Livewire\Attributes\Title;
+use Livewire\Attributes\Url;
+use Livewire\Component;
+use Livewire\WithPagination;
+use Modules\Properties\Assignments\AgentNarrowing;
+use Modules\Properties\Enums\UnitStatus;
+use Modules\Properties\Enums\UnitType;
+use Modules\Properties\Models\Property;
+use Modules\Properties\Models\Unit;
+
+/**
+ * Units, /o/{organization}/units: every unit across the organization's
+ * buildings (DATABASE_SCHEMA.md § 3; P02-03), paginated on the server (25
+ * a page), with a debounced search over the unit label and the building's
+ * name, and filters by building, status and type, all kept in the URL
+ * (ARCHITECTURE.md § 13: server-side pagination, debounced search, no
+ * N+1: one query for the page, its buildings eager loaded). Archived units
+ * are on their building's page; units of an archived building are listed,
+ * marked, read-only.
+ *
+ * Members with `properties.view` see it (UnitPolicy::viewAny); an agent
+ * assigned to buildings sees only those buildings' units, and only those
+ * buildings in the filter (AgentNarrowing). Editing happens on the unit's
+ * own page, which checks UnitPolicy again.
+ *
+ * Runs inside the `organization` middleware, replayed for Livewire updates:
+ * every request has the organization's context and the component refuses
+ * any other.
+ */
+#[Layout('layouts::app')]
+#[Title('Units')]
+final class UnitIndex extends Component
+{
+    use WithPagination;
+
+    public const int PER_PAGE = 25;
+
+    #[Locked]
+    public int $organizationId;
+
+    #[Url(as: 'q', except: '')]
+    public string $search = '';
+
+    /** A building id, or empty for every building. */
+    #[Url(except: '')]
+    public string $building = '';
+
+    #[Url(except: '')]
+    public string $status = '';
+
+    #[Url(except: '')]
+    public string $type = '';
+
+    public function boot(OrganizationContext $context): void
+    {
+        abort_unless($context->has(), 404);
+    }
+
+    public function hydrate(OrganizationContext $context): void
+    {
+        abort_unless($context->id() === $this->organizationId, 404);
+    }
+
+    public function mount(OrganizationContext $context): void
+    {
+        $this->organizationId = $context->id();
+        $this->authorize('viewAny', Unit::class);
+    }
+
+    public function updated(string $property): void
+    {
+        if (in_array($property, ['search', 'building', 'status', 'type'], true)) {
+            $this->resetPage();
+        }
+    }
+
+    public function clearFilters(): void
+    {
+        $this->reset('search', 'building', 'status', 'type');
+        $this->resetPage();
+    }
+
+    public function render(OrganizationContext $context, AgentNarrowing $narrowing): View
+    {
+        $user = $this->user();
+        $search = mb_substr(trim($this->search), 0, 100);
+        $buildingId = ctype_digit($this->building) ? (int) $this->building : null;
+        $status = UnitStatus::tryFrom($this->status);
+        $type = UnitType::tryFrom($this->type);
+
+        $units = $narrowing->units(Unit::query(), $user)
+            ->with('property')
+            // Not the units of a building an import rollback removed.
+            ->whereHas('property')
+            ->when($buildingId !== null, fn (Builder $query) => $query->where('property_id', $buildingId))
+            ->when($status !== null, fn (Builder $query) => $query->where('status', $status))
+            ->when($type !== null, fn (Builder $query) => $query->where('unit_type', $type))
+            ->when($search !== '', function (Builder $query) use ($search): void {
+                $like = '%'.str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $search).'%';
+
+                $query->where(fn (Builder $query) => $query
+                    ->where('unit_label', 'like', $like)
+                    ->orWhereHas('property', fn (Builder $building) => $building->where('name', 'like', $like)));
+            })
+            // By building name, then label with "Flat 2" before "Flat 10".
+            ->orderBy(Property::query()->select('name')->whereColumn('properties.id', 'units.property_id'))
+            ->orderBy('property_id')
+            ->orderByRaw('CHAR_LENGTH(units.unit_label)')
+            ->orderBy('unit_label')
+            ->orderBy('id')
+            ->paginate(self::PER_PAGE);
+
+        // Whether units can be edited: the same answer for every unit of an
+        // active building on the page (the list is already narrowed), so
+        // one policy check rather than one per row.
+        $sample = $units->getCollection()->first(static fn (Unit $unit): bool => $unit->property instanceof Property && ! $unit->property->isArchived());
+
+        return view('properties::livewire.unit-index', [
+            'organization' => $context->get(),
+            'units' => $units,
+            'filtered' => $search !== '' || $buildingId !== null || $status !== null || $type !== null,
+            'canEdit' => $sample instanceof Unit && $user->can('update', $sample),
+            'buildings' => $narrowing->buildings(Property::query(), $user)->orderBy('name')->orderBy('id')->pluck('name', 'id')->all(),
+            'statuses' => UnitStatus::cases(),
+            'types' => UnitType::cases(),
+        ]);
+    }
+
+    private function user(): User
+    {
+        $user = auth()->user();
+        abort_unless($user instanceof User, 403);
+
+        return $user;
+    }
+}

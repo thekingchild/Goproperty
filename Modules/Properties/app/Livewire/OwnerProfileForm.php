@@ -12,6 +12,7 @@ use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
 use Livewire\Component;
+use Modules\Properties\Assignments\AgentNarrowing;
 use Modules\Properties\Enums\OwnerIdType;
 use Modules\Properties\Enums\OwnerType;
 use Modules\Properties\Models\OwnerProfile;
@@ -26,7 +27,8 @@ use Modules\Properties\Owners\OwnerProfiles;
  * and saves (OwnerProfilePolicy, checked again by OwnerProfiles).
  *
  * An owner's page also lists the owner's buildings (P02-01b) for members
- * who may see buildings.
+ * who may see buildings; an agent limited to some buildings sees only those
+ * among them, and only the owners of their buildings (P02-03).
  *
  * The ID number on file is never sent to the browser: the page shows it
  * masked, and an empty field keeps it. The owner id is locked and loaded
@@ -134,9 +136,15 @@ final class OwnerProfileForm extends Component
         $this->status = __('Saved.');
     }
 
-    public function render(OrganizationContext $context): View
+    public function render(OrganizationContext $context, AgentNarrowing $narrowing): View
     {
         $owner = $this->ownerId !== null ? $this->owner() : null;
+
+        if ($owner !== null) {
+            // Checked on every render: an agent no longer on any of this
+            // owner's buildings sees the owner no more (404).
+            $this->authorize('view', $owner);
+        }
 
         return view('properties::livewire.owner-profile-form', [
             'organization' => $context->get(),
@@ -150,9 +158,9 @@ final class OwnerProfileForm extends Component
             'flash' => session('owner-status'),
             // The owner's buildings (P02-01b), for members who may see buildings.
             'buildings' => $owner !== null && $this->user()->can('viewAny', Property::class)
-                ? $owner->properties()->orderBy('status')->orderBy('name')->limit(self::BUILDINGS_SHOWN)->get()
+                ? $narrowing->buildings($owner->properties()->getQuery(), $this->user())->orderBy('status')->orderBy('name')->limit(self::BUILDINGS_SHOWN)->get()
                 : null,
-            'buildingCount' => $owner !== null ? $owner->properties()->count() : 0,
+            'buildingCount' => $owner !== null ? $narrowing->buildings($owner->properties()->getQuery(), $this->user())->count() : 0,
         ]);
     }
 

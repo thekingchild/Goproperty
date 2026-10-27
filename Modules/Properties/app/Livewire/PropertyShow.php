@@ -19,6 +19,7 @@ use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\WithFileUploads;
+use Modules\Properties\Assignments\AgentAssignments;
 use Modules\Properties\Buildings\Properties;
 use Modules\Properties\Buildings\PropertyPhotos;
 use Modules\Properties\Enums\UnitStatus;
@@ -41,6 +42,12 @@ use Modules\Properties\Units\Units;
  * links to add one or several units and to edit each; archived units are
  * listed on request with Restore. Unit actions check UnitPolicy (and
  * Units\Units again); a unit is looked up among this building's units only.
+ *
+ * Agents (P02-03): the members assigned to the building, listed for
+ * everyone who sees it; owners and administrators (`assignAgents`) assign
+ * the organization's agents and take them off (Assignments\AgentAssignments,
+ * audited). An assigned agent sees only their buildings; a building outside
+ * a narrowed agent's assignments answers 404 here (PropertyPolicy).
  *
  * Photos are checked by App\Media\UploadValidator as soon as they are
  * chosen and again when saved (MediaUploads), and shown through signed,
@@ -74,6 +81,9 @@ final class PropertyShow extends Component
     /** Whether the archived units are listed. */
     #[Url(as: 'archived_units', except: false)]
     public bool $showArchivedUnits = false;
+
+    /** The agent chosen to assign (a user id), or empty. */
+    public string $agentToAssign = '';
 
     public function boot(OrganizationContext $context): void
     {
@@ -166,6 +176,28 @@ final class PropertyShow extends Component
         $this->notice = __(':label was restored.', ['label' => $unit->unit_label]);
     }
 
+    public function assignAgent(AgentAssignments $assignments): void
+    {
+        $property = $this->property();
+        $this->authorize('assignAgents', $property);
+
+        $assignment = $assignments->assign($this->user(), $property, ctype_digit($this->agentToAssign) ? (int) $this->agentToAssign : 0);
+        $this->agentToAssign = '';
+        $this->notice = __(':name now works on :building, and sees only the buildings they are assigned to.', [
+            'name' => $assignment->user->name ?? '',
+            'building' => $property->name,
+        ]);
+    }
+
+    public function unassignAgent(int $userId, AgentAssignments $assignments): void
+    {
+        $property = $this->property();
+        $this->authorize('assignAgents', $property);
+
+        $assignments->unassign($this->user(), $property, $userId);
+        $this->notice = __('The agent was taken off :building.', ['building' => $property->name]);
+    }
+
     public function archive(Properties $properties): void
     {
         $property = $this->property();
@@ -185,9 +217,12 @@ final class PropertyShow extends Component
         $this->notice = __(':name was restored.', ['name' => $property->name]);
     }
 
-    public function render(OrganizationContext $context, MediaUrls $urls): View
+    public function render(OrganizationContext $context, MediaUrls $urls, AgentAssignments $assignments): View
     {
         $property = $this->property();
+        // Checked on every render: an agent taken off the building since the
+        // page loaded sees it no more (404).
+        $this->authorize('view', $property);
         $property->load('owner');
         $user = $this->user();
 
@@ -208,6 +243,8 @@ final class PropertyShow extends Component
             : collect();
         $archivedUnits->each(fn (Unit $unit) => $unit->setRelation('property', $property));
         $sampleArchived = $archivedUnits->first();
+        $agents = $assignments->agentsOf($property);
+        $canAssign = $user->can('assignAgents', $property);
 
         return view('properties::livewire.property-show', [
             'organization' => $context->get(),
@@ -231,6 +268,10 @@ final class PropertyShow extends Component
             'canRemovePhotos' => $user->can('deletePhoto', $property),
             'canArchive' => $user->can('delete', $property),
             'canRestore' => $user->can('restore', $property),
+            'agents' => $agents,
+            'canAssignAgents' => $canAssign,
+            // The organization's agents not on the building yet.
+            'assignableAgents' => $canAssign ? $assignments->assignable()->whereNotIn('id', array_map(static fn (array $row): int => $row['user']->id, $agents))->values() : collect(),
             'maxPhotos' => PropertyPhotos::MAX_PHOTOS,
             'flash' => session('building-status'),
         ]);

@@ -23,7 +23,8 @@ use Illuminate\Support\Facades\Gate;
  * Removing a member deletes their membership and every role and direct
  * permission they hold in this organization (`model_has_roles` /
  * `model_has_permissions` rows with its `organization_id`), and nothing
- * they hold elsewhere.
+ * they hold elsewhere; MemberRemoved lets modules drop what else the member
+ * had there (building assignments), in the same transaction.
  */
 final readonly class Members
 {
@@ -117,6 +118,9 @@ final readonly class Members
                 'user_id' => $member->id,
                 'old' => ['roles' => $roles],
             ]);
+
+            // Modules clean up what the member had here (e.g. building assignments).
+            MemberRemoved::dispatch($organization->id, $member->id, $actor->id);
         });
     }
 

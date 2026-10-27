@@ -8,6 +8,8 @@ use App\Enums\OrganizationPermission;
 use App\Enums\OrganizationStatus;
 use App\Models\User;
 use App\Tenancy\OrganizationContext;
+use Illuminate\Auth\Access\Response;
+use Modules\Properties\Assignments\AgentNarrowing;
 use Modules\Properties\Models\Property;
 use Modules\Properties\Models\Unit;
 use Spatie\Permission\Exceptions\PermissionDoesNotExist;
@@ -28,49 +30,77 @@ use Spatie\Permission\Exceptions\PermissionDoesNotExist;
  * (ONBOARDING_COMPLIANCE.md § 5.5). The central guards apply on top: in a
  * suspended organization only the reads pass (OrganizationWriteGuard), and
  * while GoProperty staff impersonate, archiving a unit (`delete`) is
- * refused (ImpersonationGuard). P02-03 narrows agents to their assigned
- * buildings here.
+ * refused (ImpersonationGuard).
+ *
+ * Agent narrowing (P02-03, ARCHITECTURE.md § 5): an agent with building
+ * assignments sees and edits only the units of those buildings; any other
+ * unit or building answers 404 (Response::denyAsNotFound), as another
+ * organization's does.
  */
 final class UnitPolicy
 {
-    public function __construct(private readonly OrganizationContext $context) {}
+    public function __construct(
+        private readonly OrganizationContext $context,
+        private readonly AgentNarrowing $narrowing,
+    ) {}
 
     public function viewAny(User $user): bool
     {
         return $this->holds($user, OrganizationPermission::ViewProperties);
     }
 
-    public function view(User $user, Unit $unit): bool
+    public function view(User $user, Unit $unit): Response|bool
     {
-        return $this->belongsHere($unit) && $this->viewAny($user);
+        return $this->reachable($user, $unit) ?? $this->viewAny($user);
     }
 
     /** Add units to the building (one, or several at once). */
-    public function create(User $user, Property $property): bool
+    public function create(User $user, Property $property): Response|bool
     {
-        return $this->buildingOpen($property) && ! $this->restricted()
-            && $this->holds($user, OrganizationPermission::ManagePropertyPortfolio);
+        if (! $this->context->has() || $property->organization_id !== $this->context->id() || $property->trashed()) {
+            return false;
+        }
+
+        return $this->assigned($user, $property->id)
+            ?? ($this->buildingOpen($property) && ! $this->restricted() && $this->holds($user, OrganizationPermission::ManagePropertyPortfolio));
     }
 
     /** Edit a unit's details and its manual status. */
-    public function update(User $user, Unit $unit): bool
+    public function update(User $user, Unit $unit): Response|bool
     {
-        return $this->belongsHere($unit) && ! $unit->trashed() && $this->buildingOpen($unit->property)
-            && $this->holds($user, OrganizationPermission::ManageProperties);
+        return $this->reachable($user, $unit)
+            ?? (! $unit->trashed() && $this->buildingOpen($unit->property) && $this->holds($user, OrganizationPermission::ManageProperties));
     }
 
     /** Archive (a soft delete: the unit stops counting towards the bill). */
-    public function delete(User $user, Unit $unit): bool
+    public function delete(User $user, Unit $unit): Response|bool
     {
-        return $this->belongsHere($unit) && ! $unit->trashed() && $this->buildingOpen($unit->property)
-            && $this->holds($user, OrganizationPermission::ManagePropertyPortfolio);
+        return $this->reachable($user, $unit)
+            ?? (! $unit->trashed() && $this->buildingOpen($unit->property) && $this->holds($user, OrganizationPermission::ManagePropertyPortfolio));
     }
 
     /** Bring an archived unit back. */
-    public function restore(User $user, Unit $unit): bool
+    public function restore(User $user, Unit $unit): Response|bool
     {
-        return $this->belongsHere($unit) && $unit->trashed() && $this->buildingOpen($unit->property) && ! $this->restricted()
-            && $this->holds($user, OrganizationPermission::ManagePropertyPortfolio);
+        return $this->reachable($user, $unit)
+            ?? ($unit->trashed() && $this->buildingOpen($unit->property) && ! $this->restricted()
+                && $this->holds($user, OrganizationPermission::ManagePropertyPortfolio));
+    }
+
+    /**
+     * Null when the unit is this organization's and its building within the
+     * member's assignments (the ability's own rule decides); false for
+     * another organization's unit; 404 for a unit outside a narrowed
+     * agent's buildings, whatever the ability.
+     */
+    private function reachable(User $user, Unit $unit): Response|false|null
+    {
+        return $this->belongsHere($unit) ? $this->assigned($user, $unit->property_id) : false;
+    }
+
+    private function assigned(User $user, int $propertyId): ?Response
+    {
+        return $this->narrowing->allows($user, $propertyId) ? null : Response::denyAsNotFound();
     }
 
     private function belongsHere(Unit $unit): bool

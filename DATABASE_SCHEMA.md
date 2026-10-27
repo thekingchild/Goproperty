@@ -126,7 +126,7 @@ The allocation + contract. `organization_id`, `unit_id`, `tenant_profile_id`, `c
 Optional but recommended: `lease_id`, `proposed_rent_kobo`, `proposed_cycle`, `expires_at`, `status` (`pending`, `accepted`, `declined`, `expired`), `responded_at`. (MVP can generate the renewal lease directly; the offer table supports tenant-facing accept flows later.)
 
 ### agent_building
-Assignment narrowing (optional per ARCHITECTURE § 5). `organization_id`, `user_id`, `property_id`, unique `(user_id, property_id)`.
+Assignment narrowing (optional per agent, ARCHITECTURE.md § 5). `organization_id`, `user_id` (FK to `users`, cascade on delete), `property_id` (FK to `properties`, cascade on delete; buildings are never hard deleted), timestamps; no soft deletes (a row is a plain link: unassigning, or removing the member from the organization, deletes it, audited by the writer). Unique `(organization_id, user_id, property_id)` (the documented `(user_id, property_id)` pair with `organization_id` leading, ARCHITECTURE.md § 4; it also serves "this agent's buildings here"); index `(organization_id, property_id)` (a building's agents). An agent (holding `agent` and neither `org-owner` nor `org-admin`) with at least one row in the organization sees only those buildings; an agent with none sees every building. Built in P02-03: `Modules\Properties\Models\AgentAssignment`, written only through `Modules\Properties\Assignments\AgentAssignments` (audited, log `properties`); other modules read it through `Modules\Properties\Contracts\BuildingAccess`.
 
 ## 4. Customer Billing (rent, utilities, payments)
 
