@@ -21,6 +21,7 @@ use App\Models\OrganizationBankAccount;
 use App\Models\OrganizationOnboarding;
 use App\Models\TierApplication;
 use App\Models\User;
+use App\Support\Money;
 use App\Tenancy\OrganizationContext;
 use Closure;
 use Illuminate\Database\Eloquent\Model;
@@ -29,6 +30,10 @@ use LogicException;
 use Modules\Import\Enums\ImportFileType;
 use Modules\Import\Models\ImportBatch;
 use Modules\Import\Models\ImportColumnMapping;
+use Modules\Leasing\Contracts\BillingCycle;
+use Modules\Leasing\Enums\DepositEntryType;
+use Modules\Leasing\Models\Lease;
+use Modules\Leasing\Models\LeaseDepositEntry;
 use Modules\Properties\Models\AgentAssignment;
 use Modules\Properties\Models\OwnerProfile;
 use Modules\Properties\Models\Property;
@@ -105,6 +110,13 @@ final class OrganizationScopedModels
             Unit::class => fn (): Model => Unit::factory()->in(Property::factory()->create())->create(),
             AgentAssignment::class => fn (): Model => AgentAssignment::factory()->of(User::factory()->create(), Property::factory()->create())->create(),
             TenantProfile::class => fn (): Model => TenantProfile::factory()->withNin()->create(),
+            // Rows on their own (LeaseService is the writer; the probes are about the rows).
+            Lease::class => fn (): Model => self::lease(),
+            LeaseDepositEntry::class => fn (): Model => tap(new LeaseDepositEntry, fn (LeaseDepositEntry $entry): bool => $entry->forceFill([
+                'lease_id' => self::lease()->id,
+                'type' => DepositEntryType::Held,
+                'amount_kobo' => Money::naira(150_000),
+            ])->save()),
             // Owned by the offering organization; the receiving one reads it
             // only through Modules\SaasBilling\Transfers\IncomingTransfers.
             BillingTransferRequest::class => fn (): Model => tap(new BillingTransferRequest, fn (BillingTransferRequest $transfer): bool => $transfer->forceFill([
@@ -112,6 +124,22 @@ final class OrganizationScopedModels
                 'expires_at' => now()->addDays(14),
             ])->save()),
         ];
+    }
+
+    /** A draft lease of a new unit for a new tenant, in the current organization. */
+    private static function lease(): Lease
+    {
+        $unit = Unit::factory()->in(Property::factory()->create())->create();
+
+        return tap(new Lease, fn (Lease $lease): bool => $lease->forceFill([
+            'property_id' => $unit->property_id,
+            'unit_id' => $unit->id,
+            'tenant_profile_id' => TenantProfile::factory()->create()->id,
+            'billing_cycle' => BillingCycle::Annual,
+            'start_date' => '2027-01-01',
+            'end_date' => '2027-12-31',
+            'rent_amount_kobo' => Money::naira(1_500_000),
+        ])->save());
     }
 
     /** @param  class-string<Model>  $class */

@@ -47,6 +47,15 @@ interface UnitDirectory
      */
     public function findMany(array $unitIds): array;
 
+    /**
+     * The building's live units (not archived), by label with "Flat 2"
+     * before "Flat 10": for a picker such as the lease form's. Empty for an
+     * unknown building.
+     *
+     * @return array<int, UnitSummary> by id
+     */
+    public function inProperty(int $propertyId): array;
+
     /** The building's units by status (zeros for an unknown building). */
     public function countsForProperty(int $propertyId): UnitCounts;
 

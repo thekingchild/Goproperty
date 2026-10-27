@@ -13,6 +13,11 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Livewire;
 use Modules\Import\Contracts\ImportTargets;
+use Modules\Leasing\Events\LeaseActivated;
+use Modules\Leasing\Events\LeaseDrafted;
+use Modules\Leasing\Events\LeaseExpired;
+use Modules\Leasing\Events\LeaseRenewed;
+use Modules\Leasing\Events\LeaseTerminated;
 use Modules\Properties\Assignments\AgentNarrowing;
 use Modules\Properties\Assignments\DropRemovedMemberAssignments;
 use Modules\Properties\Buildings\PropertyDirectoryService;
@@ -32,6 +37,7 @@ use Modules\Properties\Models\Unit;
 use Modules\Properties\Policies\OwnerProfilePolicy;
 use Modules\Properties\Policies\PropertyPolicy;
 use Modules\Properties\Policies\UnitPolicy;
+use Modules\Properties\Units\FollowLeases;
 use Modules\Properties\Units\UnitDirectoryService;
 use Nwidart\Modules\Support\ModuleServiceProvider;
 
@@ -43,8 +49,10 @@ use Nwidart\Modules\Support\ModuleServiceProvider;
  * Modules\Properties\Livewire), its workspace sidebar items, the contracts
  * other modules use (Contracts\PropertyDirectory, UnitDirectory,
  * BuildingAccess), drops a removed member's building assignments
- * (App\Members\MemberRemoved), and makes owners, buildings and units
- * importable by registering their targets into the Import module's
+ * (App\Members\MemberRemoved), keeps units' occupied/reserved status in
+ * step with the Leasing module's lease events (Units\FollowLeases), and
+ * makes owners, buildings and units importable by registering their
+ * targets into the Import module's
  * registry (through its contract, AGENT.md § 4; nothing happens when the
  * Import module is off), and registers its lists' exports (Lists\*,
  * App\Exports\ListExports).
@@ -85,6 +93,12 @@ final class PropertiesServiceProvider extends ModuleServiceProvider
         Gate::policy(Unit::class, UnitPolicy::class);
 
         Event::listen(MemberRemoved::class, DropRemovedMemberAssignments::class);
+
+        // Occupied and reserved follow leases (ARCHITECTURE.md § 6.2): the
+        // Leasing module's events carry the status, inside its transaction.
+        foreach ([LeaseDrafted::class, LeaseActivated::class, LeaseRenewed::class, LeaseTerminated::class, LeaseExpired::class] as $event) {
+            Event::listen($event, FollowLeases::class);
+        }
 
         Livewire::addNamespace($this->nameLower, classNamespace: 'Modules\\Properties\\Livewire');
 

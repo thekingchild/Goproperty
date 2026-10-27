@@ -15,6 +15,10 @@
         <flux:callout variant="success" icon="check-circle" :heading="$notice" role="status" data-test="tenants-notice" />
     @endif
 
+    @error('archive')
+        <flux:callout variant="warning" icon="exclamation-triangle" :heading="$message" role="alert" data-test="tenants-warning" />
+    @enderror
+
     <div class="flex flex-col gap-3">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div class="w-full sm:max-w-sm">

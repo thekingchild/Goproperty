@@ -14,6 +14,7 @@ use Modules\Tenants\Models\TenantProfile;
 use Tests\Support\LivewireHttp;
 
 require_once __DIR__.'/helpers.php';
+require_once __DIR__.'/../../../../Leasing/tests/Feature/helpers.php';
 
 /*
  * P03-01a: who may see and change tenants on the pages (ARCHITECTURE.md
@@ -21,8 +22,8 @@ require_once __DIR__.'/helpers.php';
  * manage tenants; property owners and tenants never open the workspace.
  * The central guards apply on top: a suspended organization is read-only,
  * impersonating staff never archive a tenant nor take the list away.
- * Agents narrowed to some buildings still see every tenant until leases
- * tie tenants to buildings (P03-03a; decision recorded in the ledger).
+ * Agents narrowed to some buildings see the tenants without a lease and
+ * the tenants of their buildings' leases (P03-03a).
  */
 
 beforeEach(function () {
@@ -183,19 +184,27 @@ it('lets impersonating staff in write mode edit a tenant, audited with both iden
         ->and(AuditEntry::query()->where('event', 'impersonation.blocked')->where('subject_id', $handOff->session->id)->count())->toBeGreaterThanOrEqual(3);
 });
 
-it('shows an agent narrowed to some buildings every tenant until leases tie tenants to buildings (P03-03a)', function () {
+it('shows an agent narrowed to some buildings the tenants without a lease and the tenants of their buildings only (P03-03a)', function () {
+    // Changed on purpose by P03-03a: leases now tie tenants to buildings
+    // (P03-01a pinned "every tenant until leases exist" here).
     $agent = joinAs(User::factory()->create(), $this->acme, OrganizationRole::Agent);
     $palm = buildingIn($this->acme, ['name' => 'Palm Court', 'slug' => 'palm-court']);
-    buildingIn($this->acme, ['name' => 'Oak Lodge', 'slug' => 'oak-lodge']);
+    $oak = buildingIn($this->acme, ['name' => 'Oak Lodge', 'slug' => 'oak-lodge']);
     assignIn($this->acme, $agent, $palm);
+    $palmTenant = tenantIn($this->acme, ['first_name' => 'Palm', 'last_name' => 'Renter']);
+    $oakTenant = tenantIn($this->acme, ['first_name' => 'Oak', 'last_name' => 'Renter']);
+    draftLease($this->acme, $this->owner, unitIn($this->acme, $palm), $palmTenant);
+    draftLease($this->acme, $this->owner, unitIn($this->acme, $oak), $oakTenant);
 
-    // The agent is narrowed (BuildingAccess), yet no tenant has a building yet.
     expect(inOrganization($this->acme, fn () => app(BuildingAccess::class)->limitedTo($agent)))->toBe([$palm->id]);
 
-    tenantsPage($agent)->assertOk()->assertSee('Tunde Bakare');
+    tenantsPage($agent)->assertOk()->assertSee('Tunde Bakare')->assertSee('Palm Renter')->assertDontSee('Oak Renter');
     tenantsPage($agent, "/{$this->record->id}")->assertOk();
     tenantsPage($agent, "/{$this->archived->id}")->assertOk();
+    tenantsPage($agent, "/{$palmTenant->id}")->assertOk();
+    tenantsPage($agent, "/{$oakTenant->id}")->assertNotFound();
+    // They still add tenants (for the leases they sign).
     LivewireHttp::update($this, tenantsSnapshot($agent, '/create'), tenantForm(), [['save']])->assertOk();
 
-    expect(tenantsOf($this->acme))->toHaveCount(3);
+    expect(tenantsOf($this->acme))->toHaveCount(5);
 });

@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Modules\Leasing\Contracts\TenantLeases;
 use Modules\Tenants\Enums\KycStatus;
 use Modules\Tenants\Enums\TenantIdType;
 use Modules\Tenants\Models\TenantProfile;
@@ -118,13 +119,25 @@ final class TenantProfiles
         }
     }
 
-    /** Archive the tenant: a soft delete (AGENT.md § 3 rule 7). */
+    /**
+     * Archive the tenant: a soft delete (AGENT.md § 3 rule 7). Refused while
+     * a draft or active lease holds a unit for them (asked of the Leasing
+     * module through Modules\Leasing\Contracts\TenantLeases, with the
+     * tenant's row locked, so a lease drafted meanwhile waits for this).
+     *
+     * @throws ValidationException (key `archive`) while a lease holds a unit for the tenant
+     */
     public function archive(User $by, TenantProfile $tenant): void
     {
         Gate::forUser($by)->authorize('delete', $tenant);
 
         DB::transaction(function () use ($by, $tenant): void {
             $tenant = TenantProfile::query()->whereKey($tenant->getKey())->lockForUpdate()->firstOrFail();
+
+            if (app()->bound(TenantLeases::class) && app(TenantLeases::class)->holdsUnit($tenant->id)) {
+                throw ValidationException::withMessages(['archive' => __(':name has an active or draft lease. End or cancel it before archiving them.', ['name' => $tenant->fullName()])]);
+            }
+
             $tenant->delete();
             $this->audit('tenant.archived', $tenant, $by, 'Tenant archived');
         });

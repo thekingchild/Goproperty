@@ -172,3 +172,22 @@ it('refuses to answer without an organization', function () {
     expect(fn () => app(UnitDirectory::class)->countBillable())->toThrow(MissingOrganizationContext::class)
         ->and(fn () => app(UnitDirectory::class)->find(1))->toThrow(MissingOrganizationContext::class);
 });
+
+it('lists a building\'s live units for a picker, "Flat 2" before "Flat 10", never another building\'s or organization\'s', function () {
+    $ten = unitIn($this->acme, $this->palm, ['unit_label' => 'Flat 10']);
+    $two = unitIn($this->acme, $this->palm, ['unit_label' => 'Flat 2', 'status' => UnitStatus::Occupied]);
+    $archived = unitIn($this->acme, $this->palm, ['unit_label' => 'Flat 3']);
+    inOrganization($this->acme, fn () => $archived->delete());
+    unitIn($this->acme, buildingIn($this->acme), ['unit_label' => 'Flat 1']);
+    $foreignBuilding = buildingIn($this->other);
+    unitIn($this->other, $foreignBuilding, ['unit_label' => 'Flat 1']);
+
+    inOrganization($this->acme, function () use ($ten, $two, $foreignBuilding): void {
+        $units = app(UnitDirectory::class)->inProperty($this->palm->id);
+
+        expect(array_keys($units))->toBe([$two->id, $ten->id])
+            ->and($units[$two->id]->status)->toBe(UnitDirectory::OCCUPIED)
+            ->and(app(UnitDirectory::class)->inProperty($foreignBuilding->id))->toBe([])
+            ->and(app(UnitDirectory::class)->inProperty(999_999))->toBe([]);
+    });
+});

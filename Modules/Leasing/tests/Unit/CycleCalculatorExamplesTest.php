@@ -204,3 +204,15 @@ it('labels every cycle and knows its length', function () {
         expect(($cycle->days() === null) !== ($cycle->months() === null))->toBeTrue($cycle->value);
     }
 });
+
+it('counts calendar days forward and back (a draft\'s hold, the day after a lease ends)', function () {
+    $calculator = new CycleCalculator;
+
+    expect($calculator->daysAfter(CarbonImmutable::parse('2026-12-20'), 14)->toDateString())->toBe('2027-01-03')
+        ->and($calculator->daysAfter(CarbonImmutable::parse('2028-02-28'), 1)->toDateString())->toBe('2028-02-29')
+        ->and($calculator->daysAfter(CarbonImmutable::parse('2027-02-28'), 1)->toDateString())->toBe('2027-03-01')
+        ->and($calculator->daysAfter(CarbonImmutable::parse('2027-12-31'), 1)->toDateString())->toBe('2028-01-01')
+        ->and($calculator->daysAfter(CarbonImmutable::parse('2028-03-01'), -1)->toDateString())->toBe('2028-02-29')
+        ->and($calculator->daysAfter(CarbonImmutable::parse('2027-06-15 18:45:00'), 0)->toDateTimeString())->toBe('2027-06-15 00:00:00')
+        ->and($calculator->daysAfter(CarbonImmutable::parse('2027-06-15', 'Africa/Lagos'), 3)->tzName)->toBe('Africa/Lagos');
+});

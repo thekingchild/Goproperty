@@ -26,6 +26,7 @@ use Tests\Fixtures\Livewire\UnexportedListProbe;
 
 require_once __DIR__.'/helpers.php';
 require_once __DIR__.'/../../../Modules/Tenants/tests/Feature/helpers.php';
+require_once __DIR__.'/../../../Modules/Leasing/tests/Feature/helpers.php';
 
 /*
  * P02-07 AC "every list page exports" (IMPLEMENTATION_PLAN.md § 3;
@@ -56,9 +57,10 @@ beforeEach(function () {
     // A row in every list of the workspace.
     $owner = ownerIn($this->acme, ['first_name' => 'Ngozi', 'last_name' => 'Eze']);
     $this->palm = buildingIn($this->acme, ['name' => 'Palm Court', 'slug' => 'palm-court', 'owner_profile_id' => $owner->id]);
-    unitIn($this->acme, $this->palm, ['unit_label' => 'Flat 1', 'base_rent_kobo' => Money::naira(1_500_000), 'status' => UnitStatus::Vacant]);
+    $flat = unitIn($this->acme, $this->palm, ['unit_label' => 'Flat 1', 'base_rent_kobo' => Money::naira(1_500_000), 'status' => UnitStatus::Vacant]);
     assignIn($this->acme, $this->agent, $this->palm);
-    tenantIn($this->acme, ['first_name' => 'Kemi', 'last_name' => 'Adebayo']);
+    $kemi = tenantIn($this->acme, ['first_name' => 'Kemi', 'last_name' => 'Adebayo']);
+    draftLease($this->acme, $this->owner, $flat, $kemi);
     inOrganization($this->acme, function (): void {
         ImportBatch::query()->create(['kind' => 'workbook', 'file_type' => 'xlsx', 'file_name' => 'portfolio.xlsx', 'status' => ImportStatus::Uploaded, 'created_by_user_id' => $this->owner->id]);
         app(MemberInvitations::class)->invite($this->owner, 'new.agent@acme.ng', [OrganizationRole::Agent]);
@@ -185,7 +187,7 @@ it('gives every workspace list page a working export, in Excel and CSV', functio
     $offered = array_values(array_unique($offered));
     sort($offered);
     expect($offered)->toBe(array_keys($registry->keys()))
-        ->toBe(['billing_transfers_made', 'billing_transfers_received', 'building_agents', 'buildings', 'imports', 'member_invitations', 'members', 'owners', 'tenants', 'units']);
+        ->toBe(['billing_transfers_made', 'billing_transfers_received', 'building_agents', 'buildings', 'imports', 'leases', 'member_invitations', 'members', 'owners', 'tenants', 'units']);
 });
 
 it('makes every Livewire component that pages through a list use the export', function () {

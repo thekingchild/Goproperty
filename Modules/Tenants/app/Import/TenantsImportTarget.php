@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Tenants\Import;
 
 use App\Support\PhoneNumber;
+use Illuminate\Database\Eloquent\Builder;
 use Modules\Import\Contracts\ImportAction;
 use Modules\Import\Contracts\ImportColumn;
 use Modules\Import\Contracts\ImportRow;
@@ -13,6 +14,7 @@ use Modules\Import\Contracts\ImportTarget;
 use Modules\Import\Contracts\RowIssue;
 use Modules\Import\Contracts\RowPlan;
 use Modules\Import\Contracts\UpsertResult;
+use Modules\Leasing\Contracts\TenantLeases;
 use Modules\Tenants\Enums\KycStatus;
 use Modules\Tenants\Enums\TenantIdType;
 use Modules\Tenants\Models\TenantProfile;
@@ -219,7 +221,14 @@ final class TenantsImportTarget implements ImportTarget
      */
     public function usedSince(int $batchId): bool
     {
-        return TenantProfile::query()->withTrashed()->where('import_batch_id', $batchId)->whereNotNull('user_id')->exists();
+        // Used once a tenant of the batch has portal access or a lease
+        // (P03-03a, through the Leasing module's contract).
+        $leases = app()->bound(TenantLeases::class) ? app(TenantLeases::class) : null;
+
+        return TenantProfile::query()->withTrashed()->where('import_batch_id', $batchId)
+            ->where(fn (Builder $query) => $query->whereNotNull('user_id')
+                ->when($leases instanceof TenantLeases, fn (Builder $query) => $query->orWhereIn('id', $leases->tenantIdsQuery())))
+            ->exists();
     }
 
     /**

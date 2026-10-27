@@ -73,26 +73,36 @@ final class TenantList extends QueryListExport
             ->when($kyc !== null, fn (Builder $query) => $query->where('kyc_status', $kyc))
             ->when($portal === 'yes', fn (Builder $query) => $query->whereNotNull('user_id'))
             ->when($portal === 'no', fn (Builder $query) => $query->whereNull('user_id'))
-            ->when($search !== null, function (Builder $query) use ($search): void {
-                $like = ListFilters::like((string) $search);
-                $digits = preg_replace('/\D/', '', (string) $search) ?? '';
-
-                $query->where(function (Builder $query) use ($like, $digits): void {
-                    $query->where('first_name', 'like', $like)
-                        ->orWhere('last_name', 'like', $like)
-                        // "Adaeze Oka" finds Adaeze Okafor (CONCAT: MySQL and MariaDB).
-                        ->orWhereRaw("concat(first_name, ' ', last_name) like ?", [$like])
-                        ->orWhere('email', 'like', $like);
-
-                    // Phones are stored as +234…; "0803 123" finds +234803123….
-                    if (strlen($digits) >= 4) {
-                        $query->orWhere('phone', 'like', '%'.(str_starts_with($digits, '0') ? substr($digits, 1) : $digits).'%');
-                    }
-                });
-            })
+            ->when($search !== null, fn (Builder $query) => self::matching($query, (string) $search))
             ->orderBy('last_name')
             ->orderBy('first_name')
             ->orderBy('id');
+    }
+
+    /**
+     * Limit tenants to those whose name, email or phone number matches the
+     * search (shared with Contracts\TenantDirectory::search()).
+     *
+     * @param  Builder<TenantProfile>  $query
+     * @return Builder<TenantProfile>
+     */
+    public static function matching(Builder $query, string $search): Builder
+    {
+        $like = ListFilters::like($search);
+        $digits = preg_replace('/\D/', '', $search) ?? '';
+
+        return $query->where(function (Builder $query) use ($like, $digits): void {
+            $query->where('first_name', 'like', $like)
+                ->orWhere('last_name', 'like', $like)
+                // "Adaeze Oka" finds Adaeze Okafor (CONCAT: MySQL and MariaDB).
+                ->orWhereRaw("concat(first_name, ' ', last_name) like ?", [$like])
+                ->orWhere('email', 'like', $like);
+
+            // Phones are stored as +234…; "0803 123" finds +234803123….
+            if (strlen($digits) >= 4) {
+                $query->orWhere('phone', 'like', '%'.(str_starts_with($digits, '0') ? substr($digits, 1) : $digits).'%');
+            }
+        });
     }
 
     public function columns(User $user): array

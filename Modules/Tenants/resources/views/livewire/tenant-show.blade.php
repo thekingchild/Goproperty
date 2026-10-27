@@ -22,6 +22,10 @@
         <flux:callout variant="success" icon="check-circle" :heading="$flash" role="status" data-test="tenant-notice" />
     @endif
 
+    @error('archive')
+        <flux:callout variant="warning" icon="exclamation-triangle" :heading="$message" role="alert" data-test="tenant-warning" />
+    @enderror
+
     @if ($tenant->trashed())
         <flux:callout variant="warning" icon="archive-box" :heading="__('This tenant is archived')" :text="__('The record is kept with its history and cannot be changed until it is restored.')" data-test="archived-banner" />
     @endif
@@ -101,10 +105,30 @@
             </dl>
         </section>
 
-        {{-- Filled by the lease and bill tasks (P03-03a, P03-04b). --}}
-        <section class="rounded-xl border border-dashed border-zinc-300 bg-white p-5 lg:col-span-3 dark:border-zinc-700 dark:bg-zinc-900" data-test="tenant-leases-bills">
-            <flux:heading size="lg" level="2">{{ __('Leases and bills') }}</flux:heading>
-            <flux:text class="mt-2">{{ __('This tenant\'s leases, bills and payments will show here once leases are added.') }}</flux:text>
+        {{-- Leases (P03-03a); bills join them with P03-04b. --}}
+        <section class="rounded-xl border border-zinc-200 bg-white p-5 lg:col-span-3 dark:border-zinc-700 dark:bg-zinc-900" data-test="tenant-leases-bills">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <flux:heading size="lg" level="2">{{ __('Leases') }}</flux:heading>
+                @if ($canAddLease)
+                    <flux:button size="sm" icon="plus" :href="route('workspace.leases.create', [$organization, 'tenant' => $tenant->id])" wire:navigate data-test="add-lease-for-tenant">{{ __('New lease') }}</flux:button>
+                @endif
+            </div>
+
+            @if ($leases === [])
+                <flux:text class="mt-2">{{ __('No leases yet. Bills and payments will show here too once billing starts.') }}</flux:text>
+            @else
+                <ul class="mt-3 divide-y divide-zinc-100 dark:divide-zinc-800">
+                    @foreach ($leases as $lease)
+                        <li class="flex flex-col gap-1 py-2 sm:flex-row sm:items-center sm:justify-between" data-tenant-lease="{{ $lease->id }}">
+                            <span class="flex min-w-0 flex-col">
+                                <a href="{{ route('workspace.leases.show', [$organization, $lease->id]) }}" wire:navigate class="font-medium text-zinc-900 hover:underline dark:text-white">{{ $lease->contractNumber ?? __('Draft lease') }}</a>
+                                <span class="text-sm text-zinc-500 dark:text-zinc-400">{{ ($units[$lease->unitId] ?? null)?->label ?? __('Archived unit') }} · {{ ($buildings[$lease->propertyId] ?? null)?->name ?? '' }} · {{ $lease->startDate->format('d/m/Y') }}–{{ $lease->endDate->format('d/m/Y') }}</span>
+                            </span>
+                            <flux:badge size="sm" :color="match ($lease->status) { 'active' => 'green', 'draft' => 'sky', 'terminated' => 'red', 'renewed' => 'indigo', default => 'zinc' }">{{ __($lease->statusLabel) }}</flux:badge>
+                        </li>
+                    @endforeach
+                </ul>
+            @endif
         </section>
     </div>
 </x-page>

@@ -40,6 +40,14 @@ final readonly class UnitDirectoryService implements UnitDirectory
             ->all();
     }
 
+    public function inProperty(int $propertyId): array
+    {
+        return Unit::query()->with('property')->whereHas('property')->where('property_id', $propertyId)
+            ->orderByRaw('CHAR_LENGTH(unit_label)')->orderBy('unit_label')->orderBy('id')->get()
+            ->mapWithKeys(fn (Unit $unit): array => [$unit->id => self::summary($unit)])
+            ->all();
+    }
+
     public function countsForProperty(int $propertyId): UnitCounts
     {
         return self::countsOf(Unit::query()->where('property_id', $propertyId));

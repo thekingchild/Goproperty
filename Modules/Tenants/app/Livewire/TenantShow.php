@@ -4,21 +4,29 @@ declare(strict_types=1);
 
 namespace Modules\Tenants\Livewire;
 
+use App\Enums\OrganizationPermission;
 use App\Models\User;
 use App\Tenancy\OrganizationContext;
 use Illuminate\Contracts\View\View;
+use Illuminate\Support\Facades\Route;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
 use Livewire\Component;
+use Modules\Leasing\Contracts\LeaseSummary;
+use Modules\Leasing\Contracts\TenantLeases;
+use Modules\Properties\Contracts\BuildingAccess;
+use Modules\Properties\Contracts\PropertyDirectory;
+use Modules\Properties\Contracts\UnitDirectory;
 use Modules\Tenants\Models\TenantProfile;
 use Modules\Tenants\Profiles\TenantProfiles;
 
 /**
  * A tenant's record, /o/{organization}/tenants/{tenant}: contact details,
  * next of kin, identity (ID masked; the number is never sent to the
- * browser) and KYC status, portal access, and a place for the tenant's
- * leases and bills (filled by P03-03a and P03-04b). Members with
+ * browser) and KYC status, portal access, and the tenant's leases (read
+ * through the Leasing module's Contracts\TenantLeases, P03-03a; bills
+ * come with P03-04b). Members with
  * `tenants.view` open it, an archived tenant too (read-only, with Restore
  * for `tenants.manage`); `tenants.manage` edits and archives
  * (TenantProfilePolicy, checked again by Profiles\TenantProfiles).
@@ -74,16 +82,30 @@ final class TenantShow extends Component
         $this->notice = __(':name was restored.', ['name' => $tenant->fullName()]);
     }
 
-    public function render(OrganizationContext $context): View
+    public function render(OrganizationContext $context, UnitDirectory $unitDirectory, PropertyDirectory $propertyDirectory, BuildingAccess $access): View
     {
         $tenant = $this->tenant();
         // Checked on every render, not only when the page opened.
         $this->authorize('view', $tenant);
         $user = $this->user();
 
+        // The tenant's leases in the buildings the member works on (an assigned agent's only).
+        $limited = $access->limitedTo($user);
+        $leases = array_values(array_filter(
+            app()->bound(TenantLeases::class) ? app(TenantLeases::class)->forTenant($tenant->id) : [],
+            static fn (LeaseSummary $lease): bool => $limited === null || in_array($lease->propertyId, $limited, true),
+        ));
+        $unitIds = array_values(array_unique(array_map(static fn (LeaseSummary $lease): int => $lease->unitId, $leases)));
+        $buildingIds = array_values(array_unique(array_map(static fn (LeaseSummary $lease): int => $lease->propertyId, $leases)));
+
         return view('tenants::livewire.tenant-show', [
             'organization' => $context->get(),
             'tenant' => $tenant,
+            'leases' => $leases,
+            'units' => $unitIds === [] ? [] : $unitDirectory->findMany($unitIds),
+            'buildings' => $buildingIds === [] ? [] : $propertyDirectory->findMany($buildingIds),
+            'canAddLease' => ! $tenant->trashed() && Route::has('workspace.leases.create')
+                && rescue(fn (): bool => $user->hasPermissionTo(OrganizationPermission::ManageLeases->value, OrganizationPermission::GUARD), false, false),
             'maskedId' => $tenant->maskedId(),
             'canEdit' => $user->can('update', $tenant),
             'canArchive' => $user->can('delete', $tenant),

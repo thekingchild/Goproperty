@@ -68,6 +68,12 @@ interface CycleCalculator
     public function dueDate(DateTimeInterface $periodStart, int $dueDayOffset = 0): CarbonImmutable;
 
     /**
+     * The calendar day $days after the date (before it when negative):
+     * the day after a lease ends, the last day a draft holds its unit.
+     */
+    public function daysAfter(DateTimeInterface $date, int $days): CarbonImmutable;
+
+    /**
      * When a period's bill is generated: $leadDays before the period starts
      * (the organization's lead window, default DEFAULT_LEAD_DAYS).
      *

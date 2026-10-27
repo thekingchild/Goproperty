@@ -11,16 +11,19 @@ use App\Navigation\WorkspaceNavItem;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Livewire;
 use Modules\Import\Contracts\ImportTargets;
+use Modules\Tenants\Contracts\TenantDirectory;
 use Modules\Tenants\Import\TenantsImportTarget;
 use Modules\Tenants\Lists\TenantList;
 use Modules\Tenants\Models\TenantProfile;
 use Modules\Tenants\Policies\TenantProfilePolicy;
+use Modules\Tenants\Profiles\TenantDirectoryService;
 use Nwidart\Modules\Support\ModuleServiceProvider;
 
 /**
  * The Tenants module (ARCHITECTURE.md § 8): tenant profiles. The base
  * provider loads the module's views (`tenants::`) and migrations; this one
- * adds the policy, the workspace pages (routes, Livewire namespace
+ * binds Contracts\TenantDirectory (how other modules read tenants), adds
+ * the policy, the workspace pages (routes, Livewire namespace
  * `tenants::`, classes in Modules\Tenants\Livewire), the sidebar item
  * "Tenants", the list's export (Lists\TenantList, App\Exports\ListExports)
  * and makes tenants importable by registering TenantsImportTarget into the
@@ -37,6 +40,14 @@ final class TenantsServiceProvider extends ModuleServiceProvider
     protected array $providers = [
         RouteServiceProvider::class,
     ];
+
+    public function register(): void
+    {
+        parent::register();
+
+        // For other modules (ARCHITECTURE.md § 8 rule 3): Leasing first.
+        $this->app->bind(TenantDirectory::class, TenantDirectoryService::class);
+    }
 
     public function boot(): void
     {

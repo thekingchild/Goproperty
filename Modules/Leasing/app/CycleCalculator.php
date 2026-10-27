@@ -71,6 +71,11 @@ final class CycleCalculator implements CycleCalculatorContract
         return self::toDate(self::fromDayNumber(self::dayNumber(self::parts($periodStart)) + $dueDayOffset), self::midnight($periodStart));
     }
 
+    public function daysAfter(DateTimeInterface $date, int $days): CarbonImmutable
+    {
+        return self::toDate(self::fromDayNumber(self::dayNumber(self::parts($date)) + $days), self::midnight($date));
+    }
+
     public function billingDate(DateTimeInterface $periodStart, int $leadDays = self::DEFAULT_LEAD_DAYS): CarbonImmutable
     {
         if ($leadDays < 0) {

@@ -6,6 +6,7 @@ namespace Modules\Tenants\Access;
 
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Modules\Leasing\Contracts\TenantLeases;
 use Modules\Properties\Contracts\BuildingAccess;
 use Modules\Tenants\Models\TenantProfile;
 
@@ -14,15 +15,16 @@ use Modules\Tenants\Models\TenantProfile;
  * (ARCHITECTURE.md § 5 "Agent assignment and narrowing"; orchestrator
  * decision 9: tenant pages narrow through
  * Modules\Properties\Contracts\BuildingAccess). Used by TenantProfilePolicy
- * (view, so another tenant answers 404) and by Lists\TenantList.
+ * (view, so another tenant answers 404), by Lists\TenantList and by
+ * Contracts\TenantDirectory's picker.
  *
- * A tenant is tied to a building only through a lease, and leases come in
- * P03-03a. Until then no tenant has a building, so the rule is: a tenant
- * with no building is seen by everyone who sees tenants, including a
- * narrowed agent (who adds the tenants of the leases they will sign); a
- * tenant whose leases are all in other buildings is not. buildingsOf() is
- * the single place P03-03a fills in, through Leasing's contract, and the
- * query limiter gains the same rule there.
+ * A tenant is tied to a building only through a lease (P03-03a), read
+ * through the Leasing module's Contracts\TenantLeases: a narrowed agent
+ * sees the tenants with no lease at all (they add the tenants of the
+ * leases they sign) and the tenants with a lease, of any status, in one of
+ * their buildings; a tenant whose leases are all in other buildings answers
+ * 404. Everyone else sees every tenant. Without the Leasing module no
+ * tenant has a building, so a narrowed agent sees them all.
  */
 final readonly class TenantNarrowing
 {
@@ -43,18 +45,27 @@ final readonly class TenantNarrowing
     }
 
     /**
-     * Limits a tenants query to the tenants the member sees. Every tenant
-     * has no building until P03-03a, so a narrowed agent's list is the
-     * organization's tenants, as allows() answers.
+     * Limits a tenants query to the tenants the member sees, as allows()
+     * answers: for a narrowed agent, tenants without a lease or with a lease
+     * in one of their buildings.
      *
      * @param  Builder<TenantProfile>  $query
      * @return Builder<TenantProfile>
      */
     public function tenants(Builder $query, User $user): Builder
     {
-        // P03-03a: when limitedTo() is a list, keep tenants without a lease
-        // or with a lease in one of those buildings.
-        return $query;
+        $limited = $this->access->limitedTo($user);
+        $leases = self::leases();
+
+        if ($limited === null || $leases === null) {
+            return $query;
+        }
+
+        $id = $query->getModel()->qualifyColumn('id');
+
+        return $query->where(fn (Builder $query) => $query
+            ->whereNotIn($id, $leases->tenantIdsQuery())
+            ->orWhereIn($id, $leases->tenantIdsQuery($limited)));
     }
 
     /**
@@ -64,7 +75,12 @@ final readonly class TenantNarrowing
      */
     private function buildingsOf(TenantProfile $tenant): array
     {
-        // Leases arrive in P03-03a; no tenant has a building before them.
-        return [];
+        return self::leases()?->buildingsOf($tenant->id) ?? [];
+    }
+
+    /** The Leasing module's answers, when it is on. */
+    private static function leases(): ?TenantLeases
+    {
+        return app()->bound(TenantLeases::class) ? app(TenantLeases::class) : null;
     }
 }
