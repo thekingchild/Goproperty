@@ -49,9 +49,11 @@ use Modules\Leasing\Models\LeaseDepositEntry;
 use Modules\Payments\Contracts\PaymentMethod;
 use Modules\Payments\Contracts\PaymentSource;
 use Modules\Payments\Enums\CreditReason;
+use Modules\Payments\Enums\ProofSubmitter;
 use Modules\Payments\Models\Payment;
 use Modules\Payments\Models\PaymentAllocation;
 use Modules\Payments\Models\PaymentNotice;
+use Modules\Payments\Models\PaymentProof;
 use Modules\Payments\Models\Receipt;
 use Modules\Payments\Models\TenantCreditBalance;
 use Modules\Payments\Models\TenantCreditEntry;
@@ -211,6 +213,21 @@ final class OrganizationScopedModels
                 'event' => 'payment.recorded',
                 'channels' => ['mail'],
             ])->save()),
+            // A proof of payment (P03-09) on its own (no file): evidence, never changed or deleted.
+            PaymentProof::class => fn (): Model => tap(new PaymentProof, function (PaymentProof $proof): void {
+                $payment = self::payment();
+                $proof->forceFill([
+                    'payment_id' => $payment->id,
+                    'tenant_profile_id' => $payment->tenant_profile_id,
+                    'amount_kobo' => Money::naira(100_000),
+                    'paid_on' => '2027-01-01',
+                    'sender_name' => 'Probe Sender',
+                    'bank_name' => 'Probe Bank',
+                    'file_sha256' => $hash = hash('sha256', Str::random(32)),
+                    'first_upload_sha256' => $hash,
+                    'submitted_by' => ProofSubmitter::Member,
+                ])->save();
+            }),
             // Owned by the offering organization; the receiving one reads it
             // only through Modules\SaasBilling\Transfers\IncomingTransfers.
             BillingTransferRequest::class => fn (): Model => tap(new BillingTransferRequest, fn (BillingTransferRequest $transfer): bool => $transfer->forceFill([

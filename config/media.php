@@ -60,8 +60,10 @@ return [
             'kind' => 'attachment',
         ],
 
-        // Payment proofs, receipts for expenses, signed papers: a photo or a PDF.
-        // Conversions apply to the images only.
+        // Receipts for expenses, signed papers: a photo or a PDF. Conversions
+        // apply to the images only. (Payment proofs have their own evidence
+        // collection, `payment_proofs`, added by the Payments module's
+        // provider: P03-09.)
         'documents' => [
             'mimes' => ['application/pdf', 'image/jpeg', 'image/png'],
             'max_kb' => 10 * 1024,

@@ -54,6 +54,8 @@ use Modules\Tenants\Contracts\TenantDirectory;
  *   tenant's credit row lock), never lost, never refused (DATABASE_SCHEMA.md
  *   integrity rule 2). PaymentPolicy::confirm.
  * - reject(): with a reason; nothing is allocated. PaymentPolicy::reject.
+ * - recordProof(): the payment a proof of payment shows (P03-09), for
+ *   Proofs\ProofSubmissions: waiting for confirmation, source `proof_upload`.
  * - recordDraft(): Contracts\PaymentRecorder's work (Collections,
  *   OnlinePayments): idempotent by key, optionally confirmed at once.
  *
@@ -139,6 +141,53 @@ final readonly class PaymentService
             if ($announce) {
                 $this->announceRecorded($payment, $by);
             }
+
+            return $payment;
+        });
+    }
+
+    /**
+     * The payment a proof of payment shows (P03-09; ONBOARDING_COMPLIANCE.md
+     * § 4.1): a bank transfer waiting for confirmation, source
+     * `proof_upload`, recorded by whoever submitted the proof. Only
+     * Proofs\ProofSubmissions calls it, inside its transaction, once it has
+     * checked who submits: a member uploading for a tenant ($member: their
+     * PaymentPolicy::create and building narrowing apply, as for record()),
+     * or the tenant themselves ($member null: PaymentProofPolicy::submitAsTenant
+     * proved the bill is theirs through their portal account). The tenant
+     * must not be archived; the bill, when given, must be theirs and not void.
+     *
+     * @throws ValidationException
+     */
+    public function recordProof(?User $member, User $submittedBy, int $tenantId, ?int $billId, Money $amount, CarbonImmutable $paidOn, ?string $payerName, ?string $reference, ?string $note): Payment
+    {
+        if ($member !== null) {
+            Gate::forUser($member)->authorize('create', Payment::class);
+        }
+
+        if (! $amount->isPositive() || $amount->greaterThan(Money::naira(NairaInput::MAX_NAIRA))) {
+            throw ValidationException::withMessages(['amount' => __('Enter an amount above ₦0.')]);
+        }
+
+        [$tenantId, $billId] = $this->checkParties($member, $tenantId, $billId, activeTenant: true);
+
+        return $this->transaction(function () use ($submittedBy, $tenantId, $billId, $amount, $paidOn, $payerName, $reference, $note): Payment {
+            $payment = new Payment;
+            $payment->tenant_profile_id = $tenantId;
+            $payment->bill_id = $billId;
+            $payment->amount_kobo = $amount;
+            $payment->method = PaymentMethod::BankTransfer;
+            $payment->source = PaymentSource::ProofUpload;
+            $payment->paid_at = CarbonImmutable::parse($paidOn->toDateString());
+            $payment->payer_name = self::text($payerName);
+            $payment->payer_type = PayerType::Individual;
+            $payment->reference = self::text($reference);
+            $payment->note = self::text($note);
+            $payment->recorded_by_user_id = $submittedBy->id;
+            $payment->save();
+
+            $this->audited($payment, $submittedBy);
+            $this->announceRecorded($payment, $submittedBy);
 
             return $payment;
         });

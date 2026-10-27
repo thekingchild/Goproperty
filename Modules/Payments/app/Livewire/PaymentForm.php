@@ -28,7 +28,10 @@ use Modules\Tenants\Contracts\TenantDirectory;
  * `?tenant={id}` or `?bill={id}`): a bank transfer, cash or POS the tenant
  * paid to the organization, for the tenant and optionally one of their
  * open bills. "Record" puts it in the confirmation queue; "Record and
- * confirm" confirms it at once (the money is in hand). PaymentPolicy::create
+ * confirm" confirms it at once (the money is in hand). Cash and POS are
+ * always confirmed as they are recorded (P03-09, ONBOARDING_COMPLIANCE.md
+ * § 4.3: the member took the money, with a note saying who and where), so
+ * the receipt goes straight to the tenant, who can check it. PaymentPolicy::create
  * and ::confirm (`payments.confirm`), checked again by
  * Payments\PaymentService; never while staff impersonate. Tenants come from
  * the Tenants module's directory and bills from Billing's ledger (narrowed
@@ -103,6 +106,14 @@ final class PaymentForm extends Component
     public function save(PaymentService $payments): void
     {
         $this->authorize('create', Payment::class);
+
+        // Cash and POS: in the member's hands already, so confirmed at once (ONBOARDING_COMPLIANCE.md § 4.3).
+        if (PaymentMethod::tryFrom($this->method)?->needsNote() === true) {
+            $this->saveAndConfirm($payments);
+
+            return;
+        }
+
         $payment = $payments->record($this->user(), $this->input());
         session()->flash('payment-status', __('The payment was recorded. Confirm it once the money is in the account.'));
 
@@ -115,7 +126,9 @@ final class PaymentForm extends Component
     {
         $this->authorize('create', Payment::class);
         $payment = $payments->recordAndConfirm($this->user(), $this->input());
-        session()->flash('payment-status', __('The payment was recorded and confirmed.'));
+        session()->flash('payment-status', $payment->method->needsNote()
+            ? __('The payment was recorded and confirmed. Its receipt is on its way to the tenant.')
+            : __('The payment was recorded and confirmed.'));
 
         $this->redirectRoute('workspace.payments.show', ['organization' => $this->organizationSlug(), 'payment' => $payment->id], navigate: true);
     }

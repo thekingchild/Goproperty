@@ -1,7 +1,10 @@
 {{--
     A payment (Modules\Payments\Livewire\PaymentShow). Confirm and Reject
     show only while the payment waits and the member may; the server checks
-    both again. A confirmed payment has no edit or delete.
+    both again. A confirmed payment has no edit or delete. A payment from a
+    proof of payment (P03-09) shows the proof for review: its file behind
+    PaymentProofPolicy::viewFile, and a warning when the same file came with
+    another proof; a proof is archived, never deleted.
 --}}
 <x-page :heading="$payment->amount_kobo->format().' · '.$row->tenantName" :description="__($payment->method->label()).' · '.__('paid :date', ['date' => $payment->paid_at->format('d/m/Y')])">
     <x-slot:actions>
@@ -148,6 +151,103 @@
 
             <flux:text class="mt-4 text-sm" data-test="tenant-credit">{{ __('Tenant\'s credit now: :amount. Credit is used for the next bill issued to them.', ['amount' => $tenantCredit->format()]) }}</flux:text>
         </section>
+
+        @if ($proof)
+            <section class="rounded-xl border border-zinc-200 bg-white p-5 lg:col-span-3 dark:border-zinc-700 dark:bg-zinc-900" data-test="payment-proof">
+                <div class="flex flex-wrap items-center gap-2">
+                    <flux:heading size="lg" level="2">{{ __('Proof of payment') }}</flux:heading>
+                    <flux:badge size="sm" :color="$proofStatus->color()" data-test="proof-status">{{ __($proofStatus->label()) }}</flux:badge>
+                    @if ($sameFile !== [])
+                        <flux:badge size="sm" color="red" icon="exclamation-triangle" data-test="proof-duplicate-badge">{{ __('Same file as another proof') }}</flux:badge>
+                    @endif
+                </div>
+
+                @if ($sameFile !== [])
+                    <flux:callout class="mt-4" variant="warning" icon="exclamation-triangle" :heading="__('This file was also uploaded with another proof. Check that it is not the same transfer sent twice before confirming.')" role="alert" data-test="proof-duplicate">
+                        <flux:callout.text>
+                            <ul class="mt-1 flex flex-col gap-1">
+                                @foreach ($sameFile as $other)
+                                    <li data-test="same-file-proof">
+                                        @if ($other['link'] && $other['payment'])
+                                            <a href="{{ route('workspace.payments.show', [$organization, $other['payment']->id]) }}" wire:navigate class="underline">{{ $other['tenant'] }} · {{ $other['proof']->amount_kobo->format() }} · {{ __('paid :date', ['date' => $other['proof']->paid_on->format('d/m/Y')]) }}</a>
+                                        @else
+                                            {{ __('A proof of a tenant you cannot open') }}
+                                        @endif
+                                        · {{ __($other['proof']->status($other['payment'])->label()) }}
+                                        · {{ __('uploaded :date', ['date' => $other['proof']->submitted_at->timezone('Africa/Lagos')->format('d/m/Y H:i')]) }}
+                                    </li>
+                                @endforeach
+                            </ul>
+                        </flux:callout.text>
+                    </flux:callout>
+                @endif
+
+                <div class="mt-4 grid gap-6 sm:grid-cols-3">
+                    <dl class="grid gap-4 sm:col-span-2 sm:grid-cols-2">
+                        <div>
+                            <dt class="text-sm text-zinc-500 dark:text-zinc-400">{{ __('Amount on the proof') }}</dt>
+                            <dd class="font-medium text-zinc-900 dark:text-white" data-test="proof-amount">{{ $proof->amount_kobo->format() }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-sm text-zinc-500 dark:text-zinc-400">{{ __('Date paid') }}</dt>
+                            <dd class="text-zinc-900 dark:text-white">{{ $proof->paid_on->format('d/m/Y') }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-sm text-zinc-500 dark:text-zinc-400">{{ __('Sender') }}</dt>
+                            <dd class="text-zinc-900 dark:text-white" data-test="proof-sender">{{ $proof->sender_name }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-sm text-zinc-500 dark:text-zinc-400">{{ __('Bank') }}</dt>
+                            <dd class="text-zinc-900 dark:text-white" data-test="proof-bank">{{ $proof->bank_name }}</dd>
+                        </div>
+                        @if ($proof->reference)
+                            <div>
+                                <dt class="text-sm text-zinc-500 dark:text-zinc-400">{{ __('Narration or reference') }}</dt>
+                                <dd class="font-mono text-zinc-900 dark:text-white">{{ $proof->reference }}</dd>
+                            </div>
+                        @endif
+                        @if ($proof->note)
+                            <div>
+                                <dt class="text-sm text-zinc-500 dark:text-zinc-400">{{ __('Note') }}</dt>
+                                <dd class="text-zinc-900 dark:text-white">{{ $proof->note }}</dd>
+                            </div>
+                        @endif
+                        <div class="sm:col-span-2">
+                            <dt class="text-sm text-zinc-500 dark:text-zinc-400">{{ __('Sent by') }}</dt>
+                            <dd class="text-zinc-900 dark:text-white" data-test="proof-submitter">{{ $proofSender ?? __('Unknown') }} · {{ __($proof->submitted_by->label()) }} · {{ $proof->submitted_at->timezone('Africa/Lagos')->format('d/m/Y H:i') }}</dd>
+                        </div>
+                        @if ($proof->archived_at)
+                            <div class="sm:col-span-2">
+                                <dt class="text-sm text-zinc-500 dark:text-zinc-400">{{ __('Archived') }}</dt>
+                                <dd class="text-zinc-900 dark:text-white" data-test="proof-archived">{{ $proof->archived_at->timezone('Africa/Lagos')->format('d/m/Y H:i') }} · {{ $proofArchiver ?? __('Unknown') }} · {{ $proof->archive_reason }}</dd>
+                            </div>
+                        @endif
+                    </dl>
+
+                    <div class="flex flex-col gap-2">
+                        @if ($canViewProofFile)
+                            @if ($proofIsImage)
+                                <a href="{{ route('workspace.payments.proofs.file', [$organization, $proof->id]) }}" target="_blank" rel="noopener" data-test="proof-file-link">
+                                    <img src="{{ route('workspace.payments.proofs.thumb', [$organization, $proof->id]) }}" alt="{{ __('Proof of payment') }}" class="max-h-64 rounded-lg border border-zinc-200 object-contain dark:border-zinc-700" loading="lazy" data-test="proof-thumb" />
+                                </a>
+                            @endif
+                            <flux:button size="sm" icon="arrow-top-right-on-square" :href="route('workspace.payments.proofs.file', [$organization, $proof->id])" target="_blank" data-test="proof-open">{{ $proofIsImage ? __('Open the image') : __('Open the PDF') }}</flux:button>
+                        @else
+                            <flux:text class="text-sm" data-test="proof-file-hidden">{{ __('The file is not shown in this session.') }}</flux:text>
+                        @endif
+                    </div>
+                </div>
+
+                @if ($canArchiveProof)
+                    <form wire:submit="archiveProof" class="mt-4 flex flex-col gap-3 sm:max-w-xl" novalidate data-test="proof-archive">
+                        <flux:input wire:model="archiveReason" :label="__('Remove this proof')" :description="__('A proof is kept as evidence: removing archives it with the reason, and the file is kept. Reject the payment too if it should not count.')" maxlength="500" data-test="proof-archive-reason" />
+                        <div>
+                            <flux:button type="submit" size="sm" wire:confirm="{{ __('Archive this proof? It is kept with its file and the reason.') }}" data-test="archive-proof">{{ __('Archive proof') }}</flux:button>
+                        </div>
+                    </form>
+                @endif
+            </section>
+        @endif
 
         @if ($canConfirm)
             <section class="rounded-xl border border-zinc-200 bg-white p-5 lg:col-span-3 dark:border-zinc-700 dark:bg-zinc-900" data-test="payment-confirm">

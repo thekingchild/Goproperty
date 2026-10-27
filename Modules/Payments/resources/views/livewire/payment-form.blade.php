@@ -60,9 +60,15 @@
         </section>
 
         <div class="flex flex-wrap gap-2">
-            <flux:button type="submit" variant="primary" data-test="save-payment">{{ __('Record for confirmation') }}</flux:button>
-            @if ($canConfirm)
-                <flux:button type="button" wire:click="saveAndConfirm" wire:confirm="{{ __('Record and confirm this payment now? A confirmed payment cannot be changed or deleted.') }}" data-test="save-and-confirm">{{ __('Record and confirm') }}</flux:button>
+            @if (in_array($method, ['cash', 'pos'], true))
+                {{-- Cash and POS are confirmed as they are recorded; the receipt goes straight to the tenant (ONBOARDING_COMPLIANCE.md § 4.3). --}}
+                <flux:button type="button" variant="primary" wire:click="saveAndConfirm" wire:confirm="{{ __('Record and confirm this payment now? The receipt goes straight to the tenant, and a confirmed payment cannot be changed or deleted.') }}" data-test="save-and-confirm">{{ __('Record and send the receipt') }}</flux:button>
+            @else
+                <flux:button type="submit" variant="primary" data-test="save-payment">{{ __('Record for confirmation') }}</flux:button>
+                @if ($canConfirm)
+                    <flux:button type="button" wire:click="saveAndConfirm" wire:confirm="{{ __('Record and confirm this payment now? A confirmed payment cannot be changed or deleted.') }}" data-test="save-and-confirm">{{ __('Record and confirm') }}</flux:button>
+                @endif
+                <flux:button type="button" variant="ghost" icon="paper-clip" :href="route('workspace.payments.proofs.create', ['organization' => $organization, 'tenant' => $tenantId !== '' ? $tenantId : null, 'bill' => $billId !== '' ? $billId : null])" wire:navigate data-test="upload-proof-instead">{{ __('Upload the tenant\'s proof instead') }}</flux:button>
             @endif
         </div>
     </form>

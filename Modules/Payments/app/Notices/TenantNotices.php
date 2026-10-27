@@ -37,7 +37,8 @@ use Modules\Tenants\Contracts\TenantSummary;
  * listener retried) tells the tenant once. Channels: NoticeChannels (in the
  * app with a portal account, email when an address is known, else the
  * agency's WhatsApp through App\WhatsApp\WhatsAppSender; never SMS, P03
- * decision 3). Queued on `notifications`.
+ * decision 3). Queued on `notifications`. A confirmed cash or POS payment's
+ * email carries the receipt PDF (P03-09, ONBOARDING_COMPLIANCE.md § 4.3).
  */
 final readonly class TenantNotices
 {
@@ -100,13 +101,20 @@ final readonly class TenantNotices
     /** @param  array<string, string>  $values */
     private function deliver(Organization $organization, PaymentNoticeEvent $event, Payment $payment, NoticeChannels $channels, array $values): void
     {
+        // Cash and POS: the receipt itself goes straight to the tenant, so
+        // they can check what the member recorded (ONBOARDING_COMPLIANCE.md
+        // § 4.3, P03-09): the PDF is attached to the email.
+        $attach = $event === PaymentNoticeEvent::Confirmed && $payment->method->needsNote() && ($values['receipt_id'] ?? '') !== ''
+            ? (int) $values['receipt_id']
+            : null;
+
         if ($channels->user !== null) {
             $via = $channels->mailsTheUser() ? [NoticeChannels::DATABASE, NoticeChannels::MAIL] : [NoticeChannels::DATABASE];
-            $channels->user->notify(new TenantPaymentNotice($event, $payment->id, $values, $via));
+            $channels->user->notify(new TenantPaymentNotice($event, $payment->id, $values, $via, $organization->id, $attach));
         }
 
         if ($channels->mailTo !== null && ! $channels->mailsTheUser()) {
-            Notification::route('mail', $channels->mailTo)->notify(new TenantPaymentNotice($event, $payment->id, $values, [NoticeChannels::MAIL]));
+            Notification::route('mail', $channels->mailTo)->notify(new TenantPaymentNotice($event, $payment->id, $values, [NoticeChannels::MAIL], $organization->id, $attach));
         }
 
         if ($channels->phone !== null) {
@@ -146,6 +154,7 @@ final readonly class TenantNotices
             $receipt = Receipt::query()->where('payment_id', $payment->id)->first();
 
             if ($receipt instanceof Receipt) {
+                $values['receipt_id'] = (string) $receipt->id;
                 $values['receipt_number'] = $receipt->number;
                 $values['verify_url'] = VerificationCodes::url($receipt->verification_code);
                 $values['reason'] = (string) $receipt->void_reason;

@@ -1,11 +1,13 @@
 {{--
     Payments (/o/{organization}/payments; Modules\Payments\Livewire\PaymentIndex).
-    "To confirm" is the confirmation queue. Rows stack into cards on phones
+    "To confirm" is the confirmation queue (proofs of payment are marked, and
+    flagged when the same file came with another proof). Rows stack into cards on phones
     (UX_DESIGN.md § 6); every page and action checks its policy.
 --}}
 <x-page :heading="__('Payments')" :description="__('Money tenants paid to :organization, recorded and confirmed here.', ['organization' => $organization->name])">
     <x-slot:actions>
         @if ($canRecord)
+            <flux:button icon="paper-clip" :href="route('workspace.payments.proofs.create', $organization)" wire:navigate data-test="upload-proof">{{ __('Upload a proof') }}</flux:button>
             <flux:button variant="primary" icon="plus" :href="route('workspace.payments.create', $organization)" wire:navigate data-test="record-payment">{{ __('Record a payment') }}</flux:button>
         @endif
         <x-list-export list="payments" />
@@ -74,6 +76,12 @@
 
                     <div class="flex flex-wrap items-center gap-2">
                         <span class="font-medium text-zinc-900 dark:text-white" data-test="amount-{{ $payment->id }}">{{ $payment->amount_kobo->format() }}</span>
+                        @if ($row->hasProof)
+                            <flux:badge size="sm" color="sky" icon="paper-clip" data-test="proof-{{ $payment->id }}">{{ __('Proof') }}</flux:badge>
+                        @endif
+                        @if ($row->sameFileAsAnotherProof)
+                            <flux:badge size="sm" color="red" icon="exclamation-triangle" data-test="duplicate-{{ $payment->id }}">{{ __('Same file as another proof') }}</flux:badge>
+                        @endif
                         <flux:badge size="sm" :color="$payment->status->color()" data-test="status-{{ $payment->id }}">{{ __($payment->status->label()) }}</flux:badge>
                     </div>
                 </li>

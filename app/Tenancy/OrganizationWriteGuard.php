@@ -10,7 +10,9 @@ use App\Models\Organization;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Route;
+use Illuminate\Support\Facades\Gate;
 use ReflectionMethod;
+use Throwable;
 
 /**
  * The one rule for suspended (and cancelled) organizations: their members
@@ -30,7 +32,9 @@ use ReflectionMethod;
  * - Permissions and policies: members lose every permission whose
  *   OrganizationPermission::allowedWhileSuspended() is false
  *   (HasOrganizationRoles::hasPermissionTo), and a Gate::before hook denies
- *   every policy ability that is not a read (view…, export…, download…).
+ *   every policy ability that is not a read (view…, export…, download…),
+ *   unless its policy method carries #[AllowedWhileSuspended] (a write the
+ *   docs allow during suspension: a tenant's payment proof, P03-09).
  */
 final class OrganizationWriteGuard
 {
@@ -73,6 +77,10 @@ final class OrganizationWriteGuard
             return null;
         }
 
+        if ($this->policyMethodAllowed($ability, $arguments[array_key_first($arguments) ?? 0] ?? null)) {
+            return null;
+        }
+
         return Response::deny($this->message($organization));
     }
 
@@ -109,6 +117,25 @@ final class OrganizationWriteGuard
     {
         return method_exists($class, $method)
             && (new ReflectionMethod($class, $method))->getAttributes(AllowedWhileSuspended::class) !== [];
+    }
+
+    /**
+     * A policy method for the ability marked #[AllowedWhileSuspended] (as
+     * ImpersonationGuard reads #[BlockedWhileImpersonating] on policies).
+     */
+    private function policyMethodAllowed(string $ability, mixed $first): bool
+    {
+        if (! is_object($first) && ! (is_string($first) && class_exists($first))) {
+            return false;
+        }
+
+        try {
+            $policy = Gate::getPolicyFor($first);
+        } catch (Throwable) {
+            return false;
+        }
+
+        return is_object($policy) && $this->methodAllowed($policy::class, $ability);
     }
 
     /** @throws OrganizationWritesBlocked */

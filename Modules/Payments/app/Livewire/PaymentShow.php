@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Payments\Livewire;
 
+use App\Media\Media;
 use App\Models\User;
 use App\Support\Money;
 use App\Tenancy\BlockedWhileImpersonating;
@@ -19,10 +20,13 @@ use Modules\Payments\Credit\TenantCredit;
 use Modules\Payments\Lists\PaymentRows;
 use Modules\Payments\Models\Payment;
 use Modules\Payments\Models\PaymentAllocation;
+use Modules\Payments\Models\PaymentProof;
 use Modules\Payments\Models\Receipt;
 use Modules\Payments\Models\TenantCreditEntry;
 use Modules\Payments\Payments\PaymentService;
+use Modules\Payments\Proofs\ProofSubmissions;
 use Modules\Properties\Contracts\BuildingAccess;
+use Modules\Tenants\Contracts\TenantDirectory;
 
 /**
  * A payment, /o/{organization}/payments/{payment}: amount, how and when it
@@ -30,7 +34,13 @@ use Modules\Properties\Contracts\BuildingAccess;
  * would settle (the bill it was for, then the tenant's open bills oldest
  * due first, the rest to tenant credit) with Confirm (and a note) and
  * Reject (with a reason); once confirmed, the bills it settled and the
- * credit it left, and its receipt (P03-10b). PaymentPolicy::confirm / ::reject, checked again by
+ * credit it left, and its receipt (P03-10b). A payment recorded from a
+ * proof of payment (P03-09) shows the proof for review: what the tenant
+ * typed, who sent it, the file (PaymentProofPolicy::viewFile, through a
+ * short-lived signed link), and a warning when the same file was uploaded
+ * with another proof in the organization; members who may archive a proof
+ * ("remove": the file is kept) do it here with a reason.
+ * PaymentPolicy::confirm / ::reject, checked again by
  * Payments\PaymentService (a refusal shows its reason and changes
  * nothing); never while staff impersonate.
  *
@@ -57,6 +67,9 @@ final class PaymentShow extends Component
 
     /** Why the payment is rejected. */
     public string $reason = '';
+
+    /** Why the proof is archived. */
+    public string $archiveReason = '';
 
     public function boot(OrganizationContext $context): void
     {
@@ -97,7 +110,19 @@ final class PaymentShow extends Component
         $this->notice = __('The payment is rejected. Nothing was applied to the tenant\'s bills.');
     }
 
-    public function render(OrganizationContext $context, PaymentRows $rows, PaymentService $payments, BillLedger $ledger, TenantCredit $credit, BuildingAccess $access): View
+    /** "Remove" the payment's proof: archived with the reason; its file is kept (evidence). */
+    #[BlockedWhileImpersonating]
+    public function archiveProof(ProofSubmissions $proofs): void
+    {
+        $proof = PaymentProof::query()->where('payment_id', $this->payment()->id)->firstOrFail();
+        $this->authorize('archive', $proof);
+
+        $proofs->archive($this->user(), $proof, $this->archiveReason);
+        $this->reset('archiveReason');
+        $this->notice = __('The proof is archived. Its file is kept.');
+    }
+
+    public function render(OrganizationContext $context, PaymentRows $rows, PaymentService $payments, BillLedger $ledger, TenantCredit $credit, BuildingAccess $access, ProofSubmissions $proofs, TenantDirectory $tenants): View
     {
         $payment = $this->payment();
         // Checked on every render, not only when the page opened.
@@ -124,7 +149,46 @@ final class PaymentShow extends Component
             'canReject' => $user->can('reject', $payment),
             'receipt' => $payment->receipt_id !== null ? Receipt::query()->find($payment->receipt_id) : null,
             'billLink' => static fn (?BillBalance $bill): bool => $bill !== null && ($bill->propertyId === null ? $access->limitedTo($user) === null : $access->allows($user, $bill->propertyId)),
-        ]);
+        ] + $this->proofReview($payment, $user, $proofs, $tenants));
+    }
+
+    /**
+     * The payment's proof for the reviewer: the proof, who sent it, the
+     * file links the member may open, and the organization's other proofs
+     * with the same file (each linked when the member may see its payment).
+     *
+     * @return array<string, mixed>
+     */
+    private function proofReview(Payment $payment, User $user, ProofSubmissions $proofs, TenantDirectory $tenants): array
+    {
+        $proof = PaymentProof::query()->where('payment_id', $payment->id)->first();
+
+        if (! $proof instanceof PaymentProof || ! $user->can('view', $proof)) {
+            return ['proof' => null];
+        }
+
+        $sameFile = $proofs->sameFile($proof);
+        $names = $tenants->findMany(array_values(array_unique($sameFile->map(fn (PaymentProof $other): int => $other->tenant_profile_id)->all())));
+        $payments = Payment::query()->withTrashed()->whereIn('id', $sameFile->map(fn (PaymentProof $other): int => $other->payment_id)->all())->get()->keyBy('id');
+        $media = $proof->media_id !== null ? Media::query()->find($proof->media_id) : null;
+        $media = $media instanceof Media ? $media : null;
+
+        return [
+            'proof' => $proof,
+            'proofStatus' => $proof->status($payment),
+            'proofSender' => $proof->submitted_by_user_id !== null ? User::query()->find($proof->submitted_by_user_id)?->name : null,
+            'proofArchiver' => $proof->archived_by_user_id !== null ? User::query()->find($proof->archived_by_user_id)?->name : null,
+            'proofIsImage' => str_starts_with((string) $media?->mime_type, 'image/'),
+            'proofFileName' => $media?->name,
+            'canViewProofFile' => $media !== null && $user->can('viewFile', $proof),
+            'canArchiveProof' => $user->can('archive', $proof),
+            'sameFile' => $sameFile->map(fn (PaymentProof $other): array => [
+                'proof' => $other,
+                'payment' => $payments->get($other->payment_id),
+                'tenant' => isset($names[$other->tenant_profile_id]) ? $names[$other->tenant_profile_id]->name : __('Unknown tenant'),
+                'link' => $tenants->narrowingAllows($user, $other->tenant_profile_id),
+            ])->all(),
+        ];
     }
 
     private function payment(): Payment

@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Livewire;
 use Modules\Billing\Events\BillIssued;
+use Modules\Payments\Contracts\PaymentProofs;
 use Modules\Payments\Contracts\PaymentRecorder;
 use Modules\Payments\Events\PaymentConfirmed;
 use Modules\Payments\Events\PaymentRecorded;
@@ -24,10 +25,13 @@ use Modules\Payments\Listeners\TellTenantAboutPayment;
 use Modules\Payments\Lists\PaymentList;
 use Modules\Payments\Lists\ReceiptList;
 use Modules\Payments\Models\Payment;
+use Modules\Payments\Models\PaymentProof;
 use Modules\Payments\Models\Receipt;
 use Modules\Payments\Payments\Recorder;
 use Modules\Payments\Policies\PaymentPolicy;
+use Modules\Payments\Policies\PaymentProofPolicy;
 use Modules\Payments\Policies\ReceiptPolicy;
+use Modules\Payments\Proofs\ProofSubmissions;
 use Modules\Payments\Receipts\Receipts;
 use Modules\Payments\Receipts\ReceiptVerifier;
 use Nwidart\Modules\Support\ModuleServiceProvider;
@@ -47,6 +51,12 @@ use Nwidart\Modules\Support\ModuleServiceProvider;
  * the public verify page, the listener that issues a receipt inside the
  * confirming transaction (IssueReceipt), and the one that tells the tenant
  * about every payment transition once it commits (TellTenantAboutPayment).
+ *
+ * Proofs of payment (P03-09): Contracts\PaymentProofs (for the tenant
+ * portal, P03-11b), PaymentProofPolicy, the proof upload page and file
+ * routes, and the module's own evidence media collection `payment_proofs`
+ * (merged into config `media.collections` here, as config/media.php
+ * allows, so the module owns its upload rules).
  */
 final class PaymentsServiceProvider extends ModuleServiceProvider
 {
@@ -64,6 +74,18 @@ final class PaymentsServiceProvider extends ModuleServiceProvider
         parent::register();
 
         $this->app->bind(PaymentRecorder::class, Recorder::class);
+        $this->app->bind(PaymentProofs::class, ProofSubmissions::class);
+
+        // Proofs of payment: a screenshot, a photo of a teller slip or a
+        // PDF, at most 10 MB; evidence (never deleted; ARCHITECTURE.md § 9).
+        if (! is_array(config('media.collections.'.PaymentProofs::COLLECTION))) {
+            config(['media.collections.'.PaymentProofs::COLLECTION => [
+                'mimes' => ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
+                'max_kb' => 10 * 1024,
+                'conversions' => ['thumb'],
+                'kind' => 'evidence',
+            ]]);
+        }
     }
 
     public function boot(): void
@@ -72,6 +94,7 @@ final class PaymentsServiceProvider extends ModuleServiceProvider
 
         Gate::policy(Payment::class, PaymentPolicy::class);
         Gate::policy(Receipt::class, ReceiptPolicy::class);
+        Gate::policy(PaymentProof::class, PaymentProofPolicy::class);
 
         Livewire::addNamespace($this->nameLower, classNamespace: 'Modules\\Payments\\Livewire');
 

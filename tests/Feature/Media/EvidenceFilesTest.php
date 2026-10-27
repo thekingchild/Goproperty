@@ -37,6 +37,8 @@ it('classes every media collection as an attachment or as evidence', function ()
         'imports' => 'attachment',
         'statements' => 'evidence',
         'issued_documents' => 'evidence',
+        // Added by the Payments module's provider (P03-09).
+        'payment_proofs' => 'evidence',
     ]);
 });
 
