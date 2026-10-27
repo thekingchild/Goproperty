@@ -199,7 +199,13 @@ it('archives an owner as a soft delete, and restores it, both audited', function
 
 it('searches by name, email and phone, and pages the list on the server', function () {
     app(OrganizationContext::class)->run($this->acme, function (): void {
-        OwnerProfile::factory()->count(OwnerProfileIndex::PER_PAGE + 5)->sequence(fn ($sequence) => ['first_name' => 'Owner', 'last_name' => sprintf('N%03d', $sequence->index)])->create();
+        OwnerProfile::factory()->count(OwnerProfileIndex::PER_PAGE + 5)->sequence(fn ($sequence) => [
+            'first_name' => 'Owner',
+            'last_name' => sprintf('N%03d', $sequence->index),
+            // Fixed contacts: a random +23480 9111… number would match the '0809 111' search.
+            'email' => sprintf('owner%03d@example.test', $sequence->index),
+            'phone' => sprintf('+2348020000%03d', $sequence->index),
+        ])->create();
         OwnerProfile::factory()->create(['first_name' => 'Chiamaka', 'last_name' => 'Eze', 'email' => 'chiamaka@eze.ng', 'phone' => '+2348091112222']);
         OwnerProfile::factory()->company()->create(['company_name' => 'Lekki Gardens Ltd']);
     });
