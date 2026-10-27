@@ -6,7 +6,6 @@ namespace App\Documents;
 
 use App\Branding\BrandColours;
 use App\Branding\Branding;
-use App\Enums\DocumentLayout;
 
 /**
  * Everything a document template needs from an organization's branding

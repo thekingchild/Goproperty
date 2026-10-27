@@ -24,6 +24,7 @@ services:
         depends_on:
             - mysql
             - mailpit
+            - gotenberg
     mysql:
         image: 'mysql:8.4'
         ports:
@@ -54,6 +55,14 @@ services:
         ports:
             - '${FORWARD_MAILPIT_PORT:-1025}:1025'
             - '${FORWARD_MAILPIT_DASHBOARD_PORT:-8025}:8025'
+        networks:
+            - sail
+    # Headless Chrome over HTTP: the "chrome" PDF driver (PDF_DRIVER=chrome,
+    # PDF_CHROME_URL=http://gotenberg:3000) and the document visual-diff tests.
+    gotenberg:
+        image: 'gotenberg/gotenberg:8.37.0-chromium'
+        ports:
+            - '${FORWARD_GOTENBERG_PORT:-3000}:3000'
         networks:
             - sail
 networks:

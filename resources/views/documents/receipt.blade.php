@@ -8,12 +8,14 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Receipt {{ $receipt['number'] }}</title>
-@include('documents.partials.styles', ['brand' => $brand])
+@include('documents.partials.styles', ['brand' => $brand, 'target' => $target ?? \App\Documents\RenderTarget::Web])
 </head>
 <body class="layout-{{ $brand->layout()->value }}">
+@include('documents.partials.footer', ['brand' => $brand, 'target' => $target ?? \App\Documents\RenderTarget::Web, 'pageCount' => $pageCount ?? 1, 'line' => $brand->branding->companyName.' · Receipt '.$receipt['number'], 'verifyUrl' => $receipt['verify_url'], 'at' => 'start'])
 <div class="page">
-  <div class="topbar"></div>
+  @include('documents.partials.brand-bar')
   <div class="wrap">
 
     @include('documents.partials.letterhead', [
@@ -97,15 +99,8 @@
           @endif
           <div class="sig-line small muted">Authorised signature / stamp</div>
         </td>
-        <td style="width:45%" class="verify">
-          <table><tr>
-            <td style="vertical-align:middle">
-              <div class="label">Verify this receipt</div>
-              <div class="small muted" style="margin:4px 0">Scan the code or visit {{ preg_replace('#^https?://#', '', $receipt['verify_url']) }} and enter:</div>
-              <div class="code">{{ $receipt['verification_code'] }}</div>
-            </td>
-            <td style="width:95px; text-align:right"><table style="width:87px; margin-left:auto"><tr><td class="qr">QR code</td></tr></table></td>
-          </tr></table>
+        <td style="width:45%">
+          @include('documents.partials.verify-box', ['code' => $receipt['verification_code'], 'label' => 'Verify this receipt'])
         </td>
       </tr>
     </table>
@@ -116,7 +111,7 @@
     @endif
   </div>
 
-  @include('documents.partials.footer', ['brand' => $brand, 'line' => $brand->branding->companyName.' · Receipt '.$receipt['number'], 'verifyUrl' => $receipt['verify_url']])
+  @include('documents.partials.footer', ['brand' => $brand, 'target' => $target ?? \App\Documents\RenderTarget::Web, 'pageCount' => $pageCount ?? 1, 'line' => $brand->branding->companyName.' · Receipt '.$receipt['number'], 'verifyUrl' => $receipt['verify_url'], 'at' => 'end'])
 </div>
 </body>
 </html>

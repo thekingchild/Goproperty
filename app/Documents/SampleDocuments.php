@@ -53,9 +53,8 @@ final class SampleDocuments
             'bank' => ['bank' => 'Your bank', 'account_name' => $brand->name(), 'account_number' => '0123456789'],
             'payment_reference' => 'GP-7KQ2M',
             'online' => ['label' => 'Pay '.$amountDue->format().' online', 'link' => url('/pay/GP-7KQ2M')],
-            'verification_code' => 'INV-7KQ2M',
+            'verification_code' => '7KQ2MX9P4D',
             'verify_url' => url('/verify'),
-            'page' => 'Page 1 of 1',
         ];
     }
 
@@ -70,7 +69,7 @@ final class SampleDocuments
             'issued_on' => '14/12/'.$year,
             'tenant_id' => 'TN-0087',
             'amount' => $amount->format(),
-            'amount_in_words' => 'Two million, nine hundred thousand naira only',
+            'amount_in_words' => $amount->inWords(),
             'received_from' => [
                 ['label' => 'Tenant', 'value' => 'Chiamaka Okafor'],
                 ['label' => 'Phone', 'value' => '+234 812 345 6789'],
@@ -94,7 +93,7 @@ final class SampleDocuments
             ],
             'confirmed_by' => 'Tunde Bakare',
             'confirmed_at' => '14/12/'.$year.', 10:42 WAT',
-            'verification_code' => 'R8X4P2',
+            'verification_code' => 'R8X4P2HC7N',
             'verify_url' => url('/verify'),
             'voided' => false,
         ];

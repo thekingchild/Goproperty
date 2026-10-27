@@ -23,6 +23,8 @@ CI runs it once per database, because cPanel/Plesk hosts often provide MariaDB r
 
 These are the oldest and newest LTS releases of each engine that shared hosts still run.
 
+**Documents (P03-05a):** each CI job also runs **Gotenberg** (`gotenberg/gotenberg:8.37.0-chromium`, headless Chrome over HTTP) as a second service on port 3000 (`PDF_CHROME_URL=http://127.0.0.1:3000`; the driver stays dompdf), and installs `poppler-utils` when the runner lacks it (`pdftoppm`, `pdftotext`). `tests/Feature/Documents/DocumentKitVisualDiffTest.php` renders the kit's sample page with dompdf and with Chrome and compares the rasterised pages (`tests/Support/PdfVisualDiff.php`, [BRANDING_DOCUMENTS.md § 5](../../BRANDING_DOCUMENTS.md)). On CI (`CI` set) a missing Gotenberg or poppler fails those tests; elsewhere they are skipped with the reason, and the dompdf half always runs.
+
 **Install drill** ([`.github/workflows/install-drill.yml`](../../.github/workflows/install-drill.yml)): builds the release package and installs its split layout from the command line under shared-host limits, then compares the schema with a plain `migrate` ([release.md § 3](release.md), [INSTALLER.md § 12](../../INSTALLER.md)). It runs nightly, on pull requests that touch migrations, seeders or the installer, before every release, and by hand, on the same four databases (`Install drill (MySQL 8.0)` …). It is not a required check, because most pull requests do not run it.
 
 A fifth job, `Old PHP guard`, runs `artisan` and `public/index.php` from the checkout on PHP 7.4 and 8.1 (Docker images `php:7.4-cli`, `php:8.1-cli`) and expects the one-sentence "GoProperty needs PHP 8.4.1 or newer; this server runs 8.1.x." message instead of an error ([INSTALLER.md § 2](../../INSTALLER.md)). Each job also runs `npm ci` and `npm run build`, because views need the Vite manifest. Actions are pinned to commit SHAs; Dependabot proposes updates weekly.
@@ -39,6 +41,8 @@ DB_USERNAME=root DB_PASSWORD=secret composer ci
 ```
 
 The user needs rights to create `testing_*` databases for `--parallel`.
+
+The Chrome half of the document visual-diff tests runs when Gotenberg answers at `PDF_CHROME_URL` (default `http://127.0.0.1:3000`): Sail starts it (`compose.yaml` service `gotenberg`; set `PDF_CHROME_URL=http://gotenberg:3000` inside Sail), or run `docker run --rm -p 3000:3000 gotenberg/gotenberg:8.37.0-chromium`. Without it those tests are skipped locally.
 
 ## 3. Branch protection on `main`
 

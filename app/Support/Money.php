@@ -254,6 +254,12 @@ final readonly class Money implements JsonSerializable, Stringable
             .($kobo !== 0 ? '.'.str_pad((string) $kobo, 2, '0', STR_PAD_LEFT) : '');
     }
 
+    /** "Two million, nine hundred thousand naira only" (receipts; AmountInWords). */
+    public function inWords(): string
+    {
+        return AmountInWords::of($this);
+    }
+
     public function __toString(): string
     {
         return $this->format();

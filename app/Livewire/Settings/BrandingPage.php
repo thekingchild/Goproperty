@@ -9,7 +9,7 @@ use App\Branding\Branding;
 use App\Branding\BrandingFiles;
 use App\Branding\BrandingSettings;
 use App\Documents\BrandingPreview;
-use App\Enums\DocumentLayout;
+use App\Documents\DocumentLayout;
 use App\Models\Organization;
 use App\Models\User;
 use App\Tenancy\OrganizationContext;

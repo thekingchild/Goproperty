@@ -8,7 +8,9 @@ use InvalidArgumentException;
 
 /**
  * What one media collection accepts (config/media.php `collections`): the
- * sniffed types, the size cap and the conversions made for its images.
+ * sniffed types, the size cap, the conversions made for its images, and
+ * whether its files are evidence (never deleted by a customer action,
+ * ARCHITECTURE.md § 9) or attachments.
  */
 final readonly class CollectionRules
 {
@@ -51,6 +53,7 @@ final readonly class CollectionRules
         public array $mimes,
         public int $maxKilobytes,
         public array $conversions,
+        public bool $evidence = false,
     ) {}
 
     /** @throws InvalidArgumentException for a collection that is not configured */
@@ -76,7 +79,23 @@ final readonly class CollectionRules
             throw new InvalidArgumentException("Media collection \"{$collection}\" needs known types and a max_kb of 1 or more.");
         }
 
-        return new self($collection, $mimes, $maxKilobytes, $conversions);
+        $kind = $config['kind'] ?? null;
+
+        if (! in_array($kind, ['attachment', 'evidence'], true)) {
+            throw new InvalidArgumentException("Media collection \"{$collection}\" needs a kind: attachment or evidence.");
+        }
+
+        return new self($collection, $mimes, $maxKilobytes, $conversions, $kind === 'evidence');
+    }
+
+    /** Whether files of this collection are evidence; an unknown collection counts as evidence. */
+    public static function isEvidence(string $collection): bool
+    {
+        try {
+            return self::for($collection)->evidence;
+        } catch (InvalidArgumentException) {
+            return true;
+        }
     }
 
     /** @return list<string> every configured collection */

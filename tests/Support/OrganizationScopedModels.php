@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Support;
 
+use App\Documents\Verification\DocumentVerification;
 use App\Enums\ChecklistItem;
 use App\Enums\ComplianceDocumentType;
 use App\Enums\OnboardingStep;
@@ -92,6 +93,7 @@ final class OrganizationScopedModels
                 'generated_conversions' => [],
                 'responsive_images' => [],
             ]),
+            DocumentVerification::class => fn (): Model => DocumentVerification::query()->create(['kind' => 'probe', 'code' => strtoupper(Str::random(10))]),
             OwnerProfile::class => fn (): Model => OwnerProfile::factory()->withNin()->create(),
             // A batch row on its own (no file): the probes are about the rows.
             ImportBatch::class => fn (): Model => ImportBatch::query()->create(['kind' => 'workbook', 'file_type' => ImportFileType::Xlsx, 'file_name' => 'probe.xlsx']),

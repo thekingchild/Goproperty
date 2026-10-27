@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Branding;
 
-use App\Enums\DocumentLayout;
+use App\Documents\DocumentLayout;
 use App\Models\Organization;
 use App\Theme\Color;
 use Illuminate\Support\Str;
@@ -19,7 +19,8 @@ use Illuminate\Support\Str;
  * BrandingSettings keeps equal to the json's `logo_media_id`.
  *
  * Issued documents keep a copy of toArray() as their branding snapshot
- * (P03-05), so later changes never alter them.
+ * (App\Documents\BrandingSnapshot, with the images themselves), so later
+ * changes never alter them.
  */
 final readonly class Branding
 {
@@ -75,6 +76,43 @@ final readonly class Branding
             emailSenderName: $text('email_sender_name'),
             hidePoweredBy: ($stored['hide_powered_by'] ?? false) === true,
             logoMediaId: $organization->logo_media_id ?? $id('logo_media_id'),
+            signatureMediaId: $id('signature_media_id'),
+            stampMediaId: $id('stamp_media_id'),
+        );
+    }
+
+    /**
+     * Rebuilds the branding a document was issued with from its snapshot
+     * (App\Documents\BrandingSnapshot): toArray() plus `company_name`. Read
+     * as stored, with no defaults from today's settings, so an issued
+     * document never changes.
+     *
+     * @param  array<array-key, mixed>  $values
+     */
+    public static function fromSnapshot(array $values): self
+    {
+        $text = static fn (string $key): ?string => isset($values[$key]) && is_string($values[$key]) && $values[$key] !== '' ? $values[$key] : null;
+        $id = static fn (string $key): ?int => isset($values[$key]) && is_int($values[$key]) ? $values[$key] : null;
+
+        return new self(
+            companyName: $text('company_name') ?? '',
+            tradingName: $text('trading_name'),
+            primaryColor: ($primary = $text('primary_color')) !== null && Color::isHex($primary) ? $primary : self::defaultPrimary(),
+            accentColor: ($accent = $text('accent_color')) !== null && Color::isHex($accent) ? $accent : null,
+            address: $text('address'),
+            rcNumber: $text('rc_number'),
+            phone: $text('phone'),
+            email: $text('email'),
+            website: $text('website'),
+            invoicePrefix: $text('invoice_prefix') ?? '',
+            receiptPrefix: $text('receipt_prefix') ?? '',
+            leasePrefix: $text('lease_prefix') ?? '',
+            invoiceNotes: $text('invoice_notes'),
+            receiptFooter: $text('receipt_footer'),
+            layout: DocumentLayout::tryFrom((string) $text('layout')) ?? DocumentLayout::Modern,
+            emailSenderName: $text('email_sender_name'),
+            hidePoweredBy: ($values['hide_powered_by'] ?? false) === true,
+            logoMediaId: $id('logo_media_id'),
             signatureMediaId: $id('signature_media_id'),
             stampMediaId: $id('stamp_media_id'),
         );

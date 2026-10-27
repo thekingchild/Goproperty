@@ -23,6 +23,11 @@ return [
         'cache_dir' => storage_path('framework/cache/dompdf'),
         'default_font' => 'DejaVu Sans',
         'dpi' => 96,
+        // dompdf sets a line at line-height × the font's height × this ratio.
+        // 1000 / 1210 makes Inter's height (ascender 969, descender -241)
+        // exactly 1 em, so lines are as tall as in Chrome
+        // (App\Documents\DocumentFonts). dompdf's own default is 1.1.
+        'font_height_ratio' => 1000 / 1210,
     ],
 
     'chrome' => [

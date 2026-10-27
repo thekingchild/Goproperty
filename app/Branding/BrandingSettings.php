@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Branding;
 
+use App\Documents\DocumentLayout;
 use App\Enums\ChecklistItem;
-use App\Enums\DocumentLayout;
 use App\Models\Organization;
 use App\Models\User;
 use App\Onboarding\OnboardingChecklist;

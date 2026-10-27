@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Media;
 
 use App\Tenancy\BelongsToOrganization;
+use Closure;
 use Spatie\MediaLibrary\MediaCollections\Models\Media as SpatieMedia;
 
 /**
@@ -19,6 +20,10 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media as SpatieMedia;
  * used for downloads); `file_name` is random with the extension of the
  * sniffed type; `custom_properties` holds the sha256 of the original and,
  * for images, its width and height.
+ *
+ * Files of an evidence collection (config/media.php `kind`) cannot be
+ * deleted (AGENT.md § 3 rule 7): deleting one throws, unless inside
+ * purging(), which only the NDPA erasure tooling may call.
  *
  * @property int $id
  * @property string $uuid
@@ -37,6 +42,38 @@ class Media extends SpatieMedia
     use BelongsToOrganization;
 
     protected $table = 'media';
+
+    private static bool $purging = false;
+
+    protected static function booted(): void
+    {
+        static::deleting(static function (self $media): void {
+            if (! self::$purging && CollectionRules::isEvidence($media->collection_name)) {
+                throw new EvidenceFileProtected("Files in the \"{$media->collection_name}\" collection are evidence and are never deleted; archive the record instead.");
+            }
+        });
+    }
+
+    /**
+     * Runs $callback with evidence deletion allowed: for the NDPA erasure
+     * tooling only (ARCHITECTURE.md § 9, AGENT.md § 3 rule 7).
+     *
+     * @template T
+     *
+     * @param  Closure(): T  $callback
+     * @return T
+     */
+    public static function purging(Closure $callback): mixed
+    {
+        $previous = self::$purging;
+        self::$purging = true;
+
+        try {
+            return $callback();
+        } finally {
+            self::$purging = $previous;
+        }
+    }
 
     /** The sha256 of the stored original, taken when it was added. */
     public function checksum(): ?string

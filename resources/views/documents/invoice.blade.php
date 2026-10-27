@@ -8,12 +8,14 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Invoice {{ $invoice['number'] }}</title>
-@include('documents.partials.styles', ['brand' => $brand])
+@include('documents.partials.styles', ['brand' => $brand, 'target' => $target ?? \App\Documents\RenderTarget::Web])
 </head>
 <body class="layout-{{ $brand->layout()->value }}">
+@include('documents.partials.footer', ['brand' => $brand, 'target' => $target ?? \App\Documents\RenderTarget::Web, 'pageCount' => $pageCount ?? 1, 'line' => $brand->branding->companyName.' · Invoice '.$invoice['number'], 'verifyUrl' => $invoice['verify_url'], 'at' => 'start'])
 <div class="page">
-  <div class="topbar"></div>
+  @include('documents.partials.brand-bar')
   <div class="wrap">
 
     @include('documents.partials.letterhead', [
@@ -124,17 +126,15 @@
           @endif
           <div class="sig-line small muted">For: {{ $brand->branding->companyName }}</div>
         </td>
-        <td style="width:38%; text-align:right">
-          <table style="width:auto; margin-left:auto"><tr>
-            <td style="padding-right:10px; text-align:right; vertical-align:middle" class="small muted">Scan to verify<br>this invoice<br><b style="color:#0f172a">{{ $invoice['verification_code'] }}</b></td>
-            <td class="qr">QR code</td>
-          </tr></table>
+        <td style="width:4%"></td>
+        <td style="width:34%">
+          @include('documents.partials.verify-box', ['code' => $invoice['verification_code'], 'label' => 'Verify this invoice', 'boxed' => false])
         </td>
       </tr>
     </table>
   </div>
 
-  @include('documents.partials.footer', ['brand' => $brand, 'line' => $brand->branding->companyName.' · Invoice '.$invoice['number'].' · '.$invoice['page'], 'verifyUrl' => $invoice['verify_url']])
+  @include('documents.partials.footer', ['brand' => $brand, 'target' => $target ?? \App\Documents\RenderTarget::Web, 'pageCount' => $pageCount ?? 1, 'line' => $brand->branding->companyName.' · Invoice '.$invoice['number'], 'verifyUrl' => $invoice['verify_url'], 'at' => 'end'])
 </div>
 </body>
 </html>

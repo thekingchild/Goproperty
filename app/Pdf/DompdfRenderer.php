@@ -17,6 +17,7 @@ final readonly class DompdfRenderer implements PdfRenderer
         private string $defaultFont,
         private int $dpi,
         private array $chroot,
+        private float $fontHeightRatio = 1.1,
     ) {}
 
     public function render(string $html, PaperSize $paper = PaperSize::A4, Orientation $orientation = Orientation::Portrait): string
@@ -35,6 +36,7 @@ final readonly class DompdfRenderer implements PdfRenderer
         $options->setTempDir($this->cacheDir);
         $options->setDefaultFont($this->defaultFont);
         $options->setDpi($this->dpi);
+        $options->setFontHeightRatio($this->fontHeightRatio);
 
         $dompdf = new Dompdf($options);
         $dompdf->setPaper($paper->value, $orientation->value);

@@ -36,6 +36,7 @@ final class PdfManager extends Manager
             defaultFont: $this->string('pdf.dompdf.default_font', 'DejaVu Sans'),
             dpi: (int) $this->string('pdf.dompdf.dpi', '96'),
             chroot: [resource_path(), public_path()],
+            fontHeightRatio: (float) $this->string('pdf.dompdf.font_height_ratio', '1.1'),
         );
     }
 

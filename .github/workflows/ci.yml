@@ -3,6 +3,9 @@
 # engines are tested at their oldest and newest supported LTS versions
 # (ARCHITECTURE.md § 2, docs/runbooks/ci.md). The suite runs on the
 # shared-hosting profile, including a cron drill with exec/proc_open disabled.
+# Gotenberg (headless Chrome over HTTP) runs as a second service so the
+# document visual-diff tests compare dompdf with Chrome (BRANDING_DOCUMENTS.md
+# § 5); poppler's pdftoppm rasterises the PDFs for them.
 # Deploy and Release call this workflow first. A separate job checks that
 # artisan and index.php explain an old PHP instead of failing (INSTALLER.md § 2).
 name: CI
@@ -64,6 +67,17 @@ jobs:
           --health-interval=5s
           --health-timeout=5s
           --health-retries=20
+      # Chrome for the visual-diff tests (tests/Support/PdfVisualDiff.php):
+      # the app's chrome PDF driver talks to it at PDF_CHROME_URL.
+      gotenberg:
+        image: gotenberg/gotenberg:8.37.0-chromium
+        ports:
+          - 3000:3000
+        options: >-
+          --health-cmd="curl --silent --fail http://localhost:3000/health"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
 
     env:
       HOSTING_PROFILE: shared
@@ -73,6 +87,8 @@ jobs:
       DB_DATABASE: testing
       DB_USERNAME: root
       DB_PASSWORD: password
+      # Only the visual-diff tests use it; the shared profile keeps dompdf as the driver.
+      PDF_CHROME_URL: http://127.0.0.1:3000
 
     steps:
       - name: Checkout code
@@ -87,6 +103,15 @@ jobs:
           extensions: bcmath, ctype, curl, dom, exif, fileinfo, gd, intl, mbstring, openssl, pdo_mysql, sodium, tokenizer, xml, zip
           tools: composer:v2
           coverage: none
+
+      # pdftoppm and pdftotext for the document visual-diff tests (not on the runner image).
+      - name: Install poppler-utils
+        run: |
+          if ! command -v pdftoppm >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq --no-install-recommends poppler-utils
+          fi
+          pdftoppm -v
 
       - name: Get Composer cache directory
         id: composer-cache

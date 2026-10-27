@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Documents\Verification\DocumentVerifiers;
 use App\Exports\ListExports;
 use App\Members\InvitationList;
 use App\Members\MemberList;
@@ -35,6 +36,10 @@ class AppServiceProvider extends ServiceProvider
         // The workspace sidebar: Core's pages, then whatever modules add
         // from their providers (callAfterResolving).
         $this->app->singleton(WorkspaceNavigation::class, static fn (): WorkspaceNavigation => WorkspaceNavigation::withCoreItems());
+
+        // Verification resolvers of issued documents: modules register theirs
+        // from their providers (callAfterResolving), like the sidebar.
+        $this->app->singleton(DocumentVerifiers::class);
 
         // The lists that export (P02-07): Core's, then whatever modules add
         // from their providers (callAfterResolving).

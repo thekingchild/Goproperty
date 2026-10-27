@@ -21,6 +21,7 @@ final readonly class BrandingPreview
     public function __construct(
         private BrandingFiles $files,
         private ThemeContext $theme,
+        private DocumentRenderer $renderer,
     ) {}
 
     /**
@@ -51,12 +52,12 @@ final readonly class BrandingPreview
 
     public function invoice(DocumentBranding $brand): string
     {
-        return view('documents.invoice', ['brand' => $brand, 'invoice' => SampleDocuments::invoice($brand)])->render();
+        return $this->renderer->web(new ViewDocument('documents.invoice', ['invoice' => SampleDocuments::invoice($brand)], $brand));
     }
 
     public function receipt(DocumentBranding $brand): string
     {
-        return view('documents.receipt', ['brand' => $brand, 'receipt' => SampleDocuments::receipt($brand)])->render();
+        return $this->renderer->web(new ViewDocument('documents.receipt', ['receipt' => SampleDocuments::receipt($brand)], $brand));
     }
 
     private function productName(): string

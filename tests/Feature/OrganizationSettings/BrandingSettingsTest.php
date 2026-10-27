@@ -6,8 +6,8 @@ use App\Audit\AuditEntry;
 use App\Branding\Branding;
 use App\Branding\BrandingSettings;
 use App\Documents\BrandingPreview;
+use App\Documents\DocumentLayout;
 use App\Enums\ChecklistItem;
-use App\Enums\DocumentLayout;
 use App\Enums\OrganizationRole;
 use App\Enums\OrganizationStatus;
 use App\Livewire\Settings\BrandingPage;
@@ -135,7 +135,7 @@ describe('acceptance: low-contrast colours rejected', function () {
         $html = app(BrandingPreview::class)->invoice(app(BrandingPreview::class)->forWeb($this->acme, $branding));
 
         expect($branding->primaryColor)->toBe('#0891B2')
-            ->and($html)->toContain('.topbar { height: 8px; background: #0891b2; }')
+            ->and($html)->toContain('.brand-bar td { height: 8px; background: #0891b2;')
             ->and($html)->not->toContain('.items th { background: #0891b2;');
     });
 });

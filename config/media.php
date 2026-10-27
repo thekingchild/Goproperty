@@ -22,6 +22,12 @@ declare(strict_types=1);
 | A module that needs another collection adds it here (or merges it into
 | this config from its service provider) with the narrowest list of types.
 |
+| Every collection is one of two kinds (ARCHITECTURE.md § 9 "Attachments vs
+| evidence"): `attachment` files may be deleted for good by a permitted
+| member; `evidence` files are records (AGENT.md § 3 rule 7) and App\Media\Media
+| refuses to delete them (only the NDPA erasure tooling may, through
+| Media::purging()).
+|
 */
 
 return [
@@ -51,6 +57,7 @@ return [
             'mimes' => ['image/jpeg', 'image/png', 'image/webp'],
             'max_kb' => 10 * 1024,
             'conversions' => ['thumb', 'large'],
+            'kind' => 'attachment',
         ],
 
         // Payment proofs, receipts for expenses, signed papers: a photo or a PDF.
@@ -59,14 +66,17 @@ return [
             'mimes' => ['application/pdf', 'image/jpeg', 'image/png'],
             'max_kb' => 10 * 1024,
             'conversions' => ['thumb'],
+            'kind' => 'evidence',
         ],
 
         // Organization logo, signature and stamp (App\Branding\BrandingFiles):
-        // stored already re-encoded as PNG, at most 800 × 500 px.
+        // stored already re-encoded as PNG, at most 800 × 500 px. Kept like
+        // evidence: replaced images stay for documents issued with them.
         'branding' => [
             'mimes' => ['image/png'],
             'max_kb' => 2 * 1024,
             'conversions' => [],
+            'kind' => 'evidence',
         ],
 
         // Spreadsheets uploaded for import (Modules\Import, DATA_IMPORT.md
@@ -77,6 +87,16 @@ return [
             'mimes' => ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv'],
             'max_kb' => 20 * 1024,
             'conversions' => [],
+            'kind' => 'attachment',
+        ],
+
+        // PDFs of issued documents (invoices, receipts, …), rendered once by
+        // App\Documents\DocumentRenderer and reused (BRANDING_DOCUMENTS.md § 5).
+        'issued_documents' => [
+            'mimes' => ['application/pdf'],
+            'max_kb' => 10 * 1024,
+            'conversions' => [],
+            'kind' => 'evidence',
         ],
     ],
 

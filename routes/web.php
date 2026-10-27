@@ -166,8 +166,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::view('owner', 'surfaces.owner')->name('owner.home');
 });
 
-// No sign-in. Not found until the pay page (P04) and document
-// verification (P03) exist; the routes are named so links can be built.
+// No sign-in. Not found until the pay page (P03-05c) and document
+// verification (P03-05b, through App\Documents\Verification\DocumentVerifiers)
+// exist; the routes are named so links and QR codes can be built.
 Route::get('pay/{reference}', fn () => abort(404))
     ->where('reference', '[A-Za-z0-9-]{6,64}')
     ->name('pay.show');
