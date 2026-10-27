@@ -145,20 +145,27 @@ function wizardBuild(object $test): int
 
 function startSmtpSink(object $test): int
 {
-    $port = random_int(30000, 40000);
     $test->mailbox = $test->dir.'/mailbox.txt';
-    $test->smtp = Process::path(base_path())->start([PHP_BINARY, 'scripts/release/smtp-sink.php', (string) $port, $test->mailbox]);
 
-    for ($i = 0; $i < 50; $i++) {
-        $socket = @fsockopen('127.0.0.1', $port, $errno, $error, 0.2);
+    // A random port may already be taken (the sink then exits at once), and a
+    // busy parallel run can start PHP slowly: try new ports, wait up to ~20 s.
+    for ($attempt = 0; $attempt < 3; $attempt++) {
+        $port = random_int(30000, 40000);
+        $test->smtp = Process::path(base_path())->start([PHP_BINARY, 'scripts/release/smtp-sink.php', (string) $port, $test->mailbox]);
 
-        if ($socket !== false) {
-            fclose($socket);
+        for ($i = 0; $i < 100 && $test->smtp->running(); $i++) {
+            $socket = @fsockopen('127.0.0.1', $port, $errno, $error, 0.2);
 
-            return $port;
+            if ($socket !== false) {
+                fclose($socket);
+
+                return $port;
+            }
+
+            usleep(100_000);
         }
 
-        usleep(100_000);
+        $test->smtp->stop();
     }
 
     throw new RuntimeException('The SMTP sink did not start.');
