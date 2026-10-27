@@ -22,10 +22,7 @@ it('sends a fresh copy to the installer without the database or the error log', 
         File::ensureDirectoryExists("{$storage}/{$folder}");
     }
 
-    $port = random_int(20000, 40000);
-    $base = "http://127.0.0.1:{$port}";
-
-    $server = Process::path(base_path())
+    $start = fn (int $port) => Process::path(base_path())
         ->env([
             'APP_KEY' => '',
             'APP_ENV' => 'production',
@@ -43,11 +40,16 @@ it('sends a fresh copy to the installer without the database or the error log', 
         // EGPCS: Laravel reads LARAVEL_STORAGE_PATH from $_ENV.
         ->start([PHP_BINARY, '-d', 'variables_order=EGPCS', '-S', "127.0.0.1:{$port}", '-t', public_path()]);
 
-    try {
-        $ready = false;
+    // A random port may already be taken (`php -S` then exits at once), and a
+    // loaded parallel run can start it slowly: try up to three ports, ~20 s each.
+    $ready = false;
 
-        // Up to ~20 s: under a loaded parallel run `php -S` can take a while to listen.
-        for ($i = 0; $i < 200 && ! $ready; $i++) {
+    for ($attempt = 0; $attempt < 3 && ! $ready; $attempt++) {
+        $port = random_int(20000, 40000);
+        $base = "http://127.0.0.1:{$port}";
+        $server = $start($port);
+
+        for ($i = 0; $i < 200 && ! $ready && $server->running(); $i++) {
             try {
                 Http::timeout(1)->get("{$base}/install.css");
                 $ready = true;
@@ -56,6 +58,12 @@ it('sends a fresh copy to the installer without the database or the error log', 
             }
         }
 
+        if (! $ready) {
+            $server->stop();
+        }
+    }
+
+    try {
         expect($ready)->toBeTrue('The PHP server did not start.');
 
         $client = Http::withoutRedirecting()->timeout(10);
