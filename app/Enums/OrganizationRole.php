@@ -57,9 +57,12 @@ enum OrganizationRole: string
             // responsibility, bank accounts or Paystack (where tenants' money
             // goes: owner only), compliance or closing the organization.
             // Property owners' records (P02-01a) are kept by owners and
-            // administrators; agents look them up.
-            self::Admin => [P::OpenWorkspace, P::UpdateOrganization, P::ViewSettings, P::ViewMembers, P::ManageMembers, P::ViewOwners, P::ManageOwners, ...$operations, P::ViewReports, P::ManageImports],
-            // Operational staff; building assignment narrows this in policies.
+            // administrators; agents look them up. Which buildings the
+            // organization manages (adding, archiving, restoring one;
+            // P02-01b) is also theirs: agents work on existing buildings.
+            self::Admin => [P::OpenWorkspace, P::UpdateOrganization, P::ViewSettings, P::ViewMembers, P::ManageMembers, P::ViewOwners, P::ManageOwners, P::ManagePropertyPortfolio, ...$operations, P::ViewReports, P::ManageImports],
+            // Operational staff: they edit buildings and units but do not add
+            // or archive buildings; building assignment narrows this in policies.
             self::Agent => [P::OpenWorkspace, P::ViewOwners, ...$operations],
             // Owner portal only (/owner), own properties only (policies narrow it).
             self::PropertyOwner => [P::ViewProperties, P::ViewLeases, P::ViewBills, P::ViewPayments, P::ViewTickets, P::RespondToTickets, P::ViewReports],

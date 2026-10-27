@@ -35,15 +35,16 @@ function sidebarItemsOf(User $user): array
 it('shows each role the workspace pages it may open, Core and module pages alike', function (OrganizationRole $role, array $items) {
     expect(sidebarItemsOf(joinAs(User::factory()->create(), $this->acme, $role)))->toBe($items);
 })->with([
-    'org-owner' => [OrganizationRole::Owner, ['home', 'owners', 'compliance', 'members', 'settings']],
-    'org-admin' => [OrganizationRole::Admin, ['home', 'owners', 'members', 'settings']],
-    'agent' => [OrganizationRole::Agent, ['home', 'owners']],
+    'org-owner' => [OrganizationRole::Owner, ['home', 'buildings', 'owners', 'compliance', 'members', 'settings']],
+    'org-admin' => [OrganizationRole::Admin, ['home', 'buildings', 'owners', 'members', 'settings']],
+    'agent' => [OrganizationRole::Agent, ['home', 'buildings', 'owners']],
 ]);
 
 it('links each item to its page in the current organization', function () {
     $owner = joinAs(User::factory()->create(), $this->acme);
 
     $this->actingAs($owner)->get('/o/acme-homes/owners')->assertOk()
+        ->assertSee('href="http://localhost/o/acme-homes/buildings"', false)
         ->assertSee('href="http://localhost/o/acme-homes/owners"', false)
         ->assertSee('href="http://localhost/o/acme-homes/compliance/tier"', false)
         ->assertSee('href="http://localhost/o/acme-homes/settings/members"', false)

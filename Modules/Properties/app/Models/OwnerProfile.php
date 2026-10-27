@@ -9,6 +9,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Modules\Properties\Database\Factories\OwnerProfileFactory;
 use Modules\Properties\Enums\OwnerIdType;
@@ -81,6 +82,16 @@ final class OwnerProfile extends Model
         }
 
         return $this->id_type->label().' ···'.substr($this->id_value, -4);
+    }
+
+    /**
+     * The buildings this owner owns (P02-01b), archived buildings included.
+     *
+     * @return HasMany<Property, $this>
+     */
+    public function properties(): HasMany
+    {
+        return $this->hasMany(Property::class, 'owner_profile_id');
     }
 
     protected static function newFactory(): OwnerProfileFactory

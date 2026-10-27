@@ -91,6 +91,34 @@
             <flux:textarea wire:model="notes" :label="__('Notes')" :description="__('Only your team sees these.')" rows="3" maxlength="2000" :disabled="! $canEdit" />
         </section>
 
+        @if ($buildings !== null)
+            <section class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900" data-test="owner-buildings">
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <flux:heading size="lg" level="2">{{ __('Buildings') }}</flux:heading>
+                    @if ($buildingCount > 0)
+                        <flux:link :href="route('workspace.buildings.index', [$organization, 'owner' => $owner->id])" wire:navigate class="text-sm">{{ __('See in the buildings list') }}</flux:link>
+                    @endif
+                </div>
+                @if ($buildings->isEmpty())
+                    <flux:text class="mt-2">{{ __('This owner has no buildings yet. Choose them as the owner when you add or edit a building.') }}</flux:text>
+                @else
+                    <ul class="mt-3 divide-y divide-zinc-100 dark:divide-zinc-800">
+                        @foreach ($buildings as $building)
+                            <li class="flex items-center justify-between gap-3 py-2" wire:key="owner-building-{{ $building->id }}">
+                                <a href="{{ route('workspace.buildings.show', [$organization, $building]) }}" wire:navigate class="truncate font-medium text-zinc-900 hover:underline dark:text-white">{{ $building->name }}</a>
+                                @if ($building->isArchived())
+                                    <flux:badge size="sm" color="zinc">{{ __('Archived') }}</flux:badge>
+                                @endif
+                            </li>
+                        @endforeach
+                    </ul>
+                    @if ($buildingCount > $buildings->count())
+                        <flux:text class="mt-2 text-sm">{{ __('And :count more.', ['count' => $buildingCount - $buildings->count()]) }}</flux:text>
+                    @endif
+                @endif
+            </section>
+        @endif
+
         @if ($canEdit)
             <div class="flex gap-2">
                 <flux:button type="submit" variant="primary" data-test="save-owner">{{ $owner ? __('Save owner') : __('Add owner') }}</flux:button>

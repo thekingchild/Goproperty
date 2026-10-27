@@ -9,16 +9,21 @@ use App\Navigation\WorkspaceNavigation;
 use App\Navigation\WorkspaceNavItem;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Livewire;
+use Modules\Properties\Buildings\PropertyDirectoryService;
+use Modules\Properties\Contracts\PropertyDirectory;
 use Modules\Properties\Models\OwnerProfile;
+use Modules\Properties\Models\Property;
 use Modules\Properties\Policies\OwnerProfilePolicy;
+use Modules\Properties\Policies\PropertyPolicy;
 use Nwidart\Modules\Support\ModuleServiceProvider;
 
 /**
- * The Properties module (ARCHITECTURE.md § 6.2, § 8): owner profiles, and
- * later buildings and units. The base provider loads the module's views
+ * The Properties module (ARCHITECTURE.md § 6.2, § 8): owner profiles and
+ * buildings, later units. The base provider loads the module's views
  * (`properties::`) and migrations; this one adds its policies, its
  * Livewire components (namespace `properties::`, classes in
- * Modules\Properties\Livewire) and its workspace sidebar items.
+ * Modules\Properties\Livewire), its workspace sidebar items, and the
+ * contracts other modules use (Contracts\PropertyDirectory).
  */
 final class PropertiesServiceProvider extends ModuleServiceProvider
 {
@@ -31,15 +36,33 @@ final class PropertiesServiceProvider extends ModuleServiceProvider
         RouteServiceProvider::class,
     ];
 
+    public function register(): void
+    {
+        parent::register();
+
+        // For other modules (ARCHITECTURE.md § 6.2, § 8 rule 3).
+        $this->app->bind(PropertyDirectory::class, PropertyDirectoryService::class);
+    }
+
     public function boot(): void
     {
         parent::boot();
 
         Gate::policy(OwnerProfile::class, OwnerProfilePolicy::class);
+        Gate::policy(Property::class, PropertyPolicy::class);
 
         Livewire::addNamespace($this->nameLower, classNamespace: 'Modules\\Properties\\Livewire');
 
         $this->callAfterResolving(WorkspaceNavigation::class, static function (WorkspaceNavigation $navigation): void {
+            $navigation->add(new WorkspaceNavItem(
+                key: 'buildings',
+                label: 'Buildings',
+                icon: 'building-office-2',
+                route: 'workspace.buildings.index',
+                active: ['workspace.buildings.*'],
+                visible: static fn (User $user): bool => $user->can('viewAny', Property::class),
+                order: 200,
+            ));
             $navigation->add(new WorkspaceNavItem(
                 key: 'owners',
                 label: 'Owners',

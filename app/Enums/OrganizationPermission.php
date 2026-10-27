@@ -42,6 +42,7 @@ enum OrganizationPermission: string
     case ManageOwners = 'owners.manage';
     case ViewProperties = 'properties.view';
     case ManageProperties = 'properties.manage';
+    case ManagePropertyPortfolio = 'properties.portfolio';
     case ViewLeases = 'leases.view';
     case ManageLeases = 'leases.manage';
     case ViewBills = 'bills.view';
@@ -91,6 +92,7 @@ enum OrganizationPermission: string
             self::ManageMembers,
             self::ManageOwners,
             self::ManageProperties,
+            self::ManagePropertyPortfolio,
             self::ManageLeases,
             self::ManageBills,
             self::ConfirmPayments,
@@ -143,6 +145,7 @@ enum OrganizationPermission: string
             self::ManageOwners,
             self::ViewProperties,
             self::ManageProperties,
+            self::ManagePropertyPortfolio,
             self::ViewLeases,
             self::ManageLeases,
             self::ViewBills,
@@ -175,7 +178,8 @@ enum OrganizationPermission: string
             self::ViewOwners => 'See property owners\' details (ID numbers masked)',
             self::ManageOwners => 'Add, edit, archive and restore property owners',
             self::ViewProperties => 'See buildings and units',
-            self::ManageProperties => 'Add and edit buildings and units',
+            self::ManageProperties => 'Edit buildings and their photos, and their units',
+            self::ManagePropertyPortfolio => 'Add, archive and restore buildings',
             self::ViewLeases => 'See leases',
             self::ManageLeases => 'Create, renew and end leases',
             self::ViewBills => 'See bills',

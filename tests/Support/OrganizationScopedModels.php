@@ -24,6 +24,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 use LogicException;
 use Modules\Properties\Models\OwnerProfile;
+use Modules\Properties\Models\Property;
 
 /**
  * Every organization-owned model (BelongsToOrganization) and how to make one
@@ -85,6 +86,7 @@ final class OrganizationScopedModels
                 'responsive_images' => [],
             ]),
             OwnerProfile::class => fn (): Model => OwnerProfile::factory()->withNin()->create(),
+            Property::class => fn (): Model => Property::factory()->ownedBy(OwnerProfile::factory()->create())->create(),
         ];
     }
 

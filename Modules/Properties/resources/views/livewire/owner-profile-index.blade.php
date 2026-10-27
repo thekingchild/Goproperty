@@ -10,9 +10,13 @@
         </x-slot:actions>
     @endif
 
-    @if ($notice)
-        <flux:callout variant="success" icon="check-circle" :heading="$notice" role="status" data-test="owners-notice" />
-    @endif
+    @error('archive')
+        <flux:callout variant="warning" icon="exclamation-triangle" :heading="$message" role="alert" data-test="owners-warning" />
+    @else
+        @if ($notice)
+            <flux:callout variant="success" icon="check-circle" :heading="$notice" role="status" data-test="owners-notice" />
+        @endif
+    @enderror
 
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div class="w-full sm:max-w-sm">

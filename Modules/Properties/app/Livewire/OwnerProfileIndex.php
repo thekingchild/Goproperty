@@ -79,7 +79,10 @@ final class OwnerProfileIndex extends Component
     {
         $owner = OwnerProfile::query()->findOrFail($ownerId);
         $this->authorize('delete', $owner);
+        $this->resetErrorBag();
+        $this->notice = null;
 
+        // Refused (ValidationException, key `archive`) while the owner still owns active buildings.
         $owners->archive($this->user(), $owner);
         $this->notice = __(':name was archived. Find it under Archived to restore it.', ['name' => $owner->display_name]);
     }

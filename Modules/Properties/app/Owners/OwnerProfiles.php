@@ -15,6 +15,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Modules\Properties\Enums\OwnerIdType;
 use Modules\Properties\Enums\OwnerType;
+use Modules\Properties\Enums\PropertyStatus;
 use Modules\Properties\Models\OwnerProfile;
 
 /**
@@ -24,6 +25,9 @@ use Modules\Properties\Models\OwnerProfile;
  * impersonation guards apply) and written to the audit log (log `owners`,
  * the owner as subject). Audit entries name the fields that changed, never
  * the ID number itself.
+ *
+ * An owner who still owns an active building is not archived (P02-01b):
+ * the building would be left with an archived owner.
  *
  * The ID number never goes back to the browser: on an edit, an empty number
  * keeps the one on file while the ID type stays the same.
@@ -79,9 +83,23 @@ final class OwnerProfiles
         });
     }
 
+    /**
+     * @throws ValidationException (key `archive`) while the owner still owns
+     *                             active buildings: they would be left with an archived owner
+     */
     public function archive(User $by, OwnerProfile $owner): void
     {
         Gate::forUser($by)->authorize('delete', $owner);
+
+        $active = $owner->properties()->where('status', PropertyStatus::Active)->count();
+
+        if ($active > 0) {
+            throw ValidationException::withMessages(['archive' => trans_choice(
+                ':name still owns :count active building. Choose another owner for it, or archive it, first.|:name still owns :count active buildings. Choose another owner for them, or archive them, first.',
+                $active,
+                ['name' => $owner->display_name, 'count' => $active],
+            )]);
+        }
 
         $owner->delete();
         $this->audit('owner.archived', $owner, $by, 'Owner archived');

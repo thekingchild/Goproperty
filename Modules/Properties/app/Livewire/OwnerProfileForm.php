@@ -15,6 +15,7 @@ use Livewire\Component;
 use Modules\Properties\Enums\OwnerIdType;
 use Modules\Properties\Enums\OwnerType;
 use Modules\Properties\Models\OwnerProfile;
+use Modules\Properties\Models\Property;
 use Modules\Properties\Owners\OwnerProfiles;
 
 /**
@@ -23,6 +24,9 @@ use Modules\Properties\Owners\OwnerProfiles;
  * company, contact details, address, and an ID number (NIN or CAC number).
  * Members with `owners.view` open an owner read-only; `owners.manage` adds
  * and saves (OwnerProfilePolicy, checked again by OwnerProfiles).
+ *
+ * An owner's page also lists the owner's buildings (P02-01b) for members
+ * who may see buildings.
  *
  * The ID number on file is never sent to the browser: the page shows it
  * masked, and an empty field keeps it. The owner id is locked and loaded
@@ -33,6 +37,9 @@ use Modules\Properties\Owners\OwnerProfiles;
 #[Title('Owner')]
 final class OwnerProfileForm extends Component
 {
+    /** Buildings listed on an owner's page; the rest are behind a filtered link. */
+    public const int BUILDINGS_SHOWN = 20;
+
     #[Locked]
     public int $organizationId;
 
@@ -141,6 +148,11 @@ final class OwnerProfileForm extends Component
             'idTypes' => OwnerIdType::cases(),
             'states' => NigerianStates::ALL,
             'flash' => session('owner-status'),
+            // The owner's buildings (P02-01b), for members who may see buildings.
+            'buildings' => $owner !== null && $this->user()->can('viewAny', Property::class)
+                ? $owner->properties()->orderBy('status')->orderBy('name')->limit(self::BUILDINGS_SHOWN)->get()
+                : null,
+            'buildingCount' => $owner !== null ? $owner->properties()->count() : 0,
         ]);
     }
 

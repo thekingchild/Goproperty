@@ -6,7 +6,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 ## Current state
 
-- **In progress:** P02 wave 2 (P02-01b and P02-06a) from `docs/plans/P02-P03-subtasks.md`, each in its own worktree. Done in P02: P02-01a, P02-05
+- **In progress:** P02 wave 2 (P02-01b and P02-06a) from `docs/plans/P02-P03-subtasks.md`, each in its own worktree. Done in P02: P02-01 (01a, 01b), P02-05
 - **In review:** P00-02 (CI): all four database jobs are green in GitHub Actions; branch protection on `main` is off by the product owner's decision (2026-10-27) while P02 and P03 are built, so tasks keep merging straight to `main`; turn it on afterwards (`docs/runbooks/ci.md` § 3) and mark P00-02 complete. P00-12 (backups): built and drilled locally; needs one real run to an S3-compatible bucket and a Google Shared Drive (PRE-03 accounts)
 - **Next task:** P02 waves 3–6 after wave 2; PRE-01 to PRE-04 continue with the product owner
 - **Blocked:** P00-13 (staging): the deploy scripts, the deploy on merge and the deploy drill are built and drilled locally; it needs a staging host (PRE-04). Until then the Deploy workflow fails at "Check deploy settings" on every push to `main`
@@ -18,7 +18,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | PRE | 5 | 1 | In progress |
 | P00 | 13 | 10 | In progress |
 | P01 | 9 | 9 | Complete (2026-10-27) |
-| P02 | 7 | 1 | In progress |
+| P02 | 7 | 2 | In progress |
 | P03 | 13 | 0 | Not started |
 | P04 | 3 | 0 | Not started |
 | P05 | 6 | 0 | Not started |
@@ -26,11 +26,64 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | P07 | 4 | 0 | Not started |
 | P08 | 4 | 0 | Not started |
 | P09 | 8 | 0 | Not started |
-| **Total** | **83** | **21** | |
+| **Total** | **83** | **22** | |
 
 ## Ledger (newest first)
 
 Each entry: task ID and status, date, what was delivered, tests run and results, follow-ups, next task.
+
+### P02-01b — Complete (2026-10-27): buildings CRUD (schema, policy, list/add/edit/show/archive pages, photos through the media library, PropertyDirectory contract); P02-01 complete
+
+With P02-01a already done, this completes the parent **P02-01** (owner profiles; buildings CRUD with amenities and photos; AC "cross-org access tests pass for owners and buildings").
+
+**Delivered** ([DATABASE_SCHEMA.md § 3](../DATABASE_SCHEMA.md) `properties`, [ARCHITECTURE.md § 5](../ARCHITECTURE.md) "Buildings", § 6.2 "Built so far", § 9 "Building photos"; `docs/plans/P02-P03-subtasks.md` P02-01b):
+- **Schema:** module migration `Modules/Properties/database/migrations/2026_11_03_000101_create_properties_table.php`: DB § 3 columns, `owner_profile_id` nullable FK to `owner_profiles` (restrict), `photo_media_id` (cover; no FK, like `organizations.logo_media_id`), `status` (`active`/`archived`), import provenance `import_batch_id` (no FK) / `external_ref`, soft deletes. Unique `(organization_id, slug)` and `(organization_id, external_ref)`; indexes `(organization_id, import_batch_id)`, `(organization_id, status, name)`, `(organization_id, owner_profile_id)`.
+- **Model and enums:** `Modules\Properties\Models\Property` (`BelongsToOrganization`, `SoftDeletes`, `HasMedia` + `App\Media\HasOrganizationMedia`, route key = slug, `owner()` incl. archived owners, `coverPhoto()`, `photos()`), `PropertyType` (6 types), `PropertyStatus` (active, archived), `PropertyFactory`; `OwnerProfile::properties()`. `Property` added to `tests/Support/OrganizationScopedModels.php` (all 5 `CrossTenantAccessTest` probes).
+- **Writers (audited, log `properties`):** `Modules\Properties\Buildings\Properties` (create, update, archive, restore; each checks `PropertyPolicy` for the acting user; server-side validation: plain text, state from `NigerianStates`, owner must be an owner profile of this organization and not archived unless it is already the building's owner, year 1800…now+5, amenities ≤ 30 × 40 chars). Slug made from the name, next free `-2`, `-3`… among all rows incl. archived and soft-deleted, never `create`; kept on rename; a unique-index race retries. Adding the first building ticks the setup checklist item `data` ("Add your properties", ONBOARDING § 2 step 6). Archive/restore = status change under a row lock. `Buildings\PropertyPhotos` (add / makeCover / remove): files only through `App\Media\MediaUploads` into collection `photos` (already in `config/media.php`: JPEG/PNG/WebP, 10 MB, `thumb` + `large`); every file of an upload is checked by `UploadValidator` before the first is stored; ≤ 10 per upload, ≤ 20 per building; first photo becomes the cover, removing the cover moves it to the next photo; a photo is looked up among that building's own photos (404 otherwise). `Buildings\Amenities` (suggested list + free text, normalised, de-duplicated).
+- **Permissions and policy:** existing `properties.view` / `properties.manage` reused; one new permission **`properties.portfolio`** ("Add, archive and restore buildings"; org-owner, org-admin), classed in `allowedWhileSuspended()` (false) and `blockedWhileImpersonating()` (false). `PropertyPolicy`: viewAny/view (`properties.view`, archived too), update/addPhotos/deletePhoto (`properties.manage`, active buildings only), create/delete(archive)/restore (`properties.portfolio`); create and restore refused while the organization is `restricted` (ONBOARDING § 5.5). Archive (`delete`) and photo removal (`deletePhoto`) are blocked during impersonation by the central guard's ability names.
+- **Pages** (`Modules/Properties/resources/views/livewire`, routes in the module's workspace group): `/o/{slug}/buildings` (`PropertyIndex`: 25 a page on the server, debounced search over name/address/landmark/LGA, filters type/state/owner, Active/Archived switch, all in the URL; signed cover thumbnails; archive with confirmation, restore; eager loads, no N+1), `/buildings/create` and `/buildings/{building}/edit` (`PropertyForm`: owner picker of the organization's active owners plus the current one if archived since, "No owner on file", link to add an owner; amenities checkboxes + other), `/buildings/{building}` (`PropertyShow`: details, owner link, amenities, photo gallery with signed `thumb`/`large` links, upload checked on choice and on save, make cover, remove, archive/restore; archived building read-only with a banner). Sidebar item "Buildings" (order 200).
+- **Owner follow-ups from P02-01a:** archiving an owner who still owns an active building is refused with a message on the Owners list (`OwnerProfiles::archive`, ValidationException `archive`); an owner's page lists their buildings (20, then a link to the list filtered by owner).
+- **Contract:** `Modules\Properties\Contracts\PropertyDirectory` (`find`, `findMany`, `isActive`, `activeOptions`, `countActive`) returning `Contracts\PropertySummary` (scalars only), bound in `PropertiesServiceProvider` to `Buildings\PropertyDirectoryService`; current organization only, throws without one; archived buildings found with `archived = true`, soft-deleted ones not found.
+- **Docs:** DATABASE_SCHEMA.md § 3 `properties` as built; ARCHITECTURE.md § 5 (Buildings paragraph, owner archive rule), § 6.2 ("Built so far": archive semantics, PropertyDirectory), § 9 (building photos).
+
+**Tests and evidence (local, MariaDB 11.4):**
+- `composer ci` on the final commit (`156c0aa`, after merging main `0858309`): Pint passed, Larastan 0 errors, Pest **1,489 tests: 1,489 passed, 12,374 assertions**. The module and installer tests also pass with `APP_DEBUG=true` (91 tests).
+- New: `Modules/Properties/tests/Feature/Buildings/PropertyPagesTest.php` (21 incl. datasets), `PropertyRolesTest.php` (13), `PropertyPhotosTest.php` (13), `PropertyDirectoryTest.php` (2), helpers `helpers.php`; `CrossTenantAccessTest` dataset `Property` (5).
+- **AC: cross-org access tests pass for owners and buildings:** `CrossTenantAccessTest` datasets `OwnerProfile` and `Property` (no context, own rows only, no cross-org update/delete, no cross-org create/move, 404 on URL binding); `PropertyPagesTest` › "answers 404 for another organization's building guessed by slug or ID, on every page and action" (show/edit by foreign slug and by numeric id 404; same slug in both orgs shows each its own; list archive/restore with a foreign id 404; the locked `propertyId` swapped on the show page and the form → 419 with debug pinned off; member of both orgs gets 404 inside Acme's workspace; foreign rows unchanged); `PropertyPhotosTest` › "answers 404 for a photo of another building or another organization" (removePhoto/makeCover); `PropertyDirectoryTest` › "answers for the current organization only"; owners' existing `OwnerProfilePagesTest` › "answers 404 for another organization's owner…" still green.
+- **Sub: archive is soft only (AGENT § 3.7):** `PropertyPagesTest` › "archives a building as a status change, never a delete, keeps it readable, and restores it, all audited" (row present, `status = archived`, `deleted_at` null; listed under Archived; page read-only; edit 403; restore and archive again; audit `property.archived` / `property.restored`).
+- **Sub: photo uploads go through `UploadValidator`:** `PropertyPhotosTest` › "refuses a script renamed .jpg, and an SVG, whatever the browser says, storing nothing" (PHP as `.jpg`, PHP sent as `image/jpeg`, SVG, SVG as `.png`, PDF; refused on choice, on save and by the writer; no media row, no file), "refuses the whole upload when one file is refused", "stores a valid photo through the media library with its conversions, makes it the cover and shows it through signed links" (collection `photos`, sniffed mime, random file name, sha256, `thumb` and `large` made by the media-queue job, cover set, audit; the page's signed thumb link serves `image/webp` without a session, a tampered signature and a link 16 min old get 404; list thumbnail), "queues the conversions on the media queue", cover/remove, limits (10/20).
+- **Role rules (ARCH § 5):** `PropertyRolesTest` › policy matrix for the 5 roles × 10 abilities; grants and guard classing of `properties.view/manage/portfolio`; other-org members and strangers refused; pages per role (agents edit but don't add/archive/restore; property owners, tenants, strangers 404); agent's add/archive/restore sent to the server refused, agent's edit saved.
+- **Suspended org read-only:** `PropertyRolesTest` › "shows buildings read-only while the organization is suspended" (pages open, no buttons, edit/create 403, save/archive/restore calls 403, nothing changed). Restricted: "adds and restores no building while the organization is restricted, but keeps editing and archiving".
+- **Impersonation:** `PropertyRolesTest` › "lets impersonating staff in write mode edit a building, audited with both identities, but never archive one" and "… read-only mode open buildings but change nothing"; `PropertyPhotosTest` › "never lets impersonating staff remove a photo, even in write mode".
+- Others: slugs (`PropertyPagesTest` › "gives each building a slug unique in its organization, and keeps it when the building is renamed"), owner picker, validation dataset (12), search/filters/paging, "loads the list without a query per building (no N+1)" (checked: fails when the `owner` eager load is removed), owner page and owner-archive refusal.
+- Existing tests changed (none weakened): `WorkspaceNavigationTest` (sidebar now has `buildings`), `WebInstallWizardTest` › "offers to empty the database after a failed migration" (it read the newest migration's file from `database/migrations` only; module migrations are now the newest, so it also looks in `Modules/*/database/migrations`; same check).
+- Not run: release build / verify / install drills (not in this row's AC; `InstallCommandTest` › "runs every module's migrations, building the same schema as a plain migrate" passes with `properties`). No browser smoke: the pages are only exercised through HTTP/Livewire tests.
+
+**Orchestrator review:** branch already contained `main` (`0858309`); re-ran `composer ci`: Pint passed, Larastan 0 errors, Pest 1,489 passed, 12,374 assertions. Checked the module for scope bypasses (none) and that every photo action authorizes through `PropertyPolicy`. Note: removing a photo deletes the media row and its files (a hard delete); photos are attachments, not domain records, so AGENT.md § 3 rule 7 is read as not applying — confirm.
+
+**Decisions to confirm:**
+- Orchestrator decision 1 (modules): buildings live in `Modules/Properties`, Livewire components in the module.
+- Orchestrator decision 3 (soft deletes vs unique keys): slugs are generated, so a new building never collides with a soft-deleted one (it gets the next free slug); `(organization_id, external_ref)` stays unique incl. soft-deleted rows; restoring a trashed building on re-import is for P02-06c.
+- Orchestrator decision 4 (plan gating): BILLING § 1.2 gates nothing built here (properties are in every plan).
+- **Archive = `status` change, not a soft delete** (owners use soft delete): DB § 3 has both `status` and soft deletes, and BILLING § 1.4 meters "units not soft-deleted and whose property is not archived", so archiving is the status; soft deletes stay for import rollback. An archived building's page stays open read-only (an archived owner's page is 404).
+- **New permission `properties.portfolio`** (add/archive/restore buildings: org-owner, org-admin) rather than letting agents do it with `properties.manage`: ARCH § 5 gives agents "assigned buildings", and adding/archiving changes what the organization is billed for. Agents keep editing buildings and their photos. Not blocked during impersonation (archive is, as a `delete` ability).
+- **Restricted organizations** (ONBOARDING § 5.5 "no new properties"): adding and restoring buildings are refused; editing and archiving continue.
+- `owner_profile_id` is **nullable** (an owner's own organization owns its buildings without an owner profile); an archived owner stays linked to their buildings and can be kept, not newly chosen.
+- Slug is kept on rename (links keep working); not editable.
+- Photos use the existing `photos` collection (`config/media.php` already lists "Building, unit and Building Group photos"), max 20 per building and 10 per upload (module constants, not config). Removing a photo deletes the media row and files (media rows have no soft deletes, ARCH § 9) and is blocked while impersonating (`deletePhoto`).
+- Adding the first building completes the setup checklist item `data`; its link (`workspace.imports.create`) is left to P02-06a.
+- An owner with active buildings cannot be archived (refused, not warned).
+
+**Follow-ups:**
+- P02-02: units on the building page; refuse archiving a building with occupied units / active leases (P03-03a for leases); decide whether archiving a building should touch its units' statuses (metering already excludes them by the property's status).
+- P02-03: narrow `PropertyPolicy::view/update/addPhotos/deletePhoto` and the list query to assigned buildings for narrowed agents (the policy notes where); agent ↔ building assignment is Scale-only (BILLING § 1.2) — gate in P06-01.
+- P02-06c: `PropertiesImportTarget` matches by `external_ref` incl. soft-deleted rows (restore, audited) and by name; use `Buildings\Properties::freeSlug()` for imported rows.
+- P02-07: export on the buildings list.
+- Owner picker and owner filter are plain selects of all owners; switch to a searchable picker if organizations get hundreds of owners.
+- Original photos keep their EXIF (P02-05 follow-up); building photos are a likely place to strip GPS before tenants see them.
+- The `/owner` portal (owners seeing their buildings) remains unowned (P02/P03 plan item 13); `properties.view` is already granted to `property-owner`.
+
+**Next:** P02 wave 3 (P02-02 ‖ P02-06b).
 
 ### P02-05 — Complete (2026-10-27): media library (Core): private media disk, organization-scoped media, upload checks, queued GD/WebP conversions, signed links; branding images moved in
 
