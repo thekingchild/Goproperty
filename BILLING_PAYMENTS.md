@@ -129,6 +129,7 @@ Used for SaaS subscription collection. Scope: **transaction charges with saved a
 ### 4.2 Webhook handling
 
 - Endpoint `/webhooks/paystack`, HMAC SHA-512 signature verification against raw body; unverified payloads logged and dropped.
+- Organizations' **own** Paystack accounts (tenant rent, never GoProperty's money) follow the same rules on their own endpoint, `/webhooks/paystack/{webhook_token}`, signed with that organization's secret, with verify-by-fetch, one payment per `(organization_id, paystack_reference)` and an amount mismatch **held for the organization's review** instead of platform staff's (built in P03-08: [ONBOARDING_COMPLIANCE.md § 4.2](ONBOARDING_COMPLIANCE.md) "How it is built", [ARCHITECTURE.md § 6.4](ARCHITECTURE.md) "How online payments are built"). Their deliveries share `webhook_log` with `organization_id` set.
 - Persist every event to `webhook_log` (raw payload + processed flag) **before** processing — replay-safe, idempotent handlers keyed on `reference`.
 - `charge.success` → verify by fetching the transaction server-side (`GET /transaction/verify/:reference` — never trust the payload amount alone) → mark `platform_payment` confirmed → mark invoice paid → subscription → `active` → receipt + notifications.
 - `charge.failed` → log, increment attempt counter, schedule retry ladder (see § 6).

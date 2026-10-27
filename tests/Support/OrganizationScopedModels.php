@@ -46,6 +46,11 @@ use Modules\Leasing\Enums\DepositEntryType;
 use Modules\Leasing\Models\Lease;
 use Modules\Leasing\Models\LeaseContract;
 use Modules\Leasing\Models\LeaseDepositEntry;
+use Modules\OnlinePayments\Enums\ConnectionMode;
+use Modules\OnlinePayments\Enums\ConnectionStatus;
+use Modules\OnlinePayments\Models\PaystackConnection;
+use Modules\OnlinePayments\Models\PaystackTransaction;
+use Modules\OnlinePayments\Models\PaystackWebhookLog;
 use Modules\Payments\Contracts\PaymentMethod;
 use Modules\Payments\Contracts\PaymentSource;
 use Modules\Payments\Enums\CreditReason;
@@ -213,6 +218,32 @@ final class OrganizationScopedModels
                 'event' => 'payment.recorded',
                 'channels' => ['mail'],
             ])->save()),
+            // The organization's own Paystack (P03-08): PaystackConnections and PaystackTransactions are the writers.
+            PaystackConnection::class => fn (): Model => tap(new PaystackConnection, fn (PaystackConnection $connection): bool => $connection->forceFill([
+                'public_key' => 'pk_live_'.Str::lower(Str::random(40)),
+                'secret_key' => 'sk_live_'.($secret = Str::lower(Str::random(40))),
+                'secret_key_last4' => substr($secret, -4),
+                'webhook_token' => Str::lower(Str::random(48)),
+                'mode' => ConnectionMode::Live,
+                'status' => ConnectionStatus::Active,
+            ])->save()),
+            PaystackWebhookLog::class => fn (): Model => tap(new PaystackWebhookLog, fn (PaystackWebhookLog $log): bool => $log->forceFill([
+                'event' => 'charge.success',
+                'reference' => 'GPO-PROBE',
+                'payload' => '{"event":"charge.success"}',
+                'signature_valid' => true,
+                'received_at' => now(),
+            ])->save()),
+            PaystackTransaction::class => fn (): Model => tap(new PaystackTransaction, function (PaystackTransaction $transaction): void {
+                $bill = self::bill();
+                $transaction->forceFill([
+                    'bill_id' => $bill->id,
+                    'tenant_profile_id' => $bill->tenant_profile_id,
+                    'reference' => 'GPO-'.strtoupper(bin2hex(random_bytes(10))),
+                    'amount_kobo' => Money::naira(1_500_000),
+                    'mode' => ConnectionMode::Live,
+                ])->save();
+            }),
             // A proof of payment (P03-09) on its own (no file): evidence, never changed or deleted.
             PaymentProof::class => fn (): Model => tap(new PaymentProof, function (PaymentProof $proof): void {
                 $payment = self::payment();

@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace App\Livewire\Onboarding;
 
+use App\Enums\ChecklistItem;
+use App\Enums\ChecklistStatus;
 use App\Enums\OnboardingStep;
 use App\Enums\OrganizationType;
 use App\Enums\TransactionTier;
 use App\Marketing\Plan;
 use App\Marketing\PlanCatalogue;
+use App\Models\OnboardingChecklistItem;
 use App\Models\Organization;
 use App\Models\OrganizationOnboarding;
 use App\Models\User;
@@ -20,6 +23,7 @@ use App\Support\NigerianStates;
 use App\Tenancy\OrganizationContext;
 use App\Theme\ThemeContext;
 use Illuminate\Contracts\View\View;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Layout;
@@ -168,7 +172,29 @@ final class SetupWizard extends Component
             'trialDays' => $plans->trialDays(),
             'brand' => app(ThemeContext::class)->current()->name(),
             'host' => parse_url((string) config('app.url'), PHP_URL_HOST) ?: 'goproperty.ng',
+            'collectionLinks' => $this->collectionLinks($organization),
+            'collectionsDone' => OnboardingChecklistItem::query()->where('item', ChecklistItem::Collections->value)->where('status', ChecklistStatus::Done->value)->exists(),
         ]);
+    }
+
+    /**
+     * The collections step's links (ONBOARDING_COMPLIANCE.md § 2 step 5):
+     * the bank accounts page (P01-05) and the organization's own Paystack
+     * (P03-08, a module: linked only while its page exists), each for
+     * members who may see payment settings (org-owners; never while staff
+     * impersonate).
+     *
+     * @return array{bank: string|null, paystack: string|null}
+     */
+    private function collectionLinks(Organization $organization): array
+    {
+        $allowed = $this->user()->can('viewPaymentSettings', $organization);
+        $link = static fn (string $route): ?string => $allowed && Route::has($route) ? route($route, $organization) : null;
+
+        return [
+            'bank' => $link('workspace.settings.collections'),
+            'paystack' => $link('workspace.settings.payments.paystack'),
+        ];
     }
 
     /** The amount typed, in kobo, or null when it is not a naira amount. */

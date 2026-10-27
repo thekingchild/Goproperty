@@ -19,11 +19,13 @@ use LogicException;
  *     $this->callAfterResolving(SettingsTabs::class, fn (SettingsTabs $tabs) => $tabs->add(new SettingsTab(…)));
  *
  * Shown in `order` (Core: Profile 10, Payment collection 20, Branding 30,
- * Members 90; modules' document settings in between, P03-03b), only to
- * members whose `visible` check passes and only while the route exists.
- * A module's settings page is named `workspace.settings.documents.*` (its
- * address /o/{slug}/settings/documents/…), which lights up the sidebar's
- * Settings item.
+ * Members 90; modules' pages in between: online payments 25, P03-08;
+ * document settings 40, P03-03b), only to members whose `visible` check
+ * passes and only while the route exists. A module's settings page is
+ * named `workspace.settings.documents.*` (its address
+ * /o/{slug}/settings/documents/…) or, for how tenants pay,
+ * `workspace.settings.payments.*`, which lights up the sidebar's Settings
+ * item.
  */
 final class SettingsTabs
 {

@@ -6,5 +6,6 @@
     "Leasing": true,
     "Billing": true,
     "Payments": true,
-    "Collections": true
+    "Collections": true,
+    "OnlinePayments": true
 }

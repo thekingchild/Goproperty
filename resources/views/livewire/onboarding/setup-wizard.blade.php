@@ -104,19 +104,30 @@
         <h1>How will tenants pay you?</h1>
         <p>Rent goes straight from tenants to you. {{ $brand }} never holds your money.</p>
       </header>
+      {{-- Each option opens its settings page (org-owners: they hold the payment settings); the wizard resumes here afterwards. --}}
       <ul class="options-list">
-        <li>
+        <li data-test="collections-bank">
           <strong>Bank transfer</strong>
           <span>Add the bank account tenants pay into. Every bill gets a payment reference, and you match payments from your bank statement.</span>
+          @if ($collectionLinks['bank'])
+            <span class="switch"><a href="{{ $collectionLinks['bank'] }}" data-test="setup-bank">Add a bank account</a></span>
+          @endif
         </li>
-        <li>
+        <li data-test="collections-paystack">
           <strong>Your own Paystack account</strong>
           <span>Let tenants pay online by card, transfer or USSD into your Paystack account. Available from the Growth plan.</span>
+          @if ($collectionLinks['paystack'])
+            <span class="switch"><a href="{{ $collectionLinks['paystack'] }}" data-test="setup-paystack">Connect your Paystack account</a></span>
+          @endif
         </li>
       </ul>
-      <p class="hint">You can set these up from the checklist on your dashboard.</p>
+      @if ($collectionsDone)
+        <p class="hint" data-test="collections-done">Rent collection is set up. You can add more from Settings at any time.</p>
+      @else
+        <p class="hint">You can also set these up later from the checklist on your dashboard.</p>
+      @endif
       <form class="stack" wire:submit="setUpCollectionsLater">
-        @include('livewire.onboarding.partials.actions', ['primary' => 'Set up later', 'target' => 'setUpCollectionsLater', 'back' => true])
+        @include('livewire.onboarding.partials.actions', ['primary' => $collectionsDone ? 'Continue' : 'Set up later', 'target' => 'setUpCollectionsLater', 'back' => true])
       </form>
       @break
 

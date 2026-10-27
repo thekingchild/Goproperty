@@ -38,6 +38,11 @@ $app = Application::configure(basePath: dirname(__DIR__))
             UseConsoleSession::class,
         ]);
 
+        // Paystack's server-to-server calls (OnlinePayments, P03-08): the
+        // route is outside the `web` group (no session), and never asks
+        // for a CSRF token; the HMAC signature proves the caller.
+        $middleware->validateCsrfTokens(except: ['webhooks/paystack/*']);
+
         // /o/{organization} routes: the context must exist before route
         // model binding resolves organization-owned models (ARCHITECTURE.md § 4).
         $middleware->alias(['organization' => SetOrganizationContext::class]);
