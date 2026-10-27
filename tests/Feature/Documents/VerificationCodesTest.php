@@ -193,7 +193,8 @@ describe('resolver registry', function () {
             ->and($verifiers->resolver('invoice'))->toBe($verifiers->resolver('invoice'))
             ->and($verifiers->has('invoice'))->toBeTrue()
             ->and($verifiers->has('receipt'))->toBeFalse()
-            ->and($verifiers->kinds())->toBe(['invoice']);
+            // Modules register their own kinds too (the Leasing module's `lease_contract`, P03-03b).
+            ->and($verifiers->kinds())->toContain('invoice');
     });
 
     it('takes registrations from module providers, made when the registry is first resolved', function () {

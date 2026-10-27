@@ -98,6 +98,18 @@ final class LeasePolicy
     }
 
     /**
+     * Download the contract PDF (P03-03b) of a lease that has one (it was
+     * activated). Whoever sees the lease may print it; staff impersonating
+     * a member may not take a copy away, since it carries the tenant's
+     * contact details (PLATFORM_CONSOLE.md § 6, as for list exports).
+     */
+    #[BlockedWhileImpersonating]
+    public function downloadContract(User $user, Lease $lease): Response|bool
+    {
+        return $this->reachable($user, $lease) ?? ($lease->contract_number !== null && $this->viewAny($user));
+    }
+
+    /**
      * Null when the lease is this organization's and in the member's
      * buildings (the ability's own rule decides); false for another
      * organization's lease; 404 outside a narrowed agent's buildings.

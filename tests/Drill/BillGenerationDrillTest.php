@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Modules\Billing\Bills\BillDraft;
 use Modules\Billing\Bills\BillIssuer;
@@ -24,6 +25,7 @@ use Modules\Billing\Enums\BillableType;
 use Modules\Billing\Enums\BillType;
 use Modules\Billing\Models\Bill;
 use Modules\Leasing\Contracts\LeaseBillingSchedule;
+use Modules\Leasing\Jobs\RenderLeaseContract;
 use Modules\Leasing\Leases\LeaseService;
 use Modules\Leasing\Models\Lease;
 use Modules\Properties\Models\Property;
@@ -44,12 +46,14 @@ use Modules\Tenants\Models\TenantProfile;
  * rows, so this test commits and cleans up after itself.
  */
 
-const BILL_DRILL_TABLES = ['bill_items', 'bills', 'document_verifications', 'lease_deposit_entries', 'leases', 'units', 'properties', 'tenant_profiles', 'document_counters', 'settings', 'organizations', 'users', 'activity_log'];
+const BILL_DRILL_TABLES = ['bill_items', 'bills', 'document_verifications', 'lease_contracts', 'lease_deposit_entries', 'leases', 'units', 'properties', 'tenant_profiles', 'document_counters', 'settings', 'organizations', 'users', 'activity_log'];
 
 beforeEach(function () {
     DB::table('audit_chain_head')->insertOrIgnore(['id' => 1, 'last_hash' => null, 'updated_at' => now()]);
     // Permissions are the policies' tests; this drill is about the locks.
     Gate::before(fn (): bool => true);
+    // Activating a lease issues its contract (P03-03b); its PDF is not this drill's business.
+    Queue::fake([RenderLeaseContract::class]);
 
     $this->organization = Organization::factory()->create(['name' => 'Adeyemi Realty Ltd']);
     $this->user = User::factory()->create();

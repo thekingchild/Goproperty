@@ -274,7 +274,8 @@ it('stops billing a lease that ended early, never bills drafts, and bills a rene
     $this->travelTo('2027-01-10 10:00:00');
     inOrganization($this->acme, fn () => app(LeaseService::class)->terminate($this->owner, $ending, 'Moved out'));
     $renewal = inOrganization($this->acme, fn () => app(LeaseService::class)->renew($this->owner, $renewed, leaseInput(['startDate' => '2028-01-01', 'endDate' => '2028-12-31', 'rent' => '1,650,000'])));
-    inOrganization($this->acme, fn () => app(LeaseService::class)->activate($this->owner, $renewal));
+    // The contract PDF is not under test here (P03-03b renders it on the pdf queue).
+    withoutContractPdfs(fn () => inOrganization($this->acme, fn () => app(LeaseService::class)->activate($this->owner, $renewal)));
 
     foreach (['2027-01-25', '2027-06-25', '2027-12-25'] as $day) {
         onBillingDay($day);

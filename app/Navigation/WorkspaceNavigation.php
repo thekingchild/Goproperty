@@ -67,7 +67,7 @@ final class WorkspaceNavigation
             label: 'Settings',
             icon: 'cog-6-tooth',
             route: static fn (User $user, Organization $organization): string => $user->can('viewSettings', $organization) ? 'workspace.settings.profile' : 'workspace.settings.collections',
-            active: ['workspace.settings.profile', 'workspace.settings.collections', 'workspace.settings.branding'],
+            active: ['workspace.settings.profile', 'workspace.settings.collections', 'workspace.settings.branding', 'workspace.settings.documents.*'],
             visible: static fn (User $user, Organization $organization): bool => $user->can('viewSettings', $organization) || $user->can('viewPaymentSettings', $organization),
             order: 1000,
         ));

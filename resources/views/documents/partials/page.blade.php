@@ -6,6 +6,9 @@
 
     Data: $brand, $target, $pageCount (DocumentRenderer), and from the view:
     $docTitle (<title>), $footerLine ("company · Invoice INV-…"), $void (bool).
+    A document with styles of its own (e.g. a module's lease contract) puts
+    them in section "document-styles": a <style> element, after the shared
+    styles and under the same rules (table layouts, simple CSS).
 --}}
 @php
     $target ??= \App\Documents\RenderTarget::Web;
@@ -19,6 +22,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{ $docTitle }}</title>
 @include('documents.partials.styles', ['brand' => $brand, 'target' => $target])
+@yield('document-styles')
 </head>
 <body class="layout-{{ $brand->layout()->value }}">
 @include('documents.partials.footer', ['brand' => $brand, 'target' => $target, 'pageCount' => $pageCount, 'line' => $footerLine, 'verifyUrl' => $verifyUrl, 'at' => 'start'])

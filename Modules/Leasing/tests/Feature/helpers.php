@@ -6,7 +6,9 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Tenancy\OrganizationContext;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Testing\TestResponse;
+use Modules\Leasing\Jobs\RenderLeaseContract;
 use Modules\Leasing\Leases\LeaseService;
 use Modules\Leasing\Models\Lease;
 use Modules\Leasing\Models\LeaseDepositEntry;
@@ -48,12 +50,34 @@ function draftLease(Organization $organization, User $by, Unit $unit, TenantProf
     return inOrganization($organization, fn (): Lease => app(LeaseService::class)->draft($by, ['tenantId' => $tenant->id, 'unitId' => $unit->id] + leaseInput($changes)));
 }
 
-/** Drafts and activates a lease. */
+/**
+ * Drafts and activates a lease. Its contract is issued as usual, but its
+ * PDF is not rendered (withoutContractPdfs()): tests about the contract PDF
+ * render it themselves.
+ */
 function activeLease(Organization $organization, User $by, Unit $unit, TenantProfile $tenant, array $changes = []): Lease
 {
     $lease = draftLease($organization, $by, $unit, $tenant, $changes);
 
-    return inOrganization($organization, fn (): Lease => app(LeaseService::class)->activate($by, $lease));
+    return withoutContractPdfs(fn (): Lease => inOrganization($organization, fn (): Lease => app(LeaseService::class)->activate($by, $lease)));
+}
+
+/**
+ * Runs $callback with the contract PDF job (P03-03b, Jobs\RenderLeaseContract)
+ * held back: an activation still issues its contract (Models\LeaseContract),
+ * but its PDF, which dompdf takes one to three seconds to render, is not
+ * made. Every other job runs as usual.
+ */
+function withoutContractPdfs(Closure $callback): mixed
+{
+    $queue = app('queue');
+    Queue::fake([RenderLeaseContract::class]);
+
+    try {
+        return $callback();
+    } finally {
+        Queue::swap($queue);
+    }
 }
 
 /** The lease as stored now. */

@@ -9,12 +9,8 @@
 @php
     $organization = app(\App\Tenancy\OrganizationContext::class)->get();
     $user = auth()->user();
-    $tabs = array_filter([
-        ['route' => 'workspace.settings.profile', 'label' => __('Profile'), 'can' => $user?->can('viewSettings', $organization)],
-        ['route' => 'workspace.settings.collections', 'label' => __('Payment collection'), 'can' => $user?->can('viewPaymentSettings', $organization)],
-        ['route' => 'workspace.settings.branding', 'label' => __('Branding'), 'can' => $user?->can('viewSettings', $organization)],
-        ['route' => 'workspace.settings.members', 'label' => __('Members'), 'can' => $user?->can('viewAny', \App\Models\Membership::class)],
-    ], fn (array $tab): bool => $tab['can'] === true && \Illuminate\Support\Facades\Route::has($tab['route']));
+    // Core's pages and the modules' (App\Navigation\SettingsTabs), those this member may open.
+    $tabs = $user instanceof \App\Models\User ? app(\App\Navigation\SettingsTabs::class)->for($user, $organization) : [];
 @endphp
 
 <nav class="-mt-2 flex gap-1 overflow-x-auto border-b border-zinc-200 dark:border-zinc-700" aria-label="{{ __('Settings') }}" data-test="settings-nav">
@@ -26,7 +22,7 @@
                'border-transparent text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white' => $current !== $tab['route'],
            ])
            @if ($current === $tab['route']) aria-current="page" @endif>
-            {{ $tab['label'] }}
+            {{ __($tab['label']) }}
         </a>
     @endforeach
 </nav>

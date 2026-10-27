@@ -7,6 +7,7 @@ namespace Tests\Support;
 use App\Documents\DocumentCounter;
 use App\Documents\DocumentType;
 use App\Documents\Verification\DocumentVerification;
+use App\Documents\Verification\VerificationCodes;
 use App\Enums\ChecklistItem;
 use App\Enums\ComplianceDocumentType;
 use App\Enums\OnboardingStep;
@@ -37,6 +38,7 @@ use Modules\Import\Models\ImportColumnMapping;
 use Modules\Leasing\Contracts\BillingCycle;
 use Modules\Leasing\Enums\DepositEntryType;
 use Modules\Leasing\Models\Lease;
+use Modules\Leasing\Models\LeaseContract;
 use Modules\Leasing\Models\LeaseDepositEntry;
 use Modules\Properties\Models\AgentAssignment;
 use Modules\Properties\Models\OwnerProfile;
@@ -120,6 +122,16 @@ final class OrganizationScopedModels
                 'lease_id' => self::lease()->id,
                 'type' => DepositEntryType::Held,
                 'amount_kobo' => Money::naira(150_000),
+            ])->save()),
+            // An issued contract (P03-03b): history, never changed or deleted.
+            LeaseContract::class => fn (): Model => tap(new LeaseContract, fn (LeaseContract $contract): bool => $contract->forceFill([
+                'lease_id' => self::lease()->id,
+                'contract_number' => 'LS-TST-2027-'.random_int(100000, 999999),
+                'verification_code' => app(VerificationCodes::class)->generate(),
+                'branding_snapshot' => ['version' => 1],
+                'details' => [],
+                'clauses' => 'The tenant pays the rent.',
+                'issued_at' => now(),
             ])->save()),
             // Rows on their own (BillIssuer is the writer; the probes are about the rows).
             Bill::class => fn (): Model => self::bill(),

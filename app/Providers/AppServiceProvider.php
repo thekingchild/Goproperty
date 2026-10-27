@@ -8,6 +8,7 @@ use App\Documents\Verification\DocumentVerifiers;
 use App\Exports\ListExports;
 use App\Members\InvitationList;
 use App\Members\MemberList;
+use App\Navigation\SettingsTabs;
 use App\Navigation\WorkspaceNavigation;
 use App\Settings\SettingDefinition;
 use App\Settings\SettingsRegistry;
@@ -40,6 +41,7 @@ class AppServiceProvider extends ServiceProvider
         // The workspace sidebar: Core's pages, then whatever modules add
         // from their providers (callAfterResolving).
         $this->app->singleton(WorkspaceNavigation::class, static fn (): WorkspaceNavigation => WorkspaceNavigation::withCoreItems());
+        $this->app->singleton(SettingsTabs::class, static fn (): SettingsTabs => SettingsTabs::withCoreTabs());
 
         // Where someone with no workspace lands: modules register their
         // portals from their providers (callAfterResolving), like the sidebar.

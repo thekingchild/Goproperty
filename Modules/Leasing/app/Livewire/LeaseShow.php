@@ -22,7 +22,8 @@ use Modules\Leasing\Models\LeaseDepositEntry;
  * rent, contract number, the deposit ledger and the lease it renews or
  * that renews it, with the actions its state allows (LeaseStatus):
  * activate or cancel a draft, renew or end an active lease, settle the
- * deposit of an ended one. Each action checks LeasePolicy and goes through
+ * deposit of an ended one; and, once activated, a link to the contract PDF
+ * (Http\Controllers\LeaseContractController, P03-03b). Each action checks LeasePolicy and goes through
  * Leases\LeaseService, which checks it again; a refused move shows its
  * reason and changes nothing.
  *
@@ -121,6 +122,8 @@ final class LeaseShow extends Component
             'canRenew' => $user->can('renew', $lease) && ! $lease->renewals()->whereIn('status', [LeaseStatus::Draft, LeaseStatus::Active])->exists(),
             'canTerminate' => $user->can('terminate', $lease),
             'canSettle' => $user->can('settleDeposit', $lease) && $leases->depositBalance($lease)->isPositive(),
+            // The contract PDF (P03-03b), once the lease has been activated.
+            'canDownloadContract' => $user->can('downloadContract', $lease),
             'flash' => session('lease-status'),
         ]);
     }

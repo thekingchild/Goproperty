@@ -12,6 +12,9 @@
         @if ($canActivate)
             <flux:button variant="primary" wire:click="activate" wire:confirm="{{ __('Activate this lease? The unit becomes occupied and the lease gets its contract number.') }}" data-test="activate-lease">{{ __('Activate') }}</flux:button>
         @endif
+        @if ($canDownloadContract)
+            <flux:button icon="document-arrow-down" :href="route('workspace.leases.contract', [$organization, $lease->id])" target="_blank" data-test="download-contract">{{ __('Contract (PDF)') }}</flux:button>
+        @endif
         @if ($lease->contract_number !== null && \Illuminate\Support\Facades\Route::has('workspace.bills.index'))
             {{-- The Billing module's list of this lease's bills (its page checks who may see it). --}}
             <flux:button icon="banknotes" :href="route('workspace.bills.index', [$organization, 'lease' => $lease->id])" wire:navigate data-test="lease-bills">{{ __('Bills') }}</flux:button>

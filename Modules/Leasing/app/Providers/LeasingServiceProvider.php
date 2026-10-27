@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace Modules\Leasing\Providers;
 
+use App\Documents\Verification\DocumentVerifiers;
 use App\Exports\ListExports;
+use App\Models\Organization;
 use App\Models\User;
+use App\Navigation\SettingsTab;
+use App\Navigation\SettingsTabs;
 use App\Navigation\WorkspaceNavigation;
 use App\Navigation\WorkspaceNavItem;
 use App\Settings\SettingDefinition;
@@ -13,15 +17,21 @@ use App\Settings\SettingScope;
 use App\Settings\SettingsRegistry;
 use App\Settings\SettingType;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Livewire;
 use Modules\Leasing\Contracts\CycleCalculator as CycleCalculatorContract;
 use Modules\Leasing\Contracts\LeaseBillingSchedule;
 use Modules\Leasing\Contracts\TenantLeases;
 use Modules\Leasing\CycleCalculator;
+use Modules\Leasing\Documents\ContractClauses;
+use Modules\Leasing\Documents\LeaseContracts;
+use Modules\Leasing\Documents\LeaseContractVerifier;
+use Modules\Leasing\Events\LeaseActivated;
 use Modules\Leasing\Jobs\ExpireAndFlagLeases;
 use Modules\Leasing\Leases\LeaseRecords;
 use Modules\Leasing\Leases\LeaseService;
+use Modules\Leasing\Listeners\IssueLeaseContract;
 use Modules\Leasing\Lists\LeaseList;
 use Modules\Leasing\Models\Lease;
 use Modules\Leasing\Policies\LeasePolicy;
@@ -39,6 +49,13 @@ use Nwidart\Modules\Support\ModuleServiceProvider;
  * `leasing.reservation_days` (how long a draft holds its unit, default 14)
  * and `leasing.ending_soon_days` (default 60), and the daily
  * `leases:expire-and-flag` job (Schedule::job, ARCHITECTURE.md § 7).
+ *
+ * Lease contracts (P03-03b): the listener that issues a contract when a
+ * lease is activated and queues its PDF (Listeners\IssueLeaseContract),
+ * the `lease_contract` resolver of the public verify page
+ * (Documents\LeaseContractVerifier), the organization setting
+ * `leasing.contract_clauses` (the agency's clause template, default
+ * ContractClauses::DEFAULT) and its page under Settings (SettingsTabs).
  */
 final class LeasingServiceProvider extends ModuleServiceProvider
 {
@@ -71,6 +88,25 @@ final class LeasingServiceProvider extends ModuleServiceProvider
         $this->callAfterResolving(SettingsRegistry::class, static function (SettingsRegistry $settings): void {
             $settings->define(new SettingDefinition(LeaseService::RESERVATION_DAYS_SETTING, SettingType::Integer, LeaseService::DEFAULT_RESERVATION_DAYS, ['integer', 'between:1,90'], SettingScope::Organization));
             $settings->define(new SettingDefinition(LeaseService::ENDING_SOON_DAYS_SETTING, SettingType::Integer, LeaseService::DEFAULT_ENDING_SOON_DAYS, ['integer', 'between:1,365'], SettingScope::Organization));
+            // Plain text, never compiled or evaluated (AGENT.md § 3 rule 10).
+            $settings->define(new SettingDefinition(ContractClauses::SETTING, SettingType::String, ContractClauses::DEFAULT, ['required', 'string', 'max:'.ContractClauses::MAX_LENGTH], SettingScope::Organization));
+        });
+
+        // Contracts: issued after an activation commits, their PDF queued on `pdf`.
+        Event::listen(LeaseActivated::class, IssueLeaseContract::class);
+
+        $this->callAfterResolving(DocumentVerifiers::class, static function (DocumentVerifiers $verifiers): void {
+            $verifiers->register(LeaseContracts::KIND, LeaseContractVerifier::class);
+        });
+
+        $this->callAfterResolving(SettingsTabs::class, static function (SettingsTabs $tabs): void {
+            $tabs->add(new SettingsTab(
+                key: 'lease-contract',
+                label: 'Lease contract',
+                route: 'workspace.settings.documents.lease-contract',
+                visible: static fn (User $user, Organization $organization): bool => $user->can('viewSettings', $organization),
+                order: 40,
+            ));
         });
 
         // Every list of the module exports (P02-07).

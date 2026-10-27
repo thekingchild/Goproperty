@@ -28,7 +28,7 @@ use Modules\Tenants\Models\TenantProfile;
  * rows, so this test commits and cleans up after itself.
  */
 
-const LEASE_DRILL_TABLES = ['lease_deposit_entries', 'leases', 'units', 'properties', 'tenant_profiles', 'document_counters', 'organizations', 'users', 'activity_log'];
+const LEASE_DRILL_TABLES = ['jobs', 'lease_contracts', 'document_verifications', 'lease_deposit_entries', 'leases', 'units', 'properties', 'tenant_profiles', 'document_counters', 'organizations', 'users', 'activity_log'];
 
 beforeEach(function () {
     // DatabaseTruncation empties every table between drills, the audit
@@ -64,6 +64,8 @@ function leaseActivatingProcess(Organization $organization, User $user, string $
         'DB_DATABASE' => $database->getDatabaseName(),
         'DB_USERNAME' => (string) $database->getConfig('username'),
         'DB_PASSWORD' => (string) $database->getConfig('password'),
+        // Each activation issues its contract (P03-03b); its PDF job waits in the jobs table instead of rendering here.
+        'QUEUE_CONNECTION' => 'database',
     ])->start([PHP_BINARY, 'tests/Fixtures/Processes/lease-activations.php', (string) $organization->id, (string) $user->id, $barrier, (string) $seed, implode(',', $leaseIds)]);
 }
 
@@ -149,11 +151,12 @@ it('sub-AC: leaves exactly one active lease per unit when parallel processes act
     expect($activated)->toHaveCount($units)
         ->and(array_unique(array_column($activated, 'unit')))->toHaveCount($units);
 
-    [$leases, $unitStatuses, $deposits, $counter] = app(OrganizationContext::class)->run($this->organization, fn (): array => [
+    [$leases, $unitStatuses, $deposits, $counter, $contracts] = app(OrganizationContext::class)->run($this->organization, fn (): array => [
         Lease::query()->get(),
         Unit::query()->pluck('status')->map(fn ($status): string => $status->value)->all(),
         DB::table('lease_deposit_entries')->where('organization_id', $this->organization->id)->count(),
         (int) DB::table('document_counters')->where('organization_id', $this->organization->id)->value('last_seq'),
+        DB::table('lease_contracts')->where('organization_id', $this->organization->id)->pluck('contract_number', 'lease_id')->all(),
     ]);
 
     $active = $leases->where('status.value', 'active');
@@ -163,7 +166,9 @@ it('sub-AC: leaves exactly one active lease per unit when parallel processes act
         ->and($unitStatuses)->toBe(array_fill(0, $units, 'occupied'))
         // One deposit taken per activation, contract numbers 1..N with no gap.
         ->and($deposits)->toBe($units)
-        ->and($counter)->toBe($units);
+        ->and($counter)->toBe($units)
+        // One issued contract per activation (P03-03b), with the lease's number.
+        ->and($contracts)->toEqual($active->pluck('contract_number', 'id')->all());
 
     $sequences = $active->pluck('contract_number')->map(fn (string $number): int => (int) Str::afterLast($number, '-'))->sort()->values()->all();
     expect($sequences)->toBe(range(1, $units))
