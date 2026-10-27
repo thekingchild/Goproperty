@@ -6,7 +6,8 @@ namespace App\Support;
 
 /**
  * Phone numbers as typed in Nigeria, normalised to E.164 (+234…) so
- * "0803 123 4567", "+234 803 123 4567" and "2348031234567" are one
+ * "0803 123 4567", "+234 803 123 4567", "+234 (0) 803 123 4567" and
+ * "2348031234567" are one
  * sign-in name (UX_DESIGN.md § 3.1). Numbers with another country code
  * are kept when written with "+" or "00".
  */
@@ -26,6 +27,11 @@ final class PhoneNumber
 
         $international = str_starts_with($compact, '+');
         $digits = ltrim($compact, '+');
+
+        // "+234 (0) 803 …": the trunk 0 written after the country code.
+        if (str_starts_with($digits, '2340') && strlen($digits) === 14) {
+            $digits = '234'.substr($digits, 4);
+        }
 
         if ($digits === '' || preg_match('/^\d+$/D', $digits) !== 1) {
             return null;
