@@ -6,6 +6,7 @@ namespace Modules\Billing\Policies;
 
 use App\Enums\OrganizationPermission;
 use App\Models\User;
+use App\Tenancy\BlockedWhileImpersonating;
 use App\Tenancy\OrganizationContext;
 use Illuminate\Auth\Access\Response;
 use Modules\Billing\Enums\BillStatus;
@@ -54,6 +55,19 @@ final class BillPolicy
     }
 
     public function view(User $user, Bill $bill): Response|bool
+    {
+        return $this->reachable($user, $bill) ?? $this->viewAny($user);
+    }
+
+    /**
+     * See the bill's invoice as printed, as a web page or its PDF
+     * (P03-05c). Whoever sees the bill may print it (a read: allowed while
+     * suspended); staff impersonating a member may not, since it carries
+     * the tenant's contact details (PLATFORM_CONSOLE.md § 6, as for the
+     * lease contract and list exports with contacts).
+     */
+    #[BlockedWhileImpersonating]
+    public function viewInvoice(User $user, Bill $bill): Response|bool
     {
         return $this->reachable($user, $bill) ?? $this->viewAny($user);
     }

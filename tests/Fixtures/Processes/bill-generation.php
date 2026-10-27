@@ -21,8 +21,10 @@ use App\Tenancy\OrganizationContext;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Queue;
 use Modules\Billing\Bills\RentBillGenerator;
 use Modules\Billing\Events\BillIssued;
+use Modules\Billing\Jobs\RenderInvoice;
 
 require __DIR__.'/../../../vendor/autoload.php';
 
@@ -32,6 +34,8 @@ $app->make(Kernel::class)->bootstrap();
 [$organizationId, $barrier] = [(int) $argv[1], $argv[2]];
 
 $organization = Organization::query()->findOrFail($organizationId);
+// Each bill queues its invoice PDF (P03-05c); rendering them is not this drill's business.
+Queue::fake([RenderInvoice::class]);
 $issued = [];
 $reported = [];
 Event::listen(BillIssued::class, function (BillIssued $event) use (&$issued): void {

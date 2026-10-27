@@ -26,8 +26,9 @@ use Modules\Billing\Models\BillItem;
  *
  * The bill id is locked and the bill loaded through the organization scope
  * on every request, so another organization's bill (or another building's,
- * for an assigned agent) answers 404. The printable invoice and its PDF
- * come with P03-05c.
+ * for an assigned agent) answers 404. The invoice as a web page and its
+ * PDF (P03-05c, Http\Controllers\InvoiceController) are linked when
+ * BillPolicy::viewInvoice allows (not while staff impersonate).
  */
 #[Layout('layouts::app')]
 #[Title('Bill')]
@@ -85,6 +86,7 @@ final class BillShow extends Component
             'row' => $row,
             'items' => BillItem::query()->where('bill_id', $bill->id)->orderBy('id')->get(),
             'canVoid' => $this->user()->can('void', $bill),
+            'canViewInvoice' => $this->user()->can('viewInvoice', $bill),
         ]);
     }
 

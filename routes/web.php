@@ -167,11 +167,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::view('owner', 'surfaces.owner')->name('owner.home');
 });
 
-// No sign-in. The pay page is not found until P03-05c builds it; the route
-// is named so links can be built.
-Route::get('pay/{reference}', fn () => abort(404))
-    ->where('reference', '[A-Za-z0-9-]{6,64}')
-    ->name('pay.show');
+// No sign-in. The pay page (/pay/{reference}, `pay.show`) is the Billing
+// module's (P03-05c, Modules/Billing/routes/web.php): it reads bills.
 
 // Document verification (BRANDING_DOCUMENTS.md § 2 item 8, § 3 item 7): the
 // QR code opens verify/{code}; "visit …/verify and enter" opens the form.

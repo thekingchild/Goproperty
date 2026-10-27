@@ -34,6 +34,9 @@ use RuntimeException;
  *   payment reference from Bills\PaymentReferences (unique across
  *   organizations: drawn again on the rare collision), and the branding as
  *   at issue (the caller's BrandingSnapshot, taken once per run).
+ * - The parties as at issue (Bills\BillDetails: tenant, building, unit,
+ *   lease number and cycle) in `details`, so the invoice never changes
+ *   when they do (P03-05c).
  * - The amount is the sum of the lines, in kobo; the status follows from
  *   it and the due date (BillStatus::for(): a bill issued after its due
  *   date, e.g. a catch-up period, is overdue at once).
@@ -44,7 +47,7 @@ final readonly class BillIssuer
 {
     public const string LOG = 'bills';
 
-    /** The verification kind of bills (DocumentVerifiers; P03-05c registers its resolver). */
+    /** The verification kind of bills (DocumentVerifiers; Documents\InvoiceVerifier resolves it). */
     public const string VERIFICATION_KIND = 'invoice';
 
     private const int REFERENCE_ATTEMPTS = 5;
@@ -54,6 +57,7 @@ final readonly class BillIssuer
         private DocumentNumberer $numberer,
         private VerificationCodes $codes,
         private PaymentReferences $references,
+        private BillDetails $details,
     ) {}
 
     public function issue(BillDraft $draft, BrandingSnapshot $branding): Bill
@@ -94,6 +98,7 @@ final readonly class BillIssuer
             'status' => BillStatus::for($amount, Money::zero(), $draft->dueDate->toDateString(), BillDates::today()->toDateString()),
             'issued_at' => $issuedAt,
             'branding_snapshot' => $branding->toArray(),
+            'details' => $this->details->take($draft->tenantProfileId, $draft->propertyId, $draft->unitId, $draft->leaseNumber, $draft->cycle)->toArray(),
             'created_by_user_id' => $draft->createdByUserId,
         ]);
         $bill->number = $this->numberer->next(DocumentType::Invoice, $issuedAt, $branding->branding);

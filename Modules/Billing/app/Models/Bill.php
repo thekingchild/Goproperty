@@ -5,15 +5,18 @@ declare(strict_types=1);
 namespace Modules\Billing\Models;
 
 use App\Casts\MoneyCast;
+use App\Media\HasOrganizationMedia;
 use App\Support\Money;
 use App\Tenancy\BelongsToOrganization;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use LogicException;
 use Modules\Billing\Enums\BillableType;
 use Modules\Billing\Enums\BillStatus;
 use Modules\Billing\Enums\BillType;
+use Spatie\MediaLibrary\HasMedia;
 
 /**
  * A bill to a tenant (DATABASE_SCHEMA.md § 4 `bills`, ARCHITECTURE.md
@@ -26,6 +29,14 @@ use Modules\Billing\Enums\BillType;
  * keeps their ids and reads them through their contracts, never their
  * models (ARCHITECTURE.md § 8 rule 3). `billable_type` is a short key
  * (BillableType), not a class name.
+ *
+ * What the invoice printed at issue never changes (P03-05c, issued
+ * invoices are evidence): the number, the payment reference, the
+ * verification code, the issue time, the branding snapshot and the
+ * parties (`details`); `document_media_id` is filled once, when the PDF
+ * is first rendered (Documents\Invoices, kept in this bill's
+ * `issued_documents` media). Status and money change through the Billing
+ * services only.
  *
  * @property int $id
  * @property int $organization_id
@@ -51,6 +62,7 @@ use Modules\Billing\Enums\BillType;
  * @property string|null $void_reason
  * @property int|null $document_media_id
  * @property array<string, mixed> $branding_snapshot
+ * @property array<string, mixed>|null $details
  * @property string $verification_code
  * @property int|null $created_by_user_id
  * @property int|null $import_batch_id
@@ -59,12 +71,28 @@ use Modules\Billing\Enums\BillType;
  * @property CarbonImmutable|null $updated_at
  * @property CarbonImmutable|null $deleted_at
  */
-final class Bill extends Model
+final class Bill extends Model implements HasMedia
 {
-    use BelongsToOrganization, SoftDeletes;
+    use BelongsToOrganization, HasOrganizationMedia, SoftDeletes;
+
+    /** Written at issue and never changed afterwards (the invoice as printed). */
+    public const array ISSUED_COLUMNS = ['number', 'payment_reference', 'verification_code', 'issued_at', 'branding_snapshot', 'details'];
 
     /** @var array<string, mixed> */
     protected $attributes = ['status' => 'unpaid', 'paid_kobo' => 0];
+
+    protected static function booted(): void
+    {
+        self::updating(static function (self $bill): void {
+            if (array_intersect(array_keys($bill->getDirty()), self::ISSUED_COLUMNS) !== []) {
+                throw new LogicException('An issued bill keeps the number, reference, code, branding and parties it was issued with.');
+            }
+
+            if ($bill->isDirty('document_media_id') && $bill->getRawOriginal('document_media_id') !== null) {
+                throw new LogicException('An issued bill keeps the PDF it was first printed as.');
+            }
+        });
+    }
 
     /** @return HasMany<BillItem, $this> */
     public function items(): HasMany
@@ -97,6 +125,8 @@ final class Bill extends Model
             'issued_at' => 'immutable_datetime',
             'voided_at' => 'immutable_datetime',
             'branding_snapshot' => 'array',
+            'details' => 'array',
+            'document_media_id' => 'integer',
         ];
     }
 }

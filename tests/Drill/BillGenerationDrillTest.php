@@ -23,6 +23,7 @@ use Modules\Billing\Contracts\BillLedger;
 use Modules\Billing\Contracts\BillNotPayable;
 use Modules\Billing\Enums\BillableType;
 use Modules\Billing\Enums\BillType;
+use Modules\Billing\Jobs\RenderInvoice;
 use Modules\Billing\Models\Bill;
 use Modules\Leasing\Contracts\LeaseBillingSchedule;
 use Modules\Leasing\Jobs\RenderLeaseContract;
@@ -52,8 +53,8 @@ beforeEach(function () {
     DB::table('audit_chain_head')->insertOrIgnore(['id' => 1, 'last_hash' => null, 'updated_at' => now()]);
     // Permissions are the policies' tests; this drill is about the locks.
     Gate::before(fn (): bool => true);
-    // Activating a lease issues its contract (P03-03b); its PDF is not this drill's business.
-    Queue::fake([RenderLeaseContract::class]);
+    // Activating a lease issues its contract (P03-03b) and a bill its invoice (P03-05c); their PDFs are not this drill's business.
+    Queue::fake([RenderLeaseContract::class, RenderInvoice::class]);
 
     $this->organization = Organization::factory()->create(['name' => 'Adeyemi Realty Ltd']);
     $this->user = User::factory()->create();

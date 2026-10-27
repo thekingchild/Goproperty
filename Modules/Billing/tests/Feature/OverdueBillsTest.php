@@ -24,6 +24,8 @@ require_once __DIR__.'/helpers.php';
  */
 
 beforeEach(function () {
+    // Bills issue their invoice PDF on the pdf queue (P03-05c); not this test's business.
+    holdInvoicePdfs();
     seedOrganizationRoles();
     $this->travelTo('2026-12-25 09:00:00');
     $this->acme = Organization::factory()->create(['slug' => 'acme-homes', 'name' => 'Adeyemi Realty Ltd']);

@@ -198,6 +198,8 @@ final readonly class RentBillGenerator
             unitId: $lease->unitId,
             periodStart: $period->start,
             periodEnd: $period->end,
+            leaseNumber: $lease->contractNumber,
+            cycle: $lease->cycle,
         );
     }
 }

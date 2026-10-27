@@ -10,8 +10,10 @@ use Illuminate\Console\Scheduling\CallbackEvent;
 use Illuminate\Console\Scheduling\Event as ScheduledEvent;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Testing\TestResponse;
 use Modules\Billing\Bills\BillService;
+use Modules\Billing\Jobs\RenderInvoice;
 use Modules\Billing\Models\Bill;
 use Modules\Leasing\Contracts\BillingCycle;
 use Modules\Leasing\Contracts\CycleCalculator;
@@ -28,6 +30,17 @@ use Tests\Support\LivewireHttp;
 
 require_once __DIR__.'/../../../Leasing/tests/Feature/helpers.php';
 require_once __DIR__.'/../../../../tests/Feature/Exports/helpers.php';
+
+/**
+ * Holds back the invoice PDF job (P03-05c, Jobs\RenderInvoice) for the
+ * rest of the test: bills are issued as usual, but their PDF, which dompdf
+ * takes one to three seconds to render, is not made. Every other job runs
+ * as usual. Tests about the invoice PDF render it themselves.
+ */
+function holdInvoicePdfs(): void
+{
+    Queue::fake([RenderInvoice::class]);
+}
 
 /** The scheduled event of that name (bills-generate, bills-flag-overdue), checked against its cron line. */
 function billingScheduledEvent(string $name, string $expression): CallbackEvent

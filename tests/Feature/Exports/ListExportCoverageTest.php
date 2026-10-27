@@ -13,8 +13,10 @@ use App\Navigation\WorkspaceNavItem;
 use App\Support\Money;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Route;
 use Livewire\WithPagination;
+use Modules\Billing\Jobs\RenderInvoice;
 use Modules\Import\Enums\ImportStatus;
 use Modules\Import\Models\ImportBatch;
 use Modules\Properties\Enums\UnitStatus;
@@ -49,6 +51,8 @@ const NOT_A_LIST = [
 
 beforeEach(function () {
     Notification::fake();
+    // The bill's invoice PDF (P03-05c) is not this test's business.
+    Queue::fake([RenderInvoice::class]);
     seedOrganizationRoles();
     $this->acme = Organization::factory()->create(['slug' => 'acme-homes', 'name' => 'Acme Homes']);
     $this->other = Organization::factory()->create(['slug' => 'other-realty', 'name' => 'Other Realty']);

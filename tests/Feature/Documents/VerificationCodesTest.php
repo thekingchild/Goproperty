@@ -183,18 +183,19 @@ describe('resolver registry', function () {
     });
 
     it('resolves a class name through the container, once, and lists the kinds', function () {
-        $code = inOrganization($this->acme, fn () => app(VerificationCodes::class)->issue('invoice'));
+        // Billing registers the real `invoice` kind (P03-05c): this registry test uses a kind of its own.
+        $code = inOrganization($this->acme, fn () => app(VerificationCodes::class)->issue('sample_invoice'));
         app()->bind(FakeInvoiceVerification::class, fn () => new FakeInvoiceVerification);
-        app(DocumentVerifiers::class)->register('invoice', FakeInvoiceVerification::class);
+        app(DocumentVerifiers::class)->register('sample_invoice', FakeInvoiceVerification::class);
 
         $verifiers = app(DocumentVerifiers::class);
 
         expect($verifiers->find($code)?->title)->toBe('Invoice')
-            ->and($verifiers->resolver('invoice'))->toBe($verifiers->resolver('invoice'))
-            ->and($verifiers->has('invoice'))->toBeTrue()
+            ->and($verifiers->resolver('sample_invoice'))->toBe($verifiers->resolver('sample_invoice'))
+            ->and($verifiers->has('sample_invoice'))->toBeTrue()
             ->and($verifiers->has('receipt'))->toBeFalse()
-            // Modules register their own kinds too (the Leasing module's `lease_contract`, P03-03b).
-            ->and($verifiers->kinds())->toContain('invoice');
+            // Modules register their own kinds too (Leasing's `lease_contract`, P03-03b; Billing's `invoice`, P03-05c).
+            ->and($verifiers->kinds())->toContain('sample_invoice', 'invoice', 'lease_contract');
     });
 
     it('takes registrations from module providers, made when the registry is first resolved', function () {
@@ -209,7 +210,7 @@ describe('resolver registry', function () {
         app(DocumentVerifiers::class)->register('receipt', recordingResolver());
 
         expect(fn () => app(DocumentVerifiers::class)->register('receipt', recordingResolver()))->toThrow(LogicException::class)
-            ->and(fn () => app(DocumentVerifiers::class)->resolver('invoice'))->toThrow(InvalidArgumentException::class);
+            ->and(fn () => app(DocumentVerifiers::class)->resolver('unknown_kind'))->toThrow(InvalidArgumentException::class);
     });
 });
 

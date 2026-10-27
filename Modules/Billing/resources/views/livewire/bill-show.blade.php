@@ -1,10 +1,15 @@
 {{--
     A bill (Modules\Billing\Livewire\BillShow). Void shows only when the
     bill and the member's permissions allow it; the server checks both again.
+    The invoice links (web page, PDF) show when BillPolicy::viewInvoice allows.
 --}}
 <x-page :heading="$bill->number" :description="$row->tenantName.($row->unitLabel !== null ? ' · '.$row->unitLabel.', '.$row->buildingName : '')">
     <x-slot:actions>
         <flux:button icon="arrow-left" :href="route('workspace.bills.index', $organization)" wire:navigate>{{ __('All bills') }}</flux:button>
+        @if ($canViewInvoice)
+            <flux:button icon="document-text" :href="route('workspace.bills.invoice', [$organization, $bill])" target="_blank" data-test="bill-invoice">{{ __('Invoice') }}</flux:button>
+            <flux:button icon="arrow-down-tray" :href="route('workspace.bills.invoice.pdf', [$organization, $bill])" data-test="bill-invoice-pdf">{{ __('Invoice (PDF)') }}</flux:button>
+        @endif
     </x-slot:actions>
 
     @if ($notice)

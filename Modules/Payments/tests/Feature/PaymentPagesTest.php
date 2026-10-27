@@ -20,6 +20,7 @@ require_once __DIR__.'/helpers.php';
  */
 
 beforeEach(function () {
+    holdInvoicePdfs();
     seedOrganizationRoles();
     $this->travelTo('2026-12-25 09:00:00');
     $this->acme = Organization::factory()->create(['slug' => 'acme-homes', 'name' => 'Adeyemi Realty Ltd']);

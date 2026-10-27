@@ -70,8 +70,9 @@ beforeEach(function () {
 
     $this->receiptCode = issueCode($this->acme, 'receipt');
     $this->voidedCode = issueCode($this->acme, 'receipt');
-    $this->invoiceCode = issueCode($this->other, 'invoice');
-    $this->replacedCode = issueCode($this->other, 'invoice');
+    // Billing registers the real `invoice` kind (P03-05c): this page test uses a kind of its own.
+    $this->invoiceCode = issueCode($this->other, 'sample_invoice');
+    $this->replacedCode = issueCode($this->other, 'sample_invoice');
     $this->forgottenCode = issueCode($this->acme, 'receipt');
     $this->leaseCode = issueCode($this->acme, 'lease');
 
@@ -79,9 +80,9 @@ beforeEach(function () {
         $this->receiptCode => verifiedDoc('receipt', VerificationStatus::Valid),
         $this->voidedCode => verifiedDoc('receipt', VerificationStatus::Voided, ['statusNote' => 'Voided on 15/12/2026']),
     ]));
-    app(DocumentVerifiers::class)->register('invoice', pageResolver([
-        $this->invoiceCode => verifiedDoc('invoice', VerificationStatus::Valid, ['issuer' => 'Other Homes Ltd', 'details' => ['Payment status' => 'Partly paid']]),
-        $this->replacedCode => verifiedDoc('invoice', VerificationStatus::Superseded, ['issuer' => 'Other Homes Ltd', 'replacedBy' => 'INV-ADR-2027-000150']),
+    app(DocumentVerifiers::class)->register('sample_invoice', pageResolver([
+        $this->invoiceCode => verifiedDoc('sample_invoice', VerificationStatus::Valid, ['issuer' => 'Other Homes Ltd', 'details' => ['Payment status' => 'Partly paid']]),
+        $this->replacedCode => verifiedDoc('sample_invoice', VerificationStatus::Superseded, ['issuer' => 'Other Homes Ltd', 'replacedBy' => 'INV-ADR-2027-000150']),
     ]));
 });
 

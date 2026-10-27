@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Billing\Lists;
 
+use Modules\Billing\Bills\IssuedParties;
 use Modules\Billing\Models\Bill;
 use Modules\Properties\Contracts\PropertyDirectory;
 use Modules\Properties\Contracts\UnitDirectory;
@@ -13,7 +14,9 @@ use Modules\Tenants\Contracts\TenantDirectory;
  * The tenant, unit and building names of a batch of bills, read through
  * the Tenants and Properties contracts with one lookup each per batch (no
  * query per bill, ARCHITECTURE.md § 13), never by joining their tables
- * (§ 8 rule 3).
+ * (§ 8 rule 3). A name the contracts no longer give (the tenant, unit or
+ * building is gone from this organization, e.g. handed over, P03-14) falls
+ * back to the name kept on the bill at issue (`bills.details`, P03-05c).
  */
 final readonly class BillParties
 {
@@ -44,18 +47,21 @@ final readonly class BillParties
         foreach ($bills as $bill) {
             $unitLabel = null;
             $buildingName = null;
+            $issued = is_array($bill->details) ? IssuedParties::fromArray($bill->details) : null;
 
             if ($bill->unit_id !== null) {
-                $unitLabel = isset($units[$bill->unit_id]) ? $units[$bill->unit_id]->label : self::text('Archived unit');
+                $unitLabel = isset($units[$bill->unit_id]) ? $units[$bill->unit_id]->label : (($issued !== null ? $issued->unit : null) ?? self::text('Archived unit'));
             }
 
             if ($bill->property_id !== null) {
-                $buildingName = isset($buildings[$bill->property_id]) ? $buildings[$bill->property_id]->name : self::text('Removed building');
+                $buildingName = isset($buildings[$bill->property_id]) ? $buildings[$bill->property_id]->name : (($issued !== null ? $issued->buildingName : null) ?? self::text('Removed building'));
             }
+
+            $issuedTenant = $issued !== null && $issued->tenantName !== '' ? $issued->tenantName : null;
 
             $rows[] = new BillRow(
                 bill: $bill,
-                tenantName: isset($tenants[$bill->tenant_profile_id]) ? $tenants[$bill->tenant_profile_id]->name : __('Unknown tenant'),
+                tenantName: isset($tenants[$bill->tenant_profile_id]) ? $tenants[$bill->tenant_profile_id]->name : ($issuedTenant ?? self::text('Unknown tenant')),
                 unitLabel: $unitLabel,
                 buildingName: $buildingName,
             );
