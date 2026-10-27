@@ -7,6 +7,7 @@ namespace App\Theme;
 use App\Models\PlatformStaff;
 use App\Settings\SettingsRegistry;
 use App\Settings\SettingsStore;
+use App\Support\JsonValues;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\DatabaseManager;
 use Illuminate\Validation\ValidationException;
@@ -123,7 +124,7 @@ final class ThemeManager
 
             $value = $this->settings->validated($key, $value);
 
-            if (($values[$key] ?? null) !== $value) {
+            if (! JsonValues::same($values[$key] ?? null, $value)) {
                 $audit[$key] = ['old' => $values[$key] ?? null, 'new' => $value];
             }
 
@@ -199,7 +200,7 @@ final class ThemeManager
             $published = $this->publishedValues();
 
             foreach ($draft as $key => $value) {
-                if ($this->isVersioned($key) && $this->registry->has($key) && $published[$key] !== $value) {
+                if ($this->isVersioned($key) && $this->registry->has($key) && ! JsonValues::same($published[$key], $value)) {
                     $this->settings->set($key, $value);
                 }
             }

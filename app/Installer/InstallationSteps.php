@@ -30,6 +30,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 use SensitiveParameter;
+use Spatie\Permission\PermissionRegistrar;
 use Throwable;
 
 /**
@@ -146,6 +147,20 @@ final class InstallationSteps
         $this->db->purge(self::CONNECTION);
         $this->config->set('database.connections.'.self::CONNECTION, $database->connectionConfig(is_array($base) ? $base : [], 10));
         $this->config->set('database.default', self::CONNECTION);
+
+        // A database cache store resolved before this point (the permission
+        // cache is) still holds the old default connection, which may point at
+        // a database that does not exist. Rebuild it on the owner's database;
+        // nothing reads the cache before the migrations create its table.
+        $store = $this->config->get('cache.default');
+
+        if (is_string($store) && $this->config->get("cache.stores.{$store}.driver") === 'database') {
+            $this->app->make('cache')->forgetDriver($store);
+
+            if ($this->app->resolved(PermissionRegistrar::class)) {
+                $this->app->make(PermissionRegistrar::class)->initializeCache();
+            }
+        }
     }
 
     /**

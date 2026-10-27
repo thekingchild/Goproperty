@@ -14,9 +14,6 @@ use Tests\Fixtures\Jobs\RecordingJob;
 
 beforeEach(function () {
     RecordingJob::$ran = [];
-    // A long parallel run can pass the tick's 192 MB memory guard before
-    // these tests start; the guard itself is not what they test.
-    config(['hosting.queue_tick.memory_mb' => 2048]);
     CarbonImmutable::setTestNow('2026-10-26 09:00:00');
 });
 

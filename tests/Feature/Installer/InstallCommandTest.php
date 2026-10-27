@@ -25,6 +25,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\Support\FakeServer;
 use Tests\Support\ScratchDatabase;
 
@@ -150,6 +151,34 @@ it('installs GoProperty from the command line', function () {
         ->and($record)->not->toContain(ADMIN_PASSWORD)
         ->and($record)->not->toContain('DB_PASSWORD')
         ->and($record)->not->toContain('password');
+});
+
+it('installs when the starting database does not exist and the cache uses it', function () {
+    // CI runs the drill with no DB_DATABASE: the default connection points at
+    // a database that does not exist, and the permission cache was bound to it
+    // before the installer switched connections.
+    $default = (string) config('database.default');
+    $realDatabase = config("database.connections.{$default}.database");
+    config([
+        "database.connections.{$default}.database" => 'gp_missing_'.Str::lower(Str::random(8)),
+        'cache.default' => 'database',
+        'cache.stores.database.connection' => null,
+    ]);
+    DB::purge($default);
+    app('cache')->forgetDriver('database');
+    app(PermissionRegistrar::class)->initializeCache();
+
+    try {
+        $this->artisan('goproperty:install', installOptions($this))
+            ->expectsOutputToContain('GoProperty is installed.')
+            ->assertSuccessful();
+    } finally {
+        // Teardown uses the default connection: give it its database back.
+        config(["database.connections.{$default}.database" => $realDatabase]);
+        DB::purge($default);
+    }
+
+    expect(DB::connection($this->database)->table('roles')->where('name', 'super-admin')->exists())->toBeTrue();
 });
 
 it('builds the same schema as a plain migrate', function () {

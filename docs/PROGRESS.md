@@ -6,19 +6,18 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 ## Current state
 
-- **In progress:** none Each task is built in its own worktree and reviewed before it merges
-- **In review:** P01-09 (web installer wizard): done and verified locally on MariaDB 11.4; the Install drill on MySQL 8 and MariaDB 10.6 waits on GitHub Actions. P00-03 (hosting profiles), P00-04 (release package) and P00-06 (installer CLI + install drill): done and verified locally; each needs one green run in GitHub Actions (CI for P00-03, a tagged Release for P00-04, the Install drill on MySQL 8 and MariaDB 10.6 for P00-06) once Actions starts jobs. P00-12 (backups): built and drilled locally; needs one real run to an S3-compatible bucket and a Google Shared Drive (PRE-03 accounts)
-- **Next task:** P02, starting with wave 1 (P02-01a and P02-05) from `docs/plans/P02-P03-subtasks.md`, after the product owner settles that plan's open decisions; PRE-01 to PRE-04 continue with the product owner
-- **Blocked:** P00-02: GitHub Actions jobs are not being given a runner (account-level), and branch protection on `main` needs a repo admin. This also holds P00-03's CI check, P00-04's release run and P00-06's install drill
-- **Blocked:** P00-13 (staging): the deploy scripts, the deploy on merge and the deploy drill are built and drilled locally; it needs a staging host (PRE-04) and working Actions runners (P00-02)
+- **In progress:** P02 wave 1 (P02-01a and P02-05) from `docs/plans/P02-P03-subtasks.md`, each in its own worktree
+- **In review:** P00-02 (CI): all four database jobs are green in GitHub Actions; branch protection on `main` waits on the product owner (it changes how work lands: pull requests only, see `docs/runbooks/ci.md` § 3). P00-04 (release package): needs one green Release run in Actions. P00-12 (backups): built and drilled locally; needs one real run to an S3-compatible bucket and a Google Shared Drive (PRE-03 accounts)
+- **Next task:** P02 waves 2–6 after wave 1; PRE-01 to PRE-04 continue with the product owner
+- **Blocked:** P00-13 (staging): the deploy scripts, the deploy on merge and the deploy drill are built and drilled locally; it needs a staging host (PRE-04). Until then the Deploy workflow fails at "Check deploy settings" on every push to `main`
 
 ## Board
 
 | Phase | Tasks | Complete | Status |
 | --- | --- | --- | --- |
 | PRE | 5 | 1 | In progress |
-| P00 | 13 | 7 | In progress |
-| P01 | 9 | 8 | In review (P01-09 waits on GitHub Actions) |
+| P00 | 13 | 9 | In progress |
+| P01 | 9 | 9 | Complete (2026-10-27) |
 | P02 | 7 | 0 | Not started |
 | P03 | 13 | 0 | Not started |
 | P04 | 3 | 0 | Not started |
@@ -27,11 +26,33 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | P07 | 4 | 0 | Not started |
 | P08 | 4 | 0 | Not started |
 | P09 | 8 | 0 | Not started |
-| **Total** | **83** | **16** | |
+| **Total** | **83** | **19** | |
 
 ## Ledger (newest first)
 
 Each entry: task ID and status, date, what was delivered, tests run and results, follow-ups, next task.
+
+### GitHub Actions running — P00-03, P00-06, P01-09 Complete; P01 Complete (2026-10-27)
+
+The product owner fixed the account's Actions billing. The first real runs (CI [40452156457](https://github.com/thekingchild/Goproperty/actions/runs/40452156457), test Release [40454924892](https://github.com/thekingchild/Goproperty/actions/runs/40454924892)) found three problems that local MariaDB 11.4 runs could not show. All three are fixed in this commit:
+
+- **Installer, every database:** `goproperty:install` stopped after the migrations with "Unknown database 'laravel'". CI has no `DB_DATABASE`, so the default connection pointed at Laravel's default name, and the permission cache had already bound the database cache store to that connection. Locally `DB_DATABASE=testing` existed, so the seeders silently read the cache from the wrong database. `InstallationSteps::useDatabase()` now rebuilds a database cache store (and the permission registrar's cache) on the owner's database. Regression test: `InstallCommandTest` "installs when the starting database does not exist and the cache uses it" (fails without the fix).
+- **MySQL reorders JSON object keys** (MariaDB keeps the written order). Publishing the theme compared decoded arrays with `!==`, so an unchanged FAQ was logged and re-saved as a change. New `App\Support\JsonValues::same()` ignores key order in maps (lists keep their order) and `ThemeManager` uses it for drafts and publishing. Four tests that compared maps by key order (`WebInstallWizardTest`, `StaffRolesTest`, `SettingsStoreTest`, `ConsoleSettingsPagesTest`) now compare by value.
+- **Flaky queue tick in long parallel runs:** `ScheduleTest` hit the tick's 192 MB memory guard (as `QueueTickTest` and `OrganizationRolesTest` had). `phpunit.xml` now sets `QUEUE_TICK_MEMORY_MB=2048` for the whole suite; the two per-test overrides are gone.
+
+**Tests and evidence:**
+- Local, MariaDB 11.4: `composer ci` passed (Pint passed, Larastan 0 errors, Pest 1,339 tests: 1,338 passed, 1 skipped, 11,264 assertions). The install drill passed on a fresh package with `DB_DATABASE` unset (command line and web wizard, schema identical to a plain migrate, 353 columns and tables).
+- GitHub Actions on branch `task/fix-drill`: CI [40457029228](https://github.com/thekingchild/Goproperty/actions/runs/40457029228) green on MySQL 8.0, MySQL 8.4, MariaDB 10.6, MariaDB 11.4 and the old-PHP guard (1,338 passed, 1 skipped on each); Install drill [40457030052](https://github.com/thekingchild/Goproperty/actions/runs/40457030052) green on all four databases (command line + web wizard with file-check unlock and TOTP, `/install` closed afterwards, schema equal to a plain migrate).
+
+**Status changes:**
+- **P00-03 Complete:** CI runs the full suite on the shared-hosting profile, including `tests/Drill/CronDrillTest.php` (cron-started worker with `exec`/`proc_open` disabled).
+- **P00-06 Complete:** install drill green on MySQL 8 and MariaDB 10.6 (and 8.4, 11.4).
+- **P01-09 Complete:** the web install drill is green on MySQL 8 and MariaDB 10.6. With it, **P01 is Complete**.
+- **P00-02 In review** (was Blocked): both database families are green in CI. Branch protection on `main` (`docs/runbooks/ci.md` § 3) is not set yet: it would make every change go through a pull request, so it waits on the product owner.
+- **P00-04** stays In review until a Release run is green on `main` (the test Release above failed only because of the installer bug).
+- **P00-13** stays Blocked on the staging host (PRE-04) only.
+
+**Next:** test Release run on `main` for P00-04, then P02 wave 1.
 
 ### P01 — all tasks built; phase In review (2026-10-27)
 

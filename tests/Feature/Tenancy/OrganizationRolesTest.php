@@ -116,10 +116,6 @@ it('does not carry the team into or between queued jobs', function () {
     });
     RecordPermissionTeam::dispatch('next-job')->onConnection('database')->onQueue('default');
 
-    // A long parallel run can pass the tick's 192 MB memory guard before this
-    // test starts, which would stop the tick before any job runs.
-    config(['hosting.queue_tick.memory_mb' => 2048]);
-
     expect(app(QueueTick::class)->run()->stoppedBy)->toBe(TickStopReason::Drained);
 
     expect(RecordPermissionTeam::$seen)->toBe([

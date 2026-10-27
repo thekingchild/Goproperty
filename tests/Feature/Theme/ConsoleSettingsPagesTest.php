@@ -61,7 +61,7 @@ it('saves brand changes as an audited draft that visitors do not see', function 
 
     $entry = Activity::query()->where('log_name', 'theme')->where('event', 'draft_saved')->sole();
     expect($entry->causer?->is($this->staff))->toBeTrue()
-        ->and($entry->properties['changes']['theme.name'])->toBe(['old' => 'GoProperty', 'new' => 'Ile Homes'])
+        ->and($entry->properties['changes']['theme.name'])->toEqual(['old' => 'GoProperty', 'new' => 'Ile Homes'])
         ->and($entry->properties['changes'])->toHaveKeys(['theme.name', 'theme.color_primary'])
         ->and($entry->properties['changes'])->not->toHaveKey('theme.tagline');
 

@@ -290,7 +290,7 @@ it('installs GoProperty over HTTP, the same as the command line', function () {
     expect($audit->event)->toBe('installed')
         ->and((int) $audit->causer_id)->toBe($staff->id)
         ->and($audit->ip)->toBe('127.0.0.1')
-        ->and(json_decode($audit->properties, true))->toBe(['version' => 'dev', 'via' => 'web']);
+        ->and(json_decode($audit->properties, true))->toEqual(['version' => 'dev', 'via' => 'web']);
 
     // P01-07: the wizard's first staff account is the super-admin, as on the command line.
     $superAdmin = $target->table('roles')->where('name', 'super-admin')->where('guard_name', 'staff')->whereNull('organization_id')->value('id');

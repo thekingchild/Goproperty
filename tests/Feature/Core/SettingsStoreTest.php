@@ -46,7 +46,7 @@ it('stores and reads typed values', function () {
     $this->settings->set('auth.always_challenge', true);
 
     expect($this->settings->get('theme.name'))->toBe('GoProperty NG')
-        ->and($this->settings->get('theme.palette'))->toBe(['primary' => '#0F1B44', 'accent' => '#F59E0B'])
+        ->and($this->settings->get('theme.palette'))->toEqual(['primary' => '#0F1B44', 'accent' => '#F59E0B'])
         ->and($this->settings->get('auth.always_challenge'))->toBeTrue()
         ->and(DB::table('settings')->where('key', 'theme.name')->value('scope_type'))->toBe('global');
 });

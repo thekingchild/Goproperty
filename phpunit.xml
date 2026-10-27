@@ -28,6 +28,10 @@
              sessions, no broadcasting, polling, dompdf (P00-03). Only the queue
              runs jobs inline; the queue tick tests use the database queue. -->
         <env name="HOSTING_PROFILE" value="shared"/>
+        <!-- A long parallel run grows each worker past the queue tick's 192 MB
+             memory guard, which then stops a tick before any job runs. The
+             guard is not under test, so the suite raises it. -->
+        <env name="QUEUE_TICK_MEMORY_MB" value="2048"/>
         <env name="DB_CONNECTION" value="mysql"/>
         <env name="DB_DATABASE" value="testing"/>
         <env name="DB_URL" value=""/>

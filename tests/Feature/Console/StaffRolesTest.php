@@ -138,7 +138,7 @@ it('renames custom roles and changes permissions, audited with before and after'
 
     expect($role->fresh()?->name)->toBe('Night support')
         ->and($role->fresh()?->permissionNames())->toBe(['delivery_logs.view'])
-        ->and($entry->properties['name'])->toBe(['old' => 'Night shift', 'new' => 'Night support'])
+        ->and($entry->properties['name'])->toEqual(['old' => 'Night shift', 'new' => 'Night support'])
         ->and($entry->properties['permissions_added'])->toBe(['delivery_logs.view'])
         ->and($entry->properties['permissions_removed'])->toBe(['customers.view']);
 });
