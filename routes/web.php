@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Branding\BrandingFiles;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\BrandAssetController;
+use App\Http\Controllers\Documents\VerifyDocumentController;
 use App\Http\Controllers\Invitations\AcceptInvitationController;
 use App\Http\Controllers\Marketing\MarketingController;
 use App\Http\Controllers\Marketing\SeoController;
@@ -166,16 +167,22 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::view('owner', 'surfaces.owner')->name('owner.home');
 });
 
-// No sign-in. Not found until the pay page (P03-05c) and document
-// verification (P03-05b, through App\Documents\Verification\DocumentVerifiers)
-// exist; the routes are named so links and QR codes can be built.
+// No sign-in. The pay page is not found until P03-05c builds it; the route
+// is named so links can be built.
 Route::get('pay/{reference}', fn () => abort(404))
     ->where('reference', '[A-Za-z0-9-]{6,64}')
     ->name('pay.show');
 
-Route::get('verify/{code}', fn () => abort(404))
-    ->where('code', '[A-Za-z0-9-]{6,64}')
-    ->name('documents.verify');
+// Document verification (BRANDING_DOCUMENTS.md § 2 item 8, § 3 item 7): the
+// QR code opens verify/{code}; "visit …/verify and enter" opens the form.
+// Through App\Documents\Verification\DocumentVerifiers; unknown codes are a
+// plain 404. One rate-limit bucket per IP for both (prefix "verify").
+Route::middleware([SignInPageHeaders::class, 'throttle:30,1,verify'])->controller(VerifyDocumentController::class)->group(function () {
+    Route::get('verify', 'form')->name('documents.verify.form');
+    Route::get('verify/{code}', 'show')
+        ->where('code', '[A-Za-z0-9-]{6,64}')
+        ->name('documents.verify');
+});
 
 require __DIR__.'/settings.php';
 

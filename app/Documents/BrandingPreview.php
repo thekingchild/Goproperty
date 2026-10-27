@@ -52,12 +52,12 @@ final readonly class BrandingPreview
 
     public function invoice(DocumentBranding $brand): string
     {
-        return $this->renderer->web(new ViewDocument('documents.invoice', ['invoice' => SampleDocuments::invoice($brand)], $brand));
+        return $this->renderer->web(SampleDocuments::invoice($brand));
     }
 
     public function receipt(DocumentBranding $brand): string
     {
-        return $this->renderer->web(new ViewDocument('documents.receipt', ['receipt' => SampleDocuments::receipt($brand)], $brand));
+        return $this->renderer->web(SampleDocuments::receipt($brand));
     }
 
     private function productName(): string

@@ -21,26 +21,6 @@ require_once __DIR__.'/../../Support/documents.php';
  * decision 6); on CI an unreachable Gotenberg fails the test.
  */
 
-/** Gotenberg's URL, or skip (locally) / fail (CI) with the reason. */
-function requireGotenberg(): string
-{
-    $url = PdfVisualDiff::gotenberg();
-
-    if ($url !== null) {
-        config(['pdf.chrome.url' => $url]);
-
-        return $url;
-    }
-
-    $tried = config('pdf.chrome.url') ?: 'http://127.0.0.1:3000';
-
-    if (getenv('CI') !== false && getenv('CI') !== '') {
-        test()->fail("Gotenberg is not reachable at {$tried}: CI must run the Chrome half (decision 6).");
-    }
-
-    test()->markTestSkipped("Gotenberg is not reachable at {$tried} (PDF_CHROME_URL): the Chrome half runs in CI.");
-}
-
 describe('acceptance: a sample page renders in both drivers within the diff threshold', function () {
     it('prints the sample page on one A4 page with dompdf, in the bundled fonts', function (DocumentLayout $layout) {
         $pdf = app(DocumentRenderer::class)->pdf(KitSample::document(sampleBrand($layout)), 'dompdf');

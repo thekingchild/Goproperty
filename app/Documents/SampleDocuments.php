@@ -4,98 +4,106 @@ declare(strict_types=1);
 
 namespace App\Documents;
 
+use App\Documents\Invoice\BankTransfer;
+use App\Documents\Invoice\InvoiceDocument;
+use App\Documents\Invoice\InvoiceLine;
+use App\Documents\Invoice\InvoiceStatus;
+use App\Documents\Invoice\OnlinePayment;
+use App\Documents\Parts\DocumentPeriod;
+use App\Documents\Parts\DocumentProperty;
+use App\Documents\Parts\DocumentTenant;
+use App\Documents\Receipt\ReceiptAllocation;
+use App\Documents\Receipt\ReceiptDocument;
+use App\Documents\Receipt\ReceiptPayment;
 use App\Support\Money;
 use Carbon\CarbonImmutable;
 
 /**
  * The sample invoice and receipt of the branding preview (Settings →
- * Branding, BRANDING_DOCUMENTS.md § 1–3): made-up tenant, property, lines
- * and payment, numbered with the organization's own prefixes, in the shape
- * the document templates take. Real documents (P03-05) pass the same keys
- * from bills and receipts. Nothing here comes from the organization's
- * records, so the preview never shows bank details or tenants (it is
- * open to administrators and to support staff, who may see neither).
+ * Branding, BRANDING_DOCUMENTS.md § 1–3), as in the design templates:
+ * made-up tenant, property, lines and payment, numbered with the
+ * organization's own prefixes, built as the same InvoiceDocument and
+ * ReceiptDocument real bills and receipts use. Nothing here comes from the
+ * organization's records, so the preview never shows bank details or
+ * tenants (it is open to administrators and to support staff, who may see
+ * neither).
  */
 final class SampleDocuments
 {
-    /** @return array<string, mixed> */
-    public static function invoice(DocumentBranding $brand): array
+    public const string INVOICE_CODE = '7KQ2MX9P4D';
+
+    public const string RECEIPT_CODE = 'R8X4P2HC7N';
+
+    public static function invoice(DocumentBranding $brand): InvoiceDocument
     {
         $year = CarbonImmutable::now('Africa/Lagos')->year;
         $issued = CarbonImmutable::create($year, 11, 1, 0, 0, 0, 'Africa/Lagos');
-        $due = $issued->endOfYear();
-        $period = '01/01/'.($year + 1).' – 31/12/'.($year + 1);
-        $items = [
-            ['description' => 'Rent — 2 bedroom flat', 'note' => 'Annual rent, renewal year 3', 'period' => $period, 'amount' => Money::kobo(250_000_000)],
-            ['description' => 'Service charge', 'note' => 'Cleaning, generator, common areas', 'period' => $period, 'amount' => Money::kobo(35_000_000)],
-            ['description' => 'Security levy', 'note' => null, 'period' => $period, 'amount' => Money::kobo(6_000_000)],
-            ['description' => 'Waste management (LAWMA)', 'note' => null, 'period' => $period, 'amount' => Money::kobo(2_400_000)],
+        $period = new DocumentPeriod(CarbonImmutable::create($year + 1, 1, 1, 0, 0, 0, 'Africa/Lagos'), CarbonImmutable::create($year + 1, 12, 31, 0, 0, 0, 'Africa/Lagos'));
+        $lines = [
+            new InvoiceLine('Rent — 2 bedroom flat', Money::kobo(250_000_000), 'Annual rent, renewal year 3'),
+            new InvoiceLine('Service charge', Money::kobo(35_000_000), 'Cleaning, generator, common areas'),
+            new InvoiceLine('Security levy', Money::kobo(6_000_000)),
+            new InvoiceLine('Waste management (LAWMA)', Money::kobo(2_400_000)),
         ];
-        $subtotal = Money::sum(array_column($items, 'amount'));
-        $credit = Money::kobo(3_400_000);
-        $amountDue = $subtotal->minus($credit);
 
-        return [
-            'number' => $brand->number($brand->branding->invoicePrefix, $year + 1, 142),
-            'issued_on' => $issued->format('d/m/Y'),
-            'due_on' => $due->format('d/m/Y'),
-            'due_on_long' => $due->format('j M Y'),
-            'status' => 'UNPAID',
-            'billed_to' => ['name' => 'Chiamaka Okafor', 'lines' => ['+234 812 345 6789', 'chiamaka.okafor@example.com']],
-            'property' => ['name' => 'Palm Court Apartments — Flat 3B', 'lines' => ['22 Fola Osibo Road, Lekki Phase 1, Lagos', 'Lease '.$brand->number($brand->branding->leasePrefix, $year - 2, 31).' · Annual']],
-            'items' => array_map(static fn (array $item): array => [...$item, 'amount' => $item['amount']->format()], $items),
-            'totals' => [
-                ['label' => 'Subtotal', 'value' => $subtotal->format()],
-                ['label' => 'Credit applied', 'value' => '− '.$credit->format()],
-                ['label' => 'Paid to date', 'value' => Money::zero()->format()],
-            ],
-            'amount_due' => $amountDue->format(),
-            'bank' => ['bank' => 'Your bank', 'account_name' => $brand->name(), 'account_number' => '0123456789'],
-            'payment_reference' => 'GP-7KQ2M',
-            'online' => ['label' => 'Pay '.$amountDue->format().' online', 'link' => url('/pay/GP-7KQ2M')],
-            'verification_code' => '7KQ2MX9P4D',
-            'verify_url' => url('/verify'),
-        ];
+        return new InvoiceDocument(
+            brand: $brand,
+            number: $brand->number($brand->branding->invoicePrefix, $year + 1, 142),
+            issuedOn: $issued,
+            dueOn: $issued->endOfYear()->startOfDay(),
+            status: InvoiceStatus::Unpaid,
+            tenant: self::tenant(),
+            property: self::property($brand, $year),
+            lines: $lines,
+            paymentReference: 'GP-7KQ2M',
+            verificationCode: self::INVOICE_CODE,
+            bank: new BankTransfer('Your bank', $brand->name(), '0123456789'),
+            online: new OnlinePayment(url('/pay/GP-7KQ2M')),
+            period: $period,
+            credit: Money::kobo(3_400_000),
+        );
+
     }
 
-    /** @return array<string, mixed> */
-    public static function receipt(DocumentBranding $brand): array
+    public static function receipt(DocumentBranding $brand): ReceiptDocument
     {
         $year = CarbonImmutable::now('Africa/Lagos')->year;
         $amount = Money::kobo(290_000_000);
 
-        return [
-            'number' => $brand->number($brand->branding->receiptPrefix, $year, 318),
-            'issued_on' => '14/12/'.$year,
-            'tenant_id' => 'TN-0087',
-            'amount' => $amount->format(),
-            'amount_in_words' => $amount->inWords(),
-            'received_from' => [
-                ['label' => 'Tenant', 'value' => 'Chiamaka Okafor'],
-                ['label' => 'Phone', 'value' => '+234 812 345 6789'],
-                ['label' => 'Property', 'value' => 'Palm Court Apartments — Flat 3B'],
-                ['label' => 'Lease', 'value' => $brand->number($brand->branding->leasePrefix, $year - 2, 31)],
+        return new ReceiptDocument(
+            brand: $brand,
+            number: $brand->number($brand->branding->receiptPrefix, $year, 318),
+            issuedAt: CarbonImmutable::create($year, 12, 14, 10, 42, 0, 'Africa/Lagos'),
+            amount: $amount,
+            tenant: self::tenant(),
+            property: self::property($brand, $year),
+            payment: new ReceiptPayment(
+                method: 'Bank transfer',
+                paidOn: CarbonImmutable::create($year, 12, 13, 0, 0, 0, 'Africa/Lagos'),
+                confirmation: 'Matched from bank statement',
+                bank: 'Your bank',
+                accountNumber: '0123456789',
+                reference: 'GP-7KQ2M C OKAFOR RENT',
+            ),
+            allocations: [
+                new ReceiptAllocation($brand->number($brand->branding->invoicePrefix, $year + 1, 142), 'Rent, service charge, security levy, waste — '.($year + 1), $amount, settled: true),
             ],
-            'payment' => [
-                ['label' => 'Method', 'value' => 'Bank transfer'],
-                ['label' => 'Date paid', 'value' => '13/12/'.$year],
-                ['label' => 'Paid into', 'value' => 'Your bank ···6789'],
-                ['label' => 'Bank narration', 'value' => 'GP-7KQ2M C OKAFOR RENT'],
-                ['label' => 'Confirmed', 'value' => 'Matched from bank statement'],
-            ],
-            'applied' => [
-                ['invoice' => $brand->number($brand->branding->invoicePrefix, $year + 1, 142), 'description' => 'Rent, service charge, security levy, waste — '.($year + 1), 'amount' => $amount->format(), 'paid' => true],
-            ],
-            'summary' => [
-                ['label' => 'Total applied', 'value' => $amount->format()],
-                ['label' => 'Outstanding balance after this payment', 'value' => Money::zero()->format()],
-                ['label' => 'Credit balance', 'value' => Money::zero()->format()],
-            ],
-            'confirmed_by' => 'Tunde Bakare',
-            'confirmed_at' => '14/12/'.$year.', 10:42 WAT',
-            'verification_code' => 'R8X4P2HC7N',
-            'verify_url' => url('/verify'),
-            'voided' => false,
-        ];
+            outstandingAfter: Money::zero(),
+            creditBalance: Money::zero(),
+            confirmedBy: 'Tunde Bakare',
+            confirmedAt: CarbonImmutable::create($year, 12, 14, 10, 42, 0, 'Africa/Lagos'),
+            verificationCode: self::RECEIPT_CODE,
+            sentVia: ['WhatsApp', 'email'],
+        );
+    }
+
+    private static function tenant(): DocumentTenant
+    {
+        return new DocumentTenant('Chiamaka Okafor', '+234 812 345 6789', 'chiamaka.okafor@example.com', 'TN-0087');
+    }
+
+    private static function property(DocumentBranding $brand, int $year): DocumentProperty
+    {
+        return new DocumentProperty('Palm Court Apartments', 'Flat 3B', '22 Fola Osibo Road, Lekki Phase 1, Lagos', $brand->number($brand->branding->leasePrefix, $year - 2, 31), 'Annual');
     }
 }

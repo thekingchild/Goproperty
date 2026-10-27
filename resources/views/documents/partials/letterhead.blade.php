@@ -6,7 +6,7 @@
 <table class="letterhead">
   <tr>
     <td style="width:58%">
-      <table><tr>
+      <table class="brand-id" role="presentation"><tr>
         <td style="width:{{ $brand->logoSrc ? 'auto' : '64px' }}; padding-right:12px">
           @if ($brand->logoSrc)
             <img class="logo" src="{{ $brand->logoSrc }}" alt="{{ $brand->name() }}">
