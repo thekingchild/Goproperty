@@ -79,7 +79,7 @@ Breaking any of these is a critical defect regardless of task size:
 - **Theme:** never hard-code GoProperty colours, logos or the product name in views. Use the platform theme tokens and settings ([PLATFORM_CONSOLE.md § 9](PLATFORM_CONSOLE.md)); agency documents use agency branding.
 - **Shared-hosting compatibility:** no feature may require Redis, Horizon, Reverb, Node at runtime, or headless Chrome. Use Laravel's driver/config switches so those are enhancements on VPS only. Ask capabilities, not the profile: `App\Hosting\Realtime` for live updates (`pollSeconds()`, `usesWebsockets()`), `App\Pdf\PdfRenderer` for PDFs.
 - **Documents:** Blade templates rendered through the PDF driver interface (`dompdf` or Chrome); table layouts and simple CSS only so both drivers render identically ([BRANDING_DOCUMENTS.md § 5](BRANDING_DOCUMENTS.md)). Agency branding is snapshotted on each issued document. Numbering via `document_counters` inside a transaction. Never `max(id)+1`.
-- **Imports:** always dry run before commit; never back-bill imported leases; never auto-contact imported tenants ([DATA_IMPORT.md](DATA_IMPORT.md)).
+- **Imports:** always dry run before commit; never back-bill imported leases; never auto-contact imported tenants ([DATA_IMPORT.md](DATA_IMPORT.md)). A module makes its records importable by implementing `Modules\Import\Contracts\ImportTarget` in its own code and registering it into `Modules\Import\Contracts\ImportTargets` from its provider; the Import module never reads another module's tables ([ARCHITECTURE.md § 6.12](ARCHITECTURE.md)).
 
 ## 5. Code Conventions
 

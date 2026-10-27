@@ -23,6 +23,9 @@ use Closure;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 use LogicException;
+use Modules\Import\Enums\ImportFileType;
+use Modules\Import\Models\ImportBatch;
+use Modules\Import\Models\ImportColumnMapping;
 use Modules\Properties\Models\OwnerProfile;
 use Modules\Properties\Models\Property;
 
@@ -86,6 +89,9 @@ final class OrganizationScopedModels
                 'responsive_images' => [],
             ]),
             OwnerProfile::class => fn (): Model => OwnerProfile::factory()->withNin()->create(),
+            // A batch row on its own (no file): the probes are about the rows.
+            ImportBatch::class => fn (): Model => ImportBatch::query()->create(['kind' => 'workbook', 'file_type' => ImportFileType::Xlsx, 'file_name' => 'probe.xlsx']),
+            ImportColumnMapping::class => fn (): Model => ImportColumnMapping::query()->create(['kind' => 'tenants', 'name' => 'Probe '.Str::random(6), 'mapping' => ['phone' => 'phone']]),
             Property::class => fn (): Model => Property::factory()->ownedBy(OwnerProfile::factory()->create())->create(),
         ];
     }

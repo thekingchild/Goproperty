@@ -1,0 +1,28 @@
+{
+    "name": "goproperty/import",
+    "description": "Spreadsheet imports: upload, mapping, dry run, queued commit, rollback (DATA_IMPORT.md)",
+    "authors": [
+        {
+            "name": "GoProperty",
+            "email": ""
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [],
+            "aliases": {
+
+            }
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Modules\\Import\\": "app/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Modules\\Import\\Tests\\": "tests/"
+        }
+    }
+}

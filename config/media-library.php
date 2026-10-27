@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Media\CollectionRules;
 use App\Media\GenerateMediaResponsiveImages;
 use App\Media\Media;
 use App\Media\MediaPathGenerator;
@@ -51,9 +52,10 @@ return [
     'max_file_size' => 1024 * 1024 * 20,
 
     // File names are generated from the sniffed type (UploadValidator), so
-    // these only matter if code adds a file some other way.
+    // these only matter if code adds a file some other way. The storable
+    // extensions are exactly App\Media\CollectionRules::EXTENSIONS.
     'disallowed_extensions' => FileAdder::$defaultDisallowedExtensions,
-    'allowed_extensions' => ['jpg', 'jpeg', 'png', 'webp', 'pdf'],
+    'allowed_extensions' => [...array_values(CollectionRules::EXTENSIONS), 'jpeg'],
 
     // null = the default connection (`database` on shared hosting).
     'queue_connection_name' => env('MEDIA_QUEUE_CONNECTION'),

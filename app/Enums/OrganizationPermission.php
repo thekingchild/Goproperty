@@ -57,6 +57,7 @@ enum OrganizationPermission: string
     case ParticipateInBuildingGroups = 'building_groups.participate';
     case ModerateBuildingGroups = 'building_groups.moderate';
     case ViewReports = 'reports.view';
+    case ViewImports = 'imports.view';
     case ManageImports = 'imports.manage';
 
     /**
@@ -83,6 +84,7 @@ enum OrganizationPermission: string
             self::ViewPayments,
             self::ViewTickets,
             self::ViewReports,
+            self::ViewImports,
             self::ManageBilling,
             self::SubmitPaymentProof => true,
             self::UpdateOrganization,
@@ -156,7 +158,8 @@ enum OrganizationPermission: string
             self::ManageTickets,
             self::ParticipateInBuildingGroups,
             self::ModerateBuildingGroups,
-            self::ViewReports => false,
+            self::ViewReports,
+            self::ViewImports => false,
         };
     }
 
@@ -194,7 +197,8 @@ enum OrganizationPermission: string
             self::ParticipateInBuildingGroups => 'Post and comment in Building Groups',
             self::ModerateBuildingGroups => 'Moderate Building Groups',
             self::ViewReports => 'See financial reports',
-            self::ManageImports => 'Import data from spreadsheets',
+            self::ViewImports => 'See imports, their dry-run reports and error files',
+            self::ManageImports => 'Import data from spreadsheets: upload, dry run, commit and roll back',
         };
     }
 }

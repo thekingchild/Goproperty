@@ -221,7 +221,8 @@ it('lets later features tick checklist items off until it disappears', function 
     signupStep($organization, 'savePlan', ['plan' => 'starter']);
     signupStep($organization, 'setUpCollectionsLater');
     signupStep($organization, 'finish');
-    $this->get('/o/adeyemi-realty')->assertSee('2 of 5 done')->assertSee('Coming soon');
+    // Every item's page exists now (the import page since P02-06a), so each has a Start link.
+    $this->get('/o/adeyemi-realty')->assertSee('2 of 5 done')->assertSee('http://localhost/o/adeyemi-realty/imports/new', false)->assertDontSee('Coming soon');
 
     $checklist = app(OnboardingChecklist::class);
     $user = User::query()->where('email', 'ada@adeyemi.ng')->firstOrFail();

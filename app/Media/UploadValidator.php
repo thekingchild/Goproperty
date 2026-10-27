@@ -7,6 +7,7 @@ namespace App\Media;
 use Closure;
 use finfo;
 use Illuminate\Http\UploadedFile;
+use ZipArchive;
 
 /**
  * Checks a file before the media library stores it (ARCHITECTURE.md § 10:
@@ -20,6 +21,13 @@ use Illuminate\Http\UploadedFile;
  * Images must also decode, their decoded type must match the sniffed one,
  * and they must stay within `max_side` and `max_megapixels` so GD can
  * convert them within a shared host's memory.
+ *
+ * Spreadsheets for imports need more than finfo, which reports an .xlsx as
+ * a zip and a .csv as plain text: a file only counts as .xlsx when it opens
+ * as a zip holding an Excel workbook (the OOXML content-types part naming a
+ * spreadsheet workbook, `xl/workbook.xml`, no macros, a bounded unpacked
+ * size), and only as .csv when it is text with no NUL bytes and no markup
+ * or script tags. Anything else keeps its sniffed type and is refused.
  *
  * Use check() before storing (MediaUploads does), problem() to show a
  * message, rule() inside Laravel validation (Livewire rules(), Form Requests).
@@ -51,6 +59,8 @@ final class UploadValidator
         if ($this->isSvg($mime, $path)) {
             throw new UploadRefused(__('SVG files are not accepted. Upload a :types file.', ['types' => $rules->typesLabel()]));
         }
+
+        $mime = $this->spreadsheetType($mime, $path) ?? $mime;
 
         if (! $rules->accepts($mime)) {
             throw new UploadRefused(__('Upload a :types file. This file is not one, whatever its name says.', ['types' => $rules->typesLabel()]));
@@ -107,6 +117,110 @@ final class UploadValidator
     public function sniff(string $path): string
     {
         return (string) (new finfo(FILEINFO_MIME_TYPE))->file($path);
+    }
+
+    /**
+     * The spreadsheet type a zip or text file really is, after the content
+     * checks; null when the sniffed type is neither. A file claiming to be
+     * a spreadsheet that fails them is downgraded to a type no collection
+     * accepts.
+     */
+    private function spreadsheetType(string $mime, string $path): ?string
+    {
+        if (in_array($mime, [CollectionRules::XLSX, 'application/zip', 'application/x-zip-compressed', 'application/octet-stream'], true)) {
+            if ($this->isExcelWorkbook($path)) {
+                return CollectionRules::XLSX;
+            }
+
+            return $mime === CollectionRules::XLSX ? 'application/zip' : null;
+        }
+
+        if (in_array($mime, ['text/plain', CollectionRules::CSV, 'application/csv', 'text/x-csv'], true)) {
+            return $this->isPlainText($path) ? CollectionRules::CSV : 'text/plain';
+        }
+
+        return null;
+    }
+
+    /** A zip holding an Excel workbook without macros, small enough to read once unpacked. */
+    private function isExcelWorkbook(string $path): bool
+    {
+        $zip = new ZipArchive;
+
+        if ($zip->open($path, ZipArchive::RDONLY) !== true) {
+            return false;
+        }
+
+        try {
+            if ($zip->numFiles < 3 || $zip->numFiles > 5000) {
+                return false;
+            }
+
+            $names = [];
+            $unpacked = 0;
+
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+                $stat = $zip->statIndex($i);
+
+                if ($stat === false) {
+                    return false;
+                }
+
+                $names[$stat['name']] = true;
+                $unpacked += $stat['size'];
+
+                // A zip bomb unpacks to far more than any real 20 MB workbook.
+                if ($unpacked > 256 * 1024 * 1024) {
+                    return false;
+                }
+            }
+
+            if (! isset($names['[Content_Types].xml'], $names['xl/workbook.xml']) || isset($names['xl/vbaProject.bin'])) {
+                return false;
+            }
+
+            $types = $zip->getFromName('[Content_Types].xml', 1024 * 1024);
+
+            return is_string($types)
+                && str_contains($types, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml')
+                && ! str_contains(strtolower($types), 'macroenabled');
+        } finally {
+            $zip->close();
+        }
+    }
+
+    /** Text with no NUL bytes and nothing a browser or PHP would run (`<?`, `<script`, `<html`, …). */
+    private function isPlainText(string $path): bool
+    {
+        $handle = fopen($path, 'rb');
+
+        if ($handle === false) {
+            return false;
+        }
+
+        try {
+            $tail = '';
+
+            while (! feof($handle)) {
+                $chunk = fread($handle, 65536);
+
+                if ($chunk === false) {
+                    return false;
+                }
+
+                $window = $tail.$chunk;
+
+                if (str_contains($chunk, "\0") || preg_match('/<\?|<\s*(script|html|body|iframe|svg|object|embed)\b|<!doctype/i', $window) === 1) {
+                    return false;
+                }
+
+                $tail = substr($chunk, -16);
+            }
+
+            return true;
+        } finally {
+            fclose($handle);
+        }
     }
 
     private function isSvg(string $mime, string $path): bool

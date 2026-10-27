@@ -20,7 +20,7 @@ final class RequirementsChecker
     /** Required extensions; gd or imagick is checked separately. */
     public const array EXTENSIONS = [
         'pdo_mysql', 'mbstring', 'intl', 'bcmath', 'zip', 'fileinfo', 'openssl', 'sodium',
-        'exif', 'curl', 'dom', 'xml', 'tokenizer', 'ctype',
+        'exif', 'curl', 'dom', 'xml', 'xmlreader', 'xmlwriter', 'tokenizer', 'ctype',
     ];
 
     /** Folders the app writes to, relative to the base path. */

@@ -15,6 +15,10 @@ declare(strict_types=1);
 | a shared host's memory limit. The Spatie package settings are in
 | config/media-library.php.
 |
+| Spreadsheets (.xlsx, .csv) need a content check beyond the sniffed type:
+| an .xlsx must open as a zip holding an Excel workbook, a .csv must be
+| plain text (UploadValidator).
+|
 | A module that needs another collection adds it here (or merges it into
 | this config from its service provider) with the narrowest list of types.
 |
@@ -62,6 +66,16 @@ return [
         'branding' => [
             'mimes' => ['image/png'],
             'max_kb' => 2 * 1024,
+            'conversions' => [],
+        ],
+
+        // Spreadsheets uploaded for import (Modules\Import, DATA_IMPORT.md
+        // § 4): .xlsx (a zip holding an Excel workbook, no macros) or .csv
+        // (plain text, no NUL bytes, no markup or script). Kept 30 days,
+        // then purged. 10,000 rows a sheet fit well within the cap.
+        'imports' => [
+            'mimes' => ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv'],
+            'max_kb' => 20 * 1024,
             'conversions' => [],
         ],
     ],

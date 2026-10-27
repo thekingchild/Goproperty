@@ -1,0 +1,11 @@
+{
+    "name": "Import",
+    "alias": "import",
+    "description": "Spreadsheet imports: upload, mapping, dry run, queued commit, rollback (DATA_IMPORT.md)",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\Import\\Providers\\ImportServiceProvider"
+    ],
+    "files": []
+}

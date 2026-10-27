@@ -273,6 +273,7 @@ it('keeps exactly the reading, exporting and paying permissions while suspended'
         'payments.submit_proof',
         'tickets.view',
         'reports.view',
+        'imports.view',
     ]);
 });
 

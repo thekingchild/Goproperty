@@ -23,13 +23,23 @@ final readonly class CollectionRules
         'image/png' => 'png',
         'image/webp' => 'webp',
         'application/pdf' => 'pdf',
+        // Only after UploadValidator's content checks (an Excel workbook
+        // zip; plain text with no NUL bytes or markup).
+        self::XLSX => 'xlsx',
+        self::CSV => 'csv',
     ];
+
+    public const string XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+    public const string CSV = 'text/csv';
 
     private const array LABELS = [
         'image/jpeg' => 'JPEG',
         'image/png' => 'PNG',
         'image/webp' => 'WebP',
         'application/pdf' => 'PDF',
+        self::XLSX => 'spreadsheet (.xlsx)',
+        self::CSV => 'CSV',
     ];
 
     /**

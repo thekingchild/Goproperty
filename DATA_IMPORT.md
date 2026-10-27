@@ -43,7 +43,7 @@ flowchart LR
    - a preview of the first rows of each sheet as they will look in GoProperty;
    - the effect on the subscription (units counted) and on the Transaction Tier forecast (expected yearly collections).
    An error report can be downloaded as Excel with an "Error" column next to each bad row.
-4. **Commit:** only after a successful dry run. Runs as a queued job with a progress bar. Each sheet is committed in its own database transaction, in dependency order (owners → properties → units → tenants → leases → balances → utilities → history).
+4. **Commit:** only after a successful dry run. Runs as queued jobs with a progress bar, one sheet after another in dependency order (owners → properties → units → tenants → leases → balances → utilities → history). Shared hosts give a job under a minute, so a sheet is written in chunks of rows, each chunk in its own database transaction together with the import's progress: a stopped import resumes from the last saved chunk and never writes a row twice, and one that cannot finish is marked "stopped part-way" and can be rolled back. Rows are checked again as they are written; one that no longer passes (say, its property was archived after the dry run) is skipped and listed in the report.
 5. **Report:** what was created, what was skipped and why, plus links to review imported records.
 6. **Invitations:** tenants and staff are **not** contacted automatically. After reviewing, the agency chooses "Invite tenants now" (email, the agency's WhatsApp, or a printable sheet of QR invitation links) or later.
 
@@ -74,7 +74,7 @@ Importing a lease that started years ago must not bill the tenant for past years
 
 - Up to 10,000 rows per sheet in one file. Larger files are split.
 - Files are read in chunks with a streaming reader (OpenSpout / `spatie/simple-excel`) so memory stays low. This matters on shared hosting.
-- Formats: `.xlsx`, `.xls`, `.csv` (UTF-8). Dates accepted as DD/MM/YYYY or Excel date cells. Amounts accepted with or without ₦ and commas.
+- Formats: `.xlsx` and `.csv` (UTF-8; Windows-1252 as saved by Excel on Windows is read too; comma, semicolon or tab separated). Old `.xls` files are not read by the streaming reader: save them as `.xlsx` first. Uploads up to 20 MB, checked by content (an `.xlsx` must be a real Excel workbook without macros, a `.csv` plain text). Dates accepted as DD/MM/YYYY or Excel date cells. Amounts accepted with or without ₦ (or N, NGN) and commas.
 - Uploaded files are stored privately for 30 days for support purposes, then deleted.
 
 ## 5. Permissions & Audit
