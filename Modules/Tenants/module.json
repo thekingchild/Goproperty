@@ -1,0 +1,11 @@
+{
+    "name": "Tenants",
+    "alias": "tenants",
+    "description": "Tenant profiles and the tenants import target (ARCHITECTURE.md § 6.2, DATA_IMPORT.md § 1)",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\Tenants\\Providers\\TenantsServiceProvider"
+    ],
+    "files": []
+}

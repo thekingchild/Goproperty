@@ -63,8 +63,9 @@ it('offers a template with instructions, a sheet per target and dropdowns for fi
     $path = downloadedWorkbook($response);
     $file = SpreadsheetFile::open($path, ImportFileType::Xlsx);
 
-    // The Lists sheet is hidden, so it is not offered for import.
-    expect(array_column($file->sheets(), 'name'))->toBe(['Instructions', 'Contacts', 'Notes'])
+    // The Lists sheet is hidden, so it is not offered for import. Real
+    // targets registered by modules (Tenants, P02-06b) come in commit order.
+    expect(array_column($file->sheets(), 'name'))->toBe(['Instructions', 'Contacts', 'Notes', 'Tenants'])
         ->and(sheetRows($path, 1)[0])->toBe(['Your ID', 'Name', 'Phone', 'Joined on', 'Balance', 'Category'])
         ->and(sheetRows($path, 1)[1])->toBe(['C-001', 'Ada Obi', '08031234567', '31/12/2025', '₦150,000', 'Gold'])
         ->and(sheetRows($path, 2)[0])->toBe(['Contact phone', 'Note'])
@@ -76,11 +77,11 @@ it('offers a template with instructions, a sheet per target and dropdowns for fi
     $zip->close();
 
     expect($contacts)->toContain('<dataValidation type="list" allowBlank="1" showErrorMessage="1" sqref="F2:F10001"><formula1>Lists!$A$1:$A$3</formula1></dataValidation>')
-        ->and(sheetRows($path, 3))->toBe([['Gold'], ['Silver'], ['Bronze']]);
+        ->and(array_column(sheetRows($path, 4), 0))->toBe(['Gold', 'Silver', 'Bronze', '']);
 
     // A filled-in template maps itself.
     $batch = uploadImport($this->acme, $this->owner, new UploadedFile($path, 'template.xlsx', null, null, true));
-    expect(collect($batch->sheets())->pluck('target')->all())->toBe([null, 'contacts', 'notes']);
+    expect(collect($batch->sheets())->pluck('target')->all())->toBe([null, 'contacts', 'notes', 'tenants']);
 });
 
 it('downloads the problems as a workbook: every row with its problems next to it, and a list of all of them', function () {

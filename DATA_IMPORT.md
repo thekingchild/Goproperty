@@ -11,7 +11,7 @@ Most agencies run on Excel, notebooks and WhatsApp. They can only switch to GoPr
 | 1 | Owners | Name / company, phone, email, address, bank (optional) | Landlords whose buildings the agency manages |
 | 2 | Properties | Property name, owner, address, state, LGA, type, amenities | Owner matched by name/phone from sheet 1 or existing data |
 | 3 | Units | Property, unit label, type, bedrooms, rent, service charge, status | Status can be left blank — derived from leases |
-| 4 | Tenants | First/last name, phone (required), email, occupation, next of kin | Phone is the matching key |
+| 4 | Tenants | First/last name (a full name under First name is split), phone (required), email, address, occupation, next of kin (name, phone, relationship), ID type and number (NIN, international passport, driver's licence, voter's card) | Phone is the matching key; the ID number is kept encrypted and never shown in reports; imported tenants are unverified (KYC) |
 | 5 | Leases (ongoing rents) | Unit, tenant, start date, end date, billing cycle, rent amount, service charge, **paid until**, deposit held, auto-renew | Creates active leases without back-billing (§ 3) |
 | 6 | Opening balances | Tenant, unit, amount owed (or credit), as-of date, description | Creates one "Opening balance" bill or a credit per tenant |
 | 7 | Utility settings | Unit, utility type, amount, cycle, metered?, last meter reading | Utility types created if missing |
@@ -51,6 +51,8 @@ flowchart LR
 
 - Each row can carry the agency's own ID (`external_ref`). Re-importing the same file updates existing records instead of duplicating them.
 - Without an `external_ref`, matching uses natural keys: tenant by phone, property by name, unit by property + label.
+- Matching includes archived records: an archived match is brought back (restored) instead of being added twice, and the dry run warns about it.
+- On an update, an empty cell keeps what is on file (built so far for tenants); a tenant whose ID number changes becomes unverified again.
 
 ### Undo
 

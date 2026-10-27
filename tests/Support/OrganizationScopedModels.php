@@ -29,6 +29,7 @@ use Modules\Import\Models\ImportColumnMapping;
 use Modules\Properties\Models\OwnerProfile;
 use Modules\Properties\Models\Property;
 use Modules\Properties\Models\Unit;
+use Modules\Tenants\Models\TenantProfile;
 
 /**
  * Every organization-owned model (BelongsToOrganization) and how to make one
@@ -95,6 +96,7 @@ final class OrganizationScopedModels
             ImportColumnMapping::class => fn (): Model => ImportColumnMapping::query()->create(['kind' => 'tenants', 'name' => 'Probe '.Str::random(6), 'mapping' => ['phone' => 'phone']]),
             Property::class => fn (): Model => Property::factory()->ownedBy(OwnerProfile::factory()->create())->create(),
             Unit::class => fn (): Model => Unit::factory()->in(Property::factory()->create())->create(),
+            TenantProfile::class => fn (): Model => TenantProfile::factory()->withNin()->create(),
         ];
     }
 

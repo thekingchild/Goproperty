@@ -6,9 +6,9 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 ## Current state
 
-- **In progress:** P02-06b (tenants) and P02-03 (agent assignment), each in its own worktree (`docs/plans/P02-P03-subtasks.md`). Done in P02: P02-01 (01a, 01b), P02-02, P02-05, P02-06a
+- **In progress:** P02-03 (agent assignment) and P02-04 (billing transfers), each in its own worktree (`docs/plans/P02-P03-subtasks.md`). Done in P02: P02-01 (01a, 01b), P02-02, P02-05, P02-06a, P02-06b
 - **In review:** P00-02 (CI): all four database jobs are green in GitHub Actions; branch protection on `main` is off by the product owner's decision (2026-10-27) while P02 and P03 are built, so tasks keep merging straight to `main`; turn it on afterwards (`docs/runbooks/ci.md` § 3) and mark P00-02 complete. P00-12 (backups): built and drilled locally; needs one real run to an S3-compatible bucket and a Google Shared Drive (PRE-03 accounts)
-- **Next task:** P02 waves 3–6 after wave 2; PRE-01 to PRE-04 continue with the product owner
+- **Next task:** P02-06c, then P02-07 and the P02 exit check; PRE-01 to PRE-04 continue with the product owner
 - **Blocked:** P00-13 (staging): the deploy scripts, the deploy on merge and the deploy drill are built and drilled locally; it needs a staging host (PRE-04). Until then the Deploy workflow fails at "Check deploy settings" on every push to `main`
 
 ## Board
@@ -31,6 +31,64 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 ## Ledger (newest first)
 
 Each entry: task ID and status, date, what was delivered, tests run and results, follow-ups, next task.
+
+### P02-06b — Complete (2026-10-27): Tenants module (tenant profiles, policy, permissions) and the tenants import target
+
+The parent P02-06 stays **In progress** until P02-06c is done.
+
+**Delivered** ([DATABASE_SCHEMA.md § 1](../DATABASE_SCHEMA.md) `tenant_profiles`, § 8A, [DATA_IMPORT.md](../DATA_IMPORT.md) § 1 row 4 and "Re-running and updates", [ARCHITECTURE.md § 5, § 6.12, § 8](../ARCHITECTURE.md); `docs/plans/P02-P03-subtasks.md` P02-06b):
+- **Module `Modules/Tenants`** (`module:make`, trimmed: no controller, routes, views, config, seeder or event provider, since there are no pages until P03-01a; in `modules_statuses.json`). `TenantsServiceProvider` registers `TenantProfilePolicy` and the import target into `Modules\Import\Contracts\ImportTargets` (`callAfterResolving`, through the contract only; the module-boundary test passes).
+- **Schema:** module migration `2026_11_03_070101_create_tenant_profiles_table.php`: DB § 1 columns, `user_id` nullable FK (null on delete), `emergency_contact` json `{name, phone, relationship}`, `kyc_status` default `unverified`, `id_type` default `none`, `id_value` text (encrypted), provenance `import_batch_id` (no FK: `import_batches` is the Import module's) / `external_ref`, soft deletes. Unique `(organization_id, phone)` and `(organization_id, external_ref)` (archived rows included); indexes `(organization_id, import_batch_id)`, `(organization_id, deleted_at, last_name, first_name)`, `(organization_id, email)`.
+- **Model and enums:** `Modules\Tenants\Models\TenantProfile` (`BelongsToOrganization`, `SoftDeletes`, `id_value` encrypted and hidden, `maskedId()` = "NIN ···2109", `fullName()`, `user()`; on every save the phone is normalised to E.164 through `App\Support\PhoneNumber` (an invalid one throws) and the email lower-cased), `TenantProfileFactory` (`withNin()`), `KycStatus` (unverified, pending, verified), `TenantIdType` (nin, passport, drivers_licence, voters_card, none; `fromInput()` reads labels and common spellings such as "Intl passport", "Drivers license", "PVC"; `normalise()`; `accepts()` per format: NIN 11 digits, passport letter + 8 digits, driver's licence 3 letters + 7–12 letters/digits, voter's card 19 letters/digits; `formatHint()`). `TenantProfile` added to `tests/Support/OrganizationScopedModels.php` (all `CrossTenantAccessTest` probes).
+- **Permissions and policy:** new `tenants.view` and `tenants.manage` (org-owner, org-admin, agent), classed in `allowedWhileSuspended()` (view true, manage false) and `blockedWhileImpersonating()` (both false; archiving is blocked as a `delete` ability). `TenantProfilePolicy`: viewAny/view (`tenants.view`), create/update/delete (archive)/restore (`tenants.manage`), record must be in the current organization; update/delete only active, restore only archived. Seeding the role map is enough on existing installs (`InstallSeeder`).
+- **Import target** `Modules\Tenants\Import\TenantsImportTarget` (key `tenants`, label "Tenants", order 40: after owners/properties/units, before leases). Columns: Your ID, First name*, Last name, Phone*, Email, Address, Occupation, Next of kin, Next of kin phone, Next of kin relationship, ID type (dropdown), ID number, with aliases for agencies' own headers ("Tenant name", "Mobile", "E-mail", "NOK", "Means of ID", "NIN", …). A full name under First name is split when Last name is empty (last word = last name).
+  - **Matching:** `external_ref` first, then phone (E.164), archived tenants included (decision 3): an archived match is restored (dry-run warning "This tenant was archived. Importing brings them back.", action `restore`, audited `tenant.restored` under log `tenants` with the batch id and row; carries the batch's id so a rollback archives it again). Created tenants carry the batch's id; updated ones keep theirs. Matching by ID with a new phone updates the phone, unless the number belongs to another tenant (error). Matching by phone with a different ID: warning, the ID changes.
+  - **Exact per-row errors** (row, column, message): missing phone; bad phone (`"0803 12" is not a phone number. Enter it like 0803 123 4567 or +234 803 123 4567.`); duplicate phone in the file (`This phone number is already on row 2. …`); duplicate ID in the file; phone of another tenant; missing first name; missing last name; bad email; bad next-of-kin phone; unknown ID type; number without type; type without number; bad ID format (per type, never echoing the number); markup (`<`/`>`) and over-long text.
+  - **Updates:** only cells the file fills in change; an empty cell keeps what is on file. KYC status is never imported (new tenants are `unverified`); a changed ID number on a checked tenant resets it to `unverified` (dry-run warning). Nobody is contacted.
+  - **Rollback** soft deletes the batch's created/restored tenants; **usedSince** is true once one of them has portal access (`user_id` set).
+  - The preview never contains the ID number (the report is plain JSON on the batch).
+  - Later sheets: the dry run remembers each valid row under `tenants` and the E.164 phone (`ImportRun::remember`) for P03-13a's leases.
+- **Template:** the downloadable `.xlsx` template now has a Tenants sheet (header, example row, ID type dropdown on column K) and its instructions; a downloaded template imports its example tenant.
+- **Docs:** DATABASE_SCHEMA.md § 1 `tenant_profiles` as built; DATA_IMPORT.md § 1 row 4 (columns as built) and "Re-running and updates" (archived matches restored, empty cells keep values, ID change unverifies); ARCHITECTURE.md § 5 ("Tenants" paragraph), § 6.2 (see contradiction below), § 6.12 ("Targets built so far"), § 8 (Tenants built).
+
+**Tests and evidence (local, MariaDB 11.4):**
+- `composer ci` on the final commit: Pint passed, Larastan 0 errors, Pest **1,593 tests: 1,593 passed, 12,943 assertions**, 0 failed. The Tenants and Import module tests and `CrossTenantAccessTest` also pass with `APP_DEBUG=true`.
+- New: `Modules/Tenants/tests/Feature/TenantsImportTest.php` (16 tests + a 12-case ID dataset = 28 cases), `TenantProfileTest.php` (12 incl. role dataset), helpers `helpers.php`. All imports run through the real engine (`ImportBatches::upload` → `dryRun` → `commit` (sync queue, `CommitImportSheet`) → `rollback`).
+- **AC: exact per-row errors for a missing or bad phone:** `TenantsImportTest` › "reports a missing or bad phone, and every other bad cell, with its exact row, column and message" (11 issues asserted as [row, header, letter, severity, message]; blank row keeps numbering; batch `dry_run_failed`, commit refused, nothing saved); "lists the bad phones in the downloadable problems workbook, next to their rows".
+- **AC: re-import by phone updates instead of duplicating:** "updates a tenant matched by phone when re-imported, instead of adding them twice" (phones written another way, no IDs: 5 updates + 1 create, still 6 tenants after a third run; empty email kept; updated tenants keep the creating batch); "matches by the agency's ID first, so a tenant's new phone number updates them"; "refuses a row whose ID is one tenant's and whose phone is another's, and warns when a tenant's ID changes".
+- **Restore of an archived match:** "restores an archived tenant matched by phone, audited, and a rollback archives them again" (dry run counts restore 1 + warning; restored row carries the batch; `tenant.restored` audit; rollback archives created + restored, keeps the updated one with its changes; importing again restores both).
+- **Dry run writes nothing:** "writes nothing during a dry run" (every SQL write during the dry run recorded: none outside `import_batches` and the audit log; `tenant_profiles` identical before and after).
+- **Cross-org probe on `TenantProfile`:** `CrossTenantAccessTest` dataset `TenantProfile` (5 probes); `TenantsImportTest` › "never matches another organization's tenant with the same phone or ID" (another org's active and archived tenants with the same phone/ID: 3 creates, 0 warnings, their rows untouched, rollback never touches them, the same phone exists once in each org); `TenantProfileTest` › "refuses everything to a member of another organization and to strangers…", "allows one tenant per phone number in an organization, archived tenants included, but the same number in another".
+- **`id_value` encrypted at rest:** `TenantsImportTest` › "keeps the ID number encrypted at rest, out of arrays and out of the dry-run report"; `TenantProfileTest` › "stores the ID number encrypted at rest and shows it only masked".
+- Others: "creates the previewed tenants on commit, phones in E.164, provenance on each, KYC unverified, nobody contacted" (Notification/Mail fakes assert nothing sent); "maps an agency's own tenant list by its headers" (CSV with "Tenant name", "Mobile", "NOK", "Means of ID", "NIN"); "refuses a rollback once an imported tenant has been given portal access"; "makes a checked tenant unverified again when an import changes their ID number"; "checks each kind of ID number" (12 cases); "refuses markup and over-long text in tenant cells"; "offers a Tenants sheet in the import template, which maps itself when filled in"; policy matrix for the 5 roles; grants and guard classing; suspended organization read-only; phone/email normalised on save.
+- Existing tests changed (none weakened): `ImportFilesTest` › "offers a template with instructions, a sheet per target and dropdowns for fixed values" (the real Tenants target now joins the fixture targets: sheets `Instructions, Contacts, Notes, Tenants`; the hidden Lists sheet moved to index 4 and its first column is padded to the longest list); `SuspendedOrganizationTest` kept list (+`tenants.view`); `OrganizationScopedModels` (+`TenantProfile`).
+- Not run: release build / install drills (`InstallCommandTest` covers module migrations; the new migration is the newest module migration).
+
+**Orchestrator review:** merged `main` (with P02-02) into the branch; resolved three conflicts by keeping both sides (ARCHITECTURE.md § 5 Units and Tenants paragraphs; permission labels for `properties.portfolio` and both tenant permissions; `Unit` and `TenantProfile` both join the cross-tenant probes). Re-ran `composer ci`: Pint passed, Larastan 0 errors, Pest 1,658 passed, 13,483 assertions.
+
+**Decisions to confirm:**
+- Orchestrator decision 1 (modules): Tenants is a module; no Livewire yet (pages are P03-01a); ARCHITECTURE.md § 8 marks it built.
+- Orchestrator decision 2 (cross-org lookups): none needed; everything runs inside the batch's organization context, no scope removed (only `withTrashed()`).
+- Orchestrator decision 3 (soft deletes vs unique keys): matching by `external_ref` and phone includes archived tenants, which are restored and audited (`tenant.restored`); both unique indexes stay as documented.
+- Orchestrator decision 4 (plan gating): BILLING § 1.2 gates nothing built here (tenant import and tenant records are in every plan).
+- **Agents get `tenants.manage`** (not only owners/admins as for owner profiles): ARCH § 5 gives agents leases, and a lease needs its tenant. P03-01a can narrow it (e.g. by building assignment, P02-03).
+- **Last name is required** (DB § 1 does not mark it nullable); a full name under First name is split on the last space instead of adding a separate "Full name" column.
+- **Empty cells keep what is on file** on re-import (the fixture target overwrote everything); "None" as ID type removes the ID.
+- **ID types** `nin`, `passport`, `drivers_licence`, `voters_card`, `none` (DB § 1 named no values) with the formats above; numbers kept in capitals without spaces/dashes.
+- **KYC:** never imported; a changed ID number on a `pending`/`verified` tenant resets it to `unverified`.
+- **Audit:** only restores are audited per tenant (decision 3); creates and updates are covered by the batch's `import.committed` counts (P02-06a's choice, to keep 10,000-row commits within the job budget).
+- **`usedSince`** = portal access (`user_id` set) until leases, bills and payments exist (P03-13a).
+- **Contradiction, ARCHITECTURE.md § 6.2** said "the tenant profile is global", while DB § 1 and the task give `tenant_profiles` an `organization_id` and unique `(organization_id, phone)`, and § 4 says portal reads go through `tenant_profiles.user_id = me`. Built per organization; § 6.2 now says the user account is global and each organization keeps its own profile linked by `user_id`.
+- `PhoneNumber::normalize` refuses "+234 (0) 803…" (the "(0)" trunk prefix); the target reports it as a bad phone. Core's helper is unchanged; consider accepting it there.
+
+**Follow-ups:**
+- P03-01a: tenant pages and an audited writer (`Modules\Tenants\…`, log `tenants`, which the import's `tenant.restored` already uses), routes and sidebar item; a `Contracts` interface for other modules (Leasing will look tenants up by phone/id).
+- P03-13a: extend `TenantsImportTarget::usedSince` to leases, bills and payments through those modules' contracts; the leases sheet can rely on `ImportRun::knows('tenants', <E.164 phone>)`.
+- P03-01b: `tenant_profiles.user_id` linking on invitation acceptance; consider a unique `(organization_id, user_id)`.
+- P02-06c: owners/properties/units targets (orders below 40), the 4-sheet template (now 3 real sheets are missing; Tenants is in).
+- DATA_IMPORT § 2.3 warning "tenant phone already exists in another lease" needs leases (P03-13a).
+
+**Next:** P02-06c once P02-02 has merged (wave 5).
 
 ### P02-02 — Complete (2026-10-27): units (schema, bulk create, status board and occupancy counts on the building page, UnitPolicy, UnitDirectory contract, UnitCreated/UnitDeleted events); P02-02 complete
 

@@ -45,7 +45,7 @@ enum OrganizationRole: string
     public function permissions(): array
     {
         $operations = [
-            P::ViewProperties, P::ManageProperties, P::ViewLeases, P::ManageLeases, P::ViewBills, P::ManageBills,
+            P::ViewProperties, P::ManageProperties, P::ViewTenants, P::ManageTenants, P::ViewLeases, P::ManageLeases, P::ViewBills, P::ManageBills,
             P::ViewPayments, P::ConfirmPayments, P::ViewTickets, P::CreateTickets, P::RespondToTickets, P::ManageTickets,
             P::ParticipateInBuildingGroups, P::ModerateBuildingGroups,
         ];
@@ -57,7 +57,9 @@ enum OrganizationRole: string
             // responsibility, bank accounts or Paystack (where tenants' money
             // goes: owner only), compliance or closing the organization.
             // Property owners' records (P02-01a) are kept by owners and
-            // administrators; agents look them up. Which buildings the
+            // administrators; agents look them up. Tenants' records (P02-06b)
+            // are day-to-day work for administrators and agents alike: an agent
+            // signing a lease adds its tenant. Which buildings the
             // organization manages (adding, archiving, restoring one;
             // P02-01b) is also theirs: agents work on existing buildings.
             self::Admin => [P::OpenWorkspace, P::UpdateOrganization, P::ViewSettings, P::ViewMembers, P::ManageMembers, P::ViewOwners, P::ManageOwners, P::ManagePropertyPortfolio, ...$operations, P::ViewReports, P::ViewImports, P::ManageImports],
