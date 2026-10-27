@@ -25,7 +25,7 @@ final class TenantProfileFactory extends Factory
             'first_name' => fake()->firstName(),
             'last_name' => fake()->lastName(),
             'email' => fake()->unique()->safeEmail(),
-            'phone' => '+23481'.fake()->unique()->numerify('########'),
+            'phone' => '+234813'.fake()->unique()->numerify('#######'), // never 0809 111…, a number tests search for
             'address' => fake()->streetAddress(),
             'occupation' => fake()->jobTitle(),
             'id_type' => TenantIdType::None,

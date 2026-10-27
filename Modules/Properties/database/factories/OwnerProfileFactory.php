@@ -28,7 +28,7 @@ final class OwnerProfileFactory extends Factory
             'first_name' => fake()->firstName(),
             'last_name' => fake()->lastName(),
             'email' => fake()->unique()->safeEmail(),
-            'phone' => '+23480'.fake()->unique()->numerify('########'),
+            'phone' => '+234802'.fake()->unique()->numerify('#######'), // never 0809 111…, a number tests search for
             'address' => fake()->streetAddress(),
             'state' => fake()->randomElement(NigerianStates::ALL),
             'id_type' => OwnerIdType::None,
