@@ -2,5 +2,6 @@
     "Properties": true,
     "Import": true,
     "Tenants": true,
-    "SaasBilling": true
+    "SaasBilling": true,
+    "Leasing": true
 }

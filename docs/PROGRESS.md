@@ -6,7 +6,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 ## Current state
 
-- **In progress:** P03 wave 1 (P03-05a document kit, P03-02 cycle calculator), each in its own worktree (`docs/plans/P02-P03-subtasks.md`); the product owner asked for P03 to start with default answers to its open questions, recorded in that plan
+- **In progress:** P03-05a (document kit) and P03-01a (tenant pages), each in its own worktree. Done in P03: P03-02 (`docs/plans/P02-P03-subtasks.md`); the product owner asked for P03 to start with default answers to its open questions, recorded in that plan
 - **In review:** P00-02 (CI): all four database jobs are green in GitHub Actions; branch protection on `main` is off by the product owner's decision (2026-10-27) while P02 and P03 are built, so tasks keep merging straight to `main`; turn it on afterwards (`docs/runbooks/ci.md` § 3) and mark P00-02 complete. P00-12 (backups): built and drilled locally; needs one real run to an S3-compatible bucket and a Google Shared Drive (PRE-03 accounts)
 - **Next task:** P03 waves 2–14 in order, two at a time; PRE-01 to PRE-04 continue with the product owner
 - **Blocked:** P00-13 (staging): the deploy scripts, the deploy on merge and the deploy drill are built and drilled locally; it needs a staging host (PRE-04). Until then the Deploy workflow fails at "Check deploy settings" on every push to `main`
@@ -19,18 +19,69 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | P00 | 13 | 10 | In progress |
 | P01 | 9 | 9 | Complete (2026-10-27) |
 | P02 | 7 | 7 | Complete (2026-10-27) |
-| P03 | 15 | 0 | In progress |
+| P03 | 15 | 1 | In progress |
 | P04 | 3 | 0 | Not started |
 | P05 | 6 | 0 | Not started |
 | P06 | 11 | 0 | Not started |
 | P07 | 4 | 0 | Not started |
 | P08 | 4 | 0 | Not started |
 | P09 | 8 | 0 | Not started |
-| **Total** | **85** | **27** | |
+| **Total** | **85** | **28** | |
 
 ## Ledger (newest first)
 
 Each entry: task ID and status, date, what was delivered, tests run and results, follow-ups, next task.
+
+### P03-02 — Complete (2026-10-27): `Modules/Leasing` with `BillingCycle` and the pure `CycleCalculator` (month-end anchoring, due offset, lead window), property tests, interval-maths ban
+
+**Delivered** ([ARCHITECTURE.md § 6.3–6.4](../ARCHITECTURE.md), AGENT.md § 3 rule 3, [DATABASE_SCHEMA.md § 3](../DATABASE_SCHEMA.md); `docs/plans/P02-P03-subtasks.md` P03-02):
+- **Module `Modules/Leasing`:** made with `module:make Leasing`, then trimmed to provider, `module.json`, `composer.json` (no routes, config, views, seeders or factories yet) and an empty `database/migrations` for P03-03a. Added to `modules_statuses.json` (enabled). `LeasingServiceProvider` binds `Contracts\CycleCalculator` to `Modules\Leasing\CycleCalculator` as a singleton.
+- **Public types (`Modules\Leasing\Contracts`, so Billing can use them across the module boundary):** `BillingCycle` enum (`daily`, `weekly`, `monthly`, `quarterly`, `semi_annual`, `annual`, `biennial`; labels Daily, Weekly, Monthly, Quarterly, Every six months, Yearly, Every two years; `days()` / `months()`; `HasValues`); `BillingPeriod` (readonly: `index`, `start`, `end`, `lengthInDays`, `contains()`); interface `CycleCalculator` (`periodStart`, `period`, `periodContaining`, `nextPeriodStart`, `periodsBetween`, `dueDate`, `billingDate`, `DEFAULT_LEAD_DAYS = 7`).
+- **`Modules\Leasing\CycleCalculator`:** pure and immutable. It works on integer calendar days and month numbers and builds `CarbonImmutable` only for the result, with no Carbon add/sub. Arguments are calendar days: the time of day is ignored. Results are midnight in the argument's time zone. Period *n* is always counted from the anchor, so stepping period by period never drifts. Negative indexes (before the anchor) work. Daily/weekly cycles are 1- or 7-day counts. Month cycles land on the anchor day, clamped to the last day of a short month, and go back to the anchor day afterwards. A period ends on the next period's start − 1 day. `dueDate` = start + `due_day_offset` (negative is refused). `billingDate` = start − `lead_days` (negative is refused).
+- **Docs:** ARCHITECTURE.md § 6.3 now has the namespace `Modules\Leasing`, the contract, `next_billing_date`, `due_day_offset` and the anchoring rules with worked examples, the lead window, due offset, calendar-day semantics and the scan. § 6.4 now uses `next_billing_date`, `lead_days`, `billingDate`/`dueDate`/`nextPeriodStart`. § 8 marks Leasing's calculator as built. DATABASE_SCHEMA.md § 3 `leases`: `due_day_offset` now reads "due N days after the period start" (was "bill N days before period start", which contradicted decision 1). `next_billing_date` names the calculator and `billing_cycle` names the enum.
+
+**Orchestrator review:** branch already contained `main` (`995b40f`); re-ran `composer ci`: Pint passed, Larastan 0 errors, Pest 1,893 passed, 15,795 assertions.
+
+**Decisions relied on (orchestrator defaults; to confirm with the product owner):**
+- Decision 1, cycle maths: the namespace is `Modules\Leasing\CycleCalculator` (AGENT § 3.3 wins over ARCH's `App\Leasing`). The column is `next_billing_date` (DB § 3 wins over ARCH's `next_due_date`). Month-end anchoring clamps and then returns: 31 Jan → 28/29 Feb → 31 Mar. Period end = next start − 1 day. Daily/weekly cycles are plain day counts. A bill is generated `lead_days` (default 7) before its period starts. `due_day_offset` = days after the period start (default 0).
+- My own reading, beyond decision 1: the calculator refuses a negative `due_day_offset` or lead, and does not clamp the due date to the period. A due date past a daily period's end is therefore allowed. P03-03a/04b should validate offsets against the cycle if they want that.
+- `BillingCycle` and `BillingPeriod` live in `Contracts` (not `Enums`): Billing's utility cycles use the same enum (DB § 3 `utility_types.default_cycle`), and the module-boundary test only lets other modules use `Contracts`/`Events`.
+
+**Tests and evidence (local, MariaDB 11.4):**
+- `composer ci` on the final commit: Pint passed, Larastan 0 errors, Pest **1,893 tests: 1,893 passed, 15,795 assertions**, 0 failed (was 1,801 on `main`). The new tests also pass with `APP_DEBUG=true` (92 tests, 328 assertions).
+- **AC — property-based tests:** `Modules/Leasing/tests/Unit/CycleCalculatorPropertiesTest.php` checks 2,601 anchors on 1999–2101. These are 2,000 random days from a fixed-seed `Xoshiro256StarStar` (seed 20261027) plus every 29 Feb, every 31 Dec/1 Jan, and the 1st and 28th–31st of every month in 1999, 2000, 2001, 2027, 2028, 2096, 2099, 2100 and 2101. Every cycle is covered. The oracle is PHP's own `DateTimeImmutable`, not the calculator's maths. Mismatches are collected and listed together, naming the anchor, cycle and period.
+  - "ends every period the day before the next starts: start + cycle − 1 day, short months clamped" (×7 cycles): start/end/index/length against the oracle; for day cycles length = 1/7; and for anchor days ≤ 28 the literal `start + N months − 1 day`.
+  - "lays periods end to end: contiguous, non-empty and non-overlapping" (×7).
+  - "reaches the same start by stepping period to period as by counting from the anchor (no drift)" (×7).
+  - "returns to the anchor day after a short month" (×5 month cycles).
+  - "finds the period containing any date, before or after the anchor" (×7).
+  - "counts the periods between two dates" (×7).
+  - "puts the due date $offset days after the period start and the bill date $lead days before it".
+  - Mutation check (by hand, reverted): breaking the leap-year rule (2100) or the return to the anchor day made these tests fail, with readable lists.
+- **Documented examples:** `CycleCalculatorExamplesTest.php` covers:
+  - 31 Jan monthly in a leap year (→ 29 Feb → 31 Mar …) and in a common year;
+  - 29 Feb yearly (28 Feb in common years, 29 Feb in leap years), 2100 common and 2000 leap, 29 Feb every two years;
+  - 30 Aug quarterly (→ 30 Nov → 28/29 Feb → 30 May) and 31 Aug six-monthly;
+  - weekly from Sunday 27 Dec 2026 (Sunday–Saturday across the year end, 61 weeks);
+  - daily through 29 Feb and the year end;
+  - `periodContaining`/`nextPeriodStart`/`periodsBetween` (with the refused reversed range), `dueDate`/`billingDate` (default 7, negative refused);
+  - time zone and time-of-day handling, labels and values.
+- **Sub-AC — the interval-maths ban:** `CycleMathBoundaryTest.php` › "keeps interval maths in Leasing and Billing inside CycleCalculator".
+  - It scans every PHP file, Blade views included, under `Modules/Leasing` and `Modules/Billing` except `tests/`. New files are covered automatically, and Billing is covered as soon as it exists.
+  - Comments are ignored. `Modules/Leasing/app/CycleCalculator.php` is the only file exempt.
+  - Banned: `->add…/sub…` by Day/Week/Month/Quarter/Year/Decade/Century/Millennium (with Real/UTC, plural and overflow variants); `addUnit`/`subUnit`/`rawAdd`/`rawSub`/`setUnitNoOverflow`; `add`/`sub` with a unit string or an interval; `plus`/`minus` with named date units; `modify()`/`date_modify`; `CarbonInterval`/`DateInterval`/`CarbonPeriod`/`DatePeriod`; `strtotime`/`date_add`/`date_sub`/`mktime`/`gmmktime`.
+  - The test also includes "spots each banned form of interval maths" (32 cases, a Blade echo among them), "lets ordinary code and comments through" (`addMinutes`/`addHours`, `Money::plus`, `MessageBag::add`, comments) and "names the line of each violation".
+  - Checked by hand: a probe `Modules/Billing/app/Probe.php` with `now()->addMonth()` failed the scan (probe removed).
+- `Modules/Leasing/tests/Feature/LeasingModuleTest.php`: the module is enabled, and the contract resolves to the one calculator as a singleton. `ModuleSkeletonTest` (module boundaries) passes with the new module.
+
+**For P03-14 (management handover):** nothing to move. P03-02 adds no tables. The calculator is pure, and lease rows (P03-03a) will keep `next_billing_date` as a plain date.
+
+**Follow-ups:**
+- The `lead_days` organization setting (default `CycleCalculator::DEFAULT_LEAD_DAYS` = 7) is not built yet. It belongs with bill generation (P03-04b), as do the `leases.due_day_offset` / `next_billing_date` columns (P03-03a).
+- The scan list is `['Leasing', 'Billing']`. Add Reminders/Payments there if they start doing period maths.
+- The property tests take ≈ 35 s of CPU in total, split over 41 dataset tests, so they run in parallel under `--parallel`.
+
+**Next:** P03-03a (lease engine) builds on `Contracts\CycleCalculator` for `next_billing_date`. P03-04b uses `billingDate`/`dueDate`/`nextPeriodStart` for rent bills.
 
 ### P02 — Complete (2026-10-27): properties, units, owners, import part 1, exports
 

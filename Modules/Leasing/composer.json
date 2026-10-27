@@ -1,0 +1,28 @@
+{
+    "name": "goproperty/leasing",
+    "description": "Leases and billing-cycle maths (ARCHITECTURE.md § 6.3)",
+    "authors": [
+        {
+            "name": "GoProperty",
+            "email": ""
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [],
+            "aliases": {
+
+            }
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Modules\\Leasing\\": "app/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Modules\\Leasing\\Tests\\": "tests/"
+        }
+    }
+}
