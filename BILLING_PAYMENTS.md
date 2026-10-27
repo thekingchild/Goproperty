@@ -163,26 +163,75 @@ For customers who prefer transfer, or when card charge fails:
 
 Reactivation: any confirmed payment covering open invoices returns the subscription to `active` immediately (webhook or manual confirmation — same code path).
 
-## 7. Billing Responsibility Transfer (org ↔ org)
+## 7. Management Handover (org → org)
 
-The property-owner↔agent handover. State machine on `billing_transfer_requests`:
+**Product owner decision (2026-10-27): this replaces the "billing responsibility transfer".** A landlord who hands GoProperty billing to an agency is handing over the *management* of their buildings. So the buildings move into the agency's organization, the agency's own subscription pays for them (billing follows units, § 1.4), and the landlord keeps a read-only view as `property-owner` through the owner portal (`/owner`, P03-15). No organization ever pays another organization's bill, and paying never grants access by itself: access comes from where the buildings live.
+
+### 7.1 Who and what
+
+- A handover moves **chosen buildings** (with their units) from one organization to another. A landlord with five buildings may hand three to one agency and keep two.
+- **Starting management:** an `org-owner` of the landlord's organization (type `property_owner` or `hybrid`) offers buildings to an agency already on GoProperty, found by its web address or an owner's email. Only an `org-owner` of the receiving organization accepts or declines.
+- **Returning buildings the agency holds without a handover** (added or imported by the agency): the agency's `org-owner` may offer them to the landlord's own organization the same way.
+- The old "agency asks the landlord to pay the agency's bill" direction is dropped; an agency that wants its landlord on GoProperty invites them to the owner portal (P03-15).
+- A building is in at most one open handover (pending, active or ending). Only active buildings are handed over.
+
+### 7.2 State machine (`management_handovers`)
 
 ```
-pending ──accept──▶ completed   (payer_organization_id switches, payment method re-enrolment starts)
-pending ──decline──▶ declined   (nothing changes)
-pending ──cancel──▶ cancelled   (initiator cancels before response)
-pending ──14d──▶ expired        (invitation token expires too)
+pending ──accept──▶ active      (buildings and live records move to the receiving organization, one transaction)
+pending ──decline──▶ declined   (nothing moves)
+pending ──cancel──▶ cancelled   (the offering organization withdraws before an answer)
+pending ──14d──▶ expired        (the link expires too)
+active ──notice──▶ ending       (either side gives notice; the agency keeps managing until the end date)
+ending ──withdraw notice──▶ active   (only the side that gave it, before the end date)
+ending ──end date──▶ ended      (live records move back to the landlord's organization)
 ```
 
-Rules:
+Any other transition is refused and changes nothing. States change only through the handover service (AGENT.md § 3 rule 5).
 
-1. Only an `org-owner` can initiate; only the target org's `org-owner` can accept/decline.
-2. **Acceptance is what moves the bill.** The UI must state, on the accept screen: "You are taking over the GoProperty subscription bill for {amount}/month from {date}." The accept action creates the completed transfer in one transaction.
-3. From acceptance: the new payer gets card-setup + bank instructions within 1 billing cycle; interim invoices route to the new payer.
-4. The initiator is notified of every state change. The platform console shows pending transfers (support visibility).
-5. Reversal = a new transfer request in the other direction; no edit of a completed transfer.
+### 7.3 The accept screen
 
-**As built (P02-04, ahead of P06; [ARCHITECTURE.md § 6.1](ARCHITECTURE.md)).** `Modules\SaasBilling\Transfers\BillingTransferService` records offer, accept, decline, withdraw and expiry with this state machine; any other transition is refused and changes nothing. Only organizations already on GoProperty can be offered a bill (by web address or an owner's email); inviting an organization that is not yet on GoProperty is a later addition. The offering organization is the current payer and owns the row. The amount on the accept screen is the offering organization's plan price for its billable units today (before VAT; the plan chosen at signup until P06-01's subscription exists), and acceptance records it. Until P06-06, acceptance records the handover only: `payer_organization_id` does not move yet, no payment method is re-enrolled, `completed_at` stays empty, and the accepting organization gets no access to the other's buildings. P06-06 applies the switch, including to transfers completed before it ships.
+The receiving owner sees, before accepting:
+
+- the buildings and the number of units in each;
+- who collects rent (§ 7.5) and the notice period (§ 7.6);
+- **the bill change:** "Your GoProperty bill goes from {current}/month to {after}/month (before VAT) from your next billing day, {date}." Units are counted on the billing day (§ 1.4), so at MVP there is **no proration**; when proration ships (a post-MVP refinement, § 1.4), handovers use it. Plans have no hard unit limit (§ 1.1): extra units cost the plan's per-unit price, and the screen suggests a bigger plan when it would be cheaper.
+
+Accepting is the agency's consent to the new bill. It passes the amount shown, and is refused if the amount changed while the screen was open (as P02-04 does).
+
+### 7.4 What moves and what stays
+
+- **Moves (the live records):** the buildings with their photos and files, units, tenants of those units, active and reserved leases (with the deposit recorded on them), utility settings and meter readings. Agent assignments on the moved buildings are dropped (they belong to the old organization's members). In the receiving organization the landlord becomes an owner profile (an existing one is matched, else one is created from the landlord organization's details), linked to the landlord's user, who gets the `property-owner` role there (P03-15).
+- **Stays (the history):** bills, receipts, payments, credit notes and documents issued before acceptance stay in the organization that issued them, with its numbering and branding; they are legal records and are never rewritten. Unpaid bills issued before acceptance stay with their issuer, which collects them. The agency issues the next bills from acceptance. Audit entries stay where they were written; both organizations get a handover entry.
+- **Clashes:** a moved building takes the next free web address (slug) in the receiving organization; import references (`external_ref`) that clash there are cleared on the moved row. Media files move to the receiving organization's folder.
+- **Members of the old organization** (for example the landlord's caretaker as `agent`) lose access to the moved buildings; the agency can invite them.
+
+### 7.5 Who collects rent
+
+The offer says who collects rent for the handed-over buildings:
+
+- **Agency collects** (the usual practice): tenants pay the agency's own account; the agency pays the landlord after its commission, outside GoProperty.
+- **Landlord collects:** tenants pay the landlord's own account. This needs a collection account per building (P03-07); until that exists, only "agency collects" is offered.
+
+Either way, GoProperty never touches the money (AGENT.md § 3 rule 8, [ONBOARDING_COMPLIANCE.md § 0](ONBOARDING_COMPLIANCE.md)).
+
+### 7.6 Ending management
+
+- **Either side may end it alone, with notice:** the landlord ends the management, or the agency resigns. The notice period is set on the offer (default 30 days, 0–180) and shown on the accept screen. During notice the agency keeps managing, and its subscription keeps counting the units.
+- **At the end date** (hourly job), the live records of § 7.4 move back to the landlord's organization, and records the agency created during management (its bills, receipts, payments, documents) stay with the agency as history; the landlord can export them.
+- **The landlord's organization is kept** (never deleted) while a handover from it is active or ending, so there is always somewhere for the buildings to return to. Organizations of type `property_owner` are platform-covered (§ 2), so returned units cost the landlord nothing.
+- After the return, the landlord may hand the buildings to another agency with a new handover. An accepted handover is never edited: a change is an end plus a new handover.
+
+### 7.7 Rules
+
+1. Only an `org-owner` offers, accepts, declines, withdraws, or gives and withdraws notice. All of these are blocked while staff impersonate, and a suspended organization does none of them (they are writes).
+2. Acceptance and the return each move everything in **one transaction**: each module moves its own records through its contract, and any failure rolls back the whole move.
+3. Both sides are told of every state change, by email and in the app. The platform console shows pending and ending handovers (support visibility).
+4. Only organizations already on GoProperty can be offered buildings; inviting an organization that is not on GoProperty yet is a later addition.
+
+### 7.8 What is built today
+
+P02-04 built the offer flow as a "billing transfer" (`Modules\SaasBilling`, `billing_transfer_requests`, `BillingTransferService`): offer by web address or an owner's email, the receiving inbox, the accept screen with the amount, accept, decline, withdraw, 14-day expiry, notifications, and refusal of invalid transitions. It records the answer only and moves nothing. **P03-14 reworks it into the management handover** (buildings chosen, rent collection, notice, the move and the return), keeping what fits. The payer switch first planned for P06-06 is dropped: `subscriptions.payer_organization_id` stays only for platform-covered organizations (§ 2).
 
 ## 8. Refunds & Credit Notes
 

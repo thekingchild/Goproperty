@@ -43,7 +43,7 @@ GoProperty is a multi-tenant SaaS platform for property management in Nigeria. A
 
 ## Signature Flows
 
-- **Billing responsibility transfer** — a property owner invites an agent/agency and offers to hand over the platform subscription bill; the agent must accept before the obligation moves.
+- **Management handover** — a landlord hands chosen buildings to an agency; once the agency accepts (seeing its new GoProperty bill), the buildings move into the agency's account, the agency's subscription pays for them, and the landlord follows them read-only in the owner portal. Either side can end it with notice and the buildings go back ([BILLING_PAYMENTS.md § 7](BILLING_PAYMENTS.md)).
 - **Lease lifecycle** — allocation → contract (daily → biennial cycles) → rent invoice → payment → proof upload → confirmation → receipt; renewal reminders go out by email and SMS.
 - **Maintenance ticket** — draft → submitted → under review → in progress → resolved → closed, with threaded replies between tenant and agent/owner.
 - **Building Group** — a per-building discussion board with realtime posts, replies, emojis, light rich text and images.

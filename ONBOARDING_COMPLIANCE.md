@@ -143,7 +143,7 @@ Step details:
 - Invitation links are single-use, expire after 14 days, and can be re-sent or revoked from the tenant record.
 - A tenant without email signs in with **phone number + password**. To reset a forgotten password, the link goes by the agency's WhatsApp if connected; otherwise the tenant asks the agency, which creates a one-time sign-in link from the tenant record (copy or QR, audited, expires in 24 hours). After first sign-in, phone-only tenants are invited (not forced) to add an email for self-service resets.
 - SMS bill reminders still go out as before (they count against the agency's plan SMS credits), but only to numbers that are verified or agency-confirmed (see [ARCHITECTURE.md § 6.7](ARCHITECTURE.md)).
-**Property owners** managed by an agency are invited into the owner portal. Owners who manage their own buildings sign up as an organization of type `property_owner`.
+**Property owners** managed by an agency are invited into the owner portal. Owners who manage their own buildings sign up as an organization of type `property_owner`. If such an owner later hands buildings to an agency (management handover, [BILLING_PAYMENTS.md § 7](BILLING_PAYMENTS.md)), the buildings move into the agency's organization and the owner follows them in the owner portal; their own organization stays, so the buildings can come back.
 
 ## 3. Subscription Phase (GoProperty's own billing)
 
