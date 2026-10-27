@@ -6,7 +6,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 ## Current state
 
-- **In progress:** P03-01a (tenant pages) and P03-04a (document numbering), each in its own worktree. Done in P03: P03-02, P03-05a (Chrome visual diff awaits its first CI run) (`docs/plans/P02-P03-subtasks.md`); the product owner asked for P03 to start with default answers to its open questions, recorded in that plan
+- **In progress:** P03-04a (document numbering) and P03-05b (invoice/receipt templates), each in its own worktree. Done in P03: P03-01a, P03-02, P03-05a (Chrome visual diff awaits its first CI run) (`docs/plans/P02-P03-subtasks.md`); the product owner asked for P03 to start with default answers to its open questions, recorded in that plan
 - **In review:** P00-02 (CI): all four database jobs are green in GitHub Actions; branch protection on `main` is off by the product owner's decision (2026-10-27) while P02 and P03 are built, so tasks keep merging straight to `main`; turn it on afterwards (`docs/runbooks/ci.md` § 3) and mark P00-02 complete. P00-12 (backups): built and drilled locally; needs one real run to an S3-compatible bucket and a Google Shared Drive (PRE-03 accounts)
 - **Next task:** P03 waves 2–14 in order, two at a time; PRE-01 to PRE-04 continue with the product owner
 - **Blocked:** P00-13 (staging): the deploy scripts, the deploy on merge and the deploy drill are built and drilled locally; it needs a staging host (PRE-04). Until then the Deploy workflow fails at "Check deploy settings" on every push to `main`
@@ -31,6 +31,117 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 ## Ledger (newest first)
 
 Each entry: task ID and status, date, what was delivered, tests run and results, follow-ups, next task.
+
+### P03-01a — Complete (2026-10-27): tenant pages (list with filters and export, add/edit, record page, archive/restore), audited writer, policies and narrowing hook
+
+The parent P03-01 stays **In progress** until P03-01b (portal access and invitations) is done.
+
+**Delivered** ([DATABASE_SCHEMA.md § 1](../DATABASE_SCHEMA.md) `tenant_profiles`, [ARCHITECTURE.md § 5](../ARCHITECTURE.md) "Tenants", § 6.13; `docs/plans/P02-P03-subtasks.md` P03-01a):
+- **Pages (`Modules/Tenants`, Livewire namespace `tenants::`, routes in the module's `routes/web.php` behind `auth`, `verified`, `organization`):**
+  - `/o/{slug}/tenants` (`Livewire\TenantIndex`): 25 a page on the server, debounced (400 ms) search over first/last/full name, phone (typed as `0803 …` or `+234 …`) and email, filters for KYC status, portal access (yes/no) and Active/Archived, all in the URL; Clear filters; empty states; Archive/Restore per row; Export button.
+  - `/tenants/create` and `/tenants/{id}/edit` (`Livewire\TenantForm`): name, phone, email, address, occupation, next of kin (name, phone, relationship), ID type and number, KYC status. The ID number on file is never sent to the browser: it shows masked, and an empty field keeps it.
+  - `/tenants/{id}` (`Livewire\TenantShow`): contact, next of kin, KYC badge, masked ID, "Your ID", portal access, and a dashed "Leases and bills" placeholder (`data-test="tenant-leases-bills"`) for P03-03a/P03-04b. An archived tenant's record opens read-only, with a banner and Restore; the edit page of an archived tenant answers 404.
+  - Sidebar item "Tenants" (order 400, `viewAny TenantProfile`) through `WorkspaceNavigation`.
+- **Writer `Modules\Tenants\Profiles\TenantProfiles`.** It is the only writer besides the import target. It covers create, update, archive (soft delete) and restore. Each call checks `TenantProfilePolicy` for the actor (`Gate::forUser`, so the suspension and impersonation guards apply). Rows are locked in a transaction. Changes are audited under log `tenants`:
+  - `tenant.created`;
+  - `tenant.updated` with `changed` fields and `kyc_from`/`kyc_to`, never the ID number;
+  - `tenant.archived`, `tenant.restored`.
+  - Saving with no changes writes nothing.
+- **Phone uniqueness (P02 decision 3):** E.164 through `PhoneNumber`. An active tenant's number is refused with the message "This phone number belongs to {name}. Each tenant needs their own number." When an archived tenant's number is used to add someone, the writer throws `Profiles\ArchivedTenantMatch` (a `ValidationException`). The form then keeps the match id locked on the server and shows "Restore {name}" (`restoreArchivedMatch()`). This restores the record on file, audited, and opens it; the typed details are not applied. On edit, an archived holder's number is refused by name. A unique-index race is turned into the same field error.
+- **KYC:** "Being checked" or "Verified" needs an ID on file. Changing the ID of a checked tenant resets them to "Not verified", unless the same save sets the status (this mirrors the P02-06b import rule).
+- **Policy `TenantProfilePolicy`:**
+  - New `export` ability (`= viewAny`, `#[BlockedWhileImpersonating]`: contact details).
+  - `view`, `update`, `delete` and `restore` go through `Access\TenantNarrowing`, which answers 404 (`denyAsNotFound`) outside the member's reach.
+  - Update and delete only on active tenants; restore only on archived ones.
+  - No new permission: P02-06b's `tenants.view` and `tenants.manage` (org-owner, org-admin, agent) were already classed for the suspension and impersonation guards.
+- **`Access\TenantNarrowing`** (on `Modules\Properties\Contracts\BuildingAccess`) has `allows()` and a `tenants()` query limiter. `buildingsOf()` is the one hook P03-03a fills (see decisions).
+- **List/export `Lists\TenantList`** (registered from `TenantsServiceProvider`):
+  - The page paginates the same query that the export streams.
+  - Headers are the import's, so an export imports again as updates. "ID (masked)" holds e.g. "NIN ···2109". It also has "KYC status" (label), "Portal access" (Yes/No), "Added on" and "Archived on".
+  - Order is last name, first name, id, following the `(organization_id, deleted_at, last_name, first_name)` index.
+- **Docs:**
+  - ARCHITECTURE.md § 5 "Tenants" (pages, writer, uniqueness/restore-instead, KYC, impersonation, narrowing decision), § 6.13 (TenantList; tenants among the contact-detail lists), § 8.
+  - DATABASE_SCHEMA.md § 1 `tenant_profiles` (writers, KYC, no building link and what that means for P03-14).
+  - PLATFORM_CONSOLE.md § 6 (the tenants export is refused while impersonating).
+  - DATA_IMPORT.md § 6 (the tenants export re-imports).
+  - The module's `module.json` description.
+
+**Orchestrator review:** branch already contained `main` (`050df22`); re-ran `composer ci` on MariaDB 11.4: Pint passed, Larastan 0 errors, Pest 2,029 tests: 2,026 passed, 3 skipped (P03-05a's Chrome visual diff, no Gotenberg locally). GitHub Actions was not starting jobs, so the MySQL jobs have not run.
+
+**Decisions relied on (orchestrator defaults and my own; to confirm with the product owner):**
+- Orchestrator decision 9 (narrowing through `BuildingAccess`) and the still-open question "does an unassigned agent see everything" are not affected here. **My decision for P03-03a to revisit:** a tenant has a building only through a lease. Until leases exist, an agent narrowed to some buildings therefore sees **every tenant of the organization** and may add tenants.
+  - It is built against the contract: `TenantNarrowing::allows()` already says a narrowed agent sees a tenant with no building, or one with a lease in their buildings. It returns 404 otherwise.
+  - P03-03a fills `buildingsOf()` (through Leasing's contract) and the `tenants()` query limiter.
+  - Rejected alternatives: "only tenants they created" needs a new `created_by` column and hides imported tenants. "None" locks agents out of signing leases.
+  - Pinned by `TenantRolesTest` › "shows an agent narrowed to some buildings every tenant until leases tie tenants to buildings (P03-03a)". P03-03a must change this test on purpose.
+- P02 decision 3 (soft deletes vs unique keys): the unique `(organization_id, phone)` index is unchanged. The page **offers** "restore instead" rather than restoring silently, unlike units, which auto-restore on create. A person's record should not be overwritten with typed details without a choice.
+- Decision 4 (people and roles): "tenants never get `organization_user` rows" is untouched. Portal access is only *shown* here (`user_id` set); P03-01b links it.
+- Decision 8 (plan gating): BILLING § 1.2 gates nothing here (tenant records and exports are in every plan).
+- The export is blocked in both impersonation modes (P02-07 rule for contact details). Archiving is blocked as a `delete` ability. Editing in write mode is allowed and audited with both identities. Restore is not blocked (it is not a delete).
+- Agents add, edit, archive and restore tenants (P02-06b grant, unchanged).
+- An archived tenant's record page stays viewable (history will hang off it); owners' archived pages answer 404 instead.
+
+**For P03-14 (management handover):** `tenant_profiles` has no building or unit link, so a handover moves no tenant row by itself. Live leases (P03-03a) reference a tenant, so P03-14's Tenants part must bring each moved lease's tenant into the receiving organization. Suggested approach: match by E.164 phone there (unique per organization), or create a copy with the same details, the `user_id` portal link and the encrypted ID. The lease is then re-pointed to it. The original profile stays in the landlord's organization, because issued bills, receipts, payments and audit entries (history) reference it and never move. `external_ref`/`import_batch_id` are the landlord's provenance and should not be copied as-is (they would collide or mean nothing there).
+
+**Tests and evidence (local, MariaDB 11.4, after merging `main` at 050df22):**
+- `composer ci`:
+  - Pint passed; Larastan 0 errors.
+  - Pest **2,029 tests: 2,026 passed, 3 skipped, 18,724 assertions**, 0 failed.
+  - The 3 skips are P03-05a's `DocumentKitVisualDiffTest`/PDF comparisons: no Gotenberg or poppler on this machine (decision 6). They are not this task's.
+- My new tests plus `ListExportCoverageTest`, `WorkspaceNavigationTest` and `ModuleSkeletonTest` also pass with `APP_DEBUG=true` (95 tests, 1,043 assertions).
+- New test files in `Modules/Tenants/tests/Feature/Pages`: `TenantPagesTest.php` (24 incl. a 14-case dataset), `TenantCrossOrganizationTest.php` (5), `TenantRolesTest.php` (11 incl. a 5-role dataset), `TenantExportTest.php` (4), and helpers `helpers.php`. Everything goes through HTTP and Livewire updates.
+- **Sub-AC — cross-org probes / ID guessing 404 on every page and action:** `TenantCrossOrganizationTest`:
+  - "answers 404 for another organization's tenant guessed by ID, on every page": record and edit pages for active and archived foreign tenants, unknown and malformed ids; never listed or searched by name, phone or email, archived included.
+  - "… on every action sent straight to the server": list archive/restore → 404. Locked `tenantId` (record page, edit form) and `archivedMatchId` (restore instead) swapped for foreign ids → 419, with debug pinned off. Foreign rows unchanged.
+  - "keeps phone numbers per organization: another organization's tenant never blocks or is restored".
+  - "shows a member of both organizations only the organization they are working in".
+  - "never lets a stranger or another organization's member open the tenant pages".
+  - `CrossTenantAccessTest` (`TenantProfile`, P02-06b) is still green.
+- **Sub-AC — soft delete only (archive/restore audited):**
+  - `TenantPagesTest` › "archives a tenant as a soft delete and restores them, from the list and the record page, audited": the row stays with `deleted_at`, it moves to Archived, the record is read-only, edit answers 404; 4 audit events in order.
+  - `TenantPagesTest` › "never deletes a tenant row for good: the module archives (soft delete) and has no hard delete": a static scan of `Modules/Tenants/app` finds no `forceDelete`, `truncate` or raw `DB::table('tenant_profiles')`.
+- **Sub-AC — the list exports (coverage test passes; masked ID; blocked while impersonating):**
+  - `ListExportCoverageTest` (updated: a tenant row; the expected list keys now include `tenants`) passes.
+  - `TenantExportTest`:
+    - "exports the tenants the page shows, in Excel and CSV, with the ID masked and never the number": the plaintext and the ciphertext are absent, as are other organizations' and archived tenants.
+    - "exports with the page's current filters: search, KYC status, portal access and archived" (URL and typed; other org gets only its own).
+    - "audits every tenants export…".
+    - "imports its own tenants export again, as updates of the same tenants" (0 errors, 0 creates).
+  - Blocked while impersonating: `TenantRolesTest` read-only and write-mode tests (no button, `export()` 403, no export audit entry, `impersonation.blocked` recorded).
+- **Role rules:**
+  - `TenantRolesTest` › "enforces the ARCHITECTURE.md § 5 role rules in TenantProfilePolicy" (5 roles × 9 abilities, incl. export and update-of-archived).
+  - "opens the pages for owners, administrators and agents, and 404 for property owners, tenants and strangers" (an agent adds a tenant, audited as themselves).
+  - "shows tenants in the sidebar…"; `WorkspaceNavigationTest` (updated: `tenants` for owner, admin, agent).
+- **Suspended org read-only:** `TenantRolesTest` › "shows tenants read-only while the organization is suspended, and still exports them". Create/edit pages answer 403; save, archive (list and record) and restore answer 403; nothing changes and no audit is written; export still works.
+- **Impersonation rules:**
+  - `TenantRolesTest` › "shows impersonating staff the tenants read-only in a read-only session, without the export".
+  - "lets impersonating staff in write mode edit a tenant, audited with both identities, but never archive one or export the list".
+- **Phone uniqueness and restore-instead:**
+  - `TenantPagesTest` › "refuses a phone number another tenant has, naming them" (create and edit; the number written another way).
+  - "offers to restore an archived tenant with the same phone number instead of adding them again": message and button, restore of the record on file audited (`tenant.restored`) with a redirect to it, no duplicate. A form without a match answers 404. Editing to an archived tenant's number is refused by name.
+- Others in `TenantPagesTest`:
+  - Adding a tenant (normalised, audited, nobody notified or mailed).
+  - 14 invalid-input cases.
+  - ID encrypted at rest and never in pages or snapshots.
+  - ID kept, replaced or removed (the audit names the field only).
+  - KYC rules.
+  - Search by name, full name, phone (both forms), email; KYC and portal filters, unknown values ignored; server-side paging with ordering; Livewire search/filter/clear; empty states.
+- Existing tests changed (none weakened): `ListExportCoverageTest` (a tenant row added; `tenants` in the expected registry), `WorkspaceNavigationTest` (sidebar gains `tenants`), and a docblock line in `TenantProfileTest`.
+- Checked for MySQL JSON key order (orchestrator note): no new test compares a map read back from a JSON column with `toBe` (`emergency_contact` uses `toEqual`; audit `changed` values are lists).
+- Not run: release/install drills (no migration added). No browser smoke: pages are exercised through HTTP and Livewire tests only.
+
+**Follow-ups:**
+- **P03-03a:**
+  - Fill `TenantNarrowing::buildingsOf()` and `tenants()` through Leasing's contract, and revisit the "narrowed agent sees all tenants" decision. Update the pinned `TenantRolesTest` case.
+  - Refuse archiving a tenant with an active lease (`TenantProfiles::archive`).
+  - Fill the record page's "Leases and bills" section.
+  - Add a `Modules\Tenants\Contracts` lookup (by id/phone) for Leasing (P02-06b follow-up, still open).
+- **P03-01b:** the record page shows "Portal access"; the invite, resend and revoke actions belong there.
+- **P03-14:** move tenants with their leases as described above.
+- **P03-13a:** extend `TenantsImportTarget::usedSince` to leases, bills and payments.
+- The phone is shown in E.164 (`+2348031234567`) on the list and record, as on the owner pages; a display format (`0803 123 4567`) would be a small shared helper.
+
+**Next:** P03-04a runs alongside; then wave 3 (P03-03a ‖ P03-05b).
 
 ### P03-05a — Complete (2026-10-27): core document kit (`app/Documents`): branding snapshot, layouts, verification codes and resolver registry, QR codes, amount in words, table-only partials with "page x of y", bundled fonts, DocumentRenderer storing issued PDFs once; Gotenberg in CI and compose with a PDF visual diff
 

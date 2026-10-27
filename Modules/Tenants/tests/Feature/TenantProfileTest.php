@@ -21,7 +21,7 @@ require_once __DIR__.'/helpers.php';
 /*
  * P02-06b: the tenant profile itself (DATABASE_SCHEMA.md § 1) and who may
  * see and change it (ARCHITECTURE.md § 5), enforced by TenantProfilePolicy.
- * The tenant pages come in P03-01a; the policy is ready for them.
+ * The tenant pages (P03-01a) are tested in tests/Feature/Pages.
  */
 
 beforeEach(function () {

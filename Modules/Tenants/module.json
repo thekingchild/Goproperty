@@ -1,7 +1,7 @@
 {
     "name": "Tenants",
     "alias": "tenants",
-    "description": "Tenant profiles and the tenants import target (ARCHITECTURE.md § 6.2, DATA_IMPORT.md § 1)",
+    "description": "Tenant profiles, their workspace pages and the tenants import target (ARCHITECTURE.md § 5, § 6.2, DATA_IMPORT.md § 1)",
     "keywords": [],
     "priority": 0,
     "providers": [
