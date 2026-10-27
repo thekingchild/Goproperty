@@ -7,7 +7,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 ## Current state
 
 - **In progress:** P02 wave 1 (P02-01a and P02-05) from `docs/plans/P02-P03-subtasks.md`, each in its own worktree
-- **In review:** P00-02 (CI): all four database jobs are green in GitHub Actions; branch protection on `main` waits on the product owner (it changes how work lands: pull requests only, see `docs/runbooks/ci.md` § 3). P00-04 (release package): needs one green Release run in Actions. P00-12 (backups): built and drilled locally; needs one real run to an S3-compatible bucket and a Google Shared Drive (PRE-03 accounts)
+- **In review:** P00-02 (CI): all four database jobs are green in GitHub Actions; branch protection on `main` waits on the product owner (it changes how work lands: pull requests only, see `docs/runbooks/ci.md` § 3). P00-12 (backups): built and drilled locally; needs one real run to an S3-compatible bucket and a Google Shared Drive (PRE-03 accounts)
 - **Next task:** P02 waves 2–6 after wave 1; PRE-01 to PRE-04 continue with the product owner
 - **Blocked:** P00-13 (staging): the deploy scripts, the deploy on merge and the deploy drill are built and drilled locally; it needs a staging host (PRE-04). Until then the Deploy workflow fails at "Check deploy settings" on every push to `main`
 
@@ -16,7 +16,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | Phase | Tasks | Complete | Status |
 | --- | --- | --- | --- |
 | PRE | 5 | 1 | In progress |
-| P00 | 13 | 9 | In progress |
+| P00 | 13 | 10 | In progress |
 | P01 | 9 | 9 | Complete (2026-10-27) |
 | P02 | 7 | 0 | Not started |
 | P03 | 13 | 0 | Not started |
@@ -26,11 +26,15 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | P07 | 4 | 0 | Not started |
 | P08 | 4 | 0 | Not started |
 | P09 | 8 | 0 | Not started |
-| **Total** | **83** | **19** | |
+| **Total** | **83** | **20** | |
 
 ## Ledger (newest first)
 
 Each entry: task ID and status, date, what was delivered, tests run and results, follow-ups, next task.
+
+### P00-04 — Complete (2026-10-27): release package built and verified in GitHub Actions
+
+Test Release run [40457943170](https://github.com/thekingchild/Goproperty/actions/runs/40457943170) on `main` (`95a27cb`, version `0.1.0-rc.2`, not published): the quality gate on all four databases, the install drill on all four, then "Build, verify and publish". The release drill verified the zip with the package's own artisan and both unpacked layouts, and failed it as expected for a changed file, an added file and a changed zip entry; both layouts served pages and still verified after running; the old-PHP guard stopped PHP 7.4 and 8.1. The zip is kept as the run's artifact. A tag push runs the same jobs and publishes the GitHub release.
 
 ### GitHub Actions running — P00-03, P00-06, P01-09 Complete; P01 Complete (2026-10-27)
 
