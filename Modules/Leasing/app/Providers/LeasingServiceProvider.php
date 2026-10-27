@@ -22,11 +22,13 @@ use Illuminate\Support\Facades\Gate;
 use Livewire\Livewire;
 use Modules\Leasing\Contracts\CycleCalculator as CycleCalculatorContract;
 use Modules\Leasing\Contracts\LeaseBillingSchedule;
+use Modules\Leasing\Contracts\TenantLeaseContracts;
 use Modules\Leasing\Contracts\TenantLeases;
 use Modules\Leasing\CycleCalculator;
 use Modules\Leasing\Documents\ContractClauses;
 use Modules\Leasing\Documents\LeaseContracts;
 use Modules\Leasing\Documents\LeaseContractVerifier;
+use Modules\Leasing\Documents\TenantContractFiles;
 use Modules\Leasing\Events\LeaseActivated;
 use Modules\Leasing\Jobs\ExpireAndFlagLeases;
 use Modules\Leasing\Leases\LeaseRecords;
@@ -42,7 +44,8 @@ use Nwidart\Modules\Support\ModuleServiceProvider;
  * the module's views (`leasing::`) and migrations; this one binds the
  * contracts other modules use (Contracts\CycleCalculator, AGENT.md § 3
  * rule 3; Contracts\TenantLeases for the Tenants module;
- * Contracts\LeaseBillingSchedule for Billing), and adds the lease pages
+ * Contracts\LeaseBillingSchedule for Billing; Contracts\TenantLeaseContracts
+ * for the tenant portal's contract download, P03-11b), and adds the lease pages
  * (routes, Livewire namespace `leasing::`, classes in
  * Modules\Leasing\Livewire), LeasePolicy, the sidebar item "Leases", the
  * list's export (Lists\LeaseList), the organization settings
@@ -75,6 +78,7 @@ final class LeasingServiceProvider extends ModuleServiceProvider
         $this->app->singleton(CycleCalculatorContract::class, CycleCalculator::class);
         $this->app->bind(TenantLeases::class, LeaseRecords::class);
         $this->app->bind(LeaseBillingSchedule::class, LeaseRecords::class);
+        $this->app->bind(TenantLeaseContracts::class, TenantContractFiles::class);
     }
 
     public function boot(): void

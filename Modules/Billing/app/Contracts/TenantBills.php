@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Modules\Billing\Contracts;
 
+use App\Media\Media;
+
 /**
  * How the tenant portal (P03-11a, the Tenants module's /portal pages) reads
- * a tenant's own bills: never the Billing module's models or tables
+ * a tenant's own bills and opens their invoices (P03-11b: the PDF): never the Billing module's models or tables
  * (ARCHITECTURE.md § 8 rule 3).
  *
  * Every method takes the tenant profile ids the portal proved are the
@@ -52,4 +54,14 @@ interface TenantBills
      * @param  list<int>  $tenantProfileIds
      */
     public function invoicePage(int $billId, array $tenantProfileIds): ?string;
+
+    /**
+     * One of their bills' invoice PDF as kept (evidence; P03-05c): the
+     * invoice as issued, or the VOID copy once the bill is void — the file
+     * members download too, rendered now, once, when the `pdf` queue has
+     * not yet. Null for anyone else's bill.
+     *
+     * @param  list<int>  $tenantProfileIds
+     */
+    public function invoicePdf(int $billId, array $tenantProfileIds): ?Media;
 }

@@ -24,7 +24,13 @@
                         <span class="text-sm opacity-90">{{ __('To pay now') }}</span>
                         <span class="text-2xl font-bold break-words">{{ $agency->amountDue()->format() }}</span>
                         <span class="text-sm opacity-90">{{ trans_choice(':count bill to pay, the next one due :date|:count bills to pay, the next one due :date', count($toPay), ['date' => $toPay[0]->dueDate->format('d/m/Y')]) }}</span>
-                        <flux:button :href="route('portal.bills.show', $toPay[0]->id)" wire:navigate icon="banknotes" class="w-full sm:w-auto" data-test="portal-pay-next">{{ __('Pay this bill') }}</flux:button>
+                        <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                            <flux:button :href="route('portal.bills.show', $toPay[0]->id)" wire:navigate icon="banknotes" class="min-h-11 w-full sm:w-auto" data-test="portal-pay-next">{{ __('Pay this bill') }}</flux:button>
+                            <a href="{{ route('portal.bills.proof', $toPay[0]->id) }}" wire:navigate class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-white/70 px-4 text-sm font-medium text-white hover:bg-white/10 sm:w-auto" data-test="portal-proof-next">
+                                <flux:icon name="arrow-up-tray" class="size-5" />
+                                {{ __('Paid already? Send a proof') }}
+                            </a>
+                        </div>
                     </div>
                 @elseif ($agency->bills !== [])
                     <flux:text data-test="portal-nothing-due">{{ __('Nothing to pay right now.') }}</flux:text>
@@ -54,7 +60,7 @@
                         @foreach (array_slice($toPay !== [] ? $toPay : $agency->bills, 0, 3) as $bill)
                             @include('tenants::portal.partials.bill-card', ['bill' => $bill])
                         @endforeach
-                        <flux:button :href="route('portal.bills.index')" wire:navigate variant="ghost" icon-trailing="arrow-right" class="self-start">{{ __('All my bills') }}</flux:button>
+                        <flux:button :href="route('portal.bills.index')" wire:navigate variant="ghost" icon-trailing="arrow-right" class="min-h-11 self-start">{{ __('All my bills') }}</flux:button>
                     </div>
                 @endif
             </section>

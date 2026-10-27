@@ -52,14 +52,15 @@
             <x-desktop-user-menu class="hidden lg:block" :name="auth()->user()->name" />
         </flux:sidebar>
 
-        <!-- Mobile User Menu -->
+        <!-- Mobile User Menu (44 px targets, UX_DESIGN.md § 1) -->
         <flux:header class="lg:hidden">
-            <flux:sidebar.toggle class="lg:hidden" icon="bars-2" inset="left" />
+            <flux:sidebar.toggle class="min-h-11 min-w-11 lg:hidden" icon="bars-2" inset="left" />
 
             <flux:spacer />
 
             <flux:dropdown position="top" align="end">
                 <flux:profile
+                    class="min-h-11"
                     :initials="auth()->user()->initials()"
                     icon-trailing="chevron-down"
                 />

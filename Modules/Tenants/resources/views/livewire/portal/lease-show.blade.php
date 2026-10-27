@@ -9,7 +9,7 @@
 @endphp
 <x-page :heading="$home->unit.' · '.$home->building" :description="$home->address">
     <x-slot:actions>
-        <flux:button icon="arrow-left" :href="route('portal.home')" wire:navigate>{{ __('My rentals') }}</flux:button>
+        <flux:button icon="arrow-left" :href="route('portal.home')" wire:navigate class="min-h-11">{{ __('My rentals') }}</flux:button>
     </x-slot:actions>
 
     @include('tenants::portal.partials.nav')

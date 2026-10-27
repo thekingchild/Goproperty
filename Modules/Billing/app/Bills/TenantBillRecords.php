@@ -8,6 +8,7 @@ use App\Banking\BankAccounts;
 use App\Documents\DocumentRenderer;
 use App\Documents\Invoice\BankTransfer;
 use App\Documents\Parts\DocumentPeriod;
+use App\Media\Media;
 use App\Models\OrganizationBankAccount;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
@@ -28,8 +29,9 @@ use Modules\Billing\Models\BillItem;
  * found. The bill page shows what the public pay page shows
  * (Pay\PayPages): the branding as issued, the money now, the
  * organization's primary usable bank account and the online payment
- * options; the invoice is the same web page members open (P03-05c).
- * Read-only.
+ * options; the invoice is the same web page members open (P03-05c), and
+ * its PDF the same kept file (P03-11b). Read-only, except that a PDF not
+ * yet rendered by the `pdf` queue is rendered and kept on first open.
  */
 final readonly class TenantBillRecords implements TenantBills
 {
@@ -94,6 +96,13 @@ final readonly class TenantBillRecords implements TenantBills
         $bill = $this->bill($billId, $tenantProfileIds);
 
         return $bill instanceof Bill ? $this->renderer->web($this->invoices->document($bill)) : null;
+    }
+
+    public function invoicePdf(int $billId, array $tenantProfileIds): ?Media
+    {
+        $bill = $this->bill($billId, $tenantProfileIds);
+
+        return $bill instanceof Bill ? $this->invoices->pdf($bill) : null;
     }
 
     /** @param  list<int>  $tenantProfileIds */

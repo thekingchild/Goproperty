@@ -14,7 +14,7 @@
     <div class="min-w-0">
         <flux:heading size="lg" level="2" class="break-words">{{ $agency->name }}</flux:heading>
         @if ($agency->readOnly())
-            <flux:text class="text-sm" data-test="portal-read-only">{{ __('Read-only for now: :agency\'s account is on hold. You can still see your records and pay by bank transfer.', ['agency' => $agency->name]) }}</flux:text>
+            <flux:text class="text-sm" data-test="portal-read-only">{{ __('Read-only for now: :agency\'s account is on hold. You can still see your records, pay by bank transfer and send proofs of payment.', ['agency' => $agency->name]) }}</flux:text>
         @endif
     </div>
 </header>

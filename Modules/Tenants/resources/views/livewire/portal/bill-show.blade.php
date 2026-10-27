@@ -4,6 +4,8 @@
     pay, the lines and how to pay — bank transfer with the payment reference
     for the narration, the online options (Billing's PaymentOptions slot)
     and the public pay page to share. A void bill says not to pay it.
+    P03-11b: "Send a proof" (also while the agency is suspended), the
+    proofs sent for this bill and where each stands, the invoice PDF.
 --}}
 @php
     /** @var \Modules\Tenants\Portal\PortalBillPage $page */
@@ -14,13 +16,20 @@
 @endphp
 <x-page :heading="__('Bill :number', ['number' => $bill->number])" :description="$bill->property">
     <x-slot:actions>
-        <flux:button icon="arrow-left" :href="route('portal.bills.index')" wire:navigate>{{ __('My bills') }}</flux:button>
+        <flux:button icon="arrow-left" :href="route('portal.bills.index')" wire:navigate class="min-h-11">{{ __('My bills') }}</flux:button>
         @if ($page->invoice)
-            <flux:button icon="document-text" :href="route('portal.bills.invoice', $bill->id)" target="_blank" data-test="portal-invoice">{{ __('Invoice') }}</flux:button>
+            <flux:button icon="document-text" :href="route('portal.bills.invoice', $bill->id)" target="_blank" class="min-h-11" data-test="portal-invoice">{{ __('Invoice') }}</flux:button>
+        @endif
+        @if ($page->files)
+            <flux:button icon="arrow-down-tray" :href="route('portal.bills.invoice-pdf', $bill->id)" class="min-h-11" data-test="portal-invoice-pdf">{{ $bill->isVoid() ? __('VOID copy (PDF)') : __('Invoice (PDF)') }}</flux:button>
         @endif
     </x-slot:actions>
 
     @include('tenants::portal.partials.nav')
+
+    @if (session('portal-status'))
+        <flux:callout variant="success" icon="check-circle" :heading="session('portal-status')" role="status" data-test="portal-status" />
+    @endif
 
     <section class="flex flex-col gap-4 overflow-hidden rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" style="border-top: 6px solid {{ $brand->primary() }}" data-test="portal-bill-page" data-bill="{{ $bill->id }}">
         <header class="flex min-w-0 items-center gap-3" data-test="portal-bill-brand">
@@ -38,7 +47,7 @@
         </header>
 
         @if ($agency->readOnly())
-            <flux:callout variant="warning" icon="lock-closed" :text="__('Read-only for now: :agency\'s account is on hold. You can still see this bill and pay by bank transfer.', ['agency' => $agency->name])" data-test="portal-read-only" />
+            <flux:callout variant="warning" icon="lock-closed" :text="__('Read-only for now: :agency\'s account is on hold. You can still see this bill, pay by bank transfer and send your proof.', ['agency' => $agency->name])" data-test="portal-read-only" />
         @endif
 
         <div class="flex flex-wrap items-center gap-2">
@@ -142,10 +151,31 @@
             </section>
         @endif
 
+        <section class="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-test="portal-bill-proof">
+            <flux:heading size="md" level="2">{{ __('Paid already?') }}</flux:heading>
+            @if ($page->mayUploadProof)
+                <flux:text class="text-sm">{{ __('Send :agency your transfer screenshot or teller slip. They confirm it against their account and send your receipt.', ['agency' => $brand->name()]) }}</flux:text>
+                <flux:button :href="route('portal.bills.proof', $bill->id)" wire:navigate variant="primary" icon="arrow-up-tray" class="min-h-11 w-full sm:w-auto" data-test="portal-send-proof">{{ __('Send a proof of payment') }}</flux:button>
+            @else
+                <flux:text class="text-sm" data-test="portal-proof-unavailable">{{ __('A GoProperty support session cannot send a proof for you.') }}</flux:text>
+            @endif
+        </section>
+
         <section class="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-test="portal-bill-share">
             <flux:heading size="md" level="2">{{ __('Someone else paying?') }}</flux:heading>
             <flux:text class="text-sm">{{ __('Share this bill\'s pay page. It shows how to pay, never your contact details.') }}</flux:text>
-            <flux:button :href="$payment->payUrl" icon="arrow-top-right-on-square" class="w-full sm:w-auto" data-test="portal-pay-page">{{ __('Open the pay page') }}</flux:button>
+            <flux:button :href="$payment->payUrl" icon="arrow-top-right-on-square" class="min-h-11 w-full sm:w-auto" data-test="portal-pay-page">{{ __('Open the pay page') }}</flux:button>
+        </section>
+    @endif
+
+    @if ($page->proofs !== [])
+        <section class="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-test="portal-bill-proofs">
+            <flux:heading size="md" level="2">{{ __('Proofs sent for this bill') }}</flux:heading>
+            <ul class="flex flex-col gap-3">
+                @foreach ($page->proofs as $proof)
+                    @include('tenants::portal.partials.proof', ['proof' => $proof, 'files' => $page->files, 'billNumber' => null])
+                @endforeach
+            </ul>
         </section>
     @endif
 

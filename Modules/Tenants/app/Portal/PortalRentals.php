@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Modules\Tenants\Portal;
 
-use App\Branding\BrandColours;
-use App\Branding\Branding;
 use App\Models\User;
 use Illuminate\Support\Facades\Gate;
 use Modules\Billing\Contracts\TenantBill;
@@ -13,9 +11,11 @@ use Modules\Billing\Contracts\TenantBillPayment;
 use Modules\Billing\Contracts\TenantBills;
 use Modules\Leasing\Contracts\LeaseSummary;
 use Modules\Leasing\Contracts\TenantLeases;
+use Modules\Payments\Contracts\PaymentProofs;
+use Modules\Payments\Contracts\TenantProof;
+use Modules\Payments\Contracts\TenantProofs;
 use Modules\Properties\Contracts\PropertyDirectory;
 use Modules\Properties\Contracts\UnitDirectory;
-use Modules\Tenants\Models\TenantProfile;
 
 /**
  * What the tenant portal shows (P03-11a; UX_DESIGN.md § 2: "each agency's
@@ -37,6 +37,9 @@ final readonly class PortalRentals
         private TenantBills $bills,
         private UnitDirectory $units,
         private PropertyDirectory $properties,
+        private PortalChecks $checks,
+        private TenantProofs $proofs,
+        private PaymentProofs $paymentProofs,
     ) {}
 
     /** @return list<AgencyRentals> by agency name */
@@ -60,12 +63,18 @@ final readonly class PortalRentals
                 return null;
             }
 
-            $profile = $this->authorize($user, 'viewAsTenant', $payment->bill->tenantProfileId);
+            $profile = $this->checks->authorize($user, 'viewAsTenant', $payment->bill->tenantProfileId);
 
             return new PortalBillPage(
                 agency: $this->frame($tenancy),
                 payment: $payment,
                 invoice: Gate::forUser($user)->allows('viewInvoiceAsTenant', $profile),
+                proofs: array_values(array_filter(
+                    $this->proofs->forTenants($tenancy->tenantProfileIds),
+                    static fn (TenantProof $proof): bool => $proof->billId === $billId,
+                )),
+                mayUploadProof: $payment->bill->asksForMoney() && $this->paymentProofs->maySubmit($user, $billId),
+                files: Gate::forUser($user)->allows('downloadAsTenant', $profile),
             );
         });
 
@@ -86,7 +95,7 @@ final readonly class PortalRentals
                 return null;
             }
 
-            $this->authorize($user, 'viewInvoiceAsTenant', $bill->tenantProfileId);
+            $this->checks->authorize($user, 'viewInvoiceAsTenant', $bill->tenantProfileId);
 
             return $this->bills->invoicePage($billId, $tenancy->tenantProfileIds);
         });
@@ -108,7 +117,7 @@ final readonly class PortalRentals
                 return null;
             }
 
-            $this->authorize($user, 'viewAsTenant', $leases[0]->lease->tenantProfileId);
+            $this->checks->authorize($user, 'viewAsTenant', $leases[0]->lease->tenantProfileId);
             $bills = array_values(array_filter(
                 $this->bills->forTenants($tenancy->tenantProfileIds),
                 static fn (TenantBill $bill): bool => $bill->leaseId === $leaseId,
@@ -132,24 +141,15 @@ final readonly class PortalRentals
      */
     private function frame(PortalTenancy $tenancy, array $leases = [], array $bills = []): AgencyRentals
     {
-        $branding = Branding::fromOrganization($tenancy->organization);
-
-        return new AgencyRentals(
-            tenancy: $tenancy,
-            name: $branding->displayName(),
-            colour: BrandColours::textShade($branding->primaryColor),
-            initials: $branding->initials(),
-            leases: $leases,
-            bills: $bills,
-        );
+        return AgencyRentals::of($tenancy, $leases, $bills);
     }
 
     /**
-     * The tenancy's leases, drafts left out, newest start first.
+     * The tenancy's leases, drafts left out, newest start first. Inside its organization.
      *
      * @return list<PortalLease>
      */
-    private function leasesOf(PortalTenancy $tenancy): array
+    public function leasesOf(PortalTenancy $tenancy): array
     {
         $summaries = [];
 
@@ -190,17 +190,5 @@ final readonly class PortalRentals
         }
 
         return $address !== '' ? $address : null;
-    }
-
-    /** The portal's policy check for the record's tenant, inside its organization (404 when refused). */
-    private function authorize(User $user, string $ability, int $tenantProfileId): TenantProfile
-    {
-        $profile = TenantProfile::query()->find($tenantProfileId);
-
-        abort_unless($profile instanceof TenantProfile, 404);
-
-        Gate::forUser($user)->authorize($ability, $profile);
-
-        return $profile;
     }
 }

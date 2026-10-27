@@ -36,7 +36,7 @@ A live preview shows a sample invoice and receipt while settings are edited. Eve
 ### Where branding appears
 
 - **PDF and web documents:** invoices, receipts, utility bills, lease contracts, owner statements, quit/renewal notices.
-- **Tenant portal:** when a tenant views a bill from an agency, the page header shows that agency's logo and colours. A tenant renting from two agencies sees each agency's brand on its own bills.
+- **Tenant portal:** when a tenant views a bill from an agency, the page header shows that agency's logo and colours. A tenant renting from two agencies sees each agency's brand on its own bills. As built (P03-11a, P03-11b): each bill and receipt page shows the branding it was issued with; under Documents the tenant downloads their tenancy agreement, invoices (the VOID copy of a void bill) and receipts (with the VOID copy of a voided one) — the PDFs kept at issue, the same files members open, through short-lived signed links ([ARCHITECTURE.md § 5](ARCHITECTURE.md) "Tenant portal: proofs, receipts, documents"); a receipt also opens as its web page, with the verify link.
 - **Emails, SMS sender ID and WhatsApp:** agency name in sender name and template text. A custom SMS sender ID needs Termii approval per agency. Until approved, the default GoProperty sender is used with the agency name in the message.
 - **Pay page** (`/pay/{payment-reference}`): agency branded, no login required, shows bank details and the online-payment button if available. Built in P03-05c (§ 5 "How it is built (P03-05c)").
 

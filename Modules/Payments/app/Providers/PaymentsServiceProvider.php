@@ -15,6 +15,8 @@ use Livewire\Livewire;
 use Modules\Billing\Events\BillIssued;
 use Modules\Payments\Contracts\PaymentProofs;
 use Modules\Payments\Contracts\PaymentRecorder;
+use Modules\Payments\Contracts\TenantProofs;
+use Modules\Payments\Contracts\TenantReceipts;
 use Modules\Payments\Events\PaymentConfirmed;
 use Modules\Payments\Events\PaymentRecorded;
 use Modules\Payments\Events\PaymentRejected;
@@ -32,8 +34,10 @@ use Modules\Payments\Policies\PaymentPolicy;
 use Modules\Payments\Policies\PaymentProofPolicy;
 use Modules\Payments\Policies\ReceiptPolicy;
 use Modules\Payments\Proofs\ProofSubmissions;
+use Modules\Payments\Proofs\TenantProofRecords;
 use Modules\Payments\Receipts\Receipts;
 use Modules\Payments\Receipts\ReceiptVerifier;
+use Modules\Payments\Receipts\TenantReceiptRecords;
 use Nwidart\Modules\Support\ModuleServiceProvider;
 
 /**
@@ -57,6 +61,10 @@ use Nwidart\Modules\Support\ModuleServiceProvider;
  * routes, and the module's own evidence media collection `payment_proofs`
  * (merged into config `media.collections` here, as config/media.php
  * allows, so the module owns its upload rules).
+ *
+ * The tenant portal (P03-11b): Contracts\TenantReceipts and
+ * Contracts\TenantProofs, a tenant's own receipts (with their kept PDFs)
+ * and proofs, read by the Tenants module's /portal pages.
  */
 final class PaymentsServiceProvider extends ModuleServiceProvider
 {
@@ -75,6 +83,8 @@ final class PaymentsServiceProvider extends ModuleServiceProvider
 
         $this->app->bind(PaymentRecorder::class, Recorder::class);
         $this->app->bind(PaymentProofs::class, ProofSubmissions::class);
+        $this->app->bind(TenantReceipts::class, TenantReceiptRecords::class);
+        $this->app->bind(TenantProofs::class, TenantProofRecords::class);
 
         // Proofs of payment: a screenshot, a photo of a teller slip or a
         // PDF, at most 10 MB; evidence (never deleted; ARCHITECTURE.md § 9).

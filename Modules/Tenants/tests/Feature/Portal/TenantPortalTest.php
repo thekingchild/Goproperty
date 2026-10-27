@@ -11,7 +11,6 @@ use App\Support\Money;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\HtmlString;
-use Illuminate\Testing\TestResponse;
 use Modules\Billing\Bills\BillService;
 use Modules\Billing\Contracts\PayableBill;
 use Modules\Billing\Contracts\PaymentOption;
@@ -21,7 +20,7 @@ use Modules\Leasing\Models\Lease;
 use Modules\Tenants\Models\TenantProfile;
 use Tests\Support\LivewireHttp;
 
-require_once __DIR__.'/../../../../Billing/tests/Feature/invoice-helpers.php';
+require_once __DIR__.'/portal-world.php';
 
 /*
  * P03-11a: the tenant portal — my units and leases, my bills with each
@@ -37,75 +36,10 @@ require_once __DIR__.'/../../../../Billing/tests/Feature/invoice-helpers.php';
  */
 
 beforeEach(function () {
-    holdInvoicePdfs();
-    seedOrganizationRoles();
-    withoutAccountNameLookups();
-    $this->travelTo('2026-12-25 09:00:00');
-
-    $this->acme = Organization::factory()->create(['slug' => 'acme-homes', 'name' => 'Adeyemi Realty Ltd']);
-    $this->other = Organization::factory()->create(['slug' => 'other-realty', 'name' => 'Bello Homes Ltd']);
-    $this->owner = joinAs(User::factory()->create(['name' => 'Ada Owner', 'email' => 'ada.owner@example.com']), $this->acme);
-    $this->otherOwner = joinAs(User::factory()->create(['name' => 'Chidi Owner', 'email' => 'chidi.owner@example.com']), $this->other);
-    invoiceBranding($this->acme, $this->owner, ['tradingName' => 'Adeyemi Realty', 'primaryColor' => '#0E6B5C']);
-    invoiceBranding($this->other, $this->otherOwner, ['tradingName' => 'Bello Homes', 'primaryColor' => '#7A2E8C', 'invoicePrefix' => 'INV-BLH', 'receiptPrefix' => 'RCT-BLH', 'leasePrefix' => 'LS-BLH', 'email' => 'accounts@bellohomes.ng']);
-    addBankAccount($this->acme, $this->owner, '0123456789', 'Adeyemi Realty Ltd');
-    addBankAccount($this->other, $this->otherOwner, '0987654321', 'Bello Homes Ltd');
-
-    // Kemi rents Flat 3B at Palm Court from Acme, through her portal account.
-    $this->kemi = User::factory()->create(['name' => 'Kemi Adebayo', 'email' => 'kemi.adebayo@example.com', 'phone' => '+2348031112222']);
-    $palm = buildingIn($this->acme, ['name' => 'Palm Court', 'slug' => 'palm-court', 'address' => '22 Fola Osibo Road, Lekki Phase 1', 'state' => 'Lagos']);
-    $this->kemiAtAcme = tenantIn($this->acme, ['first_name' => 'Kemi', 'last_name' => 'Adebayo', 'phone' => '+2348031112222', 'email' => 'kemi.adebayo@example.com', 'user_id' => $this->kemi->id]);
-    $this->lease = activeLease($this->acme, $this->owner, unitIn($this->acme, $palm, ['unit_label' => 'Flat 3B']), $this->kemiAtAcme);
-
-    // Her neighbour Tunde rents Flat 4C there, with his own account.
-    $this->tunde = User::factory()->create(['name' => 'Tunde Bakare', 'email' => 'tunde.bakare@example.com', 'phone' => '+2348034445555']);
-    $tunde = tenantIn($this->acme, ['first_name' => 'Tunde', 'last_name' => 'Bakare', 'phone' => '+2348034445555', 'email' => 'tunde.bakare@example.com', 'user_id' => $this->tunde->id]);
-    $this->neighbourLease = activeLease($this->acme, $this->owner, unitIn($this->acme, $palm, ['unit_label' => 'Flat 4C']), $tunde, ['rent' => '1,800,000']);
-
-    // Bello Homes has its own tenant at Foreign Court.
-    $foreign = tenantIn($this->other, ['first_name' => 'Foreign', 'last_name' => 'Tenant', 'phone' => '+2348035550000', 'email' => 'foreign.tenant@example.com']);
-    $this->foreignLease = activeLease($this->other, $this->otherOwner, unitIn($this->other, buildingIn($this->other, ['name' => 'Foreign Court', 'slug' => 'foreign-court']), ['unit_label' => 'Suite 9']), $foreign, ['rent' => '2,400,000']);
-
-    runBillGeneration();
-
-    $this->bill = portalBillOf($this->acme, $this->lease);
-    $this->neighbourBill = portalBillOf($this->acme, $this->neighbourLease);
-    $this->foreignBill = portalBillOf($this->other, $this->foreignLease);
+    portalWorld();
 });
 
 afterEach(fn () => billsFreshRequest());
-
-/** The lease's (only) bill. */
-function portalBillOf(Organization $organization, Lease $lease): Bill
-{
-    return inOrganization($organization, fn (): Bill => Bill::query()->where('lease_id', $lease->id)->sole());
-}
-
-/** A portal page as the user, in a fresh request. */
-function portalPage(User $user, string $path = ''): TestResponse
-{
-    billsFreshRequest();
-
-    return test()->actingAs($user)->get('/portal'.$path);
-}
-
-/** The ids a rendered portal page lists for data-$attribute (bill, lease, organization). */
-function portalIds(TestResponse $page, string $attribute): array
-{
-    preg_match_all('/data-'.$attribute.'="(\d+)"/', (string) $page->getContent(), $matches);
-
-    return array_values(array_unique(array_map('intval', $matches[1])));
-}
-
-/** Kemi also rents Suite 2 at Bello Homes' Lagoon View, on her same account. */
-function kemiAlsoAtBello(): Lease
-{
-    $profile = tenantIn(test()->other, ['first_name' => 'Kemi', 'last_name' => 'Adebayo', 'phone' => '+2348031112222', 'email' => 'kemi.adebayo@example.com', 'user_id' => test()->kemi->id]);
-    $lease = activeLease(test()->other, test()->otherOwner, unitIn(test()->other, buildingIn(test()->other, ['name' => 'Lagoon View', 'slug' => 'lagoon-view']), ['unit_label' => 'Suite 2']), $profile, ['rent' => '900,000']);
-    runBillGeneration();
-
-    return $lease;
-}
 
 describe('acceptance: a tenant sees only their own leases and bills', function () {
     it('shows the tenant their home, lease and bill, and nothing of the neighbour\'s', function () {
@@ -277,6 +211,8 @@ describe('sub: ID guessing returns 404', function () {
             'neighbourLease' => $this->neighbourLease->id,
             'foreignLease' => $this->foreignLease->id,
             'missing' => 999999,
+            // Someone else's bill id that is not also the id of Kemi's own lease (auto-increments are not reset between tests).
+            'billNotHerLease' => collect([$this->foreignBill->id, $this->neighbourBill->id])->first(fn (int $id): bool => $id !== $this->lease->id),
         ];
 
         portalPage($this->kemi, strtr($path, array_map(strval(...), array_combine(array_map(fn ($key) => '{'.$key.'}', array_keys($ids)), $ids))))
@@ -293,7 +229,7 @@ describe('sub: ID guessing returns 404', function () {
         'missing bill' => ['/bills/{missing}'],
         'missing invoice' => ['/bills/{missing}/invoice'],
         'missing lease' => ['/leases/{missing}'],
-        'a bill id given as a lease' => ['/leases/{foreignBill}'],
+        'a bill id given as a lease' => ['/leases/{billNotHerLease}'],
     ]);
 
     it('refuses a bill page whose locked id is changed to someone else\'s bill', function () {

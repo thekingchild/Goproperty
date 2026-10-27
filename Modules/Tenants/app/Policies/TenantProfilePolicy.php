@@ -37,7 +37,8 @@ use Spatie\Permission\Exceptions\PermissionDoesNotExist;
  * (Response::denyAsNotFound), checked before the ability's own rule.
  *
  * The tenant portal (P03-11a): viewAsTenant / viewInvoiceAsTenant, the
- * tenant's own record from their portal account (no workspace role).
+ * tenant's own record from their portal account (no workspace role);
+ * P03-11b adds downloadAsTenant for their documents and files.
  */
 final class TenantProfilePolicy
 {
@@ -156,6 +157,23 @@ final class TenantProfilePolicy
      */
     #[BlockedWhileImpersonating]
     public function viewInvoiceAsTenant(User $user, TenantProfile $tenant): Response|bool
+    {
+        return $this->viewAsTenant($user, $tenant);
+    }
+
+    /**
+     * The tenant's documents and files from the portal (P03-11b): the
+     * invoice PDF, the lease contract PDF, a receipt as printed (web page,
+     * PDF, VOID copy) and their own proofs' files, each through a
+     * short-lived signed link (App\Media\MediaUrls) made only after this
+     * check. The tenant's own record, as viewAsTenant (anyone else's: 404).
+     * A `download…` ability, so a suspended organization's tenant still
+     * opens them; never while GoProperty staff impersonate (they carry the
+     * tenant's contact details or the payer's bank details: as members'
+     * downloads, PLATFORM_CONSOLE.md § 6).
+     */
+    #[BlockedWhileImpersonating]
+    public function downloadAsTenant(User $user, TenantProfile $tenant): Response|bool
     {
         return $this->viewAsTenant($user, $tenant);
     }
