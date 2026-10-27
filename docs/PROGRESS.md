@@ -7,7 +7,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 ## Current state
 
 - **In progress:** P02 wave 1 (P02-01a and P02-05) from `docs/plans/P02-P03-subtasks.md`, each in its own worktree
-- **In review:** P00-02 (CI): all four database jobs are green in GitHub Actions; branch protection on `main` waits on the product owner (it changes how work lands: pull requests only, see `docs/runbooks/ci.md` § 3). P00-12 (backups): built and drilled locally; needs one real run to an S3-compatible bucket and a Google Shared Drive (PRE-03 accounts)
+- **In review:** P00-02 (CI): all four database jobs are green in GitHub Actions; branch protection on `main` is off by the product owner's decision (2026-10-27) while P02 and P03 are built, so tasks keep merging straight to `main`; turn it on afterwards (`docs/runbooks/ci.md` § 3) and mark P00-02 complete. P00-12 (backups): built and drilled locally; needs one real run to an S3-compatible bucket and a Google Shared Drive (PRE-03 accounts)
 - **Next task:** P02 waves 2–6 after wave 1; PRE-01 to PRE-04 continue with the product owner
 - **Blocked:** P00-13 (staging): the deploy scripts, the deploy on merge and the deploy drill are built and drilled locally; it needs a staging host (PRE-04). Until then the Deploy workflow fails at "Check deploy settings" on every push to `main`
 
