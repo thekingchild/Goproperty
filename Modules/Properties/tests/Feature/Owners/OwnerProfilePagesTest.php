@@ -207,7 +207,7 @@ it('searches by name, email and phone, and pages the list on the server', functi
             'phone' => sprintf('+2348020000%03d', $sequence->index),
         ])->create();
         OwnerProfile::factory()->create(['first_name' => 'Chiamaka', 'last_name' => 'Eze', 'email' => 'chiamaka@eze.ng', 'phone' => '+2348091112222']);
-        OwnerProfile::factory()->company()->create(['company_name' => 'Lekki Gardens Ltd']);
+        OwnerProfile::factory()->company()->create(['company_name' => 'Lekki Gardens Ltd', 'email' => 'office@lekki.test', 'phone' => '+2348020000999']);
     });
 
     ownersPage($this->owner)->assertOk()->assertSee('Chiamaka Eze')->assertSee('Lekki Gardens Ltd')->assertSee('Owner N000')->assertDontSee('Owner N029');
