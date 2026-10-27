@@ -25,6 +25,7 @@ use Modules\Payments\Contracts\RecordedPayment;
 use Modules\Payments\Credit\TenantCredit;
 use Modules\Payments\Enums\PaymentStatus;
 use Modules\Payments\Events\PaymentConfirmed;
+use Modules\Payments\Events\PaymentRecorded;
 use Modules\Payments\Events\PaymentRejected;
 use Modules\Payments\Models\Payment;
 use Modules\Payments\Models\PaymentAllocation;
@@ -61,8 +62,10 @@ use Modules\Tenants\Contracts\TenantDirectory;
  * buildings (the rest goes to credit); the system (a verified Paystack
  * webhook) is not narrowed. Every change is audited under log `payments`
  * (`payment.recorded`, `payment.confirmed` with the split, `payment.rejected`
- * with the reason) and announced (PaymentConfirmed, PaymentRejected) inside
- * the transaction. A confirmed payment is never deleted or edited (the
+ * with the reason) and announced (PaymentRecorded — only for a payment left
+ * waiting —, PaymentConfirmed, PaymentRejected) inside the transaction;
+ * P03-10b issues the receipt from PaymentConfirmed in the same transaction
+ * and tells the tenant once each commits. A confirmed payment is never deleted or edited (the
  * model refuses it too); undoing one is a reversal, not built yet.
  */
 final readonly class PaymentService
@@ -87,11 +90,36 @@ final readonly class PaymentService
      */
     public function record(User $by, array $input): Payment
     {
+        return $this->recordPayment($by, $input, announce: true);
+    }
+
+    /**
+     * Record a payment and confirm it at once (cash in hand, a transfer the
+     * member already sees in the account): one transaction, so a refused
+     * confirmation records nothing either. The tenant hears of the
+     * confirmation only (PaymentRecorded is not sent: it never waited).
+     *
+     * @param  array<string, mixed>  $input  as record()
+     *
+     * @throws ValidationException
+     */
+    public function recordAndConfirm(User $by, array $input, ?string $note = null): Payment
+    {
+        return $this->transaction(fn (): Payment => $this->confirm($by, $this->recordPayment($by, $input, announce: false), $note));
+    }
+
+    /**
+     * @param  array<string, mixed>  $input
+     *
+     * @throws ValidationException
+     */
+    private function recordPayment(User $by, array $input, bool $announce): Payment
+    {
         Gate::forUser($by)->authorize('create', Payment::class);
         $values = $this->validatedInput($input);
         [$tenantId, $billId] = $this->checkParties($by, $values['tenantId'], $values['billId'], activeTenant: true);
 
-        return $this->transaction(function () use ($by, $values, $tenantId, $billId): Payment {
+        return $this->transaction(function () use ($by, $values, $tenantId, $billId, $announce): Payment {
             $payment = new Payment;
             $payment->tenant_profile_id = $tenantId;
             $payment->bill_id = $billId;
@@ -108,22 +136,12 @@ final readonly class PaymentService
 
             $this->audited($payment, $by);
 
+            if ($announce) {
+                $this->announceRecorded($payment, $by);
+            }
+
             return $payment;
         });
-    }
-
-    /**
-     * Record a payment and confirm it at once (cash in hand, a transfer the
-     * member already sees in the account): one transaction, so a refused
-     * confirmation records nothing either.
-     *
-     * @param  array<string, mixed>  $input  as record()
-     *
-     * @throws ValidationException
-     */
-    public function recordAndConfirm(User $by, array $input, ?string $note = null): Payment
-    {
-        return $this->transaction(fn (): Payment => $this->confirm($by, $this->record($by, $input), $note));
     }
 
     /**
@@ -266,6 +284,10 @@ final readonly class PaymentService
                     });
                     $created = true;
                     $this->audited($payment, $by);
+
+                    if (! $confirm) {
+                        $this->announceRecorded($payment, $by);
+                    }
                 } catch (UniqueConstraintViolationException $duplicate) {
                     // Recorded meanwhile by another call with the same key:
                     // its insert committed first, so this locking read sees it.
@@ -633,6 +655,20 @@ final readonly class PaymentService
         $payment = ($lock ? $query->lockForUpdate() : $query)->first();
 
         return $payment instanceof Payment ? $payment : null;
+    }
+
+    /** PaymentRecorded, inside the transaction (the tenant is told once it commits, P03-10b). */
+    private function announceRecorded(Payment $payment, ?User $by): void
+    {
+        event(new PaymentRecorded(
+            paymentId: $payment->id,
+            organizationId: $payment->organization_id,
+            tenantProfileId: $payment->tenant_profile_id,
+            amountKobo: $payment->amount_kobo->kobo,
+            method: $payment->method->value,
+            source: $payment->source->value,
+            recordedByUserId: $by?->id,
+        ));
     }
 
     private function audited(Payment $payment, ?User $by): void

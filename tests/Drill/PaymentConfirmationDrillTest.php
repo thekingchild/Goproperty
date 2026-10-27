@@ -23,6 +23,7 @@ use Modules\Leasing\Leases\LeaseService;
 use Modules\Payments\Credit\TenantCredit;
 use Modules\Payments\Models\Payment;
 use Modules\Payments\Models\PaymentAllocation;
+use Modules\Payments\Models\Receipt;
 use Modules\Payments\Models\TenantCreditBalance;
 use Modules\Payments\Models\TenantCreditEntry;
 use Modules\Payments\Payments\PaymentService;
@@ -41,7 +42,7 @@ use Modules\Tenants\Models\TenantProfile;
  * committed rows, so this test commits and cleans up after itself.
  */
 
-const PAYMENT_DRILL_TABLES = ['payment_allocations', 'tenant_credit_entries', 'tenant_credit_balances', 'payments', 'bill_items', 'bills', 'document_verifications', 'lease_contracts', 'lease_deposit_entries', 'leases', 'units', 'properties', 'tenant_profiles', 'document_counters', 'settings', 'organizations', 'users', 'activity_log'];
+const PAYMENT_DRILL_TABLES = ['payment_notices', 'notifications', 'jobs', 'receipts', 'payment_allocations', 'tenant_credit_entries', 'tenant_credit_balances', 'payments', 'bill_items', 'bills', 'document_verifications', 'lease_contracts', 'lease_deposit_entries', 'leases', 'units', 'properties', 'tenant_profiles', 'document_counters', 'settings', 'organizations', 'users', 'activity_log'];
 
 beforeEach(function () {
     // Activating a lease issues its contract (P03-03b); its PDF is not this drill's business.
@@ -74,6 +75,9 @@ beforeEach(function () {
 
 afterEach(function () {
     app(OrganizationContext::class)->clear();
+
+    // A payment and its receipt point at each other (P03-10b): unlink them first.
+    DB::table('payments')->update(['receipt_id' => null]);
 
     foreach (PAYMENT_DRILL_TABLES as $table) {
         DB::table($table)->delete();
@@ -114,6 +118,8 @@ function paymentDrillProcess(string $script, array $arguments): InvokedProcess
         'DB_DATABASE' => $database->getDatabaseName(),
         'DB_USERNAME' => (string) $database->getConfig('username'),
         'DB_PASSWORD' => (string) $database->getConfig('password'),
+        // Receipt PDFs and the tenant's notices wait on the queue (P03-10b): not this drill's business.
+        'QUEUE_CONNECTION' => 'database',
     ])->start([PHP_BINARY, 'tests/Fixtures/Processes/'.$script, ...$arguments]);
 }
 
@@ -177,7 +183,26 @@ function paymentDrillState(Organization $organization, TenantProfile $tenant, Bi
         'allocations' => PaymentAllocation::query()->orderBy('id')->get(),
         'credit' => TenantCreditEntry::query()->where('tenant_profile_id', $tenant->id)->orderBy('id')->get(),
         'balance' => TenantCreditBalance::query()->where('tenant_profile_id', $tenant->id)->first()?->balance_kobo->kobo ?? 0,
+        'receipts' => Receipt::query()->orderBy('id')->get(),
     ]);
+}
+
+/**
+ * P03-10b: one receipt per confirmed payment, attached to it, numbered
+ * 1 … n in the organization with no gap and no repeat, however the
+ * confirmations interleaved.
+ *
+ * @param  array<string, mixed>  $state
+ */
+function expectOneReceiptPerConfirmedPayment(array $state): void
+{
+    $confirmed = $state['payments']->where('status.value', 'confirmed');
+    $sequence = $state['receipts']->map(fn (Receipt $receipt): int => (int) substr($receipt->number, -6))->sort()->values()->all();
+
+    expect($state['receipts'])->toHaveCount($confirmed->count())
+        ->and($state['receipts']->pluck('payment_id')->sort()->values()->all())->toBe($confirmed->pluck('id')->sort()->values()->all())
+        ->and($sequence)->toBe($confirmed->isEmpty() ? [] : range(1, $confirmed->count()))
+        ->and($confirmed->every(fn (Payment $payment): bool => $payment->receipt_id === $state['receipts']->firstWhere('payment_id', $payment->id)?->id))->toBeTrue();
 }
 
 it('acceptance: never settles a bill beyond its amount when payments to it are confirmed at once, the rest goes to credit', function () {
@@ -215,6 +240,7 @@ it('acceptance: never settles a bill beyond its amount when payments to it are c
     }
 
     expect(AuditEntry::query()->where('event', 'payment.confirmed')->count())->toBe(30);
+    expectOneReceiptPerConfirmedPayment($state);
 });
 
 it('acceptance: refuses explicit splits beyond what the bill still owes when they are confirmed at once', function () {
@@ -234,6 +260,7 @@ it('acceptance: refuses explicit splits beyond what the bill still owes when the
         ->and($state['credit'])->toHaveCount(0)
         ->and($state['payments']->where('status.value', 'confirmed'))->toHaveCount(3)
         ->and($state['payments']->where('status.value', 'pending_confirmation'))->toHaveCount(27);
+    expectOneReceiptPerConfirmedPayment($state);
 });
 
 it('sub: confirms a payment once when several processes confirm the same payments at once', function () {
@@ -255,6 +282,7 @@ it('sub: confirms a payment once when several processes confirm the same payment
         ->and($state['bill']->paid_kobo->kobo)->toBe(10_000_000)
         ->and($state['balance'])->toBe(0)
         ->and(AuditEntry::query()->where('event', 'payment.confirmed')->count())->toBe(10);
+    expectOneReceiptPerConfirmedPayment($state);
 });
 
 it('refuses to change tenant credit outside a transaction', function () {

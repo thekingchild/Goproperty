@@ -64,7 +64,7 @@ enum OrganizationRole: string
             // P02-01b) is also theirs: agents work on existing buildings, and
             // owners and administrators choose which agents work on which
             // building (P02-03).
-            self::Admin => [P::OpenWorkspace, P::UpdateOrganization, P::ViewSettings, P::ViewMembers, P::ManageMembers, P::ViewOwners, P::ManageOwners, P::ManagePropertyPortfolio, P::AssignAgents, ...$operations, P::ViewReports, P::ViewImports, P::ManageImports],
+            self::Admin => [P::OpenWorkspace, P::UpdateOrganization, P::ViewSettings, P::ViewMembers, P::ManageMembers, P::ViewOwners, P::ManageOwners, P::ManagePropertyPortfolio, P::AssignAgents, ...$operations, P::ApproveReceiptVoids, P::ViewReports, P::ViewImports, P::ManageImports],
             // Operational staff: they edit buildings and units but do not add
             // or archive buildings. Once assigned to buildings (P02-03), an
             // agent sees and works on those buildings only (the policies and

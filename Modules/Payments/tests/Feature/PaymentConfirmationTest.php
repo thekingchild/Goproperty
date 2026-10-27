@@ -22,6 +22,7 @@ use Modules\Payments\Events\PaymentRejected;
 use Modules\Payments\Listeners\ApplyCreditToNewBill;
 use Modules\Payments\Models\Payment;
 use Modules\Payments\Models\PaymentAllocation;
+use Modules\Payments\Models\Receipt;
 use Modules\Payments\Models\TenantCreditBalance;
 use Modules\Payments\Models\TenantCreditEntry;
 use Modules\Payments\Payments\PaymentRefused;
@@ -42,6 +43,8 @@ require_once __DIR__.'/helpers.php';
 
 beforeEach(function () {
     holdInvoicePdfs();
+    // Receipts are issued as usual; their PDFs are not these tests' business (P03-10b).
+    holdReceiptPdfs();
     seedOrganizationRoles();
     $this->travelTo('2026-12-25 09:00:00');
     $this->acme = Organization::factory()->create(['slug' => 'acme-homes', 'name' => 'Adeyemi Realty Ltd']);
@@ -328,8 +331,9 @@ it('sub: never deletes or edits a confirmed payment, its allocations or credit e
             ->and(fn () => TenantCreditEntry::query()->firstOrFail()->delete())->toThrow(LogicException::class)
             ->and(fn () => TenantCreditBalance::query()->firstOrFail()->delete())->toThrow(LogicException::class);
 
-        // A receipt may still be attached (P03-10b).
-        $stored->forceFill(['receipt_id' => 42])->save();
+        // Its receipt was attached when it was confirmed (P03-10b): the one change a confirmed payment takes.
+        $receiptId = Receipt::query()->where('payment_id', $payment->id)->value('id');
+        expect($receiptId)->toBeInt()->and($stored->receipt_id)->toBe($receiptId);
 
         // The policy offers no edit or delete, to anyone.
         expect(Gate::forUser($this->owner)->allows('delete', $stored))->toBeFalse()
@@ -343,7 +347,7 @@ it('sub: never deletes or edits a confirmed payment, its allocations or credit e
     $stored = storedPayment($this->acme, $payment);
     expect($stored->trashed())->toBeFalse()
         ->and($stored->amount_kobo->kobo)->toBe(15_000_000)
-        ->and($stored->receipt_id)->toBe(42)
+        ->and($stored->receipt_id)->toBe(inOrganization($this->acme, fn () => Receipt::query()->where('payment_id', $payment->id)->value('id')))
         ->and(allocationsOf($this->acme, $payment))->toBe([$this->january->id => 10_000_000]);
 
     // No route deletes or edits a payment.

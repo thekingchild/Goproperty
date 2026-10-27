@@ -84,6 +84,17 @@
                         <dd class="text-zinc-900 dark:text-white" data-test="payment-confirmed-at">{{ $payment->confirmed_at->timezone('Africa/Lagos')->format('d/m/Y H:i') }}@if ($payment->confirmation_note) · {{ $payment->confirmation_note }}@endif</dd>
                     </div>
                 @endif
+                @if ($receipt)
+                    <div>
+                        <dt class="text-sm text-zinc-500 dark:text-zinc-400">{{ __('Receipt') }}</dt>
+                        <dd class="text-zinc-900 dark:text-white" data-test="payment-receipt">
+                            <a href="{{ route('workspace.receipts.show', [$organization, $receipt->id]) }}" wire:navigate class="underline">{{ $receipt->number }}</a>
+                            @if ($receipt->isVoided())
+                                · {{ __('Voided') }}
+                            @endif
+                        </dd>
+                    </div>
+                @endif
                 @if ($payment->rejected_at)
                     <div class="sm:col-span-2">
                         <dt class="text-sm text-zinc-500 dark:text-zinc-400">{{ __('Rejected') }}</dt>

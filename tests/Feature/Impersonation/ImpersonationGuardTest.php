@@ -196,6 +196,7 @@ it('classes the money, bank, Paystack, billing, compliance, member, delete and i
         'bills.manage',
         'payments.confirm',
         'payments.submit_proof',
+        'receipts.approve_void',
         'imports.manage',
     ]);
 });

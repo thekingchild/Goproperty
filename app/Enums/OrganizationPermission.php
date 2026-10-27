@@ -54,6 +54,7 @@ enum OrganizationPermission: string
     case ViewPayments = 'payments.view';
     case ConfirmPayments = 'payments.confirm';
     case SubmitPaymentProof = 'payments.submit_proof';
+    case ApproveReceiptVoids = 'receipts.approve_void';
     case ViewTickets = 'tickets.view';
     case CreateTickets = 'tickets.create';
     case RespondToTickets = 'tickets.respond';
@@ -106,6 +107,7 @@ enum OrganizationPermission: string
             self::ManageLeases,
             self::ManageBills,
             self::ConfirmPayments,
+            self::ApproveReceiptVoids,
             self::CreateTickets,
             self::RespondToTickets,
             self::ManageTickets,
@@ -120,7 +122,7 @@ enum OrganizationPermission: string
      * user, in read-only and write mode alike (PLATFORM_CONSOLE.md § 6,
      * "always blocked"; App\Tenancy\ImpersonationGuard): money actions
      * (confirming or rejecting payments, payment proofs, issuing and voiding
-     * bills, the subscription and billing transfers), bank accounts and
+     * bills, approving receipt voids, the subscription and billing transfers), bank accounts and
      * Paystack keys (viewing them too: the Payment collection page needs
      * `payment_settings.view`, also blocked), members and roles (assigning
      * agents to buildings too: it decides what a member sees), tenants'
@@ -149,6 +151,7 @@ enum OrganizationPermission: string
             self::ManageTenantPortalAccess,
             self::ManageBills,
             self::ConfirmPayments,
+            self::ApproveReceiptVoids,
             self::SubmitPaymentProof,
             self::ManageImports => true,
             self::OpenWorkspace,
@@ -210,6 +213,7 @@ enum OrganizationPermission: string
             self::ViewPayments => 'See payments',
             self::ConfirmPayments => 'Record, confirm and reject payments',
             self::SubmitPaymentProof => 'Upload proof of a payment',
+            self::ApproveReceiptVoids => 'Approve another member\'s request to void a receipt (the second approver; voids a receipt alone only when no other owner or administrator exists)',
             self::ViewTickets => 'See maintenance tickets',
             self::CreateTickets => 'Raise maintenance tickets',
             self::RespondToTickets => 'Reply to maintenance tickets',

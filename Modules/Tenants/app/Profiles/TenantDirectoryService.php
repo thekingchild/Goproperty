@@ -105,6 +105,7 @@ final readonly class TenantDirectoryService implements TenantDirectory
             email: $tenant->email,
             archived: $tenant->trashed(),
             hasPortalAccess: $tenant->user_id !== null,
+            userId: $tenant->user_id,
         );
     }
 }

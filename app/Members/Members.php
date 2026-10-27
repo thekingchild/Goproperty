@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Members;
 
+use App\Enums\OrganizationPermission;
 use App\Enums\OrganizationRole;
 use App\Models\Membership;
 use App\Models\Organization;
@@ -140,6 +141,39 @@ final readonly class Members
             ->where('model_has_roles.organization_id', $organization->id)
             ->where('model_has_roles.model_type', (new User)->getMorphClass())
             ->count();
+    }
+
+    /**
+     * Ids of the members whose roles here grant the permission (e.g. who
+     * may approve a receipt void, P03-10b), in id order. Direct permissions
+     * are not used by the customer roles (ARCHITECTURE.md § 5), so roles
+     * decide.
+     *
+     * @return list<int>
+     */
+    public function holdersOf(OrganizationPermission $permission, ?Organization $organization = null): array
+    {
+        $organization ??= $this->context->get();
+
+        $ids = DB::table('model_has_roles')
+            ->join('roles', 'roles.id', '=', 'model_has_roles.role_id')
+            ->join('role_has_permissions', 'role_has_permissions.role_id', '=', 'roles.id')
+            ->join('permissions', 'permissions.id', '=', 'role_has_permissions.permission_id')
+            ->join('organization_user', function ($join): void {
+                $join->on('organization_user.user_id', '=', 'model_has_roles.model_id')
+                    ->on('organization_user.organization_id', '=', 'model_has_roles.organization_id');
+            })
+            ->where('permissions.name', $permission->value)
+            ->where('permissions.guard_name', OrganizationPermission::GUARD)
+            ->whereNull('roles.organization_id')
+            ->where('model_has_roles.organization_id', $organization->id)
+            ->where('model_has_roles.model_type', (new User)->getMorphClass())
+            ->distinct()
+            ->orderBy('model_has_roles.model_id')
+            ->pluck('model_has_roles.model_id')
+            ->all();
+
+        return array_values(array_map(static fn (mixed $id): int => is_numeric($id) ? (int) $id : 0, $ids));
     }
 
     /** @throws MemberChangeRefused */

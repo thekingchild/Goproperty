@@ -45,6 +45,8 @@ use Modules\Payments\Contracts\PaymentSource;
 use Modules\Payments\Enums\CreditReason;
 use Modules\Payments\Models\Payment;
 use Modules\Payments\Models\PaymentAllocation;
+use Modules\Payments\Models\PaymentNotice;
+use Modules\Payments\Models\Receipt;
 use Modules\Payments\Models\TenantCreditBalance;
 use Modules\Payments\Models\TenantCreditEntry;
 use Modules\Properties\Models\AgentAssignment;
@@ -162,6 +164,25 @@ final class OrganizationScopedModels
             TenantCreditBalance::class => fn (): Model => tap(new TenantCreditBalance, fn (TenantCreditBalance $balance): bool => $balance->forceFill([
                 'tenant_profile_id' => TenantProfile::factory()->create()->id,
                 'balance_kobo' => Money::naira(50_000),
+            ])->save()),
+            // An issued receipt and a notice (P03-10b): history, never changed or deleted.
+            Receipt::class => fn (): Model => tap(new Receipt, function (Receipt $receipt): void {
+                $payment = self::payment();
+                $receipt->forceFill([
+                    'payment_id' => $payment->id,
+                    'tenant_profile_id' => $payment->tenant_profile_id,
+                    'number' => 'RCT-PRB-2027-'.random_int(100_000, 999_999),
+                    'verification_code' => app(VerificationCodes::class)->generate(),
+                    'amount_kobo' => Money::naira(100_000),
+                    'issued_at' => now(),
+                    'branding_snapshot' => ['version' => 1],
+                    'details' => [],
+                ])->save();
+            }),
+            PaymentNotice::class => fn (): Model => tap(new PaymentNotice, fn (PaymentNotice $notice): bool => $notice->forceFill([
+                'payment_id' => self::payment()->id,
+                'event' => 'payment.recorded',
+                'channels' => ['mail'],
             ])->save()),
             // Owned by the offering organization; the receiving one reads it
             // only through Modules\SaasBilling\Transfers\IncomingTransfers.

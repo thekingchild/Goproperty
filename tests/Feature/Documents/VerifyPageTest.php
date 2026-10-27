@@ -45,8 +45,8 @@ function verifiedDoc(string $kind, VerificationStatus $status, array $extra = []
 {
     return new VerifiedDocument(
         kind: $kind,
-        title: $kind === 'receipt' ? 'Official receipt' : 'Invoice',
-        number: $kind === 'receipt' ? 'RCT-ADR-2026-000318' : 'INV-ADR-2027-000142',
+        title: $kind === 'sample_receipt' ? 'Official receipt' : 'Invoice',
+        number: $kind === 'sample_receipt' ? 'RCT-ADR-2026-000318' : 'INV-ADR-2027-000142',
         issuer: $extra['issuer'] ?? 'Adeyemi Realty Ltd',
         issuedAt: CarbonImmutable::parse('2026-12-14 09:42'),
         status: $status,
@@ -68,17 +68,17 @@ beforeEach(function () {
     $this->acme = Organization::factory()->create(['name' => 'Adeyemi Realty Ltd']);
     $this->other = Organization::factory()->create(['name' => 'Other Homes Ltd']);
 
-    $this->receiptCode = issueCode($this->acme, 'receipt');
-    $this->voidedCode = issueCode($this->acme, 'receipt');
-    // Billing registers the real `invoice` kind (P03-05c): this page test uses a kind of its own.
+    // Billing and Payments register the real `invoice` and `receipt` kinds (P03-05c, P03-10b): this page test uses kinds of its own.
+    $this->receiptCode = issueCode($this->acme, 'sample_receipt');
+    $this->voidedCode = issueCode($this->acme, 'sample_receipt');
     $this->invoiceCode = issueCode($this->other, 'sample_invoice');
     $this->replacedCode = issueCode($this->other, 'sample_invoice');
-    $this->forgottenCode = issueCode($this->acme, 'receipt');
+    $this->forgottenCode = issueCode($this->acme, 'sample_receipt');
     $this->leaseCode = issueCode($this->acme, 'lease');
 
-    app(DocumentVerifiers::class)->register('receipt', pageResolver([
-        $this->receiptCode => verifiedDoc('receipt', VerificationStatus::Valid),
-        $this->voidedCode => verifiedDoc('receipt', VerificationStatus::Voided, ['statusNote' => 'Voided on 15/12/2026']),
+    app(DocumentVerifiers::class)->register('sample_receipt', pageResolver([
+        $this->receiptCode => verifiedDoc('sample_receipt', VerificationStatus::Valid),
+        $this->voidedCode => verifiedDoc('sample_receipt', VerificationStatus::Voided, ['statusNote' => 'Voided on 15/12/2026']),
     ]));
     app(DocumentVerifiers::class)->register('sample_invoice', pageResolver([
         $this->invoiceCode => verifiedDoc('sample_invoice', VerificationStatus::Valid, ['issuer' => 'Other Homes Ltd', 'details' => ['Payment status' => 'Partly paid']]),

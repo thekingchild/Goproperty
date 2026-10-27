@@ -35,9 +35,9 @@ function sidebarItemsOf(User $user): array
 it('shows each role the workspace pages it may open, Core and module pages alike', function (OrganizationRole $role, array $items) {
     expect(sidebarItemsOf(joinAs(User::factory()->create(), $this->acme, $role)))->toBe($items);
 })->with([
-    'org-owner' => [OrganizationRole::Owner, ['home', 'buildings', 'units', 'owners', 'tenants', 'leases', 'bills', 'payments', 'imports', 'compliance', 'members', 'billing-transfers', 'settings']],
-    'org-admin' => [OrganizationRole::Admin, ['home', 'buildings', 'units', 'owners', 'tenants', 'leases', 'bills', 'payments', 'imports', 'members', 'settings']],
-    'agent' => [OrganizationRole::Agent, ['home', 'buildings', 'units', 'owners', 'tenants', 'leases', 'bills', 'payments']],
+    'org-owner' => [OrganizationRole::Owner, ['home', 'buildings', 'units', 'owners', 'tenants', 'leases', 'bills', 'payments', 'receipts', 'imports', 'compliance', 'members', 'billing-transfers', 'settings']],
+    'org-admin' => [OrganizationRole::Admin, ['home', 'buildings', 'units', 'owners', 'tenants', 'leases', 'bills', 'payments', 'receipts', 'imports', 'members', 'settings']],
+    'agent' => [OrganizationRole::Agent, ['home', 'buildings', 'units', 'owners', 'tenants', 'leases', 'bills', 'payments', 'receipts']],
 ]);
 
 it('links each item to its page in the current organization', function () {

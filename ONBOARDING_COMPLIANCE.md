@@ -199,7 +199,7 @@ Each organization enables one or both channels under **Settings → Payment coll
 
 ### 4.3 Cash / POS
 
-Recorded by an agent with a mandatory note. The receipt is sent straight to the tenant by SMS/WhatsApp so the tenant can confirm it. Voiding a receipt needs a second approver. Cash at or above the legal thresholds is flagged (§ 5.4).
+Recorded by an agent with a mandatory note. The receipt is sent straight to the tenant by SMS/WhatsApp so the tenant can confirm it. Voiding a receipt needs a second approver. As built (P03-10b): the receipt is issued the moment the payment is confirmed, and the tenant is told in the portal and by email, or by the agency's WhatsApp when no email is known (a stand-in sender until P05-06; no SMS in P03, decision 3); a void is asked for with a reason and approved by a different owner or administrator (an organization with a single owner and no administrator voids alone, recorded as such) — [ARCHITECTURE.md § 6.4](ARCHITECTURE.md) "How receipts are built". Cash at or above the legal thresholds is flagged (§ 5.4).
 
 ## 5. Transaction Tiers
 

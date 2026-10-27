@@ -19,6 +19,7 @@ use Modules\Payments\Credit\TenantCredit;
 use Modules\Payments\Lists\PaymentRows;
 use Modules\Payments\Models\Payment;
 use Modules\Payments\Models\PaymentAllocation;
+use Modules\Payments\Models\Receipt;
 use Modules\Payments\Models\TenantCreditEntry;
 use Modules\Payments\Payments\PaymentService;
 use Modules\Properties\Contracts\BuildingAccess;
@@ -29,7 +30,7 @@ use Modules\Properties\Contracts\BuildingAccess;
  * would settle (the bill it was for, then the tenant's open bills oldest
  * due first, the rest to tenant credit) with Confirm (and a note) and
  * Reject (with a reason); once confirmed, the bills it settled and the
- * credit it left. PaymentPolicy::confirm / ::reject, checked again by
+ * credit it left, and its receipt (P03-10b). PaymentPolicy::confirm / ::reject, checked again by
  * Payments\PaymentService (a refusal shows its reason and changes
  * nothing); never while staff impersonate.
  *
@@ -121,6 +122,7 @@ final class PaymentShow extends Component
             'plan' => $payment->status->isPending() ? $payments->plan($payment, $user) : null,
             'canConfirm' => $canConfirm,
             'canReject' => $user->can('reject', $payment),
+            'receipt' => $payment->receipt_id !== null ? Receipt::query()->find($payment->receipt_id) : null,
             'billLink' => static fn (?BillBalance $bill): bool => $bill !== null && ($bill->propertyId === null ? $access->limitedTo($user) === null : $access->allows($user, $bill->propertyId)),
         ]);
     }

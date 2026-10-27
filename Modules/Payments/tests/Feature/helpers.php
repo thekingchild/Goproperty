@@ -6,9 +6,12 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Support\Money;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Testing\TestResponse;
+use Modules\Billing\Jobs\RenderInvoice;
 use Modules\Billing\Models\Bill;
 use Modules\Payments\Credit\TenantCredit;
+use Modules\Payments\Jobs\RenderReceipt;
 use Modules\Payments\Models\Payment;
 use Modules\Payments\Models\PaymentAllocation;
 use Modules\Payments\Models\TenantCreditEntry;
@@ -24,6 +27,20 @@ use Tests\Support\LivewireHttp;
  */
 
 require_once __DIR__.'/../../../Billing/tests/Feature/helpers.php';
+
+/**
+ * Holds back the document PDF jobs for the rest of the test: the receipt's
+ * (P03-10b, Jobs\RenderReceipt) and the invoice's (P03-05c, Billing's
+ * RenderInvoice). Confirming a payment still issues its receipt (number,
+ * verification code, snapshot) and bills are issued as usual, but dompdf,
+ * which takes a second or more a document and writes to the media disk,
+ * does not run. Tests about the PDFs render them themselves. Every other
+ * job runs as usual.
+ */
+function holdReceiptPdfs(): void
+{
+    Queue::fake([RenderReceipt::class, RenderInvoice::class]);
+}
 
 /** The record form's fields for a bank transfer paid today, with changes. */
 function paymentInput(TenantProfile|int $tenant, string $amount, array $changes = []): array

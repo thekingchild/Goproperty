@@ -49,7 +49,7 @@ function recordingResolver(array $documents = []): VerificationResolver
 
 function verifiedReceipt(string $issuer, VerificationStatus $status = VerificationStatus::Valid): VerifiedDocument
 {
-    return new VerifiedDocument('receipt', 'Official receipt', 'RCT-ADR-2026-000318', $issuer, CarbonImmutable::parse('2026-12-14 10:42'), $status, Money::kobo(290_000_000));
+    return new VerifiedDocument('sample_receipt', 'Official receipt', 'RCT-ADR-2026-000318', $issuer, CarbonImmutable::parse('2026-12-14 10:42'), $status, Money::kobo(290_000_000));
 }
 
 beforeEach(function () {
@@ -81,8 +81,8 @@ describe('acceptance: verification codes are unique and unguessable', function (
     });
 
     it('says nothing about the organization, the kind or the order of issue', function () {
-        $first = inOrganization($this->acme, fn () => app(VerificationCodes::class)->issue('receipt'));
-        $second = inOrganization($this->acme, fn () => app(VerificationCodes::class)->issue('receipt'));
+        $first = inOrganization($this->acme, fn () => app(VerificationCodes::class)->issue('sample_receipt'));
+        $second = inOrganization($this->acme, fn () => app(VerificationCodes::class)->issue('sample_receipt'));
         $theirs = inOrganization($this->other, fn () => app(VerificationCodes::class)->issue('invoice'));
 
         expect([$first, $second, $theirs])->each->toMatch('/^[0-9A-HJKMNP-TV-Z]{10}$/')
@@ -97,18 +97,18 @@ describe('acceptance: verification codes are unique and unguessable', function (
         $first = inOrganization($this->acme, fn () => $seeded()->issue('invoice'));
         // Same seed: the first draw collides with the code above (another kind,
         // another organization), so it draws again.
-        $second = inOrganization($this->other, fn () => $seeded()->issue('receipt'));
+        $second = inOrganization($this->other, fn () => $seeded()->issue('sample_receipt'));
 
         expect($second)->not->toBe($first)
             ->and(DB::table('document_verifications')->pluck('code')->all())->toEqualCanonicalizing([$first, $second])
             ->and(DB::table('document_verifications')->where('code', $first)->value('organization_id'))->toBe($this->acme->id)
-            ->and(DB::table('document_verifications')->where('code', $second)->value('kind'))->toBe('receipt');
+            ->and(DB::table('document_verifications')->where('code', $second)->value('kind'))->toBe('sample_receipt');
     });
 
     it('cannot store the same code twice', function () {
         inOrganization($this->acme, fn () => DocumentVerification::query()->create(['kind' => 'invoice', 'code' => '7KQ2MX9P4D']));
 
-        inOrganization($this->other, fn () => DocumentVerification::query()->create(['kind' => 'receipt', 'code' => '7KQ2MX9P4D']));
+        inOrganization($this->other, fn () => DocumentVerification::query()->create(['kind' => 'sample_receipt', 'code' => '7KQ2MX9P4D']));
     })->throws(UniqueConstraintViolationException::class);
 
     it('gives up after five collisions rather than loop', function () {
@@ -144,9 +144,9 @@ it('reads typed and scanned codes forgivingly, and prints them in two groups', f
 
 describe('resolver registry', function () {
     it('finds a code\'s document through the resolver of its kind, inside the issuing organization', function () {
-        $code = inOrganization($this->other, fn () => app(VerificationCodes::class)->issue('receipt'));
+        $code = inOrganization($this->other, fn () => app(VerificationCodes::class)->issue('sample_receipt'));
         $resolver = recordingResolver([$code => verifiedReceipt('Other Homes')]);
-        app(DocumentVerifiers::class)->register('receipt', $resolver);
+        app(DocumentVerifiers::class)->register('sample_receipt', $resolver);
 
         // Looked up with no organization (the public page), or while another is current.
         $found = app(DocumentVerifiers::class)->find(strtolower(VerificationCodes::format($code)));
@@ -161,17 +161,17 @@ describe('resolver registry', function () {
     });
 
     it('tells a voided document from a valid one', function () {
-        $code = inOrganization($this->acme, fn () => app(VerificationCodes::class)->issue('receipt'));
-        app(DocumentVerifiers::class)->register('receipt', recordingResolver([$code => verifiedReceipt('Adeyemi Realty', VerificationStatus::Voided)]));
+        $code = inOrganization($this->acme, fn () => app(VerificationCodes::class)->issue('sample_receipt'));
+        app(DocumentVerifiers::class)->register('sample_receipt', recordingResolver([$code => verifiedReceipt('Adeyemi Realty', VerificationStatus::Voided)]));
 
         expect(app(DocumentVerifiers::class)->find($code)?->isVoided())->toBeTrue();
     });
 
     it('answers null for unknown, malformed and unresolvable codes', function () {
-        $receipt = inOrganization($this->acme, fn () => app(VerificationCodes::class)->issue('receipt'));
+        $receipt = inOrganization($this->acme, fn () => app(VerificationCodes::class)->issue('sample_receipt'));
         $lease = inOrganization($this->acme, fn () => app(VerificationCodes::class)->issue('lease'));
         $resolver = recordingResolver();
-        app(DocumentVerifiers::class)->register('receipt', $resolver);
+        app(DocumentVerifiers::class)->register('sample_receipt', $resolver);
         $verifiers = app(DocumentVerifiers::class);
 
         expect($verifiers->find('ZZZZZZZZZZ'))->toBeNull()        // never issued
@@ -193,9 +193,9 @@ describe('resolver registry', function () {
         expect($verifiers->find($code)?->title)->toBe('Invoice')
             ->and($verifiers->resolver('sample_invoice'))->toBe($verifiers->resolver('sample_invoice'))
             ->and($verifiers->has('sample_invoice'))->toBeTrue()
-            ->and($verifiers->has('receipt'))->toBeFalse()
-            // Modules register their own kinds too (Leasing's `lease_contract`, P03-03b; Billing's `invoice`, P03-05c).
-            ->and($verifiers->kinds())->toContain('sample_invoice', 'invoice', 'lease_contract');
+            ->and($verifiers->has('sample_receipt'))->toBeFalse()
+            // Modules register their own kinds too (Leasing's `lease_contract`, P03-03b; Billing's `invoice`, P03-05c; Payments' `receipt`, P03-10b).
+            ->and($verifiers->kinds())->toContain('sample_invoice', 'invoice', 'lease_contract', 'receipt');
     });
 
     it('takes registrations from module providers, made when the registry is first resolved', function () {
@@ -207,9 +207,9 @@ describe('resolver registry', function () {
     });
 
     it('refuses a second resolver for the same kind, and an unknown kind', function () {
-        app(DocumentVerifiers::class)->register('receipt', recordingResolver());
+        app(DocumentVerifiers::class)->register('sample_receipt', recordingResolver());
 
-        expect(fn () => app(DocumentVerifiers::class)->register('receipt', recordingResolver()))->toThrow(LogicException::class)
+        expect(fn () => app(DocumentVerifiers::class)->register('sample_receipt', recordingResolver()))->toThrow(LogicException::class)
             ->and(fn () => app(DocumentVerifiers::class)->resolver('unknown_kind'))->toThrow(InvalidArgumentException::class);
     });
 });
