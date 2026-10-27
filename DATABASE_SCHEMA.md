@@ -50,7 +50,7 @@ Browsers a customer has signed in from ([UX_DESIGN.md § 3.1, § 3.3](UX_DESIGN.
 
 ### owner_profiles
 Person/company details of a **property owner** (distinct from the user record — an owner may never log in).
-`organization_id`, `first_name/last_name` **or** `company_name`, `email`, `phone`, `address`, `state`, `lga`, `id_type` (`nin`, `cac`, `none`), `id_value` (encrypted), `notes`.
+`organization_id`, `type` (`person`, `company`), `first_name/last_name` (person) **or** `company_name` (company), `display_name` (the company name or "First Last", set on save; for lists, search and import matching), `email` (lower case), `phone` (E.164, `App\Support\PhoneNumber`), `address`, `state`, `lga`, `id_type` (`nin`, `cac`, `none`), `id_value` (encrypted; NIN 11 digits, CAC like `RC 1234567`; null when `none`), `notes`, `import_batch_id` / `external_ref` (import provenance, § 8A; no foreign key on `import_batch_id` until `import_batches` exists), soft deletes (archive). Unique `(organization_id, external_ref)`; indexes `(organization_id, import_batch_id)`, `(organization_id, deleted_at, display_name)`, `(organization_id, phone)`, `(organization_id, email)`. Built in P02-01a: `Modules\Properties\Models\OwnerProfile`, written only through `Modules\Properties\Owners\OwnerProfiles` (audited).
 
 ### tenant_profiles
 `organization_id`, `user_id` (nullable — tenant may not have portal access yet), `first_name`, `last_name`, `email` (nullable), `phone` (required, unique per org), `address`, `occupation`, `emergency_contact` (json), `kyc_status` (`unverified`, `pending`, `verified`), `id_type`, `id_value` (encrypted), soft deletes. Unique: `(organization_id, phone)`.

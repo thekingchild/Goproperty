@@ -81,6 +81,7 @@ The **Deploy** workflow ([`.github/workflows/deploy.yml`](../../.github/workflow
    php artisan goproperty:backup-run db  # only with DEPLOY_BACKUP_FIRST=1; a failed backup stops the deploy
    php artisan down --retry=60         # only with "maintenance" ticked
    php artisan migrate --force
+   php artisan db:seed --class='Database\Seeders\InstallSeeder' --force   # idempotent: roles gain new permissions
    php artisan config:cache && route:cache && view:cache && event:cache   # in the new release, before it is live
    ln -sfn releases/<name> current.next && mv -Tf current.next current   # atomic switch
    php artisan queue:restart

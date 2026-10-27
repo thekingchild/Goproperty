@@ -70,7 +70,10 @@ it('lists every organization-owned model in the probe dataset', function () {
                 continue;
             }
 
-            $class = $namespace.str_replace(['/', '.php'], ['\\', ''], substr($file->getPathname(), strlen($root) + 1));
+            $relative = substr($file->getPathname(), strlen($root) + 1);
+            // A module's classes live in Modules/<Name>/app/ (namespace Modules\<Name>\…).
+            $relative = $namespace === 'Modules\\' ? (string) preg_replace('#^([^/]+)/app/#', '$1/', $relative) : $relative;
+            $class = $namespace.str_replace(['/', '.php'], ['\\', ''], $relative);
 
             if (class_exists($class) && ! (new ReflectionClass($class))->isAbstract() && in_array(BelongsToOrganization::class, class_uses_recursive($class), true)) {
                 $owned[] = $class;

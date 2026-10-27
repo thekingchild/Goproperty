@@ -21,8 +21,9 @@ use Tests\TestCase;
 | Test Case
 |--------------------------------------------------------------------------
 |
-| Feature tests run on the application test case with a fresh database.
-| Unit tests stay framework-free unless a file opts in.
+| Feature tests run on the application test case with a fresh database,
+| each module's own feature tests too (the module's tests/Feature folder,
+| ARCHITECTURE.md § 8). Unit tests stay framework-free unless a file opts in.
 |
 | Drills start real `php artisan` processes, which cannot see rows inside
 | a test transaction, so they commit and truncate instead.
@@ -31,7 +32,7 @@ use Tests\TestCase;
 
 pest()->extend(TestCase::class)
     ->use(RefreshDatabase::class)
-    ->in('Feature');
+    ->in('Feature', '../Modules/*/tests/Feature');
 
 pest()->extend(TestCase::class)
     ->use(DatabaseTruncation::class)

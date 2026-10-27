@@ -265,6 +265,7 @@ it('keeps exactly the reading, exporting and paying permissions while suspended'
         'compliance.view',
         'organization.activity',
         'members.view',
+        'owners.view',
         'properties.view',
         'leases.view',
         'bills.view',

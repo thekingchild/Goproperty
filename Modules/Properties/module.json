@@ -1,0 +1,11 @@
+{
+    "name": "Properties",
+    "alias": "properties",
+    "description": "Owner profiles, buildings and units (ARCHITECTURE.md § 6.2)",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\Properties\\Providers\\PropertiesServiceProvider"
+    ],
+    "files": []
+}

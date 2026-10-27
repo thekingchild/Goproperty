@@ -20,6 +20,7 @@ use Closure;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 use LogicException;
+use Modules\Properties\Models\OwnerProfile;
 
 /**
  * Every organization-owned model (BelongsToOrganization) and how to make one
@@ -64,6 +65,7 @@ final class OrganizationScopedModels
                 'sha256' => str_repeat('0', 64),
                 'document_number' => 'SCUML-123',
             ]),
+            OwnerProfile::class => fn (): Model => OwnerProfile::factory()->withNin()->create(),
         ];
     }
 

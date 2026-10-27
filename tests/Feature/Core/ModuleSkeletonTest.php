@@ -16,6 +16,7 @@ use Nwidart\Modules\Contracts\RepositoryInterface;
  */
 
 beforeEach(function () {
+    $this->statuses = (string) file_get_contents(base_path('modules_statuses.json'));
     $this->modules = sys_get_temp_dir().'/goproperty-modules-'.Str::random(8);
     File::ensureDirectoryExists($this->modules);
 
@@ -52,21 +53,27 @@ it('generates a module with GoProperty conventions', function () {
         ->and($module.'/vite.config.js')->not->toBeFile()
         ->and($module.'/resources/assets')->not->toBeDirectory()
         ->and($module.'/routes/api.php')->not->toBeFile()
-        ->and(base_path('modules_statuses.json'))->not->toBeFile();
+        // The app's own module statuses are untouched by a module made elsewhere.
+        ->and((string) file_get_contents(base_path('modules_statuses.json')))->toBe($this->statuses);
 });
 
-it('keeps modules apart: no module uses another module\'s internals', function () {
+/*
+ * ARCHITECTURE.md § 8 rules 2–3 (P02-01a switched this on with the first
+ * module, Properties): a module's internals are private. Other modules and
+ * Core reach a module only through its Contracts and Events.
+ */
+it('keeps modules apart: nothing outside a module uses its internals', function () {
     $modules = collect(File::directories(base_path('Modules')))->map(fn (string $path): string => basename($path));
 
-    if ($modules->isEmpty()) {
-        $this->markTestSkipped('No modules yet.');
-    }
+    expect($modules)->not->toBeEmpty();
 
     foreach ($modules as $module) {
+        $public = ["Modules\\{$module}\\Contracts", "Modules\\{$module}\\Events"];
+
+        expect('App')->not->toUse("Modules\\{$module}")->ignoring($public);
+
         foreach ($modules->reject(fn (string $other): bool => $other === $module) as $other) {
-            arch()->expect("Modules\\{$module}")
-                ->not->toUse("Modules\\{$other}")
-                ->ignoring(["Modules\\{$other}\\Contracts", "Modules\\{$other}\\Events"]);
+            expect("Modules\\{$other}")->not->toUse("Modules\\{$module}")->ignoring($public);
         }
     }
-})->skip(fn () => ! is_dir(base_path('Modules')), 'No modules yet.');
+});

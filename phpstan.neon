@@ -11,6 +11,13 @@ parameters:
         - routes/
         - tools/
         - tests/Fixtures/Models/
+        # Every module's code (ARCHITECTURE.md § 8); module tests are not
+        # analysed, like tests/.
+        - Modules/
+
+    excludePaths:
+        analyse:
+            - Modules/*/tests/*
 
     level: 7
 

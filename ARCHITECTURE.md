@@ -139,6 +139,8 @@ Customer side (per-organization roles, spatie teams on the `web` guard; the perm
 
 **Settings (P01-05).** Settings → Profile and Branding are seen with `settings.view` and saved with `organization.update` (`org-owner`, `org-admin`; BRANDING_DOCUMENTS.md § 1); from Transaction Tier 2 the registered name and CAC number are locked there (compliance checked them). Settings → Payment collection (bank accounts, later the Paystack connection) is `org-owner` only: `payment_settings.view` to see it, `organization.payment_settings` to change it. Where tenants pay is the change a dishonest insider would want, so administrators cannot make it, as ONBOARDING_COMPLIANCE.md § 4.2 already says for Paystack keys; both permissions are blocked while staff impersonate (the page answers 403, numbers are never shown). `OrganizationPolicy::viewSettings/updateProfile/updateBranding/viewPaymentSettings`, `OrganizationBankAccountPolicy`.
 
+**Property owners (P02-01a).** The Owners pages (`/o/{slug}/owners`, `Modules\Properties`) list, add, edit, archive and restore owner profiles. `owners.view` (`org-owner`, `org-admin`, `agent`; kept while suspended) opens the list and an owner read-only; `owners.manage` (`org-owner`, `org-admin`) adds, edits, archives (soft delete) and restores (`OwnerProfilePolicy`; changes go through `Modules\Properties\Owners\OwnerProfiles`, audited under log `owners`). Agents look owners up but do not keep the records. Property owners and tenants hold neither (they never open the workspace). Neither permission is blocked while staff impersonate, but archiving is (a `delete` ability). An owner's ID number (NIN or CAC number) is an encrypted cast, shown masked (`NIN ···2109`) and never sent back to the browser: an empty field keeps the number on file.
+
 Rules encoded in policies, not controllers:
 
 - Tenants may only ever see resources attached to their own leases/units.
@@ -265,7 +267,7 @@ All jobs are queued, retryable (backoff), idempotent (unique locks), and log to 
 
 Built on nwidart/laravel-modules — a modular monolith. Rules:
 
-1. Every bounded feature is a module: `Modules\Leasing`, `Modules\Billing`, `Modules\Tickets`, `Modules\BuildingGroup`, `Modules\Reminders`, `Modules\SaasBilling`, `Modules\Platform`, … Core (`app/Core` or the main namespace) holds only tenancy, auth, users, organizations, shared money/document infrastructure.
+1. Every bounded feature is a module: `Modules\Properties` (owner profiles, buildings, units; built from P02-01a), `Modules\Import`, `Modules\Tenants`, `Modules\Leasing`, `Modules\Billing`, `Modules\Payments`, `Modules\Collections` (bank statements), `Modules\OnlinePayments` (agency Paystack), `Modules\Expenses`, `Modules\Tickets`, `Modules\BuildingGroup`, `Modules\Reminders`, `Modules\SaasBilling`, `Modules\Platform`, … Core (`app/Core` or the main namespace) holds only tenancy, auth, users, organizations, shared money/document infrastructure.
 2. A module owns its routes, migrations, models, policies, Livewire components, views, config, translations and tests. Nothing else may import a module's internals.
 3. Modules communicate through **public interfaces and events** only (`Modules\Tickets\Contracts\TicketService`, `PaymentConfirmed` event, etc.). Cross-module queries join nothing across module tables directly.
 4. A module may declare **capabilities** (`module.json`: provides/requires) and feature-flag gates; disabling a module for an org hides its UI and routes via middleware — data is retained, never deleted.
@@ -273,7 +275,15 @@ Built on nwidart/laravel-modules — a modular monolith. Rules:
 
 This keeps the codebase upgradeable across Laravel versions and lets paid add-ons be enabled per customer by the platform owner.
 
-Generating a module: `php artisan module:make Billing`, then `composer dump-autoload` (module classes autoload through `wikimedia/composer-merge-plugin`) and `composer lint`. `config/modules.php` is trimmed for shared hosting: modules share the app's single Vite build, so no per-module `package.json`, `vite.config.js`, asset folders or API routes are generated. Module status lives in `modules_statuses.json` at the app root. A test keeps modules from importing each other's internals (anything outside `Contracts` and `Events`) once modules exist.
+Generating a module: `php artisan module:make Billing`, then `composer dump-autoload` (module classes autoload through `wikimedia/composer-merge-plugin`) and `composer lint`. `config/modules.php` is trimmed for shared hosting: modules share the app's single Vite build, so no per-module `package.json`, `vite.config.js`, asset folders or API routes are generated. Module status lives in `modules_statuses.json` at the app root.
+
+**How a module is built (P02-01a, the first one: `Modules/Properties`).**
+- *Layout:* classes in `Modules/<Name>/app` (namespace `Modules\<Name>\…`: `Models`, `Enums`, `Policies`, `Livewire`, services in a folder named for the domain, e.g. `Owners`), migrations in `database/migrations` (loaded by the module's provider, so `migrate` and the installer's `BatchedMigrator` run them with Core's, in file-name order), factories in `database/factories`, views in `resources/views` (`<name>::`; Tailwind scans `Modules/*/resources/views` through an `@source` in `resources/css/app.css`, so module views share the one Vite build), routes in `routes/web.php`, tests in `tests/Feature` and `tests/Unit`. Delete what `module:make` generates and the module does not use (sample controller, seeder, event provider, empty config).
+- *Provider:* `Modules\<Name>\Providers\<Name>ServiceProvider` (extends nwidart's `ModuleServiceProvider`) registers the module's policies (`Gate::policy`), its Livewire namespace (`Livewire::addNamespace('<name>', classNamespace: 'Modules\\<Name>\\Livewire')`, so components keep working on Livewire's update requests), and its workspace sidebar items (`callAfterResolving(App\Navigation\WorkspaceNavigation::class, …)`: an `App\Navigation\WorkspaceNavItem` with the route, icon, order and the policy check that shows it). `RouteServiceProvider` loads `routes/web.php` in the `web` group.
+- *Workspace pages:* routes in `Route::middleware(['auth', 'verified', 'organization'])->prefix('o/{organization}')->name('workspace.')`, exactly like Core's, so `SetOrganizationContext` runs before route model binding and is replayed for Livewire updates (§ 4).
+- *Quality gate:* `phpunit.xml` runs `Modules/*/tests/Unit` and `Modules/*/tests/Feature` in the Unit and Feature suites, `tests/Pest.php` gives module feature tests the same `Tests\TestCase` + `RefreshDatabase` as `tests/Feature` (helpers from `tests/Support` are available), and Larastan analyses `Modules/` except its tests. `tests/Feature/Core/ModuleSkeletonTest.php` fails when a module, or Core, uses another module's internals (anything outside its `Contracts` and `Events`), and `CrossTenantAccessTest` finds organization-owned models in `Modules/` too.
+- *Release:* `scripts/release/stage.sh` removes `Modules/*/tests` from packages as it removes `tests/`; `modules_statuses.json` ships.
+- *Permissions:* new customer permissions still go in `App\Enums\OrganizationPermission` and `OrganizationRole` (one catalogue for the seeder and the central guards).
 
 ## 9. Storage & Media
 
@@ -333,7 +343,7 @@ The product owner may launch on shared hosting. The app is built so **every feat
 | Realtime | Livewire polling (every 15 s); `BROADCAST_CONNECTION=null` | Reverb WebSockets + 60 s polling fallback |
 | PDF | `dompdf` | Headless Chrome via Gotenberg (`PDF_DRIVER=chrome`, `PDF_CHROME_URL`; dompdf still available) |
 | Assets | Built in CI (Vite) and deployed as files — no Node on the server | Same, or built on server |
-| Deploy | First install: release zip + installer ([INSTALLER.md](INSTALLER.md)). Updates: the `Deploy` workflow uploads the built release over SSH and runs `migrate --force` + cache rebuild ([docs/runbooks/shared-hosting.md § 3](docs/runbooks/shared-hosting.md)); without SSH, the zip upgrade runbook ([INSTALLER.md § 10](INSTALLER.md)) | Zero-downtime deploys |
+| Deploy | First install: release zip + installer ([INSTALLER.md](INSTALLER.md)). Updates: the `Deploy` workflow uploads the built release over SSH and runs `migrate --force`, the idempotent install seeders + cache rebuild ([docs/runbooks/shared-hosting.md § 3](docs/runbooks/shared-hosting.md)); without SSH, the zip upgrade runbook ([INSTALLER.md § 10](INSTALLER.md)) | Zero-downtime deploys |
 | Backups | spatie/laravel-backup (needs `exec` for `mysqldump`) to S3-compatible + Google Drive; plus the host's own backups | Same + managed DB point-in-time recovery |
 | Domains | Single domain, console on secret path | Optional `app.` / ops subdomains |
 

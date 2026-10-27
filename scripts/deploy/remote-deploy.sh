@@ -85,6 +85,8 @@ if [ "$maintenance" = 1 ]; then
 fi
 
 artisan migrate --force
+# Idempotent install seeders: roles gain the permissions a release adds.
+artisan db:seed --class='Database\Seeders\InstallSeeder' --force
 
 # Build the caches in the new release before it goes live.
 artisan config:cache

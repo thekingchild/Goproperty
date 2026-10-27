@@ -38,6 +38,8 @@ enum OrganizationPermission: string
     case ViewActivity = 'organization.activity';
     case ViewMembers = 'members.view';
     case ManageMembers = 'members.manage';
+    case ViewOwners = 'owners.view';
+    case ManageOwners = 'owners.manage';
     case ViewProperties = 'properties.view';
     case ManageProperties = 'properties.manage';
     case ViewLeases = 'leases.view';
@@ -73,6 +75,7 @@ enum OrganizationPermission: string
             self::ViewCompliance,
             self::ViewActivity,
             self::ViewMembers,
+            self::ViewOwners,
             self::ViewProperties,
             self::ViewLeases,
             self::ViewBills,
@@ -86,6 +89,7 @@ enum OrganizationPermission: string
             self::ManagePaymentSettings,
             self::ManageCompliance,
             self::ManageMembers,
+            self::ManageOwners,
             self::ManageProperties,
             self::ManageLeases,
             self::ManageBills,
@@ -135,6 +139,8 @@ enum OrganizationPermission: string
             self::ViewCompliance,
             self::ViewActivity,
             self::ViewMembers,
+            self::ViewOwners,
+            self::ManageOwners,
             self::ViewProperties,
             self::ManageProperties,
             self::ViewLeases,
@@ -166,6 +172,8 @@ enum OrganizationPermission: string
             self::ViewActivity => 'See the organization\'s activity log',
             self::ViewMembers => 'See members and their roles',
             self::ManageMembers => 'Invite members, change their roles, remove them',
+            self::ViewOwners => 'See property owners\' details (ID numbers masked)',
+            self::ManageOwners => 'Add, edit, archive and restore property owners',
             self::ViewProperties => 'See buildings and units',
             self::ManageProperties => 'Add and edit buildings and units',
             self::ViewLeases => 'See leases',

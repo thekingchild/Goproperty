@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Copies the application into <dir> and builds it for production: vendor/
-# without dev packages, and the Vite assets. Dev tooling, tests and docs are
-# removed. Shared by the deploy archive (scripts/deploy/build-release.sh) and
+# without dev packages, and the Vite assets. Dev tooling, tests (the modules'
+# own Modules/*/tests too) and docs are removed. Shared by the deploy archive (scripts/deploy/build-release.sh) and
 # the release zip (scripts/release/build-package.sh), so the server needs
 # neither Composer nor Node (INSTALLER.md § 2).
 #
@@ -30,7 +30,7 @@ composer install --no-dev --optimize-autoloader \
 npm ci --no-audit --no-fund
 npm run build
 
-rm -rf node_modules tests tools docs .github scripts \
+rm -rf node_modules tests Modules/*/tests tools docs .github scripts \
     .editorconfig .gitattributes .gitignore .npmrc \
     compose.yaml phpstan.neon phpunit.xml pint.json package.json package-lock.json vite.config.js \
     ./*.md

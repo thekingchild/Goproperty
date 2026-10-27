@@ -17,24 +17,12 @@
             @endphp
             <flux:sidebar.nav>
                 @if ($inWorkspace)
-                    <flux:sidebar.item icon="home" :href="route('workspace.home', app(\App\Tenancy\OrganizationContext::class)->get())" :current="request()->routeIs('workspace.home')" wire:navigate>
-                        {{ __('Home') }}
-                    </flux:sidebar.item>
-                    @can('viewAny', \App\Models\TierApplication::class)
-                        <flux:sidebar.item icon="shield-check" :href="route('workspace.compliance.tier', app(\App\Tenancy\OrganizationContext::class)->get())" :current="request()->routeIs('workspace.compliance.*')" wire:navigate>
-                            {{ __('Transaction Tier') }}
+                    {{-- Core's pages and the modules' (App\Navigation\WorkspaceNavigation); each page checks its policy again. --}}
+                    @foreach (app(\App\Navigation\WorkspaceNavigation::class)->for(auth()->user(), app(\App\Tenancy\OrganizationContext::class)->get()) as $link)
+                        <flux:sidebar.item :icon="$link['icon']" :href="$link['url']" :current="request()->routeIs(...$link['active'])" wire:navigate data-nav="{{ $link['key'] }}">
+                            {{ __($link['label']) }}
                         </flux:sidebar.item>
-                    @endcan
-                    @can('viewAny', \App\Models\Membership::class)
-                        <flux:sidebar.item icon="users" :href="route('workspace.settings.members', app(\App\Tenancy\OrganizationContext::class)->get())" :current="request()->routeIs('workspace.settings.members')" wire:navigate>
-                            {{ __('Members') }}
-                        </flux:sidebar.item>
-                    @endcan
-                    @if (auth()->user()->can('viewSettings', app(\App\Tenancy\OrganizationContext::class)->get()) || auth()->user()->can('viewPaymentSettings', app(\App\Tenancy\OrganizationContext::class)->get()))
-                        <flux:sidebar.item icon="cog-6-tooth" :href="route(auth()->user()->can('viewSettings', app(\App\Tenancy\OrganizationContext::class)->get()) ? 'workspace.settings.profile' : 'workspace.settings.collections', app(\App\Tenancy\OrganizationContext::class)->get())" :current="request()->routeIs('workspace.settings.profile', 'workspace.settings.collections', 'workspace.settings.branding')" wire:navigate>
-                            {{ __('Settings') }}
-                        </flux:sidebar.item>
-                    @endif
+                    @endforeach
                 @else
                     <flux:sidebar.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>
                         {{ __('Dashboard') }}

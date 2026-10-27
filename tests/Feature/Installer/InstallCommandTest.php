@@ -195,6 +195,25 @@ it('builds the same schema as a plain migrate', function () {
         ->and($installed)->toBe($snapshots->take(DB::connection($reference)));
 });
 
+it('runs every module\'s migrations, building the same schema as a plain migrate', function () {
+    // Modules keep their migrations in Modules/<Name>/database/migrations (ARCHITECTURE.md § 8).
+    $moduleMigrations = array_map(fn (string $file): string => basename($file, '.php'), glob(base_path('Modules/*/database/migrations/*.php')) ?: []);
+
+    $this->artisan('goproperty:install', installOptions($this))->assertSuccessful();
+
+    $reference = ScratchDatabase::create();
+    config(['database.default' => $this->originalDefault]);
+    Artisan::call('migrate', ['--database' => $reference, '--force' => true]);
+
+    $snapshots = app(SchemaSnapshot::class);
+    $installed = $snapshots->take(DB::connection($this->database));
+
+    expect($moduleMigrations)->toContain('2026_11_02_000101_create_owner_profiles_table')
+        ->and(array_diff($moduleMigrations, $installed['migrations']))->toBe([])
+        ->and($installed['tables'])->toHaveKey('owner_profiles')
+        ->and($installed)->toBe($snapshots->take(DB::connection($reference)));
+});
+
 it('refuses to run once installed', function () {
     $this->artisan('goproperty:install', installOptions($this))->assertSuccessful();
 

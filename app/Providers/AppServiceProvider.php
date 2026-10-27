@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Navigation\WorkspaceNavigation;
 use App\Settings\SettingDefinition;
 use App\Settings\SettingsRegistry;
 use App\Tenancy\OrganizationContext;
@@ -26,6 +27,10 @@ class AppServiceProvider extends ServiceProvider
 
         // The published theme unless the console preview switches to the draft.
         $this->app->scoped(ThemeContext::class);
+
+        // The workspace sidebar: Core's pages, then whatever modules add
+        // from their providers (callAfterResolving).
+        $this->app->singleton(WorkspaceNavigation::class, static fn (): WorkspaceNavigation => WorkspaceNavigation::withCoreItems());
 
         $this->app->singleton(SettingsRegistry::class, function (): SettingsRegistry {
             $registry = new SettingsRegistry;

@@ -44,7 +44,7 @@ php artisan goproperty:check-installation              # health of an installed 
 scripts/release/install-drill.sh dist/goproperty-1.4.0-dev.1.zip   # needs DB_* for an account that can create databases
 
 # Modules (nwidart)
-php artisan module:make <Name>   # then composer dump-autoload && composer lint
+php artisan module:make <Name>   # then composer dump-autoload && composer lint (ARCHITECTURE.md § 8: what to keep)
 php artisan module:migrate <Name>
 ```
 
@@ -68,7 +68,7 @@ Breaking any of these is a critical defect regardless of task size:
 
 ## 4. Architecture Rules
 
-- **Modules:** new bounded features are new modules (`php artisan module:make`). A module's models/services/policies are private — cross-module access goes through the module's `Contracts/` interface or domain events (`PaymentConfirmed`, `LeaseActivated`, `TicketReplied`, …). No cross-module Eloquent queries or table joins.
+- **Modules:** new bounded features are new modules (`php artisan module:make`). A module's models/services/policies are private — cross-module access goes through the module's `Contracts/` interface or domain events (`PaymentConfirmed`, `LeaseActivated`, `TicketReplied`, …). No cross-module Eloquent queries or table joins. Core never imports a module's internals either (a test enforces both); a module plugs into Core from its service provider, e.g. its sidebar pages go into `App\Navigation\WorkspaceNavigation`.
 - **Core stays thin:** tenancy, auth, users, orgs, settings, money, documents, shared UI. If you're adding domain logic to Core, it probably belongs in a module.
 - **Surfaces:** `/o/{org-slug}`, `/portal` and `/owner` are Livewire 4 — do not introduce Vue/React there. The console at `/{ADMIN_PATH}` is Filament 5 (separate `staff` guard, `platform_staff` table and session cookie); its resources and pages live in `App\Platform\Filament`, the only namespace allowed to read across organizations. Never hard-code the admin path or any host name; read them from config. Marketing pages are plain Blade + Livewire forms.
 - **Suspended organizations are read-only:** never add your own suspension check and never bypass the central one (`App\Tenancy\OrganizationWriteGuard`, [ARCHITECTURE.md § 4](ARCHITECTURE.md)); a new customer permission must be classed in `OrganizationPermission::allowedWhileSuspended()`, and only an export (or a write the docs allow during suspension) may carry `#[AllowedWhileSuspended]`.
@@ -84,7 +84,7 @@ Breaking any of these is a critical defect regardless of task size:
 ## 5. Code Conventions
 
 - PHP 8.4: `declare(strict_types=1)`, constructor property promotion, readonly where sensible, enums for every status set, named arguments where they aid clarity.
-- Naming: `Action`/`Service` classes for business operations; form objects/requests for validation; Livewire components in `App\Livewire\<Area>\...`; Filament resources under the platform module only.
+- Naming: `Action`/`Service` classes for business operations; form objects/requests for validation; Livewire components of Core in `App\Livewire\<Area>\...`, and a module's own components in the module (`Modules\<Name>\Livewire\...`, views in `Modules/<Name>/resources/views/livewire`, registered as the Livewire namespace `<name>::` by the module's provider; [ARCHITECTURE.md § 8](ARCHITECTURE.md) rule 2); Filament resources under the platform module only.
 - Validation: Form Requests for controllers, `rules()` methods for Livewire; validate every upload (mime sniff, size caps); never trust client-visible-only constraints.
 - Tests: Pest. Feature tests for anything touching money, tenancy, or state machines — including the negative paths (unauthorized role, cross-tenant ID, replayed webhook, over-settled bill).
 - No PII in logs. Bank account numbers and IDs are encrypted casts. Log channels get org/user context via Sentry tags, not message contents.

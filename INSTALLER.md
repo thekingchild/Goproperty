@@ -184,7 +184,7 @@ GoProperty's own production is normally upgraded by CI over SSH ([docs/runbooks/
 3. Run a fresh database + files backup from the console and wait for it to finish.
 4. Maintenance mode (`php artisan down`, or Console → System → Maintenance).
 5. Rename the current folder to `goproperty.previous`; upload and extract the new release; copy `.env` and `storage/` across.
-6. Run the migrations (`php artisan migrate --force`, or the web upgrade step: an authenticated, `super-admin`-only page in the console that runs pending migrations in batches with the same progress bar as the installer).
+6. Run the migrations (`php artisan migrate --force`, or the web upgrade step: an authenticated, `super-admin`-only page in the console that runs pending migrations in batches with the same progress bar as the installer). Then run the idempotent install seeders, so roles gain the permissions the release adds: `php artisan db:seed --class='Database\Seeders\InstallSeeder' --force` (the web upgrade step must do the same).
 7. Clear and rebuild caches, `goproperty:check-installation`, then bring the site back up.
 
 - **Rollback:** swap the folders back and restore the database from the pre-upgrade backup. Never `migrate:rollback`, never regenerate `APP_KEY`.
