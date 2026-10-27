@@ -130,6 +130,8 @@ Step details:
 - **Collections and data.** "Set up later" only, until bank accounts (P01-05 / P03-07), agency Paystack (P03-08) and import or properties (P02) exist; their checklist items stay pending. Finishing the last step makes the organization `active` and opens the dashboard.
 - **Checklist.** One row per item in `onboarding_checklist_items`. Features mark their item done through `App\Onboarding\OnboardingChecklist::complete()`; an item links to its page once that page's route exists (`ChecklistItem::routeName()`). Only members who may edit the organization see it, and it disappears when every item is done.
 
+**Team members** (owners, administrators, agents) join by invitation from Settings → Members (built in P01-04, [ARCHITECTURE.md § 5–6.1](ARCHITECTURE.md)): an email link, single use, valid 14 days, that can be sent again (a new link; the old one stops working) or revoked. The link is bound to the invited address. Someone new sets their name, an optional mobile number and a password (the signup rules; the address counts as confirmed), and lands in the workspace; someone with an account signs in first and then joins. Inviting never reveals whether an address already has an account. A suspended organization takes no new members, and nothing about members can be changed while GoProperty staff impersonate a user.
+
 **Tenants** never self-register. The agency invites them, and the tenant opens the invitation link, sets a password (and can add a passkey), then lands in `/portal`. No SMS codes are involved. The agency picks how the link reaches the tenant:
 
 | Channel | Cost to GoProperty | Phone verified? |

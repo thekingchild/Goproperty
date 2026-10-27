@@ -25,6 +25,11 @@
                             {{ __('Transaction Tier') }}
                         </flux:sidebar.item>
                     @endcan
+                    @can('viewAny', \App\Models\Membership::class)
+                        <flux:sidebar.item icon="users" :href="route('workspace.settings.members', app(\App\Tenancy\OrganizationContext::class)->get())" :current="request()->routeIs('workspace.settings.members')" wire:navigate>
+                            {{ __('Members') }}
+                        </flux:sidebar.item>
+                    @endcan
                 @else
                     <flux:sidebar.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>
                         {{ __('Dashboard') }}

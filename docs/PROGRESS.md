@@ -6,7 +6,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 ## Current state
 
-- **In progress:** P01-04 (invitations) and P01-05 (organization settings and branding). Each task is built in its own worktree and reviewed before it merges
+- **In progress:** P01-05 (organization settings and branding). Each task is built in its own worktree and reviewed before it merges
 - **In review:** P01-09 (web installer wizard): done and verified locally on MariaDB 11.4; the Install drill on MySQL 8 and MariaDB 10.6 waits on GitHub Actions. P00-03 (hosting profiles), P00-04 (release package) and P00-06 (installer CLI + install drill): done and verified locally; each needs one green run in GitHub Actions (CI for P00-03, a tagged Release for P00-04, the Install drill on MySQL 8 and MariaDB 10.6 for P00-06) once Actions starts jobs. P00-12 (backups): built and drilled locally; needs one real run to an S3-compatible bucket and a Google Shared Drive (PRE-03 accounts)
 - **Next task:** P01 phase exit, then P02 (see `docs/plans/P02-P03-subtasks.md`, decisions needed first); PRE-01 to PRE-04 continue with the product owner
 - **Blocked:** P00-02: GitHub Actions jobs are not being given a runner (account-level), and branch protection on `main` needs a repo admin. This also holds P00-03's CI check, P00-04's release run and P00-06's install drill
@@ -18,7 +18,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | --- | --- | --- | --- |
 | PRE | 5 | 1 | In progress |
 | P00 | 13 | 7 | In progress |
-| P01 | 9 | 6 | In progress |
+| P01 | 9 | 7 | In progress |
 | P02 | 7 | 0 | Not started |
 | P03 | 13 | 0 | Not started |
 | P04 | 3 | 0 | Not started |
@@ -27,11 +27,41 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | P07 | 4 | 0 | Not started |
 | P08 | 4 | 0 | Not started |
 | P09 | 8 | 0 | Not started |
-| **Total** | **83** | **14** | |
+| **Total** | **83** | **15** | |
 
 ## Ledger (newest first)
 
 Each entry: task ID and status, date, what was delivered, tests run and results, follow-ups, next task.
+
+### P01-04 — Complete (2026-10-27): member invitations (email + token), roles, removal, acceptance page
+
+**Delivered** ([ONBOARDING_COMPLIANCE.md § 2](../ONBOARDING_COMPLIANCE.md), [ARCHITECTURE.md § 5–6.1](../ARCHITECTURE.md)):
+- **Schema** (migration `2026_11_01_040001`): `invitations` (`organization_id`, `kind` `user`, `email`, `phone`, `roles` json (one or more roles; replaces the single `role` column first planned), `target_organization_id`, `token_hash` (SHA-256, unique), `channel` `email`, `status` `pending/accepted/declined/expired/cancelled`, `expires_at` (14 days from the last send), `sent_at`, `send_count`, `opened_at`, `invited_by_user_id`, `accepted_at`, `accepted_by_user_id`, `cancelled_at`; indexes `(organization_id, status, expires_at)`, `(organization_id, email)`, `(target_organization_id, status)`). `App\Models\Invitation` (organization-scoped, in `OrganizationScopedModels`), enums `InvitationStatus`, `InvitationKind` (`user`), `InvitationChannel` (`email`). Built so P02-04 adds `kind = org_billing_transfer` + `billing_transfer_id`, and P03-01b adds the `whatsapp` / `link` channels, on the same table and acceptance.
+- **Who grants which role** (`App\Members\RoleGrants`, decided here and written into ARCHITECTURE.md § 5): Settings → Members manages the workspace roles only (`org-owner`, `org-admin`, `agent`); every change needs `members.manage`; only an `org-owner` grants or takes away `org-owner` (an administrator never invites, changes, removes an owner, nor resends/revokes an owner's invitation); the organization always keeps at least one owner.
+- **Services:** `App\Members\MemberInvitations` (invite, resend = new link + new 14 days, old link dies; revoke = `cancelled`); `App\Members\Members` (change roles, remove: deletes `organization_user` and that organization's `model_has_roles` / `model_has_permissions` rows only, the P01-01 follow-up; last-owner check under an organization row lock); `App\Members\InvitationAcceptance`. Each service checks its policy for the acting user (`InvitationPolicy`, `MembershipPolicy`, so the suspended and impersonation guards apply) and audits (log `members`, organization as subject: `invitation.sent/resent/revoked/accepted`, `member.roles_changed`, `member.removed`). Members and addresses with a waiting invitation are refused; sends limited per organization (50/h), per inviting user (30/h), per address (5/day).
+- **Email:** `MemberInvitation` notification, mail only, queued on `notifications` after commit, identical whether or not the address has an account.
+- **Settings → Members** (`/o/{slug}/settings/members`, `App\Livewire\Workspace\Members`, sidebar item for `members.view`): members with workspace roles, waiting/expired invitations, invite form (role checkboxes limited to grantable roles), Send again, Revoke, Change roles, Remove (with confirm). Write methods carry `#[BlockedWhileImpersonating]`.
+- **Acceptance page** `/invitations/{token}` (`AcceptInvitationController`, sign-in split layout, `#[BlockedWhileImpersonating]`, throttled 30/min GET, 10/min POST): bound to the invited address. New person: name, optional mobile number (Nigerian rule; a number another account holds is silently not stored, as at signup), password (signup rule incl. breached check in production); account created with the address confirmed, signed in, lands in the workspace. Existing account: "Sign in to accept" (intended URL back to the link), then Join. Another signed-in account: 403 "for another account". Unknown/used/revoked/expired: one identical 404 page. Suspended organization: refused through `OrganizationWriteGuard`. Records `invitation_accepted` (auth log) + `invitation.accepted` (audit). The token → organization lookup reads `organization_id` by token hash (one unscoped column), then loads the invitation inside that organization's context (answers decision 4 of the P02/P03 plan for invitations).
+- `invitations` added to `AdminPath::RESERVED`.
+- **Fix outside the task (P00-10):** `user_devices.token_hash` was unique table-wide while `KnownDevices` reuses the browser's token for a second account, so any second account signing in from the same browser got a 500 (found in the browser smoke: a new member accepting in a browser the owner had used). New migration `2026_11_01_040002` makes it unique per `(token_hash, user_id)`; regression test added; DATABASE_SCHEMA.md updated.
+- **Docs:** DATABASE_SCHEMA.md (`invitations`, `user_devices`), ARCHITECTURE.md § 5 (role grants) and § 6.1 (how invitations are built), ONBOARDING_COMPLIANCE.md § 2 (team members), UX_DESIGN.md § 3.3 (accept invitation as built).
+
+**Tests and evidence (local, MariaDB 11.4):**
+- Orchestrator's review run (branch with latest `main`): `composer ci` Pint passed, Larastan 0 errors, Pest **1,243 tests: 1,242 passed, 1 skipped, 10,589 assertions**.
+- `composer ci` on the branch merged with main (P01-03): Pint passed, Larastan 0 errors, Pest **1,243 tests: 1,242 passed, 1 skipped (the existing module-boundary check), 10,589 assertions**, 0 failed. 26 tests are new (`tests/Feature/Members/`, helpers in `tests/Support/members.php`).
+- **AC: an invited `agent` sees only what ARCHITECTURE.md § 5 grants:** `InvitationAcceptanceTest` › "gives an invited and accepted agent exactly what ARCHITECTURE.md § 5 grants an agent, and refuses the rest" (owner invites through the page, guest accepts through the link, then every `OrganizationPermission` in the catalogue is checked through `hasPermissionTo` and the Gate and must equal `OrganizationRole::Agent->permissions()`; workspace opens, members page 403, other organization 404; auth log, audit entry, audit chain verifies).
+- **AC: expired/used tokens rejected:** "rejects expired, used and revoked links, and unknown ones, all the same way" (14 days + 1 minute; GET and POST 404 with the same page; a used link also fails for its own account; statuses recorded), "still works on the last day of the 14", "works once even when accepted twice", "makes the old link stop working when the invitation is sent again".
+- Also: wrong signed-in account refused (403), existing account signs in and joins (roles elsewhere untouched), signup password/phone rules, phone of another account not stored, no account enumeration (same reply and same email), mail only on `notifications` (no SMS), token stored hashed, second account in one browser; `MembersPageTest`: page access (owner/admin 200, agent 403, strangers/other org 404), owner grants any role / admin never owner (UI, Livewire and service), agent and non-workspace roles refused, duplicate member/invitation refused, per-address limit, **other organization's invitations and members 404**, resend/revoke audited, admin cannot touch owners, **last-owner protection**, **removal drops roles and direct permissions in that organization only**, **everything refused while suspended** (Livewire 403, services, acceptance) and **while impersonating in write mode** (all six Livewire actions and the invitation link 403, blocked entries audited, nothing sent).
+- **In a real browser** (php -S, seeded throwaway database, dropped afterwards; desktop and 375 px): members page, invitation sent, link opened while signed in as the owner → "for another account", signed out → join form, account created → landed as Agent; members page 403 for the agent; owner changed the agent's roles to Administrator + Agent; used link shows the "no longer works" page; no horizontal scroll at 375 px.
+
+**Follow-ups:**
+- P02-04 adds `InvitationKind::OrgBillingTransfer`, `billing_transfer_id` and its own acceptance through `BillingTransferService`; P03-01b adds `whatsapp`/`link` channels, phone-only invitees and the tenant role (Settings → Members ignores tenant/property-owner roles).
+- Passkey enrolment is not offered on the acceptance page (UX § 3.3 says optional); members add one under Settings → Security. The agency logo on the page waits for branding (P01-05).
+- Expired invitations are marked `expired` when their link is opened; the page shows any pending one past its date as expired. No scheduler sweep (none needed yet).
+- The members page shows its confirmation at the top of the page; on phones a toast would be nicer once the workspace UI kit has one.
+- If signing in fails after a new account is accepted (an unexpected error), the account and membership exist and the person can sign in normally; the link is used.
+
+**Next:** P01-05 (organization settings and branding).
 
 ### P01-03 — Complete (2026-10-27): Transaction Tier applications, compliance documents, review queue, document expiry
 

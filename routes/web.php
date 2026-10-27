@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\BrandAssetController;
+use App\Http\Controllers\Invitations\AcceptInvitationController;
 use App\Http\Controllers\Marketing\MarketingController;
 use App\Http\Controllers\Marketing\SeoController;
 use App\Http\Controllers\Onboarding\RegisterController;
@@ -16,6 +17,7 @@ use App\Http\Middleware\SignInPageHeaders;
 use App\Livewire\Compliance\TierApplicationPage;
 use App\Livewire\Onboarding\CreateOrganization;
 use App\Livewire\Onboarding\SetupWizard;
+use App\Livewire\Workspace\Members;
 use App\Theme\BrandAssets;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -71,6 +73,20 @@ Route::get('email/verify/{id}/{hash}', VerifyEmailController::class)
     ->middleware(['signed', 'throttle:6,1'])
     ->name('verification.verify');
 
+// Invitation links (ONBOARDING_COMPLIANCE.md § 2): for guests (set a
+// password) and for the invited account once signed in. Unknown, used,
+// revoked and expired links all get the same page.
+Route::middleware(SignInPageHeaders::class)->controller(AcceptInvitationController::class)->group(function () {
+    Route::get('invitations/{token}', 'show')
+        ->where('token', '[A-Za-z0-9]{1,128}')
+        ->middleware('throttle:30,1')
+        ->name('invitations.show');
+    Route::post('invitations/{token}', 'store')
+        ->where('token', '[A-Za-z0-9]{1,128}')
+        ->middleware('throttle:10,1')
+        ->name('invitations.accept');
+});
+
 // Cacheable files: no session, no cookies.
 Route::withoutMiddleware([StartSession::class, ShareErrorsFromSession::class, EncryptCookies::class, AddQueuedCookiesToResponse::class, PreventRequestForgery::class])->group(function () {
     Route::get('robots.txt', [SeoController::class, 'robots'])->name('robots');
@@ -103,6 +119,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         // Signup wizard, Tier step onwards (ONBOARDING_COMPLIANCE.md § 2).
         Route::livewire('setup', SetupWizard::class)->name('setup');
+
+        // Settings → Members: members, roles and invitations (ARCHITECTURE.md § 5).
+        Route::livewire('settings/members', Members::class)->name('settings.members');
 
         // Transaction Tier application, org-owner only (ONBOARDING_COMPLIANCE.md § 5.3).
         Route::livewire('compliance/tier', TierApplicationPage::class)->name('compliance.tier');

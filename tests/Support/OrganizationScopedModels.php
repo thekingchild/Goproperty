@@ -9,6 +9,7 @@ use App\Enums\ComplianceDocumentType;
 use App\Enums\OnboardingStep;
 use App\Enums\TransactionTier;
 use App\Models\ComplianceDocument;
+use App\Models\Invitation;
 use App\Models\Membership;
 use App\Models\OnboardingChecklistItem;
 use App\Models\OrganizationOnboarding;
@@ -37,6 +38,12 @@ final class OrganizationScopedModels
             Membership::class => fn (): Model => Membership::query()->create(['user_id' => User::factory()->create()->id]),
             OrganizationOnboarding::class => fn (): Model => OrganizationOnboarding::query()->create(['step' => OnboardingStep::Tier]),
             OnboardingChecklistItem::class => fn (): Model => OnboardingChecklistItem::query()->create(['item' => ChecklistItem::Plan]),
+            Invitation::class => fn (): Model => tap(new Invitation, fn (Invitation $invitation): bool => $invitation->forceFill([
+                'email' => fake()->unique()->safeEmail(),
+                'roles' => ['agent'],
+                'token_hash' => hash('sha256', fake()->unique()->sha256()),
+                'expires_at' => now()->addDays(14),
+            ])->save()),
             TierApplication::class => fn (): Model => TierApplication::query()->create(['from_tier' => TransactionTier::One, 'requested_tier' => TransactionTier::Two]),
             ComplianceDocument::class => fn (): Model => ComplianceDocument::query()->create([
                 'type' => ComplianceDocumentType::ScumlCertificate,
