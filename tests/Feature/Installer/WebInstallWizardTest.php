@@ -413,7 +413,10 @@ it('offers to empty the database after a failed migration', function () {
     wizardBuild($this);
 
     // A table a later migration needs to create already exists, half-made.
-    $migration = DB::connection($this->database)->table('migrations')->orderByDesc('id')->value('migration');
+    // The newest migration that creates a table (a data-only migration,
+    // such as P02-05's branding move, runs again without failing).
+    $migration = DB::connection($this->database)->table('migrations')->orderByDesc('id')->pluck('migration')
+        ->first(fn (string $name): bool => str_contains((string) file_get_contents(database_path("migrations/{$name}.php")), 'Schema::create('));
     DB::connection($this->database)->table('migrations')->where('migration', $migration)->delete();
 
     $this->browser->post('/install/database')->assertRedirect('/install/database');

@@ -18,8 +18,10 @@ use Symfony\Component\HttpFoundation\Response;
  * organization's files (the path is built from the organization in the
  * URL). The logo is for any of them; the signature and stamp, which could
  * be misused on a fake document, only for those who see the branding
- * settings. The files were re-encoded as PNG when stored. Documents issued
- * as PDFs embed the images instead of linking here.
+ * settings. {file} is the image's media uuid, looked up in the
+ * organization's own `branding` media; the files were re-encoded as PNG
+ * when stored. Documents issued as PDFs embed the images instead of
+ * linking here.
  */
 final class BrandingFileController
 {
@@ -29,14 +31,14 @@ final class BrandingFileController
             abort_unless(Gate::allows('viewSettings', $organization), 404);
         }
 
-        $path = $files->locate($organization, $role, $file);
-        $bytes = $path !== null ? $files->read($organization, $path) : null;
+        $media = $files->locate($organization, $role, $file);
+        $bytes = $media !== null ? $files->read($media) : null;
         abort_if($bytes === null, 404);
 
         return response($bytes, 200, [
             'Content-Type' => 'image/png',
             'Content-Length' => (string) strlen($bytes),
-            // Named by content hash: the same URL never changes.
+            // Named by media uuid: the same URL never changes.
             'Cache-Control' => 'private, max-age=31536000, immutable',
             'X-Content-Type-Options' => 'nosniff',
             'Content-Security-Policy' => "default-src 'none'; sandbox",

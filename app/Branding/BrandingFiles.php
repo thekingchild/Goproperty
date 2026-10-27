@@ -4,32 +4,40 @@ declare(strict_types=1);
 
 namespace App\Branding;
 
+use App\Media\Media;
+use App\Media\MediaUploads;
+use App\Media\UploadRefused;
 use App\Models\Organization;
+use App\Tenancy\OrganizationContext;
 use finfo;
 use GdImage;
-use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use RuntimeException;
+use Throwable;
 
 /**
  * An organization's logo, signature and stamp images (BRANDING_DOCUMENTS.md
- * § 1, ARCHITECTURE.md § 9–10), until the media library (P02-05) takes
- * them over.
+ * § 1, ARCHITECTURE.md § 9–10).
  *
  * Checked on the server whatever the browser said: at most 1 MB, the type
  * sniffed from the bytes (finfo) and only PNG, JPEG or WebP (never SVG,
  * which can carry script), a size GD can safely decode, and a minimum
  * width. Then decoded and re-encoded as PNG (which drops anything hidden
  * in the file and any EXIF data), trimmed of a plain border and scaled
- * down, and stored on a private disk (config/branding.php) under the
- * organization's folder, named by content hash. Served only through the
- * workspace route (BrandingFileController); PDFs embed them as data URIs.
+ * down, and stored in the media library (P02-05): collection `branding`
+ * of the organization, on the private media disk, its role kept as a
+ * custom property. `organizations.branding` holds the media ids
+ * (`logo_media_id`, `signature_media_id`, `stamp_media_id`; the logo's is
+ * also `organizations.logo_media_id`). Served only through the workspace
+ * route (BrandingFileController); PDFs embed them as data URIs.
  *
- * Old files are kept: issued documents keep the branding they were issued
- * with (§ 1), and P02-05 decides what to prune.
+ * Old images are kept: issued documents keep the branding they were issued
+ * with (§ 1). Images stored before P02-05 on the branding disk were moved
+ * into the media library by the 2026_11_02_050002 migration.
  */
-final class BrandingFiles
+final readonly class BrandingFiles
 {
     /** Role => smallest width accepted, largest width and height stored. */
     public const array ROLES = [
@@ -44,6 +52,14 @@ final class BrandingFiles
     public const int MAX_SIDE = 5000;
 
     public const array MIMES = ['image/png', 'image/jpeg', 'image/webp'];
+
+    /** The media collection (config/media.php) the stored PNGs go to. */
+    public const string COLLECTION = 'branding';
+
+    public function __construct(
+        private MediaUploads $uploads,
+        private OrganizationContext $context,
+    ) {}
 
     /**
      * What is wrong with an upload, in words for the person uploading, or
@@ -89,11 +105,13 @@ final class BrandingFiles
     }
 
     /**
-     * Stores a checked upload and returns its path for `organizations.branding`.
+     * Stores a checked upload in the media library (collection `branding`,
+     * owned by the organization) and returns the media id for
+     * `organizations.branding` (and `organizations.logo_media_id`).
      *
      * @throws RuntimeException with the problem when the file cannot be stored
      */
-    public function store(Organization $organization, string $role, UploadedFile $file): string
+    public function store(Organization $organization, string $role, UploadedFile $file): int
     {
         $problem = $this->problem($role, $file);
 
@@ -108,52 +126,78 @@ final class BrandingFiles
         }
 
         $png = $this->encode($this->fit($this->trim($image), self::ROLES[$role]['max_width'], self::ROLES[$role]['max_height']));
-        $path = $this->folder($organization).'/'.$role.'/'.substr(hash('sha256', $png), 0, 32).'.png';
-        $this->disk()->put($path, $png);
+        $temporary = tempnam(sys_get_temp_dir(), 'gp-branding-');
 
-        return $path;
+        if ($temporary === false || file_put_contents($temporary, $png) === false) {
+            throw new RuntimeException('The image could not be stored. Try again.');
+        }
+
+        try {
+            return $this->context->run($organization, fn (): int => $this->uploads->add($organization, self::COLLECTION, $temporary, $role.'.png', ['role' => $role])->id);
+        } catch (UploadRefused $refused) {
+            throw new RuntimeException($refused->getMessage(), previous: $refused);
+        } finally {
+            if (is_file($temporary)) {
+                @unlink($temporary);
+            }
+        }
     }
 
-    /** The stored file's bytes, or null when it is missing or not this organization's. */
-    public function read(Organization $organization, string $path): ?string
+    /** The stored image of this role, or null when it is missing or not this organization's. */
+    public function media(Organization $organization, string $role, ?int $mediaId): ?Media
     {
-        if (! $this->belongsTo($organization, $path)) {
+        if ($mediaId === null || ! isset(self::ROLES[$role])) {
             return null;
         }
 
-        $bytes = $this->disk()->get($path);
+        return $this->context->run($organization, fn (): ?Media => $this->ofRole(
+            Media::query()->whereKey($mediaId)->where('collection_name', self::COLLECTION)->first(),
+            $role,
+        ));
+    }
+
+    /** The image of this role with this uuid, for the serving route. */
+    public function locate(Organization $organization, string $role, string $uuid): ?Media
+    {
+        if (! isset(self::ROLES[$role]) || ! Str::isUuid($uuid)) {
+            return null;
+        }
+
+        return $this->context->run($organization, fn (): ?Media => $this->ofRole(
+            Media::query()->where('uuid', $uuid)->where('collection_name', self::COLLECTION)->first(),
+            $role,
+        ));
+    }
+
+    /** The stored PNG's bytes, or null when the file is missing. */
+    public function read(Media $media): ?string
+    {
+        try {
+            $bytes = Storage::disk($media->disk)->get($media->getPathRelativeToRoot());
+        } catch (Throwable) {
+            return null;
+        }
 
         return is_string($bytes) && $bytes !== '' ? $bytes : null;
     }
 
     /** data:image/png;base64,… for PDFs (dompdf and Chrome read these with no network). */
-    public function dataUri(Organization $organization, ?string $path): ?string
+    public function dataUri(Organization $organization, string $role, ?int $mediaId): ?string
     {
-        $bytes = $path !== null ? $this->read($organization, $path) : null;
+        $media = $this->media($organization, $role, $mediaId);
+        $bytes = $media !== null ? $this->read($media) : null;
 
         return $bytes !== null ? 'data:image/png;base64,'.base64_encode($bytes) : null;
     }
 
-    /** The workspace URL that serves the file, for web pages and the live preview. */
-    public function url(Organization $organization, string $role, ?string $path): ?string
+    /** The workspace URL that serves the image, for web pages and the live preview. */
+    public function url(Organization $organization, string $role, ?int $mediaId): ?string
     {
-        if ($path === null || ! $this->belongsTo($organization, $path) || ! str_starts_with($path, $this->folder($organization).'/'.$role.'/')) {
-            return null;
-        }
+        $media = $this->media($organization, $role, $mediaId);
 
-        return route('workspace.settings.branding.file', ['organization' => $organization->slug, 'role' => $role, 'file' => pathinfo($path, PATHINFO_FILENAME)]);
-    }
-
-    /** The stored path for a role and hash, for the serving route. */
-    public function locate(Organization $organization, string $role, string $hash): ?string
-    {
-        if (! isset(self::ROLES[$role]) || preg_match('/^[a-f0-9]{32}$/D', $hash) !== 1) {
-            return null;
-        }
-
-        $path = $this->folder($organization).'/'.$role.'/'.$hash.'.png';
-
-        return $this->disk()->exists($path) ? $path : null;
+        return $media !== null
+            ? route('workspace.settings.branding.file', ['organization' => $organization->slug, 'role' => $role, 'file' => $media->uuid])
+            : null;
     }
 
     public function sniff(string $bytes): string
@@ -161,23 +205,9 @@ final class BrandingFiles
         return (string) (new finfo(FILEINFO_MIME_TYPE))->buffer($bytes);
     }
 
-    public function disk(): Filesystem
+    private function ofRole(?Media $media, string $role): ?Media
     {
-        $disk = config('branding.disk', 'local');
-
-        return Storage::disk(is_string($disk) && $disk !== '' ? $disk : 'local');
-    }
-
-    private function folder(Organization $organization): string
-    {
-        $folder = config('branding.folder', 'organization-branding');
-
-        return (is_string($folder) && $folder !== '' ? $folder : 'organization-branding').'/'.$organization->getKey();
-    }
-
-    private function belongsTo(Organization $organization, string $path): bool
-    {
-        return preg_match('#^'.preg_quote($this->folder($organization), '#').'/(logo|signature|stamp)/[a-f0-9]{32}\.png$#D', $path) === 1;
+        return $media !== null && $media->getCustomProperty('role') === $role ? $media : null;
     }
 
     /** Cuts away a plain border (white or transparent margins around a logo). */

@@ -75,6 +75,35 @@ return [
             'report' => false,
         ],
 
+        // The media library (config/media-library.php, ARCHITECTURE.md § 9):
+        // photos, payment proofs, branding images. Private; files are only
+        // ever streamed by the signed /media route, never linked directly.
+        'media' => [
+            'driver' => 'local',
+            'root' => storage_path('app/media'),
+            'visibility' => 'private',
+            'throw' => true,
+            'report' => false,
+        ],
+
+        // The production choice (MEDIA_DISK=media-s3, the default when
+        // FILESYSTEM_DISK=s3): a private S3-compatible bucket. Uses the
+        // installer's AWS_* bucket under `media/` unless MEDIA_S3_* names
+        // another one.
+        'media-s3' => [
+            'driver' => 's3',
+            'key' => env('MEDIA_S3_ACCESS_KEY_ID', env('AWS_ACCESS_KEY_ID')),
+            'secret' => env('MEDIA_S3_SECRET_ACCESS_KEY', env('AWS_SECRET_ACCESS_KEY')),
+            'region' => env('MEDIA_S3_REGION', env('AWS_DEFAULT_REGION', 'us-east-1')),
+            'bucket' => env('MEDIA_S3_BUCKET', env('AWS_BUCKET')),
+            'endpoint' => env('MEDIA_S3_ENDPOINT', env('AWS_ENDPOINT')),
+            'use_path_style_endpoint' => (bool) env('MEDIA_S3_USE_PATH_STYLE_ENDPOINT', env('AWS_USE_PATH_STYLE_ENDPOINT', false)),
+            'root' => env('MEDIA_S3_ROOT', 'media'),
+            'visibility' => 'private',
+            'throw' => true,
+            'report' => false,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

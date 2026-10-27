@@ -8,6 +8,7 @@ use App\Http\Controllers\BrandAssetController;
 use App\Http\Controllers\Invitations\AcceptInvitationController;
 use App\Http\Controllers\Marketing\MarketingController;
 use App\Http\Controllers\Marketing\SeoController;
+use App\Http\Controllers\MediaController;
 use App\Http\Controllers\Onboarding\RegisterController;
 use App\Http\Controllers\Onboarding\VerifyEmailController;
 use App\Http\Controllers\Workspace\BrandingFileController;
@@ -23,6 +24,7 @@ use App\Livewire\Settings\BrandingPage;
 use App\Livewire\Settings\OrganizationProfilePage;
 use App\Livewire\Settings\PaymentCollectionPage;
 use App\Livewire\Workspace\Members;
+use App\Media\CollectionRules;
 use App\Theme\BrandAssets;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -102,6 +104,14 @@ Route::withoutMiddleware([StartSession::class, ShareErrorsFromSession::class, En
         ->whereIn('role', [...array_keys(BrandAssets::ROLES), 'apple-touch-icon'])
         ->name('brand.asset');
     Route::redirect('favicon.ico', '/brand/favicon');
+
+    // Stored files (ARCHITECTURE.md § 9): signed links that expire
+    // (App\Media\MediaUrls); the signed organization sets the context.
+    Route::get('media/{organization}/{media}/{conversion?}', MediaController::class)
+        ->where('organization', '[0-9]{1,20}')
+        ->whereUuid('media')
+        ->whereIn('conversion', CollectionRules::conversionNames())
+        ->name('media.show');
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
@@ -135,7 +145,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::livewire('settings/branding', BrandingPage::class)->name('settings.branding');
         Route::get('settings/branding/files/{role}/{file}', BrandingFileController::class)
             ->whereIn('role', array_keys(BrandingFiles::ROLES))
-            ->where('file', '[a-f0-9]{32}')
+            ->whereUuid('file')
             ->name('settings.branding.file');
 
         // Transaction Tier application, org-owner only (ONBOARDING_COMPLIANCE.md § 5.3).

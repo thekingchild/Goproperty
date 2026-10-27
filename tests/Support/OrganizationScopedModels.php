@@ -8,14 +8,17 @@ use App\Enums\ChecklistItem;
 use App\Enums\ComplianceDocumentType;
 use App\Enums\OnboardingStep;
 use App\Enums\TransactionTier;
+use App\Media\Media;
 use App\Models\ComplianceDocument;
 use App\Models\Invitation;
 use App\Models\Membership;
 use App\Models\OnboardingChecklistItem;
+use App\Models\Organization;
 use App\Models\OrganizationBankAccount;
 use App\Models\OrganizationOnboarding;
 use App\Models\TierApplication;
 use App\Models\User;
+use App\Tenancy\OrganizationContext;
 use Closure;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
@@ -64,6 +67,22 @@ final class OrganizationScopedModels
                 'size_bytes' => 1024,
                 'sha256' => str_repeat('0', 64),
                 'document_number' => 'SCUML-123',
+            ]),
+            // A media row on its own (no file): the probes are about the rows.
+            Media::class => fn (): Model => Media::query()->create([
+                'model_type' => Organization::class,
+                'model_id' => app(OrganizationContext::class)->id(),
+                'collection_name' => 'photos',
+                'name' => 'probe',
+                'file_name' => Str::random(40).'.jpg',
+                'mime_type' => 'image/jpeg',
+                'disk' => 'media',
+                'conversions_disk' => 'media',
+                'size' => 1024,
+                'manipulations' => [],
+                'custom_properties' => [],
+                'generated_conversions' => [],
+                'responsive_images' => [],
             ]),
             OwnerProfile::class => fn (): Model => OwnerProfile::factory()->withNin()->create(),
         ];

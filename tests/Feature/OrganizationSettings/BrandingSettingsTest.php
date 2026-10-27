@@ -11,6 +11,7 @@ use App\Enums\DocumentLayout;
 use App\Enums\OrganizationRole;
 use App\Enums\OrganizationStatus;
 use App\Livewire\Settings\BrandingPage;
+use App\Media\Media;
 use App\Models\OnboardingChecklistItem;
 use App\Models\Organization;
 use App\Models\User;
@@ -39,6 +40,7 @@ require_once __DIR__.'/../../Support/organization-settings.php';
 
 beforeEach(function () {
     Storage::fake('local');
+    Storage::fake('media');
     Notification::fake();
     seedOrganizationRoles();
 
@@ -235,7 +237,8 @@ describe('logo, signature and stamp uploads', function () {
     it('refuses files that are not PNG, JPEG or WebP images, whatever their name', function (string $role, UploadedFile $file, string $message) {
         expect(brandingErrors($this->acme, $this->owner, [], [$role => $file])[$role][0] ?? '')->toContain($message)
             ->and($this->acme->fresh()->branding)->toBeNull()
-            ->and(Storage::disk('local')->allFiles('organization-branding'))->toBe([]);
+            ->and(Storage::disk('media')->allFiles())->toBe([])
+            ->and(inOrganization($this->acme, fn () => Media::query()->count()))->toBe(0);
     })->with([
         'PHP renamed to .png' => fn () => ['logo', UploadedFile::fake()->createWithContent('logo.png', "<?php echo 'pwned';"), 'PNG, JPEG or WebP'],
         'SVG' => fn () => ['logo', UploadedFile::fake()->createWithContent('logo.svg', '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'), 'PNG, JPEG or WebP'],
@@ -262,17 +265,29 @@ describe('logo, signature and stamp uploads', function () {
             ->call('save')
             ->assertHasNoErrors();
 
+        // Stored in the media library: the organization's `branding` collection, on the media disk.
         $branding = Branding::fromOrganization($this->acme->fresh());
-        expect($branding->logoFile)->toMatch('#^organization-branding/'.$this->acme->id.'/logo/[a-f0-9]{32}\.png$#')
-            ->and($branding->signatureFile)->not->toBeNull()
-            ->and(Storage::disk('local')->exists((string) $branding->logoFile))->toBeTrue();
+        $logo = inOrganization($this->acme, fn () => Media::query()->findOrFail($branding->logoMediaId));
+        $signature = inOrganization($this->acme, fn () => Media::query()->findOrFail($branding->signatureMediaId));
+        expect($this->acme->fresh()->logo_media_id)->toBe($logo->id)
+            ->and($this->acme->fresh()->branding['logo_media_id'] ?? null)->toBe($logo->id)
+            ->and($logo->organization_id)->toBe($this->acme->id)
+            ->and($logo->model_type)->toBe(Organization::class)
+            ->and($logo->model_id)->toBe($this->acme->id)
+            ->and($logo->collection_name)->toBe('branding')
+            ->and($logo->getCustomProperty('role'))->toBe('logo')
+            ->and($signature->getCustomProperty('role'))->toBe('signature')
+            ->and($logo->mime_type)->toBe('image/png')
+            ->and(Storage::disk('media')->exists($logo->getPathRelativeToRoot()))->toBeTrue()
+            ->and($logo->getPathRelativeToRoot())->toStartWith($this->acme->id.'/'.$logo->uuid.'/');
 
         // Scaled down to at most 800 px wide.
-        $size = getimagesizefromstring((string) Storage::disk('local')->get((string) $branding->logoFile));
-        expect($size[0])->toBeLessThanOrEqual(800)->and($size['mime'])->toBe('image/png');
+        $size = getimagesizefromstring((string) Storage::disk('media')->get($logo->getPathRelativeToRoot()));
+        expect($size[0])->toBeLessThanOrEqual(800)->and($size['mime'])->toBe('image/png')
+            ->and($logo->checksum())->toBe(hash('sha256', (string) Storage::disk('media')->get($logo->getPathRelativeToRoot())));
 
-        $logoUrl = '/o/acme-homes/settings/branding/files/logo/'.pathinfo((string) $branding->logoFile, PATHINFO_FILENAME);
-        $signatureUrl = '/o/acme-homes/settings/branding/files/signature/'.pathinfo((string) $branding->signatureFile, PATHINFO_FILENAME);
+        $logoUrl = '/o/acme-homes/settings/branding/files/logo/'.$logo->uuid;
+        $signatureUrl = '/o/acme-homes/settings/branding/files/signature/'.$signature->uuid;
 
         $this->actingAs($this->owner)->get($logoUrl)->assertOk()->assertHeader('Content-Type', 'image/png')->assertHeader('X-Content-Type-Options', 'nosniff');
         $this->actingAs($this->owner)->get($signatureUrl)->assertOk();
@@ -288,12 +303,17 @@ describe('logo, signature and stamp uploads', function () {
         // Another organization's member, at their own address, cannot reach Acme's file.
         $other = Organization::factory()->create(['slug' => 'other-realty']);
         $otherOwner = joinAs(User::factory()->create(), $other);
-        $this->actingAs($otherOwner)->get('/o/other-realty/settings/branding/files/logo/'.pathinfo((string) $branding->logoFile, PATHINFO_FILENAME))->assertNotFound();
+        $this->actingAs($otherOwner)->get('/o/other-realty/settings/branding/files/logo/'.$logo->uuid)->assertNotFound();
+
+        // A signature's uuid does not open as a logo.
+        $this->actingAs($this->owner)->get('/o/acme-homes/settings/branding/files/logo/'.$signature->uuid)->assertNotFound();
 
         // Removing the logo brings the monogram back; the file is kept for issued documents.
         brandingLivewire($this->owner, $this->acme->fresh())->set('removeLogo', true)->call('save')->assertHasNoErrors();
-        expect(Branding::fromOrganization($this->acme->fresh())->logoFile)->toBeNull()
-            ->and(Storage::disk('local')->exists((string) $branding->logoFile))->toBeTrue();
+        expect(Branding::fromOrganization($this->acme->fresh())->logoMediaId)->toBeNull()
+            ->and($this->acme->fresh()->logo_media_id)->toBeNull()
+            ->and(Storage::disk('media')->exists($logo->getPathRelativeToRoot()))->toBeTrue()
+            ->and(inOrganization($this->acme, fn () => Media::query()->whereKey($logo->id)->exists()))->toBeTrue();
     });
 });
 

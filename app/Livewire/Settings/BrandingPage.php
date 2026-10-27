@@ -184,9 +184,9 @@ final class BrandingPage extends Component
             'primaryContrast' => round(Color::contrast($primary, '#ffffff'), 1),
             'textShade' => strtoupper(BrandColours::textShade($primary)),
             'imageUrls' => [
-                'logo' => $files->url($organization, 'logo', $saved->logoFile),
-                'signature' => $files->url($organization, 'signature', $saved->signatureFile),
-                'stamp' => $files->url($organization, 'stamp', $saved->stampFile),
+                'logo' => $files->url($organization, 'logo', $saved->logoMediaId),
+                'signature' => $files->url($organization, 'signature', $saved->signatureMediaId),
+                'stamp' => $files->url($organization, 'stamp', $saved->stampMediaId),
             ],
             'productName' => app(ThemeContext::class)->current()->name(),
             'notesMax' => BrandingSettings::NOTES_MAX,
@@ -246,9 +246,9 @@ final class BrandingPage extends Component
             layout: DocumentLayout::tryFrom((string) $values['layout']) ?? $saved->layout,
             emailSenderName: $text($values['emailSenderName']),
             hidePoweredBy: $values['hidePoweredBy'] === true,
-            logoFile: $this->removeLogo ? null : $saved->logoFile,
-            signatureFile: $this->removeSignature ? null : $saved->signatureFile,
-            stampFile: $this->removeStamp ? null : $saved->stampFile,
+            logoMediaId: $this->removeLogo ? null : $saved->logoMediaId,
+            signatureMediaId: $this->removeSignature ? null : $saved->signatureMediaId,
+            stampMediaId: $this->removeStamp ? null : $saved->stampMediaId,
         );
     }
 

@@ -67,7 +67,7 @@ return [
             'payments' => ['queues' => ['billing'], 'max_jobs' => 50],
             'notifications' => ['queues' => ['notifications'], 'max_jobs' => 100],
             'default' => ['queues' => ['default'], 'max_jobs' => 50],
-            'bulk' => ['queues' => ['pdf', 'imports'], 'max_jobs' => 20],
+            'bulk' => ['queues' => ['pdf', 'media', 'imports'], 'max_jobs' => 20],
         ],
     ],
 

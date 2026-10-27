@@ -68,7 +68,7 @@ final readonly class BrandingSettings
             try {
                 $images[$role] = $upload instanceof UploadedFile
                     ? $this->files->store($organization, $role, $upload)
-                    : (in_array($role, $remove, true) ? null : $current->file($role));
+                    : (in_array($role, $remove, true) ? null : $current->mediaId($role));
             } catch (RuntimeException $problem) {
                 throw ValidationException::withMessages([$role => $problem->getMessage()]);
             }
@@ -92,13 +92,16 @@ final readonly class BrandingSettings
             layout: DocumentLayout::from((string) $data['layout']),
             emailSenderName: $data['emailSenderName'],
             hidePoweredBy: $data['hidePoweredBy'] === true,
-            logoFile: $images['logo'],
-            signatureFile: $images['signature'],
-            stampFile: $images['stamp'],
+            logoMediaId: $images['logo'],
+            signatureMediaId: $images['signature'],
+            stampMediaId: $images['stamp'],
         );
 
         DB::transaction(function () use ($by, $organization, $branding): void {
             $organization->branding = $branding->toArray();
+            // The logo's own column (DATABASE_SCHEMA.md, organizations); the
+            // json carries the same id for the audit log and document snapshots.
+            $organization->logo_media_id = $branding->logoMediaId;
             $organization->save();
             $this->checklist->complete(ChecklistItem::Branding, $by);
         });

@@ -6,9 +6,9 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 ## Current state
 
-- **In progress:** P02 wave 1 (P02-01a and P02-05) from `docs/plans/P02-P03-subtasks.md`, each in its own worktree
+- **In progress:** P02 wave 2 (P02-01b and P02-06a) from `docs/plans/P02-P03-subtasks.md`, each in its own worktree. Done in P02: P02-01a, P02-05
 - **In review:** P00-02 (CI): all four database jobs are green in GitHub Actions; branch protection on `main` is off by the product owner's decision (2026-10-27) while P02 and P03 are built, so tasks keep merging straight to `main`; turn it on afterwards (`docs/runbooks/ci.md` § 3) and mark P00-02 complete. P00-12 (backups): built and drilled locally; needs one real run to an S3-compatible bucket and a Google Shared Drive (PRE-03 accounts)
-- **Next task:** P02 waves 2–6 after wave 1; PRE-01 to PRE-04 continue with the product owner
+- **Next task:** P02 waves 3–6 after wave 2; PRE-01 to PRE-04 continue with the product owner
 - **Blocked:** P00-13 (staging): the deploy scripts, the deploy on merge and the deploy drill are built and drilled locally; it needs a staging host (PRE-04). Until then the Deploy workflow fails at "Check deploy settings" on every push to `main`
 
 ## Board
@@ -18,7 +18,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | PRE | 5 | 1 | In progress |
 | P00 | 13 | 10 | In progress |
 | P01 | 9 | 9 | Complete (2026-10-27) |
-| P02 | 7 | 0 | Not started |
+| P02 | 7 | 1 | In progress |
 | P03 | 13 | 0 | Not started |
 | P04 | 3 | 0 | Not started |
 | P05 | 6 | 0 | Not started |
@@ -26,11 +26,62 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | P07 | 4 | 0 | Not started |
 | P08 | 4 | 0 | Not started |
 | P09 | 8 | 0 | Not started |
-| **Total** | **83** | **20** | |
+| **Total** | **83** | **21** | |
 
 ## Ledger (newest first)
 
 Each entry: task ID and status, date, what was delivered, tests run and results, follow-ups, next task.
+
+### P02-05 — Complete (2026-10-27): media library (Core): private media disk, organization-scoped media, upload checks, queued GD/WebP conversions, signed links; branding images moved in
+
+**Delivered** ([ARCHITECTURE.md § 9](../ARCHITECTURE.md) "Media library", § 10; `docs/plans/P02-P03-subtasks.md` P02-05):
+- **Package:** `spatie/laravel-medialibrary` **`~11.23.11`** (the only composer change of wave 1; brings `spatie/image` 3.9.9, `spatie/image-optimizer`, `maennchen/zipstream-php`, `composer/semver`). Needs `ext-exif` and `ext-fileinfo`, already blocking in the installer's server check.
+- **Disks** (`config/filesystems.php`): private `media` (local, `storage/app/media`) and `media-s3` (private bucket; the installer's `AWS_*` bucket under `media/` unless `MEDIA_S3_*` names its own). `MEDIA_DISK` picks one and defaults to `media-s3` when `FILESYSTEM_DISK=s3` (the runbook's shared-hosting setting). Local `storage/app/media` added to the nightly files backup.
+- **Schema:** migration `2026_11_02_050001_create_media_table` = Spatie's stub + `organization_id` (FK, restrict) with indexes `(organization_id, model_type, model_id, collection_name)` and `(organization_id, collection_name)`. `App\Media\Media` extends Spatie's model with `BelongsToOrganization`; added to `tests/Support/OrganizationScopedModels.php` (all five `CrossTenantAccessTest` probes run on it).
+- **Owners and uploads:** `App\Media\HasOrganizationMedia` (for `HasMedia` models; `Organization` now uses it for branding images). `App\Media\MediaUploads::add()` is the one way in: inside an organization only, refuses an owner of another organization (`CrossOrganizationWrite`), stores under a random name with the extension of the sniffed type, keeps the uploader's name as a label only, and the sha256, width and height in `custom_properties`. Paths are `{organization id}/{media uuid}/…` (`MediaPathGenerator`).
+- **Checks** (`App\Media\UploadValidator`, rules per collection in the new `config/media.php`): finfo sniff of the bytes (the browser's type and the file name are ignored), only JPEG/PNG/WebP/PDF are storable types at all (`CollectionRules::EXTENSIONS`), SVG refused even as `.png`/`.jpg` or when a collection lists it, size cap per collection (`photos` 10 MB, `documents` 10 MB, `branding` 2 MB), images must decode as the sniffed type, ≤ 8000 px a side and ≤ `MEDIA_MAX_MEGAPIXELS` (25). `check()`, `problem()`, and `rule()` for Livewire rules / Form Requests.
+- **Conversions:** `thumb` (400 px) and `large` (1600 px) WebP via GD, `Fit::Max` (never upscaled), `nonOptimized()` and `image_optimizers` empty (no jpegoptim/cwebp binaries), image generators Image + WebP only (no PDF/SVG/video). Queued on a new **`media` queue**, added to the queue tick's bulk lane (`pdf`, `media`, `imports`). `App\Media\PerformMediaConversions` (and the responsive-images job) run inside the media row's organization (`RunsInMediaOrganization`), timeout 50 s, 3 tries, 30 s backoff, idempotent; a deleted organization means nothing to do.
+- **Signed route** `GET /media/{organization}/{media uuid}/{conversion?}` (`App\Http\Controllers\MediaController`, name `media.show`): no session/cookies; invalid, tampered or expired signature → 404; organization from the signed URL → `OrganizationContext::run` → `Media` looked up by uuid through the normal scope (decision 2's pattern; no `withoutGlobalScopes()`); unknown/other-organization file, conversion not made yet, file missing on disk → the same 404. Streams privately: `Content-Type` from the sniffed type, `nosniff`, `default-src 'none'; sandbox`, `no-referrer`, `noindex`, `Cache-Control: private, max-age=<seconds left on the link>`; images inline, other files as attachments. `App\Media\MediaUrls` makes links (`MEDIA_URL_LIFETIME`, 15 min; `preview()` falls back to the original until a conversion exists); Spatie's `getUrl()` / `getTemporaryUrl()` return the same signed links (`SignedMediaUrlGenerator`). `media` added to `AdminPath::RESERVED`.
+- **Branding images absorbed** (ARCH § 9's hand-over): `BrandingFiles` keeps every P01-05 check and the PNG re-encoding, then stores through `MediaUploads` into the organization's `branding` collection (role in a custom property). `Branding` now carries `logoMediaId` / `signatureMediaId` / `stampMediaId`; `organizations.branding` has `logo_media_id` / `signature_media_id` / `stamp_media_id` and `BrandingSettings` also sets the `organizations.logo_media_id` column in the same save. The workspace route is now `/o/{slug}/settings/branding/files/{role}/{media uuid}` (same permissions). Data migration `2026_11_02_050002_move_branding_images_to_media` (query builder and disks only) copies each existing `*_file` into a media row and rewrites the json; its `down()` goes back to the paths; the original files are left on the branding disk.
+- **Docs:** ARCHITECTURE.md § 2 (queues, media row), § 7 (`media` queue), § 9 (media library "How it is built", branding images, local-disk note), § 10; DATABASE_SCHEMA.md (`media` table, `organizations.branding` keys, conventions line); BRANDING_DOCUMENTS.md § 1 (images); AGENT.md § 2 / § 4 (`media` queue) and § 5 (uploads go through `MediaUploads` / `UploadValidator`, links through `MediaUrls`); INSTALLER.md (bulk lane); PLATFORM_CONSOLE.md (queue list); runbooks shared-hosting.md (media settings, private bucket, memory) and restore.md (`media/` folder); `.env.example` (`MEDIA_*`); config comments in `branding.php`.
+
+**Tests and evidence (local, MariaDB 11.4):**
+- `composer ci` on the branch: Pint passed, Larastan 0 errors, Pest **1,392 tests: 1,391 passed, 1 skipped (the existing module-boundary check), 11,558 assertions**, 0 failed.
+- New: `tests/Feature/Media/UploadValidationTest.php` (24 incl. datasets), `SignedMediaRouteTest.php` (15), `MediaConversionsTest.php` (7), `BrandingImagesMoveTest.php` (2); helpers `tests/Support/media.php` (real GD images). `CrossTenantAccessTest` now probes `Media` (5 cases).
+- **AC: uploads validated (mime sniff, size):** `UploadValidationTest` › "mime sniffing" (rejects other files dressed up as images ×4, unreadable JPEG, names the stored file after the sniffed type, keeps a collection to its own types, accepts JPEG/PNG/WebP and PDF) and "size caps" (refuses a file over its collection's cap, has a cap for each collection, measures the file itself not what the browser claimed, empty files, megapixel and side limits), "gives Laravel validation the same answer"; nothing refused reaches the disk or the table.
+- **Sub: a renamed `.php`→`.jpg` is rejected:** "rejects a PHP script renamed .jpg" (finfo says `text/x-php`), "… even when the browser says it is a JPEG".
+- **SVG rejected:** "rejects SVG images, whatever they are called" (`.svg`, renamed `.png`/`.jpg`, with a doctype), "refuses SVG in every collection, even one configured to list it".
+- **AC: signed URLs expire:** `SignedMediaRouteTest` › "expires signed URLs" (200 at 14 min, 404 at 16 min via `travel`), "lives as long as config/media.php says".
+- **Sub: a tampered signature gets 404:** "answers 404 to a tampered signature" (one character changed, emptied), "answers 404 when anything the signature covers is changed" (expiry, uuid, organization, conversion), "answers 404 without a signature".
+- **AC: another org's media is not reachable:** "never reaches another organization's media through the route" (their own link works; a correctly signed link pairing Acme with their uuid, and the reverse, are 404), "never reaches another organization's media through the model scope" (pluck/find/where-uuid/`getMedia()` in Acme's context; no context throws), "keeps each organization's files under its own folder", plus the `CrossTenantAccessTest` dataset for `Media`.
+- **Sub: conversions finish within the 50 s job budget on the shared profile:** `MediaConversionsTest` › "converts a 12-megapixel phone photo in the shared profile's queue tick, well within the 50-second job budget" (database queue, job on `media` with `timeout` 50 in its payload, `QueueTick::run()` drains it in the bulk lane, thumb 400×300 and large 1600×1200 WebP; measured **0.9 s**), "converts the largest photo allowed within the budget and the tick's memory" (25 MP: measured **1.8 s, ~110 MB** extra peak; asserted < 25 s and < 160 MB), "queues the conversions on the media queue instead of making them during the upload", "runs the conversion inside the file's organization, with no context of its own", "can run again without harm", "does nothing when the organization is gone", "makes no conversions for a PDF or for branding images".
+- Branding: `BrandingSettingsTest` updated for media storage (stored row, `logo_media_id` column and json, uuid route, signature uuid not served as a logo, removal keeps the media row); `BrandingImagesMoveTest` (migration up/down with real files; unmovable paths left as they were).
+- Existing test changed: `WebInstallWizardTest` › "offers to empty the database after a failed migration" re-ran the newest migration expecting its table to exist; the newest is now a data-only migration, so it now picks the newest migration that creates a table (same check).
+
+**Orchestrator review:** merged `main` (with P02-01a) into the branch, resolving two conflicts by keeping both sides (AGENT.md § 5 module Livewire rule + media upload rule; `OrganizationScopedModels` gains both `Media` and `OwnerProfile`), then re-ran `composer ci`: Pint passed, Larastan 0 errors, Pest 1,435 passed, 11,852 assertions. Read `MediaController`: the signature is checked before any lookup, the organization comes only from the signed URL, the file is found by uuid inside `OrganizationContext::run`.
+
+**Decisions to confirm** (orchestrator's P02 decisions relied on, and choices made here):
+- Relied on **decision 2** (public / cross-org lookups): the signed organization sets the context, the file is found by uuid inside it; no scope removed. The queued conversion job restores its media row the way Laravel restores any queued model (by key, without scopes), then works inside that row's organization.
+- Relied on **decision 4** (plan gating): nothing in the media library is plan-gated in BILLING § 1.2.
+- **The signed link is the permission** to see a file until it expires (no session or policy check when the file is served). Whoever builds a link must check the owning record's policy first (written in `MediaUrls`, ARCH § 9, AGENT § 5). Links last 15 minutes (`MEDIA_URL_LIFETIME`).
+- **Expired and tampered links both get 404** (the AC asks 404 for tampered; expired is the same so the route reveals nothing).
+- **`media-s3` reuses the installer's `AWS_*` bucket under `media/`** unless `MEDIA_S3_*` is set, and is the default whenever `FILESYSTEM_DISK=s3`.
+- **New queue `media`** in the bulk lane, before `imports`, rather than a lane of its own (a new lane would change the existing tick tests' per-lane counts).
+- **Branding images moved now** (not just planned): the move is a reversible data migration; **old P01-05 files are not pruned** (the P01-05 follow-up said "prune unreferenced files"): deleting them is irreversible, `down()` needs them, and P03-05 has not yet decided what document snapshots point at.
+
+**Follow-ups:**
+- P02-01a/b (property photos, `properties.photo_media_id`): implement `HasMedia` with `HasOrganizationMedia`, add files with `MediaUploads` (`photos`), validate in Livewire with `UploadValidator::rule('photos')`, show with `MediaUrls::preview($media, 'thumb')` after the policy check.
+- P03-07a (bank statements): add CSV/XLSX to `CollectionRules::EXTENSIONS` with content checks (finfo reports CSV as `text/plain` and XLSX as a zip), and a `statements` collection.
+- P03 payment proofs (`payment_proofs.media_id`): `documents` collection; the ARCH § 10 rate limit on proof uploads belongs to that task.
+- P03-05: decide whether issued PDFs are media rows (generated, so `MediaUploads`' checks would need a separate entry point) and what branding snapshots reference; then prune the old `organization-branding/` files.
+- Original photos keep their EXIF (including GPS) and are served as uploaded; conversions are re-encoded WebP without it. Consider stripping EXIF from originals or serving only conversions to tenants (privacy, NDPA).
+- The sha256 is stored but not re-checked when a file is served (compliance documents do check theirs); add a check where integrity matters (statements, proofs).
+- VPS enhancement: redirect to an S3 presigned URL instead of streaming through PHP.
+- Spatie's `media-library:regenerate/clean/clear` commands stop at the organization scope; a per-organization regenerate command would be needed if conversion settings change.
+- Livewire temporary uploads must stay on a local disk (the validator reads `getRealPath()`).
+- NDPA erasure tooling can delete an organization's files by its `{organization id}/` prefix.
+
+**Next:** P02 wave 2.
 
 ### P02-01a — Complete (2026-10-27): Properties module (the first module) and owner profiles
 

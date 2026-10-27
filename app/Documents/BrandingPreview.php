@@ -31,7 +31,7 @@ final readonly class BrandingPreview
      */
     public function forWeb(Organization $organization, Branding $branding, array $sources = []): DocumentBranding
     {
-        $src = fn (string $role): ?string => array_key_exists($role, $sources) ? $sources[$role] : $this->files->url($organization, $role, $branding->file($role));
+        $src = fn (string $role): ?string => array_key_exists($role, $sources) ? $sources[$role] : $this->files->url($organization, $role, $branding->mediaId($role));
 
         return new DocumentBranding($branding, $this->productName(), ! $branding->hidePoweredBy, $src('logo'), $src('signature'), $src('stamp'));
     }
@@ -43,9 +43,9 @@ final readonly class BrandingPreview
             $branding,
             $this->productName(),
             ! $branding->hidePoweredBy,
-            $this->files->dataUri($organization, $branding->logoFile),
-            $this->files->dataUri($organization, $branding->signatureFile),
-            $this->files->dataUri($organization, $branding->stampFile),
+            $this->files->dataUri($organization, 'logo', $branding->logoMediaId),
+            $this->files->dataUri($organization, 'signature', $branding->signatureMediaId),
+            $this->files->dataUri($organization, 'stamp', $branding->stampMediaId),
         );
     }
 

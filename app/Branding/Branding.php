@@ -13,9 +13,10 @@ use Illuminate\Support\Str;
  * An organization's branding (BRANDING_DOCUMENTS.md § 1), as stored in
  * `organizations.branding` with defaults filled in. The company name is the
  * organization's name (Settings → Profile; Tier 2/3 must match the CAC
- * name), everything else is in the json. Image fields hold paths on the
- * branding disk (App\Branding\BrandingFiles) until the media library
- * (P02-05) replaces them with media ids.
+ * name), everything else is in the json. Images are media ids
+ * (App\Branding\BrandingFiles, the media library's `branding` collection);
+ * the logo's is the `organizations.logo_media_id` column, which
+ * BrandingSettings keeps equal to the json's `logo_media_id`.
  *
  * Issued documents keep a copy of toArray() as their branding snapshot
  * (P03-05), so later changes never alter them.
@@ -42,9 +43,9 @@ final readonly class Branding
         public DocumentLayout $layout,
         public ?string $emailSenderName,
         public bool $hidePoweredBy,
-        public ?string $logoFile,
-        public ?string $signatureFile,
-        public ?string $stampFile,
+        public ?int $logoMediaId,
+        public ?int $signatureMediaId,
+        public ?int $stampMediaId,
     ) {}
 
     public static function fromOrganization(Organization $organization): self
@@ -52,6 +53,7 @@ final readonly class Branding
         $stored = $organization->branding ?? [];
         $text = static fn (string $key): ?string => isset($stored[$key]) && is_string($stored[$key]) && trim($stored[$key]) !== '' ? $stored[$key] : null;
         $colour = static fn (string $key, ?string $default): ?string => ($value = $text($key)) !== null && Color::isHex($value) ? strtoupper(Color::normalize($value)) : $default;
+        $id = static fn (string $key): ?int => isset($stored[$key]) && is_int($stored[$key]) && $stored[$key] > 0 ? $stored[$key] : null;
         $code = self::defaultCode($organization->name);
 
         return new self(
@@ -72,16 +74,16 @@ final readonly class Branding
             layout: DocumentLayout::tryFrom((string) $text('layout')) ?? DocumentLayout::Modern,
             emailSenderName: $text('email_sender_name'),
             hidePoweredBy: ($stored['hide_powered_by'] ?? false) === true,
-            logoFile: $text('logo_file'),
-            signatureFile: $text('signature_file'),
-            stampFile: $text('stamp_file'),
+            logoMediaId: $organization->logo_media_id ?? $id('logo_media_id'),
+            signatureMediaId: $id('signature_media_id'),
+            stampMediaId: $id('stamp_media_id'),
         );
     }
 
     /**
      * The json kept in `organizations.branding`.
      *
-     * @return array<string, string|bool|null>
+     * @return array<string, string|int|bool|null>
      */
     public function toArray(): array
     {
@@ -102,9 +104,9 @@ final readonly class Branding
             'layout' => $this->layout->value,
             'email_sender_name' => $this->emailSenderName,
             'hide_powered_by' => $this->hidePoweredBy,
-            'logo_file' => $this->logoFile,
-            'signature_file' => $this->signatureFile,
-            'stamp_file' => $this->stampFile,
+            'logo_media_id' => $this->logoMediaId,
+            'signature_media_id' => $this->signatureMediaId,
+            'stamp_media_id' => $this->stampMediaId,
         ];
     }
 
@@ -120,12 +122,13 @@ final readonly class Branding
         return $this->emailSenderName ?? $this->displayName().' via '.$productName;
     }
 
-    public function file(string $role): ?string
+    /** The media id of the logo, signature or stamp image. */
+    public function mediaId(string $role): ?int
     {
         return match ($role) {
-            'logo' => $this->logoFile,
-            'signature' => $this->signatureFile,
-            'stamp' => $this->stampFile,
+            'logo' => $this->logoMediaId,
+            'signature' => $this->signatureMediaId,
+            'stamp' => $this->stampMediaId,
             default => null,
         };
     }

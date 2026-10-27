@@ -21,7 +21,7 @@ Each phase below is split into numbered tasks (`P00-01`, `P00-02`, …). Each ta
 | PRE | Decisions and accounts before coding | 0 | — | In progress |
 | P00 | Foundation, tooling, installer core, login pages & backups baseline | 1–2 | M0 | In progress |
 | P01 | Tenancy, auth, registration, Transaction Tiers, staff console core & web installer | 3–5 | M1 | Complete (2026-10-27) |
-| P02 | Properties, units, owners & import (part 1) | 6–8 | M2 | Not started |
+| P02 | Properties, units, owners & import (part 1) | 6–8 | M2 | In progress |
 | P03 | Leasing, branded documents & the customer money loop + import (part 2) | 9–12 | M3 | Not started |
 | P04 | Maintenance tickets | 13 | M4 | Not started |
 | P05 | Reminders, notifications, email templates & WhatsApp | 14–15 | M5 | Not started |
@@ -92,17 +92,17 @@ Depends on: P00.
 
 **Phase exit:** all P01 tasks complete; cross-tenant tests cover every Phase-1 model.
 
-### P02 — Properties, units, owners & import part 1 (Weeks 6–8) — Not started
+### P02 — Properties, units, owners & import part 1 (Weeks 6–8) — In progress
 
 Depends on: P01. Sub-tasks, run order and open decisions: [docs/plans/P02-P03-subtasks.md](docs/plans/P02-P03-subtasks.md).
 
 | ID | Deliverable | Acceptance |
 | --- | --- | --- |
-| P02-01 — **Not started** | Owner profiles (person/company); buildings CRUD with amenities and photos | Cross-org access tests pass for owners and buildings |
+| P02-01 — **In progress** (P02-01a done; P02-01b next) | Owner profiles (person/company); buildings CRUD with amenities and photos | Cross-org access tests pass for owners and buildings |
 | P02-02 — **Not started** | Units CRUD (types, rent/service defaults, status board); bulk unit creation (e.g. "10 identical flats") | Creating 10 units in one bulk action works; unit statuses drive occupancy counts on the building page |
 | P02-03 — **Not started** | Agent↔building assignment (optional narrowing); unit filters and lists with server-side pagination | A unit of org B is not addressable by an org A user via ID guessing; a narrowed agent sees only assigned buildings |
 | P02-04 — **Not started** | Org-to-org invitation UI: property owner invites agency; agency invite inbox; **billing transfer accept screen** with explicit amount (state machine in [BILLING_PAYMENTS.md § 7](BILLING_PAYMENTS.md)) — invite + accept/decline record lands now, payer switch in P06-06 | Invite, accept and decline are recorded through `BillingTransferService`; invalid transitions rejected |
-| P02-05 — **Not started** | Media library (photos, thumbnails) on S3-compatible storage with signed URLs | Uploads validated (mime sniff, size); signed URLs expire; another org's media is not reachable |
+| P02-05 — **Complete (2026-10-27)** | Media library (photos, thumbnails) on S3-compatible storage with signed URLs | Uploads validated (mime sniff, size); signed URLs expire; another org's media is not reachable |
 | P02-06 — **Not started** | **Import engine** ([DATA_IMPORT.md](DATA_IMPORT.md)): streaming reader, column mapping with saved mappings, downloadable template, **dry run** with error/warning report, queued commit, batch rollback within 7 days, `external_ref` upserts — for owners, properties, units and tenants | Dry run of a 2,000-row workbook saves nothing and returns exact errors per row; commit creates exactly the previewed records; re-importing the same file creates no duplicates; rollback removes the batch |
 | P02-07 — **Not started** | Excel/CSV export of every list | Every list page exports; exports respect the current filters and org scope |
 

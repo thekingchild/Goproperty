@@ -36,6 +36,10 @@ return [
                     // bucket is mirrored outside the app, like other large
                     // media (PLATFORM_CONSOLE.md § 4).
                     storage_path('app/compliance'),
+                    // The media library on the local `media` disk (photos,
+                    // payment proofs, branding images). A `media-s3` bucket
+                    // is mirrored outside the app, like the compliance one.
+                    storage_path('app/media'),
                     storage_path('app/private'),
                     storage_path('app/public'),
                 ],

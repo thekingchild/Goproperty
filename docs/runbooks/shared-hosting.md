@@ -42,9 +42,12 @@ Composer and Node on the server are **not** required: the release zip already co
    ADMIN_PATH=gp-control-xxxxxx        # set by goproperty:install
    HOSTING_PROFILE=shared              # database queue/cache/sessions, no broadcasting, polling, dompdf, queue tick on
    FILESYSTEM_DISK=s3                  # media lives in S3-compatible storage, not on the host
+   # MEDIA_DISK=media-s3               # the media library; already the default when FILESYSTEM_DISK=s3
    COMPLIANCE_DISK=compliance-s3       # Transaction Tier documents: their own private bucket (COMPLIANCE_S3_*)
    MAIL_MAILER=postmark                # or mailgun/ses — never the host's sendmail
    ```
+   **Media library** (photos, payment proofs, branding images; [ARCHITECTURE.md § 9](../../ARCHITECTURE.md)): with `FILESYSTEM_DISK=s3` it uses the `media-s3` disk, which is the bucket the installer tested (`AWS_*`) under the `media/` prefix; set `MEDIA_S3_BUCKET` (and `MEDIA_S3_ACCESS_KEY_ID`, `MEDIA_S3_SECRET_ACCESS_KEY`, `MEDIA_S3_ENDPOINT`, `MEDIA_S3_REGION`) to give it a bucket of its own. Keep the bucket **private**: files are only ever streamed by the app through signed links that expire after `MEDIA_URL_LIFETIME` minutes (15). Without a bucket, files stay on the host in `storage/app/media` (in the nightly files backup). Thumbnails are made with GD by the queue tick (`media` queue, bulk lane) — no `jpegoptim`, `cwebp` or other binaries are needed. A 25-megapixel photo needs about 110 MB more memory while it is converted: where PHP's `memory_limit` is below 256M, set `MEDIA_MAX_MEGAPIXELS=12`.
+
    `HOSTING_PROFILE=shared` sets `QUEUE_CONNECTION=database`, `CACHE_STORE=database`, `SESSION_DRIVER=database`, `BROADCAST_CONNECTION=null`, `REALTIME_DRIVER=polling`, `PDF_DRIVER=dompdf` and `QUEUE_TICK_ENABLED=true`. Set one of those only to override it. Broadcasting is `null`, not `log`, so event payloads never land in the logs. `php artisan goproperty:hosting` shows what is active.
 4. **First install** — full detail in [INSTALLER.md](../../INSTALLER.md):
    - Download the release zip and its `.sha256` from the GitHub release and compare the checksum. Upload the zip with File Manager (or `scp`) and extract the `preferred/` layout (or `split/` if the domain must use `public_html`). With SSH, `php artisan goproperty:verify-package` in the app folder checks every file ([release.md § 4](release.md)).

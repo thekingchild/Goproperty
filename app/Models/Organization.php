@@ -8,6 +8,7 @@ use App\Casts\MoneyCast;
 use App\Enums\OrganizationStatus;
 use App\Enums\OrganizationType;
 use App\Enums\TransactionTier;
+use App\Media\HasOrganizationMedia;
 use App\Support\Money;
 use Carbon\CarbonImmutable;
 use Database\Factories\OrganizationFactory;
@@ -20,12 +21,14 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
 use Spatie\Activitylog\Support\LogOptions;
+use Spatie\MediaLibrary\HasMedia;
 
 /**
  * A customer: an agency or a property owner's business (DATABASE_SCHEMA.md
  * § 1), and the unit of tenancy (ARCHITECTURE.md § 4). Not itself scoped:
  * customer code reaches it through OrganizationContext, staff code through
- * the Platform namespace.
+ * the Platform namespace. Owns its branding images in the media library
+ * (App\Branding\BrandingFiles, collection `branding`).
  *
  * @property int $id
  * @property string $name
@@ -52,10 +55,10 @@ use Spatie\Activitylog\Support\LogOptions;
  */
 #[Hidden(['cac_number'])]
 #[Fillable(['name', 'slug', 'type', 'address', 'state', 'lga', 'status', 'transaction_tier', 'platform_covered', 'branding', 'online_payment_cap_kobo', 'trial_ends_at', 'signup_plan_key'])]
-class Organization extends Model
+class Organization extends Model implements HasMedia
 {
     /** @use HasFactory<OrganizationFactory> */
-    use HasFactory, LogsActivity, SoftDeletes;
+    use HasFactory, HasOrganizationMedia, LogsActivity, SoftDeletes;
 
     /**
      * The table's defaults, so a new model knows them before it is reloaded
