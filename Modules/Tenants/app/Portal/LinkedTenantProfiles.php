@@ -31,6 +31,30 @@ final class LinkedTenantProfiles
             ->all()));
     }
 
+    /**
+     * The user's (current) tenant profiles, by organization: the second
+     * read of the portal path (P03-11a, Portal\PortalTenancies), still two
+     * columns, `organization_id` and `id`. Each profile is loaded and
+     * policy-checked inside its organization afterwards.
+     *
+     * @return array<int, list<int>> organization id => tenant profile ids
+     */
+    public function byOrganization(User $user): array
+    {
+        $profiles = [];
+
+        foreach (DB::table('tenant_profiles')
+            ->where('user_id', $user->id)
+            ->whereNull('deleted_at')
+            ->orderBy('organization_id')
+            ->orderBy('id')
+            ->get(['organization_id', 'id']) as $row) {
+            $profiles[(int) $row->organization_id][] = (int) $row->id;
+        }
+
+        return $profiles;
+    }
+
     public function any(User $user): bool
     {
         return DB::table('tenant_profiles')->where('user_id', $user->id)->whereNull('deleted_at')->exists();

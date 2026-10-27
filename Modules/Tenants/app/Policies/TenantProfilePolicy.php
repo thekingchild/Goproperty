@@ -11,6 +11,7 @@ use App\Tenancy\OrganizationContext;
 use Illuminate\Auth\Access\Response;
 use Modules\Tenants\Access\TenantNarrowing;
 use Modules\Tenants\Models\TenantProfile;
+use Modules\Tenants\Portal\PortalTenancies;
 use Spatie\Permission\Exceptions\PermissionDoesNotExist;
 
 /**
@@ -34,12 +35,16 @@ use Spatie\Permission\Exceptions\PermissionDoesNotExist;
  * until leases exist (P03-03a), so a narrowed agent sees every tenant for
  * now; a tenant outside the agent's buildings will answer 404
  * (Response::denyAsNotFound), checked before the ability's own rule.
+ *
+ * The tenant portal (P03-11a): viewAsTenant / viewInvoiceAsTenant, the
+ * tenant's own record from their portal account (no workspace role).
  */
 final class TenantProfilePolicy
 {
     public function __construct(
         private readonly OrganizationContext $context,
         private readonly TenantNarrowing $narrowing,
+        private readonly PortalTenancies $tenancies,
     ) {}
 
     public function viewAny(User $user): bool
@@ -115,6 +120,44 @@ final class TenantProfilePolicy
         }
 
         return ! $tenant->trashed() && $this->holds($user, OrganizationPermission::ManageTenantPortalAccess);
+    }
+
+    /**
+     * The tenant portal (P03-11a, Modules\Tenants\Portal\PortalTenancies):
+     * the user's own tenant record, proven by their portal account
+     * (`tenant_profiles.user_id`, P03-01b) and not archived. Tenants hold no
+     * workspace role (P03 decision 4), so this identity is the permission;
+     * every portal page checks it for the record it shows (a bill or lease
+     * through its tenant). Anyone else's record, or one of another
+     * organization, answers 404. A read: allowed in a suspended organization
+     * (the portal stays read-only there, ONBOARDING_COMPLIANCE.md § 3) and in
+     * a support session, but only for the session's organization
+     * (PLATFORM_CONSOLE.md § 6 "Scope").
+     */
+    public function viewAsTenant(User $user, TenantProfile $tenant): Response|bool
+    {
+        if (! $this->belongsHere($tenant)
+            || $tenant->trashed()
+            || $tenant->user_id === null
+            || (int) $tenant->user_id !== (int) $user->id
+            || ! $this->tenancies->opens($user, $tenant->organization_id)) {
+            return Response::denyAsNotFound();
+        }
+
+        return true;
+    }
+
+    /**
+     * A bill's invoice as printed, from the portal (P03-11a): the tenant's
+     * own record, as viewAsTenant. The printed invoice carries the
+     * tenant's phone and email, so it is not opened while GoProperty staff
+     * impersonate (as BillPolicy::viewInvoice, PLATFORM_CONSOLE.md § 6);
+     * the bill page stays visible.
+     */
+    #[BlockedWhileImpersonating]
+    public function viewInvoiceAsTenant(User $user, TenantProfile $tenant): Response|bool
+    {
+        return $this->viewAsTenant($user, $tenant);
     }
 
     private function managed(User $user, TenantProfile $tenant, bool $archived): Response|bool

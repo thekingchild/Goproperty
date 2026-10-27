@@ -5,8 +5,13 @@ declare(strict_types=1);
 use App\Http\Middleware\SignInPageHeaders;
 use Illuminate\Support\Facades\Route;
 use Modules\Tenants\Http\Controllers\PortalInvitationController;
+use Modules\Tenants\Http\Controllers\PortalInvoiceController;
 use Modules\Tenants\Http\Controllers\PortalWelcomeController;
 use Modules\Tenants\Http\Controllers\SignInLinkController;
+use Modules\Tenants\Livewire\Portal\PortalBills;
+use Modules\Tenants\Livewire\Portal\PortalBillShow;
+use Modules\Tenants\Livewire\Portal\PortalHome;
+use Modules\Tenants\Livewire\Portal\PortalLeaseShow;
 use Modules\Tenants\Livewire\TenantForm;
 use Modules\Tenants\Livewire\TenantIndex;
 use Modules\Tenants\Livewire\TenantShow;
@@ -58,4 +63,19 @@ Route::middleware(SignInPageHeaders::class)->prefix('portal')->name('portal.')->
 
     // After a new tenant account is made: an optional passkey, then the portal.
     Route::get('welcome', PortalWelcomeController::class)->middleware(['auth', 'verified'])->name('welcome');
+});
+
+/*
+ * The tenant portal (P03-11a; ARCHITECTURE.md § 3–4): across every agency
+ * the user rents from, so no `organization` middleware and no organization
+ * in the URL. Every page reads through Portal\PortalTenancies (the "linked
+ * to my user" path) and checks TenantProfilePolicy::viewAsTenant for the
+ * record it shows; a bill or lease that is not the user's own answers 404.
+ */
+Route::middleware(['auth', 'verified'])->prefix('portal')->name('portal.')->group(function () {
+    Route::livewire('/', PortalHome::class)->name('home');
+    Route::livewire('bills', PortalBills::class)->name('bills.index');
+    Route::livewire('bills/{bill}', PortalBillShow::class)->whereNumber('bill')->name('bills.show');
+    Route::get('bills/{bill}/invoice', [PortalInvoiceController::class, 'show'])->whereNumber('bill')->middleware('throttle:60,1')->name('bills.invoice');
+    Route::livewire('leases/{lease}', PortalLeaseShow::class)->whereNumber('lease')->name('leases.show');
 });

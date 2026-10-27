@@ -20,8 +20,10 @@ use Livewire\Livewire;
 use Modules\Billing\Bills\BillIssuer;
 use Modules\Billing\Bills\BillService;
 use Modules\Billing\Bills\Ledger;
+use Modules\Billing\Bills\TenantBillRecords;
 use Modules\Billing\Contracts\BillLedger;
 use Modules\Billing\Contracts\PaymentOptions;
+use Modules\Billing\Contracts\TenantBills;
 use Modules\Billing\Documents\InvoiceVerifier;
 use Modules\Billing\Events\BillIssued;
 use Modules\Billing\Events\BillVoided;
@@ -52,6 +54,9 @@ use Nwidart\Modules\Support\ModuleServiceProvider;
  * payment options slot of the pay page (Contracts\PaymentOptions, filled
  * by OnlinePayments in P03-08), and the public pay page /pay/{reference}
  * (routes).
+ *
+ * Tenant portal (P03-11a): Contracts\TenantBills, a tenant's own bills,
+ * their pay instructions and invoice page for the Tenants module's /portal.
  */
 final class BillingServiceProvider extends ModuleServiceProvider
 {
@@ -69,6 +74,7 @@ final class BillingServiceProvider extends ModuleServiceProvider
         parent::register();
 
         $this->app->bind(BillLedger::class, Ledger::class);
+        $this->app->bind(TenantBills::class, TenantBillRecords::class);
         $this->app->singleton(PaymentOptions::class);
     }
 

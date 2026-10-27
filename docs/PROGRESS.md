@@ -6,7 +6,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 ## Current state
 
-- **In progress:** P03-11a (tenant portal) and P03-07b (statement matching), each in its own worktree. Done in P03: P03-01, P03-02, P03-03, P03-04, P03-05, P03-07a, P03-08, P03-09, P03-10 (Chrome visual diff awaits its first CI run) (`docs/plans/P02-P03-subtasks.md`); the product owner asked for P03 to start with default answers to its open questions, recorded in that plan
+- **In progress:** P03-07b (statement matching) and P03-11b (tenant portal: proofs, receipts, documents), each in its own worktree. Done in P03: P03-01, P03-02, P03-03, P03-04, P03-05, P03-07a, P03-08, P03-09, P03-10, P03-11a (Chrome visual diff awaits its first CI run) (`docs/plans/P02-P03-subtasks.md`); the product owner asked for P03 to start with default answers to its open questions, recorded in that plan
 - **In review:** P00-02 (CI): all four database jobs are green in GitHub Actions; branch protection on `main` is off by the product owner's decision (2026-10-27) while P02 and P03 are built, so tasks keep merging straight to `main`; turn it on afterwards (`docs/runbooks/ci.md` § 3) and mark P00-02 complete. P00-12 (backups): built and drilled locally; needs one real run to an S3-compatible bucket and a Google Shared Drive (PRE-03 accounts)
 - **Next task:** P03 waves 2–14 in order, two at a time; PRE-01 to PRE-04 continue with the product owner
 - **Blocked:** P00-13 (staging): the deploy scripts, the deploy on merge and the deploy drill are built and drilled locally; it needs a staging host (PRE-04). Until then the Deploy workflow fails at "Check deploy settings" on every push to `main`
@@ -31,6 +31,69 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 ## Ledger (newest first)
 
 Each entry: task ID and status, date, what was delivered, tests run and results, follow-ups, next task.
+
+### P03-11a — Complete (2026-10-27): tenant portal: the cross-organization "linked to my user" path, my rentals (homes and leases per agency), my bills in each agency's branding as issued, a bill's page with pay instructions (bank account, reference, online options, `/pay` link), its invoice web page, a lease page; 404 for anything not the tenant's own
+
+The parent **P03-11** stays **In progress** until P03-11b (proof upload, receipts, documents, the 360 px browser pass).
+
+**Delivered** ([ARCHITECTURE.md § 4, § 5 "Tenant portal", § 8](../ARCHITECTURE.md); [PLATFORM_CONSOLE.md § 6](../PLATFORM_CONSOLE.md) "Scope" and the invoice rule; [UX_DESIGN.md § 2](../UX_DESIGN.md); [ONBOARDING_COMPLIANCE.md § 4.1](../ONBOARDING_COMPLIANCE.md); `docs/plans/P02-P03-subtasks.md` P03-11a):
+- **No schema change, no new permission, no new package.**
+- **The access path (`Modules\Tenants\Portal\PortalTenancies`, documented in ARCH § 4):**
+  1. one unscoped read of `tenant_profiles` (`organization_id`, `id`) by `user_id`, archived profiles left out (`LinkedTenantProfiles::byOrganization`, the only raw read, in the file `TenantPagesTest` already allows) — decision 2's lookup pattern, no scope removed;
+  2. per organization, `OrganizationContext::run`: the profiles are loaded through the scope and kept only when `TenantProfilePolicy::viewAsTenant` allows them;
+  3. leases, units and bills are read there through contracts only (`Leasing\Contracts\TenantLeases`, `Properties\Contracts\UnitDirectory`/`PropertyDirectory`, the new `Billing\Contracts\TenantBills`), limited to those profile ids.
+  - Record pages use `PortalTenancies::first()`: the record must be found among the user's own profiles, so another tenant's or organization's id gets the same 404 as a missing one.
+  - While staff impersonate the user, `opens()` keeps only the support session's organization (PLATFORM_CONSOLE § 6 "Scope").
+- **Policy (`TenantProfilePolicy`):** `viewAsTenant` (in context, not archived, `user_id` = the user, organization opened by the path; otherwise `denyAsNotFound`) and `viewInvoiceAsTenant` (`#[BlockedWhileImpersonating]`: the invoice prints the tenant's phone and email, as `BillPolicy::viewInvoice`). Both are reads, so the central suspended and read-only guards let them through.
+- **Billing contract `Contracts\TenantBills`** (`forTenants`, `find`, `payment`, `invoicePage`; value objects `TenantBill` with the bill's `DocumentBranding` from its snapshot, and `TenantBillPayment` with lines, the primary usable bank account, the `PaymentOptions` HTML and the `/pay` URL). Implemented by `Bills\TenantBillRecords`, bound in `BillingServiceProvider`. `PayPages` and `PaymentOptions` are untouched (P03-08 plugs into the slot; the portal shows whatever it returns).
+- **Pages (Tenants module routes; `auth` + `verified`; Livewire `tenants::portal.*`; Core's `Route::view('portal')` and `surfaces/portal.blade.php` removed):**
+  - `/portal` (`PortalHome`): one card per agency in its current colours with the amount to pay, "Pay this bill" for the next bill due, my homes (unit · building, address, status, dates, rent per cycle; draft leases hidden) and the latest bills. Empty state "No rentals yet" for someone who rents nothing. Shows the session `status` flash (sign-in link follow-up from P03-01b).
+  - `/portal/bills` (`PortalBills`): per agency, under the logo of its newest bill, bills to pay (due first first, with the total) and paid/cancelled ones. Each card has a stripe in the colour the bill was issued with.
+  - `/portal/bills/{id}` (`PortalBillShow`): branding as issued (logo, name, contacts), status, amount to pay and due date, lines, bank transfer details with the reference for the narration, "Pay online" options, "Open the pay page" to share, invoice link when allowed. A void bill says "do not pay it" with the reason and no bank details; a paid bill says so.
+  - `/portal/bills/{id}/invoice` (`PortalInvoiceController::show`, throttle 60/min, `#[BlockedWhileImpersonating]`): the invoice web page (P03-05c). The PDF is P03-11b's.
+  - `/portal/leases/{id}` (`PortalLeaseShow`): the home, agency, status, contract number, dates, rent, cycle and the lease's bills.
+  - Home / My bills tabs (44 px targets) on every portal page; cards, wrapping text, no tables; existing sidebar "My rentals" and bottom nav kept.
+  - Suspended or cancelled organization: everything stays visible with a "Read-only for now" notice; the pages have no actions.
+- **Fix (Core):** Settings → Profile (the bottom nav's "Account" tab) answered **500 for phone-only accounts** (null email into a typed string property); the field now starts empty.
+- **Docs:** ARCHITECTURE.md § 4 (the path as built), § 5 new "Tenant portal (P03-11a)", § 8 rule 1; PLATFORM_CONSOLE.md § 6 (portal scope as built; portal invoice blocked); UX_DESIGN.md § 2; ONBOARDING_COMPLIANCE.md § 4.1; `routes/web.php` comment; module provider docblocks.
+
+**Tests and evidence (local, MariaDB 11.4):**
+- `composer ci` on the final commit (`c348bb3`, `--parallel`): Pint passed; Larastan 0 errors; Pest **2,741 tests: 2,697 passed, 44 skipped (the Chrome/Gotenberg halves, no Gotenberg locally, as before), 32,531 assertions**, 0 failed.
+- New: `Modules/Tenants/tests/Feature/Portal/TenantPortalTest.php` (33 tests incl. datasets), all through HTTP (and Livewire updates for tampering), each request fresh; fixed names/phones/emails for every row that must not show.
+- **AC: a tenant sees only their own leases and bills** — › "acceptance: a tenant sees only their own leases and bills" › "shows the tenant their home, lease and bill, and nothing of the neighbour's" (listed `data-lease`/`data-bill`/`data-organization` ids exactly hers; the neighbour sees exactly his), › "shows a bill with how to pay it…" (account number, reference and narration line, `/pay` link, invoice link, branding colour; the other organization's account absent; invoice page opens), › "shows a lease with its terms and its bills", › "keeps the branding each bill was issued with…", › "shows the online payment options of the bill and none once it is paid or void" (a registered `PaymentOption` rendered; after void: "do not pay", reason, no options, no bank details), › "leaves out draft leases, and shows a member who rents nothing an empty state", › "stops showing anything once the agency archives the tenant's record".
+- **Sub: a tenant of two orgs sees both and nothing else** — › "sees both agencies, each with its own leases and bills, and nothing else" (ids of both organizations exactly; each bill page with its own branding and bank account; both invoices; still 404 on both workspaces).
+- **Sub: ID guessing returns 404** — › 10-case dataset: neighbour's bill / invoice / lease, other organization's bill / invoice / lease, missing bill / invoice / lease, a bill id as a lease id → 404 with no foreign names; › "refuses a bill page whose locked id is changed to someone else's bill" (forged snapshot → 419 with debug off; locked update refused; never the neighbour's number); › guests redirected to `/login` (5 paths).
+- **Suspended org: the tenant can still view (read-only)** — › "lets the tenant still view everything, read-only, with how to pay" (suspended and cancelled: home, bills, bill, lease, invoice all 200 with the notice; another agency's bill shows no notice).
+- **Impersonating staff of one org cannot use the portal as a tenant of another org** (P01-08 rules) — › "never shows staff impersonating a member of one organization her tenancy at another" (read-only and write: Bello's agency, bill and lease hidden/404, its invoice 403; the session organization's own tenancy visible without its invoice (403); outside the session she sees both).
+- **Member and tenant each in its place** — › "sees the workspace in its place and the rentals in the portal, never mixed" (login lands on `/o/acme-homes`; the workspace bills list shows the neighbour's bill; the portal lists only her own bills from both organizations; `/o/other-realty` 404).
+- **360 px (don't break 11b's pass)** — › "lays every portal page out for phones…" (viewport meta, bottom nav and portal tabs on all four pages, no `<table>`, no fixed widths ≥ 360 px; views use `min-h-11`, `break-words`, `break-all`); the real browser measurement is P03-11b's.
+- Others: › "shows the sign-in message once on the portal home"; › "opens for a phone-only tenant account"; › "opens Settings → Profile … for a phone-only tenant account".
+- Related existing suites re-run: `tests/Feature/{Theme,Console,Impersonation,Marketing,Core,Tenancy}`, `DashboardTest`, `Modules/Tenants/tests`, Billing `PayPageTest`/`BillAccessTest`: 734 tests, 730 passed, 4 skipped (Gotenberg), 0 failed — incl. `AppShellTest`/`SurfacesTest`/`ThemePublishingTest` expectations for `/portal` ("No rentals yet", "My rentals - …", switcher), `ModuleSkeletonTest` (only contracts across modules), `TenantPagesTest`'s raw-read scan.
+- With `APP_DEBUG=true`: `TenantPortalTest` + `tests/Feature/Settings`: 44 passed, 376 assertions.
+- MySQL JSON key order: no assertion reads a JSON map by key order (branding/details read by key through the existing value objects).
+- Not run: no browser/Gotenberg pass of the app pages (P03-11b); no MySQL locally.
+
+**Orchestrator review:** merged `main` (with P03-08) into the branch; resolved one ARCHITECTURE.md § 8 conflict (the Tenants module entry gains the portal). The invokable-controller gap the agent found in `ImpersonationGuard` was fixed on `main` before this merge (`99c6b09`, `App\Tenancy\RouteAction`). `composer ci` locally: Pint passed, Larastan 0 errors, Pest 2,800 tests: 2,756 passed, 44 skipped (Gotenberg). **GitHub Actions** run [40590133253](https://github.com/thekingchild/Goproperty/actions/runs/40590133253): green on MySQL 8.0/8.4 and MariaDB 10.6/11.4.
+
+**Decisions relied on (to confirm):**
+- **Decision 2 (lookup pattern):** the portal's only unscoped read is `tenant_profiles (organization_id, id) by user_id`; everything else inside `OrganizationContext::run`.
+- **Decision 4:** tenants have no `organization_user` rows, so the portal identity (`tenant_profiles.user_id`) is the permission (`viewAsTenant`); no new `OrganizationPermission`.
+- **Decision 8 (gating):** nothing gated (the portal is every plan's).
+- **P01-08 / PLATFORM_CONSOLE § 6:** the portal lists only the session's organization; the invoice is blocked in a session like the workspace invoice.
+- **PO rules:** handover — no new tables; nothing for P03-14 to move here (it already plans to copy `tenant_profiles.user_id` to the receiving organization's tenant, so the portal follows automatically; old bills stay with the issuer and stay visible through the old, still-linked profile until it is archived).
+- **My choices:** draft leases hidden from tenants; archived tenant profiles give no portal access (as P03-01b's `LinkedTenantProfiles` and P03-09's proof policy); bill URLs carry no organization slug (ids are global; the path finds the organization); the agency frame uses the organization's current branding, each bill its snapshot; the invoice web page is in 11a (AC names invoices), its PDF in 11b.
+
+**Contradictions / findings:**
+- `ImpersonationGuard::ensureRequestAllowed` ignores `#[BlockedWhileImpersonating]` on **invokable** controllers (`Route::getActionMethod()` returns the class name, so `marked()` checks a method that does not exist). I used a named method (`show`); the guard gap itself is not fixed here (Core; no invokable controller is marked today). Follow-up: treat a class-name action method as `__invoke`.
+
+**Follow-ups:**
+- **"Add an email" for phone-only accounts: not built** (deferred again). Settings → Profile now opens, but saving needs an email, and adding one sets it unverified, which locks the `verified` portal until confirmed. Needs a pending-email + verify-link flow (blocked while impersonating, rate-limited, refused if another account holds the address).
+- P03-11b: proof upload on the bill page (`Payments\Contracts\PaymentProofs`, `maySubmit`), receipts and documents (invoice PDF, contract, receipts via signed `MediaUrls`), the 360 px browser test on every portal page.
+- Archived tenants (moved out) might want read-only history later; today they lose portal access.
+- `ImpersonationGuard` invokable-controller gap (above).
+- P03-15 can reuse the `PortalTenancies` pattern for `/owner`.
+
+**Next:** wave 9 (P03-07b ‖ P03-11b).
 
 ### P03-08 — Complete (2026-10-27): agency-owned Paystack: the OnlinePayments module with the organization's own Paystack connection (keys encrypted and masked, test, rotate, disconnect, owner-only, hidden from impersonating staff), the per-organization webhook `/webhooks/paystack/{webhook_token}` (HMAC-SHA512 with that organization's key, raw body kept in `webhook_log`, 2xx then the `billing` queue), verify-by-fetch, auto-confirmation through `PaymentRecorder` once per Paystack reference, amount mismatches held for review, "Pay online" on the pay page within the online-payment cap, and the Paystack option in the signup wizard
 

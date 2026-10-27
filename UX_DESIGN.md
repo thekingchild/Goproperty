@@ -17,7 +17,7 @@ Companion documents: [ARCHITECTURE.md](ARCHITECTURE.md) · [ONBOARDING_COMPLIANC
 | --- | --- | --- |
 | Marketing (`goproperty.ng`) | Bold, modern, product screenshots | Hero (§ 4), pricing, features, FAQs, signup |
 | Customer app (`/o/{slug}`) | Clean dashboard, sidebar on desktop, bottom nav on mobile; agency logo in the sidebar | Installable PWA with push notifications |
-| Tenant portal (`/portal`) | Very simple, card-based, big buttons; each agency's bills shown with **that agency's logo and colours** | "Pay this bill", "Upload proof", "Report a problem" |
+| Tenant portal (`/portal`) | Very simple, card-based, big buttons; each agency's bills shown with **that agency's logo and colours** | "Pay this bill", "Upload proof", "Report a problem". As built (P03-11a): one card per agency in its colours (amount to pay, "Pay this bill", my homes, latest bills), my bills per agency under the logo of its newest bill, each bill in the branding it was issued with; Home / My bills tabs of 44 px; [ARCHITECTURE.md § 5](ARCHITECTURE.md) "Tenant portal" |
 | Owner portal (`/owner`) | Read-only statements and charts, agency-branded | Monthly statement PDF |
 | Invoices, receipts, statements | Agency-branded documents ([BRANDING_DOCUMENTS.md](BRANDING_DOCUMENTS.md)) | Reference designs in `docs/design/templates/` |
 | Platform console (`/{ADMIN_PATH}`) | Filament, dense tables | Distinct accent colour so staff always know they're in admin |

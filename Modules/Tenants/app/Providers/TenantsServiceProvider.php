@@ -34,7 +34,10 @@ use Nwidart\Modules\Support\ModuleServiceProvider;
  * (P03-01b, Portal\*): invitations and one-time sign-in links on Core
  * invitations, their public pages (routes), and the landing: someone
  * with no workspace who is a tenant somewhere lands on /portal
- * (App\Tenancy\PortalLanding).
+ * (App\Tenancy\PortalLanding). The tenant portal itself (P03-11a,
+ * routes; Livewire\Portal\*): my rentals, my bills and a bill with how
+ * to pay it, a lease, across every organization the user rents from
+ * (Portal\PortalTenancies, TenantProfilePolicy::viewAsTenant).
  */
 final class TenantsServiceProvider extends ModuleServiceProvider
 {

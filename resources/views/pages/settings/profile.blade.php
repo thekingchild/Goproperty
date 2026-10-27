@@ -22,7 +22,8 @@ new #[Title('Profile settings')] class extends Component {
     public function mount(): void
     {
         $this->name = Auth::user()->name;
-        $this->email = Auth::user()->email;
+        // Phone-only tenant accounts (P03-01b) have no email yet.
+        $this->email = Auth::user()->email ?? '';
     }
 
     /**
