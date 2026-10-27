@@ -17,6 +17,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Modules\Properties\Enums\PropertyStatus;
 use Modules\Properties\Enums\PropertyType;
+use Modules\Properties\Enums\UnitStatus;
 use Modules\Properties\Models\OwnerProfile;
 use Modules\Properties\Models\Property;
 
@@ -27,8 +28,8 @@ use Modules\Properties\Models\Property;
  * written to the audit log (log `properties`, the building as subject).
  * Photos are PropertyPhotos'.
  *
- * Archiving changes `status` only: the row, its photos and (later) its
- * units and leases stay (AGENT.md § 3 rule 7), and an archived building's
+ * Archiving changes `status` only: the row, its photos, its units and
+ * (later) leases stay (AGENT.md § 3 rule 7), and an archived building's
  * units stop counting towards the GoProperty bill (BILLING_PAYMENTS.md
  * § 1.4). The slug is made from the name when the building is added, unique
  * in the organization (archived and soft-deleted buildings included), and
@@ -104,6 +105,10 @@ final readonly class Properties
         });
     }
 
+    /**
+     * @throws ValidationException (key `archive`) while a lease holds one of
+     *                             its units (occupied or reserved)
+     */
     public function archive(User $by, Property $property): Property
     {
         Gate::forUser($by)->authorize('delete', $property);
@@ -143,6 +148,10 @@ final readonly class Properties
         return DB::transaction(function () use ($by, $property, $status, $event, $description): Property {
             $property = Property::query()->whereKey($property->getKey())->lockForUpdate()->firstOrFail();
 
+            if ($status === PropertyStatus::Archived) {
+                $this->ensureNoUnitHeld($property);
+            }
+
             if ($property->status !== $status) {
                 $property->status = $status;
                 $property->save();
@@ -151,6 +160,27 @@ final readonly class Properties
 
             return $property;
         });
+    }
+
+    /**
+     * An archived building is read-only and leaves the bill, so it may not
+     * have tenants in it: a building with an occupied or reserved unit is
+     * not archived (end those leases first). Its other units stay as they
+     * are, and come back with it on restore.
+     *
+     * @throws ValidationException
+     */
+    private function ensureNoUnitHeld(Property $property): void
+    {
+        $held = $property->units()->whereIn('status', [UnitStatus::Occupied, UnitStatus::Reserved])->count();
+
+        if ($held > 0) {
+            throw ValidationException::withMessages(['archive' => trans_choice(
+                ':name has :count occupied or reserved unit. End its lease before archiving the building.|:name has :count occupied or reserved units. End their leases before archiving the building.',
+                $held,
+                ['name' => $property->name, 'count' => $held],
+            )]);
+        }
     }
 
     /**

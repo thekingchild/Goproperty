@@ -28,6 +28,7 @@ use Modules\Import\Models\ImportBatch;
 use Modules\Import\Models\ImportColumnMapping;
 use Modules\Properties\Models\OwnerProfile;
 use Modules\Properties\Models\Property;
+use Modules\Properties\Models\Unit;
 
 /**
  * Every organization-owned model (BelongsToOrganization) and how to make one
@@ -93,6 +94,7 @@ final class OrganizationScopedModels
             ImportBatch::class => fn (): Model => ImportBatch::query()->create(['kind' => 'workbook', 'file_type' => ImportFileType::Xlsx, 'file_name' => 'probe.xlsx']),
             ImportColumnMapping::class => fn (): Model => ImportColumnMapping::query()->create(['kind' => 'tenants', 'name' => 'Probe '.Str::random(6), 'mapping' => ['phone' => 'phone']]),
             Property::class => fn (): Model => Property::factory()->ownedBy(OwnerProfile::factory()->create())->create(),
+            Unit::class => fn (): Model => Unit::factory()->in(Property::factory()->create())->create(),
         ];
     }
 

@@ -10,9 +10,13 @@
         </x-slot:actions>
     @endif
 
-    @if ($notice)
-        <flux:callout variant="success" icon="check-circle" :heading="$notice" role="status" data-test="buildings-notice" />
-    @endif
+    @error('archive')
+        <flux:callout variant="warning" icon="exclamation-triangle" :heading="$message" role="alert" data-test="buildings-warning" />
+    @else
+        @if ($notice)
+            <flux:callout variant="success" icon="check-circle" :heading="$notice" role="status" data-test="buildings-notice" />
+        @endif
+    @enderror
 
     <div class="flex flex-col gap-3">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -90,6 +94,7 @@
 
                     <div class="flex flex-wrap items-center gap-2">
                         <flux:badge size="sm" color="zinc">{{ __($property->property_type->label()) }}</flux:badge>
+                        <flux:badge size="sm" color="zinc" data-test="unit-count-{{ $property->id }}">{{ trans_choice(':count unit|:count units', $property->units_count, ['count' => $property->units_count]) }}@if ($property->units_count > 0) · {{ __(':count occupied', ['count' => $property->occupied_units_count]) }}@endif</flux:badge>
                         @if ($canRestore)
                             <flux:button size="sm" wire:click="restore({{ $property->id }})" data-test="restore-{{ $property->id }}">{{ __('Restore') }}</flux:button>
                         @elseif ($canArchive)

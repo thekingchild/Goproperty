@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Modules\Properties\Database\Factories\PropertyFactory;
 use Modules\Properties\Enums\PropertyStatus;
@@ -51,6 +52,8 @@ use Spatie\MediaLibrary\HasMedia;
  * @property CarbonImmutable|null $deleted_at
  * @property-read OwnerProfile|null $owner
  * @property-read Media|null $coverPhoto
+ * @property-read int|null $units_count with withCount('units')
+ * @property-read int|null $occupied_units_count with PropertyIndex's count
  */
 final class Property extends Model implements HasMedia
 {
@@ -75,6 +78,16 @@ final class Property extends Model implements HasMedia
     public function owner(): BelongsTo
     {
         return $this->belongsTo(OwnerProfile::class, 'owner_profile_id')->withTrashed();
+    }
+
+    /**
+     * The building's units (archived units are soft-deleted, so not here).
+     *
+     * @return HasMany<Unit, $this>
+     */
+    public function units(): HasMany
+    {
+        return $this->hasMany(Unit::class);
     }
 
     /** @return BelongsTo<Media, $this> */

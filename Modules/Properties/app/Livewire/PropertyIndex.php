@@ -19,6 +19,7 @@ use Livewire\WithPagination;
 use Modules\Properties\Buildings\Properties;
 use Modules\Properties\Enums\PropertyStatus;
 use Modules\Properties\Enums\PropertyType;
+use Modules\Properties\Enums\UnitStatus;
 use Modules\Properties\Models\OwnerProfile;
 use Modules\Properties\Models\Property;
 
@@ -98,6 +99,7 @@ final class PropertyIndex extends Component
         $property = Property::query()->findOrFail($propertyId);
         $this->authorize('delete', $property);
 
+        // Refused (ValidationException, key `archive`) while a lease holds one of its units.
         $properties->archive($this->user(), $property);
         $this->notice = __(':name was archived. Find it under Archived to restore it.', ['name' => $property->name]);
     }
@@ -120,6 +122,8 @@ final class PropertyIndex extends Component
 
         $properties = Property::query()
             ->with(['owner', 'coverPhoto'])
+            // Unit and occupancy counts in the same query (no query per row).
+            ->withCount(['units', 'units as occupied_units_count' => fn (Builder $query) => $query->where('status', UnitStatus::Occupied)])
             ->where('status', $this->archived ? PropertyStatus::Archived : PropertyStatus::Active)
             ->when($type !== null, fn (Builder $query) => $query->where('property_type', $type))
             ->when($state !== null, fn (Builder $query) => $query->where('state', $state))

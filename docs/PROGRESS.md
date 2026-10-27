@@ -6,7 +6,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 ## Current state
 
-- **In progress:** P02-02 (units) and next P02-06b (tenants), each in its own worktree (`docs/plans/P02-P03-subtasks.md`). Done in P02: P02-01 (01a, 01b), P02-05, P02-06a
+- **In progress:** P02-06b (tenants) and P02-03 (agent assignment), each in its own worktree (`docs/plans/P02-P03-subtasks.md`). Done in P02: P02-01 (01a, 01b), P02-02, P02-05, P02-06a
 - **In review:** P00-02 (CI): all four database jobs are green in GitHub Actions; branch protection on `main` is off by the product owner's decision (2026-10-27) while P02 and P03 are built, so tasks keep merging straight to `main`; turn it on afterwards (`docs/runbooks/ci.md` § 3) and mark P00-02 complete. P00-12 (backups): built and drilled locally; needs one real run to an S3-compatible bucket and a Google Shared Drive (PRE-03 accounts)
 - **Next task:** P02 waves 3–6 after wave 2; PRE-01 to PRE-04 continue with the product owner
 - **Blocked:** P00-13 (staging): the deploy scripts, the deploy on merge and the deploy drill are built and drilled locally; it needs a staging host (PRE-04). Until then the Deploy workflow fails at "Check deploy settings" on every push to `main`
@@ -18,7 +18,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | PRE | 5 | 1 | In progress |
 | P00 | 13 | 10 | In progress |
 | P01 | 9 | 9 | Complete (2026-10-27) |
-| P02 | 7 | 2 | In progress |
+| P02 | 7 | 3 | In progress |
 | P03 | 13 | 0 | Not started |
 | P04 | 3 | 0 | Not started |
 | P05 | 6 | 0 | Not started |
@@ -26,11 +26,65 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | P07 | 4 | 0 | Not started |
 | P08 | 4 | 0 | Not started |
 | P09 | 8 | 0 | Not started |
-| **Total** | **83** | **22** | |
+| **Total** | **83** | **23** | |
 
 ## Ledger (newest first)
 
 Each entry: task ID and status, date, what was delivered, tests run and results, follow-ups, next task.
+
+### P02-02 — Complete (2026-10-27): units (schema, bulk create, status board and occupancy counts on the building page, UnitPolicy, UnitDirectory contract, UnitCreated/UnitDeleted events); P02-02 complete
+
+**Delivered** ([DATABASE_SCHEMA.md § 3](../DATABASE_SCHEMA.md) `units`, [ARCHITECTURE.md § 5](../ARCHITECTURE.md) "Units", § 6.2 "Built so far"; `docs/plans/P02-P03-subtasks.md` P02-02):
+- **Schema:** module migration `Modules/Properties/database/migrations/2026_11_04_000101_create_units_table.php`: DB § 3 columns, `property_id` FK to `properties` (restrict), `base_rent_kobo` / `service_charge_kobo` unsigned big integers (default 0), `status` (default `vacant`), import provenance `import_batch_id` (no FK) / `external_ref`, soft deletes. Unique `(property_id, unit_label)` and `(organization_id, external_ref)`; indexes `(organization_id, import_batch_id)`, `(organization_id, property_id, status)`, `(organization_id, status)`.
+- **Model and enums:** `Modules\Properties\Models\Unit` (`BelongsToOrganization`, `SoftDeletes`, rent and service charge through `App\Casts\MoneyCast`, `property()`), `UnitType` (apartment, self_contain, shop, office), `UnitStatus` (vacant, reserved, occupied, under_maintenance, unavailable; `manual()` = the three people set, `heldByLease()` = occupied/reserved), `UnitFactory`; `Property::units()`. `Unit` added to `tests/Support/OrganizationScopedModels.php` (all 5 `CrossTenantAccessTest` probes).
+- **Writers (audited, log `properties`):** `Modules\Properties\Units\Units` (create, update, archive, restore, setStatus; each user action checks `UnitPolicy`; the building row is locked while units are added; a label is unique in its building ignoring case; adding a label of an archived unit restores that unit with the new details, audited `unit.restored`; archiving is a soft delete, refused while the unit is occupied or reserved; updates audit the changed columns and the status change). `Units\CreateUnitsInBulk` (label pattern with `{n}` once and a first number, 1–100 units, same details for all; one transaction; every label checked first and a label already in the building stops the whole add with one error naming each label (key `labels`) plus one per label (`labels.<position>`); a label taken by another request meanwhile hits the unique index and rolls back everything). `Units\UnitDetails` (shared server-side checks; naira as typed → `Money`, ≤ ₦10bn, at most 2 decimals; manual statuses only; an occupied/reserved unit's status is left to its lease).
+- **Building archive:** `Buildings\Properties::archive` now refuses a building with an occupied or reserved unit (P02-01b follow-up); its units are left as they are and come back with it on restore. The list and the building page show the refusal.
+- **Policy:** `UnitPolicy` on the existing building permissions (no new permission): viewAny/view `properties.view`; update `properties.manage` (unit of an active building); create(building)/delete(archive)/restore `properties.portfolio`; nothing is added to or changed in an archived building; create and restore refused while the organization is `restricted`. `properties.portfolio`'s description now says "buildings and units".
+- **Pages:** building page (`PropertyShow`): "Units" section with occupancy ("6 of 10 units occupied (60%)"), a count per status that filters the status board (`?status=`), the status board (tile per unit: label, status badge, type, bedrooms, yearly rent; edit/archive), archived units on request with Restore; "Add unit" / "Add several units". New `UnitForm` (`/o/{slug}/buildings/{building}/units/create` and `/units/{id}/edit`, archive on the edit page; the unit must be the building's, else 404) and `UnitBulkForm` (`/units/bulk`, live preview "Adds 10 units: Flat 1 to Flat 10"). Buildings list rows show "10 units · 6 occupied" (withCount, same query).
+- **Contract and events:** `Modules\Properties\Contracts\UnitDirectory` (`find`, `findMany` → `UnitSummary` with `Money` amounts; `countsForProperty`, `counts` → `UnitCounts`; `countBillable` = BILLING § 1.4; `setStatus(id, status, reason)` audited `unit.status_changed`; `lock(id)` = `SELECT … FOR UPDATE`, refused outside a transaction), bound to `Units\UnitDirectoryService`. `Modules\Properties\Events\UnitCreated` (`restored` flag) and `UnitDeleted`, `ShouldDispatchAfterCommit`, plain ids.
+- **Docs:** DATABASE_SCHEMA.md § 3 `units` as built; ARCHITECTURE.md § 5 (Units paragraph), § 6.2 (statuses include `reserved`; units, bulk add, archive semantics, UnitDirectory, events; building archive rule).
+
+**Tests and evidence (local, MariaDB 11.4):**
+- `composer ci` on the final commit: Pint passed, Larastan 0 errors, Pest **1,554 tests: 1,554 passed, 12,890 assertions** (was 1,489; 65 new). The Properties module tests and `CrossTenantAccessTest` also pass with `APP_DEBUG=true` (201 tests, 1,350 assertions).
+- New: `Modules/Properties/tests/Feature/Units/UnitBulkCreateTest.php` (19 incl. datasets), `UnitPagesTest.php` (23), `UnitRolesTest.php` (12), `UnitDirectoryTest.php` (6), helpers `helpers.php`; `CrossTenantAccessTest` dataset `Unit` (5).
+- **AC: creating 10 units in one bulk action works:** `UnitBulkCreateTest` › "creates 10 units in one bulk action from the page, with the same details, audited, and sends UnitCreated for each" (Flat 1…Flat 10, 10 inserts, all one transaction level deeper than the request, 10 audit entries, 10 events after commit, building page "0 of 10 units occupied"); "rolls back all of them with a clear error naming each label the building already has" (Flat 7, flat 9 pre-existing → "Flat 7, Flat 9 already exist in Palm Court. Change the first number or the pattern: no unit was added." plus one line per label; nothing added, no audit, no event); "rolls back the units already added when a label is taken during the add, in one transaction" (a row inserted mid-add: unique index stops it at Flat 9, Flat 1–8 rolled back, error names Flat 9, no event); pattern/count/amount validation dataset (13); "brings back an archived unit whose label is added again…".
+- **AC: unit statuses drive occupancy counts on the building page:** `UnitPagesTest` › "drives the occupancy counts on the building page from the units' statuses" (10 vacant → 6 occupied + 1 reserved via `UnitDirectory::setStatus`, 1 under maintenance + 1 unavailable via the edit page → "6 of 10 units occupied (60%)" and each status count; board filter; a lease ending and an archive → "5 of 9 units occupied (55%)"; other buildings' and organizations' units never counted; list shows "9 units · 5 occupied").
+- **Sub: duplicate `unit_label` in one building gives a clear error:** above, plus `UnitPagesTest` › "gives a clear error for a label the building already has, and accepts it in another building" (case-insensitive) and "edits a unit, audits what changed, and keeps labels unique in the building" (taken label; archived unit's label → "restore it instead").
+- **Sub: rent fields use `MoneyCast`:** `UnitPagesTest` › "keeps rent and service charge as integer kobo through MoneyCast" (₦2,500,000 → 250,000,000 kobo raw; ₦250,000.50 → 25,000,050; `Money` instances; casts are `MoneyCast`; assigning an int or string throws; edit page shows naira; empty service charge = zero).
+- **Cross-org probes / ID guessing 404:** `CrossTenantAccessTest` dataset `Unit`; `UnitPagesTest` › "answers 404 for another organization's unit, or another building's, guessed by ID on every page and action" (edit pages by foreign id, foreign building's create/bulk/edit, another building's unit, archiveUnit/restoreUnit with foreign ids → 404; locked `unitId`/`propertyId` swapped → 419 with debug pinned off; member of both orgs gets 404 inside Acme; foreign rows unchanged); `UnitDirectoryTest` › "finds the current organization's live units only".
+- **Role rules:** `UnitRolesTest` › policy matrix (5 roles × 9 abilities incl. archived building), other-org members and strangers refused, pages per role, agent's add/bulk/archive/restore sent to the server refused while the agent's edit saves.
+- **Suspended org read-only:** `UnitRolesTest` › "shows units read-only while the organization is suspended" (board and counts visible, no buttons, create/bulk/edit 403, save/archive/restore/bulk calls 403, nothing changed). Restricted: "adds and restores no unit while the organization is restricted, but keeps editing and archiving".
+- **Impersonation:** `UnitRolesTest` › "lets impersonating staff in write mode add and edit units, audited with both identities, but never archive one", "… read-only mode open units but change nothing".
+- **Archived building refuses new units:** `UnitPagesTest` › "refuses new units in an archived building, and keeps its units read-only" (create/bulk/edit pages 403, no buttons, writers throw `AuthorizationException`; a building archived after the page loaded it is refused under the row lock with "Palm Court is archived. Restore it before adding units."); "refuses to archive a building while a lease holds one of its units".
+- Others: "leaves an occupied or reserved unit's status to its lease, and never archives it"; "archives a unit as a soft delete, so it leaves the counts and the bill, and restores it, all audited" (UnitDeleted/UnitCreated(restored)); `UnitDirectoryTest` (counts per building/org, `countBillable` excludes archived units and archived buildings but counts `unavailable`; setStatus audited with reason, unknown status/unit refused; `lock` inside a transaction only, `FOR UPDATE` in the SQL; no context throws).
+- Not run: release/install drills (no installer change; `InstallCommandTest` › "runs every module's migrations…" passes with `units`). No browser smoke: pages exercised through HTTP/Livewire tests only.
+
+**Orchestrator review:** merged `main` (with P02-06a) into the branch with no conflicts, refreshed `vendor/`, re-ran `composer ci`: Pint passed, Larastan 0 errors, Pest 1,613 passed, 13,261 assertions.
+
+**Decisions to confirm:**
+- Orchestrator decision 1 (modules): units live in `Modules/Properties`, Livewire components in the module.
+- Orchestrator decision 3 (soft deletes vs unique keys): `(property_id, unit_label)` stays unique incl. soft-deleted rows; adding (one or in bulk) a label of an archived unit restores that unit with the new details, audited `unit.restored`, and sends `UnitCreated` with `restored = true`. Renaming a unit to an archived unit's label is refused with "restore it instead".
+- Orchestrator decision 4 (plan gating): BILLING § 1.2 gates nothing built here (units are in every plan). The bulk form says each unit counts towards the bill; the plan/price effect is not shown (P06).
+- **Unit archive = soft delete, not a status** (buildings use a status). The reason is the same one P02-01b followed, applied to units: BILLING § 1.4 meters "units that are not soft-deleted and whose property is not archived", and counts `unavailable` units on purpose; an `archived` unit status would either still be billed (pointless) or change the metering rule (a money change the docs do not sanction). DB § 3's status list has no `archived`. Soft deletes are also what import rollback uses (as for owners). Archiving is refused while the unit is occupied or reserved.
+- **Permissions reused, none added:** units use `properties.view` / `properties.manage` / `properties.portfolio`; adding, archiving and restoring units is `properties.portfolio` (org-owner, org-admin) because each unit is billed, as P02-01b decided for buildings; agents edit units (details and manual status). `UnitPolicy::delete` is blocked during impersonation by the central guard (a `delete` ability); adding and editing are allowed in write mode.
+- **Restricted organizations** add and restore no units (ONBOARDING § 5.5 "no new … units"); editing and archiving continue.
+- **Who sets which status:** people choose `vacant`, `under_maintenance`, `unavailable`; `occupied` and `reserved` only through `UnitDirectory::setStatus` (Leasing, P03-03a) or an import of leases (DATA_IMPORT § 1 "status … derived from leases"). An occupied/reserved unit's status cannot be changed on the form.
+- **Rent and service charge are yearly** asking amounts (labelled "per year"); base rent required (₦0 allowed), service charge optional (0 = none). DB § 3 does not say the period; leases keep their own amount and cycle.
+- **Occupancy = occupied ÷ all units** (not soft-deleted), rounded down; reserved, under maintenance and unavailable are shown separately.
+- **Archiving a building** is refused while one of its units is occupied or reserved; its other units are left as they are (out of the bill through the building's status) and come back with it.
+- `size_sqm` is whole square metres (integer); `floor` is short text ("Ground", "2").
+- `UnitCreated`/`UnitDeleted` are sent once per unit after commit (10 events for a 10-unit add).
+
+**Follow-ups:**
+- P02-03: narrow `UnitPolicy::view/update` and the building page's board to assigned buildings for narrowed agents (the policy notes where); the unit index (pagination, filters, search) is P02-03's; agent assignment is Scale-only (BILLING § 1.2) — gate in P06-01.
+- P02-04: unit count for the accept screen via `UnitDirectory::countBillable()`.
+- P02-06c: `UnitsImportTarget` matches by `external_ref` incl. soft-deleted rows and by property + label (case-insensitive; the unique index already treats it so); reuse `Units\Units::place()` or the same restore rule; status left blank = vacant (leases set it).
+- P03-03a: `LeaseService` calls `UnitDirectory::lock()` then `setStatus()` inside its transaction; listener for lease events sets `occupied`/`reserved`/`vacant`.
+- P06: listen to `UnitCreated`/`UnitDeleted` for `subscription_unit_events`; restoring or archiving a **building** sends no unit event (its units leave/return to the count through the building's status) — P06 should either count on the billing day only (BILLING § 1.4) or Properties should add a building event.
+- P02-07: export on the units list (P02-03's index).
+- Status board shows every unit of a building (no paging); fine for hundreds of units, revisit for very large estates.
+
+**Next:** P02 wave 4 (P02-03 ‖ P02-04) once wave 3 has merged.
 
 ### P02-06a — Complete (2026-10-27): import engine core (Modules/Import): targets contract and registry, streaming reader, mapping with saved mappings, template, dry run and error workbook, queued commit per sheet, 7-day rollback, 30-day upload purge
 

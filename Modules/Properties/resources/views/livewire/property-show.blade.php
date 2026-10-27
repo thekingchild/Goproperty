@@ -16,11 +16,15 @@
         @endif
     </x-slot:actions>
 
-    @if ($notice)
-        <flux:callout variant="success" icon="check-circle" :heading="$notice" role="status" data-test="building-notice" />
-    @elseif ($flash)
-        <flux:callout variant="success" icon="check-circle" :heading="$flash" role="status" data-test="building-notice" />
-    @endif
+    @error('archive')
+        <flux:callout variant="warning" icon="exclamation-triangle" :heading="$message" role="alert" data-test="building-warning" />
+    @else
+        @if ($notice)
+            <flux:callout variant="success" icon="check-circle" :heading="$notice" role="status" data-test="building-notice" />
+        @elseif ($flash)
+            <flux:callout variant="success" icon="check-circle" :heading="$flash" role="status" data-test="building-notice" />
+        @endif
+    @enderror
 
     @if ($property->isArchived())
         <flux:callout variant="warning" icon="archive-box" :heading="__('This building is archived')" :text="__('It is kept with its history and cannot be changed. Its units do not count towards your bill.')" data-test="archived-banner" />
@@ -85,6 +89,91 @@
             @endif
         </section>
     </div>
+
+    <section class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900" data-test="building-units">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+                <flux:heading size="lg" level="2">{{ __('Units') }}</flux:heading>
+                <flux:text class="mt-1" data-test="occupancy">
+                    @if ($unitCounts->total() === 0)
+                        {{ __('No units yet.') }}
+                    @else
+                        {{ trans_choice(':occupied of :count unit occupied (:percent%)|:occupied of :count units occupied (:percent%)', $unitCounts->total(), ['occupied' => $unitCounts->occupied, 'count' => $unitCounts->total(), 'percent' => $unitCounts->occupancyPercent()]) }}
+                    @endif
+                </flux:text>
+            </div>
+            @if ($canAddUnits)
+                <div class="flex flex-wrap gap-2">
+                    <flux:button size="sm" icon="plus" :href="route('workspace.units.create', [$organization, $property])" wire:navigate data-test="add-unit">{{ __('Add unit') }}</flux:button>
+                    <flux:button size="sm" variant="primary" icon="squares-plus" :href="route('workspace.units.bulk', [$organization, $property])" wire:navigate data-test="add-units-bulk">{{ __('Add several units') }}</flux:button>
+                </div>
+            @endif
+        </div>
+
+        @if ($unitCounts->total() > 0)
+            <div class="mt-4 flex flex-wrap gap-2" role="group" aria-label="{{ __('Show units by status') }}" data-test="unit-counts">
+                <flux:button size="sm" :variant="$boardFilter === null ? 'filled' : 'ghost'" wire:click="$set('boardStatus', '')" :aria-pressed="$boardFilter === null ? 'true' : 'false'" data-test="count-all">
+                    {{ __('All') }} <span class="ms-1 font-semibold">{{ $unitCounts->total() }}</span>
+                </flux:button>
+                @foreach ($statuses as $statusOption)
+                    <flux:button size="sm" :variant="$boardFilter === $statusOption ? 'filled' : 'ghost'" wire:click="$set('boardStatus', '{{ $statusOption->value }}')" :aria-pressed="$boardFilter === $statusOption ? 'true' : 'false'" data-test="count-{{ $statusOption->value }}">
+                        {{ __($statusOption->label()) }} <span class="ms-1 font-semibold">{{ $unitCounts->byStatus()[$statusOption->value] }}</span>
+                    </flux:button>
+                @endforeach
+            </div>
+
+            @if ($boardUnits->isEmpty())
+                <flux:text class="mt-4">{{ __('No unit is :status.', ['status' => mb_strtolower(__($boardFilter?->label() ?? ''))]) }}</flux:text>
+            @else
+                <ul class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4" data-test="status-board">
+                    @foreach ($boardUnits as $unit)
+                        <li class="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700" wire:key="unit-{{ $unit->id }}" data-unit="{{ $unit->id }}" data-status="{{ $unit->status->value }}">
+                            <div class="flex items-start justify-between gap-2">
+                                <span class="font-medium text-zinc-900 dark:text-white">{{ $unit->unit_label }}</span>
+                                <flux:badge size="sm" :color="$unit->status->color()">{{ __($unit->status->label()) }}</flux:badge>
+                            </div>
+                            <span class="text-sm text-zinc-500 dark:text-zinc-400">
+                                {{ __($unit->unit_type->label()) }}@if ($unit->bedrooms !== null) · {{ trans_choice(':count bedroom|:count bedrooms', $unit->bedrooms, ['count' => $unit->bedrooms]) }}@endif
+                            </span>
+                            <span class="text-sm text-zinc-700 dark:text-zinc-300">{{ __(':amount a year', ['amount' => $unit->base_rent_kobo->format()]) }}</span>
+                            @if ($canEditUnits || $canArchiveUnits)
+                                <div class="flex flex-wrap gap-2">
+                                    @if ($canEditUnits)
+                                        <flux:button size="xs" :href="route('workspace.units.edit', [$organization, $property, $unit->id])" wire:navigate data-test="edit-unit-{{ $unit->id }}">{{ __('Edit') }}</flux:button>
+                                    @endif
+                                    @if ($canArchiveUnits && ! $unit->status->heldByLease())
+                                        <flux:button size="xs" variant="ghost" wire:click="archiveUnit({{ $unit->id }})" wire:confirm="{{ __('Archive :label? It stops counting towards your bill, and you can restore it later.', ['label' => $unit->unit_label]) }}" data-test="archive-unit-{{ $unit->id }}">{{ __('Archive') }}</flux:button>
+                                    @endif
+                                </div>
+                            @endif
+                        </li>
+                    @endforeach
+                </ul>
+            @endif
+        @elseif ($canAddUnits)
+            <flux:text class="mt-2">{{ __('Add the flats, shops and offices in this building, one at a time or several at once.') }}</flux:text>
+        @endif
+
+        @if ($archivedUnitCount > 0 || $showArchivedUnits)
+            <div class="mt-4">
+                <flux:button size="sm" variant="ghost" wire:click="$toggle('showArchivedUnits')" data-test="toggle-archived-units">
+                    {{ $showArchivedUnits ? __('Hide archived units') : trans_choice('Show :count archived unit|Show :count archived units', $archivedUnitCount, ['count' => $archivedUnitCount]) }}
+                </flux:button>
+                @if ($showArchivedUnits)
+                    <ul class="mt-3 flex flex-col gap-2" data-test="archived-units">
+                        @foreach ($archivedUnits as $unit)
+                            <li class="flex items-center justify-between gap-2 rounded-lg border border-dashed border-zinc-200 p-3 dark:border-zinc-700" wire:key="archived-unit-{{ $unit->id }}">
+                                <span class="text-zinc-700 dark:text-zinc-300">{{ $unit->unit_label }} <span class="text-sm text-zinc-500">({{ __('archived') }})</span></span>
+                                @if ($canRestoreUnits)
+                                    <flux:button size="xs" wire:click="restoreUnit({{ $unit->id }})" data-test="restore-unit-{{ $unit->id }}">{{ __('Restore') }}</flux:button>
+                                @endif
+                            </li>
+                        @endforeach
+                    </ul>
+                @endif
+            </div>
+        @endif
+    </section>
 
     <section class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900" data-test="building-photos">
         <div class="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">

@@ -11,19 +11,23 @@ use Illuminate\Support\Facades\Gate;
 use Livewire\Livewire;
 use Modules\Properties\Buildings\PropertyDirectoryService;
 use Modules\Properties\Contracts\PropertyDirectory;
+use Modules\Properties\Contracts\UnitDirectory;
 use Modules\Properties\Models\OwnerProfile;
 use Modules\Properties\Models\Property;
+use Modules\Properties\Models\Unit;
 use Modules\Properties\Policies\OwnerProfilePolicy;
 use Modules\Properties\Policies\PropertyPolicy;
+use Modules\Properties\Policies\UnitPolicy;
+use Modules\Properties\Units\UnitDirectoryService;
 use Nwidart\Modules\Support\ModuleServiceProvider;
 
 /**
  * The Properties module (ARCHITECTURE.md § 6.2, § 8): owner profiles and
- * buildings, later units. The base provider loads the module's views
+ * buildings and their units. The base provider loads the module's views
  * (`properties::`) and migrations; this one adds its policies, its
  * Livewire components (namespace `properties::`, classes in
  * Modules\Properties\Livewire), its workspace sidebar items, and the
- * contracts other modules use (Contracts\PropertyDirectory).
+ * contracts other modules use (Contracts\PropertyDirectory, UnitDirectory).
  */
 final class PropertiesServiceProvider extends ModuleServiceProvider
 {
@@ -42,6 +46,7 @@ final class PropertiesServiceProvider extends ModuleServiceProvider
 
         // For other modules (ARCHITECTURE.md § 6.2, § 8 rule 3).
         $this->app->bind(PropertyDirectory::class, PropertyDirectoryService::class);
+        $this->app->bind(UnitDirectory::class, UnitDirectoryService::class);
     }
 
     public function boot(): void
@@ -50,6 +55,7 @@ final class PropertiesServiceProvider extends ModuleServiceProvider
 
         Gate::policy(OwnerProfile::class, OwnerProfilePolicy::class);
         Gate::policy(Property::class, PropertyPolicy::class);
+        Gate::policy(Unit::class, UnitPolicy::class);
 
         Livewire::addNamespace($this->nameLower, classNamespace: 'Modules\\Properties\\Livewire');
 

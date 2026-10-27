@@ -15,13 +15,18 @@ use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\WithFileUploads;
 use Modules\Properties\Buildings\Properties;
 use Modules\Properties\Buildings\PropertyPhotos;
+use Modules\Properties\Enums\UnitStatus;
 use Modules\Properties\Models\OwnerProfile;
 use Modules\Properties\Models\Property;
+use Modules\Properties\Models\Unit;
+use Modules\Properties\Units\UnitDirectoryService;
+use Modules\Properties\Units\Units;
 
 /**
  * A building's page, /o/{organization}/buildings/{slug}: its details, owner,
@@ -29,8 +34,13 @@ use Modules\Properties\Models\Property;
  * `properties.view` open it (an archived building too, read-only);
  * `properties.manage` adds photos, picks the cover and removes photos;
  * `properties.portfolio` archives and restores (PropertyPolicy, checked
- * again by Buildings\Properties and Buildings\PropertyPhotos). Units arrive
- * on this page with P02-02.
+ * again by Buildings\Properties and Buildings\PropertyPhotos).
+ *
+ * Units (P02-02): occupancy counts read from the units' statuses, and a
+ * status board of every unit, filtered by status (kept in the URL), with
+ * links to add one or several units and to edit each; archived units are
+ * listed on request with Restore. Unit actions check UnitPolicy (and
+ * Units\Units again); a unit is looked up among this building's units only.
  *
  * Photos are checked by App\Media\UploadValidator as soon as they are
  * chosen and again when saved (MediaUploads), and shown through signed,
@@ -56,6 +66,14 @@ final class PropertyShow extends Component
 
     #[Locked]
     public ?string $notice = null;
+
+    /** Status board filter: a `units.status` value, or empty for every unit. */
+    #[Url(as: 'status', except: '')]
+    public string $boardStatus = '';
+
+    /** Whether the archived units are listed. */
+    #[Url(as: 'archived_units', except: false)]
+    public bool $showArchivedUnits = false;
 
     public function boot(OrganizationContext $context): void
     {
@@ -129,11 +147,31 @@ final class PropertyShow extends Component
         $this->notice = __('The photo was removed.');
     }
 
+    public function archiveUnit(int $unitId, Units $units): void
+    {
+        $unit = Unit::query()->where('property_id', $this->propertyId)->findOrFail($unitId);
+        $this->authorize('delete', $unit);
+
+        // Refused (ValidationException, key `archive`) while a lease holds the unit.
+        $units->archive($this->user(), $unit);
+        $this->notice = __(':label was archived. It no longer counts towards your bill; find it under archived units to restore it.', ['label' => $unit->unit_label]);
+    }
+
+    public function restoreUnit(int $unitId, Units $units): void
+    {
+        $unit = Unit::query()->onlyTrashed()->where('property_id', $this->propertyId)->findOrFail($unitId);
+        $this->authorize('restore', $unit);
+
+        $units->restore($this->user(), $unit);
+        $this->notice = __(':label was restored.', ['label' => $unit->unit_label]);
+    }
+
     public function archive(Properties $properties): void
     {
         $property = $this->property();
         $this->authorize('delete', $property);
 
+        // Refused (ValidationException, key `archive`) while a lease holds one of its units.
         $properties->archive($this->user(), $property);
         $this->notice = __(':name was archived. Its units no longer count towards your bill; restore it to work on it again.', ['name' => $property->name]);
     }
@@ -161,8 +199,29 @@ final class PropertyShow extends Component
             'cover' => $photo->id === $property->photo_media_id,
         ])->all();
 
+        $filter = UnitStatus::tryFrom($this->boardStatus);
+        $units = $property->units()->get()->sort(static fn (Unit $a, Unit $b): int => strnatcasecmp($a->unit_label, $b->unit_label))->values();
+        $units->each(fn (Unit $unit) => $unit->setRelation('property', $property));
+        $sampleUnit = $units->first();
+        $archivedUnits = $this->showArchivedUnits
+            ? Unit::query()->onlyTrashed()->where('property_id', $property->id)->get()->sort(static fn (Unit $a, Unit $b): int => strnatcasecmp($a->unit_label, $b->unit_label))->values()
+            : collect();
+        $archivedUnits->each(fn (Unit $unit) => $unit->setRelation('property', $property));
+        $sampleArchived = $archivedUnits->first();
+
         return view('properties::livewire.property-show', [
             'organization' => $context->get(),
+            // Occupancy counts come from the units' statuses (ARCHITECTURE.md § 6.2).
+            'unitCounts' => UnitDirectoryService::countsOf($property->units()->getQuery()),
+            'statuses' => UnitStatus::cases(),
+            'boardFilter' => $filter,
+            'boardUnits' => $filter === null ? $units : $units->filter(fn (Unit $unit): bool => $unit->status === $filter)->values(),
+            'archivedUnits' => $archivedUnits,
+            'archivedUnitCount' => $this->showArchivedUnits ? $archivedUnits->count() : Unit::query()->onlyTrashed()->where('property_id', $property->id)->count(),
+            'canAddUnits' => $user->can('create', [Unit::class, $property]),
+            'canEditUnits' => $sampleUnit instanceof Unit && $user->can('update', $sampleUnit),
+            'canArchiveUnits' => $sampleUnit instanceof Unit && $user->can('delete', $sampleUnit),
+            'canRestoreUnits' => $sampleArchived instanceof Unit && $user->can('restore', $sampleArchived),
             'property' => $property,
             'owner' => $property->owner,
             'canSeeOwner' => $property->owner instanceof OwnerProfile && $user->can('view', $property->owner),

@@ -99,7 +99,7 @@ Depends on: P01. Sub-tasks, run order and open decisions: [docs/plans/P02-P03-su
 | ID | Deliverable | Acceptance |
 | --- | --- | --- |
 | P02-01 — **Complete (2026-10-27)** (done as P02-01a owners and module setup, P02-01b buildings; see `docs/PROGRESS.md`) | Owner profiles (person/company); buildings CRUD with amenities and photos | Cross-org access tests pass for owners and buildings |
-| P02-02 — **Not started** | Units CRUD (types, rent/service defaults, status board); bulk unit creation (e.g. "10 identical flats") | Creating 10 units in one bulk action works; unit statuses drive occupancy counts on the building page |
+| P02-02 — **Complete (2026-10-27)** | Units CRUD (types, rent/service defaults, status board); bulk unit creation (e.g. "10 identical flats") | Creating 10 units in one bulk action works; unit statuses drive occupancy counts on the building page |
 | P02-03 — **Not started** | Agent↔building assignment (optional narrowing); unit filters and lists with server-side pagination | A unit of org B is not addressable by an org A user via ID guessing; a narrowed agent sees only assigned buildings |
 | P02-04 — **Not started** | Org-to-org invitation UI: property owner invites agency; agency invite inbox; **billing transfer accept screen** with explicit amount (state machine in [BILLING_PAYMENTS.md § 7](BILLING_PAYMENTS.md)) — invite + accept/decline record lands now, payer switch in P06-06 | Invite, accept and decline are recorded through `BillingTransferService`; invalid transitions rejected |
 | P02-05 — **Complete (2026-10-27)** | Media library (photos, thumbnails) on S3-compatible storage with signed URLs | Uploads validated (mime sniff, size); signed URLs expire; another org's media is not reachable |

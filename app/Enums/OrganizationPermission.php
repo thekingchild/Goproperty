@@ -182,7 +182,7 @@ enum OrganizationPermission: string
             self::ManageOwners => 'Add, edit, archive and restore property owners',
             self::ViewProperties => 'See buildings and units',
             self::ManageProperties => 'Edit buildings and their photos, and their units',
-            self::ManagePropertyPortfolio => 'Add, archive and restore buildings',
+            self::ManagePropertyPortfolio => 'Add, archive and restore buildings and units',
             self::ViewLeases => 'See leases',
             self::ManageLeases => 'Create, renew and end leases',
             self::ViewBills => 'See bills',
