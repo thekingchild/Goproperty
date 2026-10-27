@@ -1,0 +1,28 @@
+{
+    "name": "goproperty/collections",
+    "description": "Bank statement import and matching of credits to bills (ONBOARDING_COMPLIANCE.md § 4.1)",
+    "authors": [
+        {
+            "name": "GoProperty",
+            "email": ""
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [],
+            "aliases": {
+
+            }
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Modules\\Collections\\": "app/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Modules\\Collections\\Tests\\": "tests/"
+        }
+    }
+}

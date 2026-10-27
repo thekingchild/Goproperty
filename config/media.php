@@ -90,6 +90,18 @@ return [
             'kind' => 'attachment',
         ],
 
+        // Bank statements uploaded for matching (Modules\Collections,
+        // ONBOARDING_COMPLIANCE.md § 4.1): .xlsx or .csv with the same
+        // content checks as `imports`. Evidence: the file a payment was
+        // matched from is kept, never deleted by a customer action. A
+        // year of daily transactions fits well within the cap.
+        'statements' => [
+            'mimes' => ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv'],
+            'max_kb' => 10 * 1024,
+            'conversions' => [],
+            'kind' => 'evidence',
+        ],
+
         // PDFs of issued documents (invoices, receipts, …), rendered once by
         // App\Documents\DocumentRenderer and reused (BRANDING_DOCUMENTS.md § 5).
         'issued_documents' => [

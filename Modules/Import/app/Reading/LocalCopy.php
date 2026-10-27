@@ -12,7 +12,8 @@ use RuntimeException;
 /**
  * The spreadsheet readers need a local file; the upload may be on the
  * media bucket. Copies the file to a private temporary file for the length
- * of the callback, then deletes it.
+ * of the callback, then deletes it (or hands the copy to the caller,
+ * temporaryFile()).
  */
 final class LocalCopy
 {
@@ -24,33 +25,48 @@ final class LocalCopy
      */
     public static function using(Media $media, Closure $callback): mixed
     {
+        $path = self::temporaryFile($media);
+
+        try {
+            return $callback($path);
+        } finally {
+            @unlink($path);
+        }
+    }
+
+    /**
+     * Copies the media file to a new private temporary file and returns its
+     * path; the caller deletes it when done.
+     */
+    public static function temporaryFile(Media $media): string
+    {
         $stream = Storage::disk($media->disk)->readStream($media->getPathRelativeToRoot());
 
         if (! is_resource($stream)) {
             throw new RuntimeException('The uploaded file is missing from the media disk.');
         }
 
-        $path = tempnam(sys_get_temp_dir(), 'gp-import-');
-
-        if ($path === false) {
-            throw new RuntimeException('No temporary file could be made for the import.');
-        }
-
         try {
+            $path = tempnam(sys_get_temp_dir(), 'gp-import-');
+
+            if ($path === false) {
+                throw new RuntimeException('No temporary file could be made for the import.');
+            }
+
             $local = fopen($path, 'wb');
 
             if ($local === false) {
+                @unlink($path);
+
                 throw new RuntimeException('No temporary file could be made for the import.');
             }
 
             stream_copy_to_stream($stream, $local);
             fclose($local);
 
-            return $callback($path);
+            return $path;
         } finally {
             fclose($stream);
-
-            @unlink($path);
         }
     }
 }

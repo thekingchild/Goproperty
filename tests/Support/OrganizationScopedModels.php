@@ -32,6 +32,12 @@ use Modules\Billing\Enums\BillableType;
 use Modules\Billing\Enums\BillType;
 use Modules\Billing\Models\Bill;
 use Modules\Billing\Models\BillItem;
+use Modules\Collections\Enums\DateOrder;
+use Modules\Collections\Enums\LineDirection;
+use Modules\Collections\Enums\StatementFormat;
+use Modules\Collections\Models\BankStatementColumnMapping;
+use Modules\Collections\Models\BankStatementImport;
+use Modules\Collections\Models\BankStatementLine;
 use Modules\Import\Enums\ImportFileType;
 use Modules\Import\Models\ImportBatch;
 use Modules\Import\Models\ImportColumnMapping;
@@ -165,6 +171,27 @@ final class OrganizationScopedModels
                 'tenant_profile_id' => TenantProfile::factory()->create()->id,
                 'balance_kobo' => Money::naira(50_000),
             ])->save()),
+            // Rows on their own (StatementImports and StatementReader are the writers; the probes are about the rows).
+            BankStatementImport::class => fn (): Model => self::statement(),
+            BankStatementLine::class => fn (): Model => tap(new BankStatementLine, function (BankStatementLine $line): bool {
+                $statement = self::statement();
+
+                return $line->forceFill([
+                    'bank_statement_import_id' => $statement->id,
+                    'organization_bank_account_id' => $statement->organization_bank_account_id,
+                    'row_number' => 2,
+                    'transaction_date' => '2027-01-02',
+                    'direction' => LineDirection::Credit,
+                    'amount_kobo' => Money::naira(100_000),
+                    'narration' => 'Probe transfer',
+                    'line_hash' => hash('sha256', Str::random(40)),
+                ])->save();
+            }),
+            BankStatementColumnMapping::class => fn (): Model => tap(new BankStatementColumnMapping, fn (BankStatementColumnMapping $mapping): bool => $mapping->forceFill([
+                'organization_bank_account_id' => self::make(OrganizationBankAccount::class)->getKey(),
+                'columns' => ['date' => 'Date', 'narration' => 'Narration', 'credit' => 'Credit'],
+                'date_order' => DateOrder::DayFirst,
+            ])->save()),
             // An issued receipt and a notice (P03-10b): history, never changed or deleted.
             Receipt::class => fn (): Model => tap(new Receipt, function (Receipt $receipt): void {
                 $payment = self::payment();
@@ -244,6 +271,16 @@ final class OrganizationScopedModels
             'method' => PaymentMethod::BankTransfer,
             'source' => PaymentSource::Manual,
             'paid_at' => '2027-01-01',
+        ])->save());
+    }
+
+    /** An uploaded statement of a new bank account, in the current organization. */
+    private static function statement(): BankStatementImport
+    {
+        return tap(new BankStatementImport, fn (BankStatementImport $statement): bool => $statement->forceFill([
+            'organization_bank_account_id' => self::make(OrganizationBankAccount::class)->getKey(),
+            'file_name' => 'probe.csv',
+            'format' => StatementFormat::Csv,
         ])->save());
     }
 

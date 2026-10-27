@@ -272,6 +272,7 @@ it('keeps exactly the reading, exporting and paying permissions while suspended'
         'bills.view',
         'payments.view',
         'payments.submit_proof',
+        'statements.view',
         'tickets.view',
         'reports.view',
         'imports.view',

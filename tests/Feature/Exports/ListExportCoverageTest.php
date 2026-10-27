@@ -14,9 +14,12 @@ use App\Support\Money;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
 use Livewire\WithPagination;
 use Modules\Billing\Jobs\RenderInvoice;
+use Modules\Collections\Livewire\StatementShow;
 use Modules\Import\Enums\ImportStatus;
 use Modules\Import\Models\ImportBatch;
 use Modules\Properties\Enums\UnitStatus;
@@ -31,6 +34,7 @@ require_once __DIR__.'/../../../Modules/Tenants/tests/Feature/helpers.php';
 require_once __DIR__.'/../../../Modules/Leasing/tests/Feature/helpers.php';
 require_once __DIR__.'/../../../Modules/Billing/tests/Feature/helpers.php';
 require_once __DIR__.'/../../../Modules/Payments/tests/Feature/helpers.php';
+require_once __DIR__.'/../../../Modules/Collections/tests/Feature/helpers.php';
 
 /*
  * P02-07 AC "every list page exports" (IMPLEMENTATION_PLAN.md § 3;
@@ -74,6 +78,9 @@ beforeEach(function () {
     recordPayment($this->acme, $this->owner, $kemi, '150,000');
     holdReceiptPdfs();
     confirmedPayment($this->acme, $this->owner, $kemi, '20,000');
+    // An uploaded bank statement and its lines (P03-07a).
+    Storage::fake('media');
+    $this->statement = uploadStatement($this->acme, $this->owner, statementAccount($this->acme, $this->owner), statementCsv(gtStatementRows(januaryTransactions())));
     inOrganization($this->acme, function (): void {
         ImportBatch::query()->create(['kind' => 'workbook', 'file_type' => 'xlsx', 'file_name' => 'portfolio.xlsx', 'status' => ImportStatus::Uploaded, 'created_by_user_id' => $this->owner->id]);
         app(MemberInvitations::class)->invite($this->owner, 'new.agent@acme.ng', [OrganizationRole::Agent]);
@@ -92,7 +99,7 @@ afterEach(fn () => exportsFreshRequest());
  *
  * @return array<string, string> path after /o/{slug} => component class
  */
-function workspaceListPages(User $user, Organization $organization, string $buildingSlug): array
+function workspaceListPages(User $user, Organization $organization, string $buildingSlug, int $statementId): array
 {
     $missing = listPagesWithoutExport($user, $organization);
     expect($missing)->toBe([], 'Every list page exports (AGENT.md § 5): use App\Exports\Livewire\WithListExports in '.implode(', ', $missing).'.');
@@ -106,8 +113,10 @@ function workspaceListPages(User $user, Organization $organization, string $buil
         }
     }
 
-    // Lists inside pages reached from the sidebar.
+    // Lists inside pages reached from the sidebar: a building's agents and
+    // units, a bank statement's lines.
     $pages["/o/{$organization->slug}/buildings/{$buildingSlug}"] = PropertyShow::class;
+    $pages["/o/{$organization->slug}/statements/{$statementId}"] = StatementShow::class;
 
     return array_map(static fn (mixed $component): string => (string) $component, $pages);
 }
@@ -172,7 +181,7 @@ it('gives every workspace list page a working export, in Excel and CSV', functio
     $registry = app(ListExports::class);
     $offered = [];
 
-    foreach (workspaceListPages($this->owner, $this->acme, 'palm-court') as $path => $component) {
+    foreach (workspaceListPages($this->owner, $this->acme, 'palm-court', $this->statement->id) as $path => $component) {
         $relative = substr($path, strlen('/o/acme-homes'));
         $html = (string) exportPage($this->owner, $relative)->assertOk()->getContent();
         preg_match_all('/data-test="export-([a-z0-9_]+)-csv"/', $html, $buttons);
@@ -186,6 +195,8 @@ it('gives every workspace list page a working export, in Excel and CSV', functio
             $headers = array_map(static fn ($column): string => $column->header, $export->columns($this->owner));
 
             foreach (['xlsx', 'csv'] as $format) {
+                // More lists than the hourly export limit (ListExportRequests::PER_HOUR) allows one member.
+                RateLimiter::clear('list-exports:'.$this->acme->id.':'.$this->owner->id);
                 $rows = exportRows($this->owner, $relative, $list, $format);
 
                 expect($rows[0])->toBe($headers, "{$list} ({$format}) from {$path}")
@@ -200,7 +211,7 @@ it('gives every workspace list page a working export, in Excel and CSV', functio
     $offered = array_values(array_unique($offered));
     sort($offered);
     expect($offered)->toBe(array_keys($registry->keys()))
-        ->toBe(['billing_transfers_made', 'billing_transfers_received', 'bills', 'building_agents', 'buildings', 'imports', 'leases', 'member_invitations', 'members', 'owners', 'payments', 'receipts', 'tenants', 'units']);
+        ->toBe(['bank_statement_lines', 'bank_statements', 'billing_transfers_made', 'billing_transfers_received', 'bills', 'building_agents', 'buildings', 'imports', 'leases', 'member_invitations', 'members', 'owners', 'payments', 'receipts', 'tenants', 'units']);
 });
 
 it('makes every Livewire component that pages through a list use the export', function () {

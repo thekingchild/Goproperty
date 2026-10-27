@@ -196,6 +196,8 @@ it('classes the money, bank, Paystack, billing, compliance, member, delete and i
         'bills.manage',
         'payments.confirm',
         'payments.submit_proof',
+        // Bank statement uploads (P03-07a): what they bring in becomes payments once matched.
+        'statements.import',
         'receipts.approve_void',
         'imports.manage',
     ]);

@@ -35,6 +35,7 @@ it('classes every media collection as an attachment or as evidence', function ()
         'documents' => 'evidence',
         'branding' => 'evidence',
         'imports' => 'attachment',
+        'statements' => 'evidence',
         'issued_documents' => 'evidence',
     ]);
 });

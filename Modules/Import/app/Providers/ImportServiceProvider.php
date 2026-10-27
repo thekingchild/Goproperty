@@ -12,10 +12,12 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Livewire;
 use Modules\Import\Contracts\ImportTargets;
+use Modules\Import\Contracts\SpreadsheetReader;
 use Modules\Import\Jobs\PurgeImportUploads;
 use Modules\Import\Lists\ImportBatchList;
 use Modules\Import\Models\ImportBatch;
 use Modules\Import\Policies\ImportBatchPolicy;
+use Modules\Import\Reading\Spreadsheets;
 use Modules\Import\Targets\TargetRegistry;
 use Nwidart\Modules\Support\ModuleServiceProvider;
 
@@ -23,7 +25,9 @@ use Nwidart\Modules\Support\ModuleServiceProvider;
  * The Import module (DATA_IMPORT.md, ARCHITECTURE.md § 6.12, § 8): import
  * batches, mappings, the dry run, the queued commit and rollback. Other
  * modules add what can be imported by registering targets into
- * ImportTargets (a singleton) from their own providers. This provider adds
+ * ImportTargets (a singleton) from their own providers, and may read their
+ * own spreadsheet uploads through Contracts\SpreadsheetReader (Collections'
+ * bank statements, P03-07a). This provider adds
  * the policy, the Livewire namespace `import::` (classes in
  * Modules\Import\Livewire), the workspace sidebar item and the daily purge
  * of uploaded files (Schedule::job, ARCHITECTURE.md § 7; registered when
@@ -45,6 +49,7 @@ final class ImportServiceProvider extends ModuleServiceProvider
         parent::register();
 
         $this->app->singleton(ImportTargets::class, TargetRegistry::class);
+        $this->app->bind(SpreadsheetReader::class, Spreadsheets::class);
     }
 
     public function boot(): void

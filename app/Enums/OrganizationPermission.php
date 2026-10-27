@@ -54,6 +54,8 @@ enum OrganizationPermission: string
     case ViewPayments = 'payments.view';
     case ConfirmPayments = 'payments.confirm';
     case SubmitPaymentProof = 'payments.submit_proof';
+    case ViewStatements = 'statements.view';
+    case ImportStatements = 'statements.import';
     case ApproveReceiptVoids = 'receipts.approve_void';
     case ViewTickets = 'tickets.view';
     case CreateTickets = 'tickets.create';
@@ -88,6 +90,7 @@ enum OrganizationPermission: string
             self::ViewLeases,
             self::ViewBills,
             self::ViewPayments,
+            self::ViewStatements,
             self::ViewTickets,
             self::ViewReports,
             self::ViewImports,
@@ -107,6 +110,7 @@ enum OrganizationPermission: string
             self::ManageLeases,
             self::ManageBills,
             self::ConfirmPayments,
+            self::ImportStatements,
             self::ApproveReceiptVoids,
             self::CreateTickets,
             self::RespondToTickets,
@@ -129,7 +133,9 @@ enum OrganizationPermission: string
      * portal access (invitations, one-time sign-in links and confirming a
      * phone number: they decide who signs in to an account, P03-01b),
      * closing the organization, data
-     * imports (commit and rollback, DATA_IMPORT.md § 5), and Transaction Tier
+     * imports (commit and rollback, DATA_IMPORT.md § 5), bank statement
+     * uploads (what they bring in becomes payments once matched, P03-07a;
+     * seeing statements stays allowed), and Transaction Tier
      * applications and compliance documents (`organization.compliance`: they
      * change the organization's compliance standing, so staff never apply,
      * upload or submit for a customer; seeing them, `compliance.view`, stays
@@ -153,6 +159,7 @@ enum OrganizationPermission: string
             self::ConfirmPayments,
             self::ApproveReceiptVoids,
             self::SubmitPaymentProof,
+            self::ImportStatements,
             self::ManageImports => true,
             self::OpenWorkspace,
             self::UpdateOrganization,
@@ -171,6 +178,7 @@ enum OrganizationPermission: string
             self::ManageLeases,
             self::ViewBills,
             self::ViewPayments,
+            self::ViewStatements,
             self::ViewTickets,
             self::CreateTickets,
             self::RespondToTickets,
@@ -213,6 +221,8 @@ enum OrganizationPermission: string
             self::ViewPayments => 'See payments',
             self::ConfirmPayments => 'Record, confirm and reject payments',
             self::SubmitPaymentProof => 'Upload proof of a payment',
+            self::ViewStatements => 'See uploaded bank statements and their lines (account numbers masked)',
+            self::ImportStatements => 'Upload bank statements (CSV or Excel) of the organization\'s bank accounts',
             self::ApproveReceiptVoids => 'Approve another member\'s request to void a receipt (the second approver; voids a receipt alone only when no other owner or administrator exists)',
             self::ViewTickets => 'See maintenance tickets',
             self::CreateTickets => 'Raise maintenance tickets',

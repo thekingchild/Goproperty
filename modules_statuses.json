@@ -5,5 +5,6 @@
     "SaasBilling": true,
     "Leasing": true,
     "Billing": true,
-    "Payments": true
+    "Payments": true,
+    "Collections": true
 }

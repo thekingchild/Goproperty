@@ -1,0 +1,11 @@
+{
+    "name": "Collections",
+    "alias": "collections",
+    "description": "Bank statement import and matching of credits to bills (ONBOARDING_COMPLIANCE.md § 4.1)",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\Collections\\Providers\\CollectionsServiceProvider"
+    ],
+    "files": []
+}
