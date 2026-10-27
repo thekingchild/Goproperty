@@ -88,6 +88,15 @@ Proposed new modules: Leasing, Billing, Payments, Collections (bank statements),
 - **Evidence files are records** (AGENT.md § 3 rule 7, ARCHITECTURE.md § 9 "Attachments vs evidence"): payment proofs (P03-09), signed contracts (P03-03b), expense receipts (P03-12), issued PDFs and, later, condition/inspection photos and ticket attachments (P04-02) are never hard-deleted by a customer action; "remove" archives them. Building, unit and Building Group photos stay deletable for good (confirmed, audited), as P02-01b built.
 - Still open: whether an agent with no building assignment sees every building (as P02-03 built) or, with an organization setting switched on, none.
 
+**Taken as defaults for P03 (orchestrator, 2026-10-27; the product owner asked for defaults, each to be confirmed — every P03 ledger entry lists the ones it relied on):**
+- Item 3: `Modules\Leasing\CycleCalculator` and `next_billing_date` (AGENT § 3 and DB § 3 win; ARCH is corrected). Periods anchor to the lease start's day of month; a shorter month clamps to its last day and the next period returns to the anchor (31 Jan → 28/29 Feb → 31 Mar); period end = next start − 1 day. Bills are generated `lead_days` (organization setting, default 7) before the period starts; `due_day_offset` = days after the period start the bill is due (default 0).
+- Item 5: webhook URL `/webhooks/paystack/{webhook_token}` (random, rotatable token on the organization's Paystack connection); `webhook_log` gains a nullable `organization_id`; lookup by the P01-04 pattern.
+- Item 11: a `WhatsAppSender` contract with a fake driver; phone-only tenants get in-app copies until P05; no SMS anywhere.
+- Item 12: receipt void needs a different org-owner/org-admin to approve; an organization with a single owner/admin may void alone with a typed reason, audited and flagged `single_approver`. One-time sign-in links are Core `invitations` rows of their own kind (token hash, 24 h, single use). Tenants never get `organization_user` rows.
+- Item 13: `leases:expire-and-flag` in P03-03a; `bills:flag-overdue` (daily, OVERDUE badge) in P03-04b. Deposits and their refunds are lease ledger entries only, no money flow.
+- Item 14: Gotenberg runs as a CI service container; locally the Chrome half of a visual-diff test is skipped only when Gotenberg is unreachable; `dompdf` is always tested.
+- Item 15: `receipts.number` unique per `(organization_id, number)`; the `routes/web.php` comment is fixed.
+
 **Settled or changed by P01 (2026-10-27):**
 - Item 4 (lookups without an organization context): P01-04 reads an invitation's `organization_id` by token hash (one unscoped column), then loads the row inside that organization with `OrganizationContext::run`. Reuse this pattern for `/pay`, `/verify` and webhooks unless the product owner wants another.
 - Item 8 (uploads before the media library): P01-03 keeps compliance files on their own encrypted private disk (separate by design); P01-05 keeps branding images on a private disk and ARCHITECTURE.md § 9 says how P02-05 absorbs them.
