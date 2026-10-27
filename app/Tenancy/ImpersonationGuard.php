@@ -149,8 +149,8 @@ final class ImpersonationGuard
 
         $controller = $route instanceof Route ? $route->getControllerClass() : null;
 
-        if ($route instanceof Route && $controller !== null && $this->marked($controller, $route->getActionMethod())) {
-            $this->refuse(self::BLOCKED_MESSAGE, ['route' => $route->getName(), 'action' => $controller.'@'.$route->getActionMethod()]);
+        if ($route instanceof Route && $controller !== null && $this->marked($controller, RouteAction::method($route))) {
+            $this->refuse(self::BLOCKED_MESSAGE, ['route' => $route->getName(), 'action' => $controller.'@'.RouteAction::method($route)]);
         }
 
         // Read-only: nothing but reads and exports (#[AllowedWhileSuspended]
@@ -159,7 +159,7 @@ final class ImpersonationGuard
             && ! $request->isMethodSafe()
             && ! $this->isLivewireUpdate($request)
             && ! $request->routeIs('impersonation.end')
-            && ! ($route instanceof Route && $controller !== null && app(OrganizationWriteGuard::class)->methodAllowed($controller, $route->getActionMethod()))) {
+            && ! ($route instanceof Route && $controller !== null && app(OrganizationWriteGuard::class)->methodAllowed($controller, RouteAction::method($route)))) {
             $this->refuse(self::READ_ONLY_MESSAGE, ['route' => $route instanceof Route ? $route->getName() : null]);
         }
     }

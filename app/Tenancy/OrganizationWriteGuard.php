@@ -105,7 +105,7 @@ final class OrganizationWriteGuard
         $route = $request->route();
         $controller = $route instanceof Route ? $route->getControllerClass() : null;
 
-        if ($route instanceof Route && $controller !== null && $this->methodAllowed($controller, $route->getActionMethod())) {
+        if ($route instanceof Route && $controller !== null && $this->methodAllowed($controller, RouteAction::method($route))) {
             return;
         }
 
