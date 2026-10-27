@@ -20,15 +20,19 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * like every customer-domain model; the acceptance page finds its
  * organization from the token first (App\Members\InvitationAcceptance).
  * Changed only through App\Members\MemberInvitations and
- * InvitationAcceptance (kind `user`), and the SaasBilling module's
+ * InvitationAcceptance (kind `user`), the SaasBilling module's
  * BillingTransferService (kind `org_billing_transfer`, the link of a
- * billing transfer); only the token's SHA-256 is stored.
+ * billing transfer), and the Tenants module's Portal classes (kinds
+ * `tenant` and `sign_in_link`, P03-01b); only the token's SHA-256 is
+ * stored.
  *
  * @property int $id
  * @property int $organization_id
  * @property InvitationKind $kind
  * @property string|null $email
  * @property string|null $phone
+ * @property int|null $user_id the account a `sign_in_link` opens (P03-01b)
+ * @property int|null $tenant_profile_id the tenant a `tenant` invitation or `sign_in_link` is for (P03-01b)
  * @property list<string> $roles role names (OrganizationRole values)
  * @property int|null $target_organization_id
  * @property int|null $billing_transfer_id the billing transfer an `org_billing_transfer` invitation carries (P02-04)

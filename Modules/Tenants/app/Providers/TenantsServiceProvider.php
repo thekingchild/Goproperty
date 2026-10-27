@@ -8,6 +8,7 @@ use App\Exports\ListExports;
 use App\Models\User;
 use App\Navigation\WorkspaceNavigation;
 use App\Navigation\WorkspaceNavItem;
+use App\Tenancy\PortalLanding;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Livewire;
 use Modules\Import\Contracts\ImportTargets;
@@ -16,6 +17,7 @@ use Modules\Tenants\Import\TenantsImportTarget;
 use Modules\Tenants\Lists\TenantList;
 use Modules\Tenants\Models\TenantProfile;
 use Modules\Tenants\Policies\TenantProfilePolicy;
+use Modules\Tenants\Portal\LinkedTenantProfiles;
 use Modules\Tenants\Profiles\TenantDirectoryService;
 use Nwidart\Modules\Support\ModuleServiceProvider;
 
@@ -28,7 +30,11 @@ use Nwidart\Modules\Support\ModuleServiceProvider;
  * "Tenants", the list's export (Lists\TenantList, App\Exports\ListExports)
  * and makes tenants importable by registering TenantsImportTarget into the
  * Import module's registry (through its contract, AGENT.md § 4; nothing
- * happens when the Import module is off).
+ * happens when the Import module is off). Tenants' portal access
+ * (P03-01b, Portal\*): invitations and one-time sign-in links on Core
+ * invitations, their public pages (routes), and the landing: someone
+ * with no workspace who is a tenant somewhere lands on /portal
+ * (App\Tenancy\PortalLanding).
  */
 final class TenantsServiceProvider extends ModuleServiceProvider
 {
@@ -64,6 +70,11 @@ final class TenantsServiceProvider extends ModuleServiceProvider
         // Every list of the module exports (P02-07).
         $this->callAfterResolving(ListExports::class, static function (ListExports $exports): void {
             $exports->register(TenantList::class);
+        });
+
+        // Tenants never get an organization_user row (P03 decision 4): this is how they land on /portal.
+        $this->callAfterResolving(PortalLanding::class, static function (PortalLanding $landing, $app): void {
+            $landing->register('portal.home', static fn (User $user): bool => $app->make(LinkedTenantProfiles::class)->any($user));
         });
 
         $this->callAfterResolving(WorkspaceNavigation::class, static function (WorkspaceNavigation $navigation): void {

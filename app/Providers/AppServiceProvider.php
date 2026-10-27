@@ -12,7 +12,11 @@ use App\Navigation\WorkspaceNavigation;
 use App\Settings\SettingDefinition;
 use App\Settings\SettingsRegistry;
 use App\Tenancy\OrganizationContext;
+use App\Tenancy\PortalLanding;
 use App\Theme\ThemeContext;
+use App\WhatsApp\LogWhatsAppSender;
+use App\WhatsApp\NoWhatsAppSender;
+use App\WhatsApp\WhatsAppSender;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\Facades\Date;
@@ -37,6 +41,10 @@ class AppServiceProvider extends ServiceProvider
         // from their providers (callAfterResolving).
         $this->app->singleton(WorkspaceNavigation::class, static fn (): WorkspaceNavigation => WorkspaceNavigation::withCoreItems());
 
+        // Where someone with no workspace lands: modules register their
+        // portals from their providers (callAfterResolving), like the sidebar.
+        $this->app->singleton(PortalLanding::class);
+
         // Verification resolvers of issued documents: modules register theirs
         // from their providers (callAfterResolving), like the sidebar.
         $this->app->singleton(DocumentVerifiers::class);
@@ -49,6 +57,13 @@ class AppServiceProvider extends ServiceProvider
             $exports->register(InvitationList::class);
 
             return $exports;
+        });
+
+        // The organization's own WhatsApp (ARCHITECTURE.md § 6.7): the log
+        // stand-in until P05-06 adds the Cloud API driver (P03 decision 3).
+        $this->app->singleton(WhatsAppSender::class, static fn (): WhatsAppSender => match (config('services.whatsapp.driver')) {
+            'log' => new LogWhatsAppSender,
+            default => new NoWhatsAppSender,
         });
 
         $this->app->singleton(SettingsRegistry::class, function (): SettingsRegistry {

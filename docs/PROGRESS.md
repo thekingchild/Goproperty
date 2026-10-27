@@ -6,7 +6,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 ## Current state
 
-- **In progress:** P03-01b (tenant invitations) and P03-04b (bill generation), each in its own worktree. Done in P03: P03-01a, P03-02, P03-03a, P03-04a, P03-05a, P03-05b (Chrome visual diff awaits its first CI run) (`docs/plans/P02-P03-subtasks.md`); the product owner asked for P03 to start with default answers to its open questions, recorded in that plan
+- **In progress:** P03-04b (bill generation) and P03-03b (lease contract PDF), each in its own worktree. Done in P03: P03-01, P03-02, P03-03a, P03-04a, P03-05a, P03-05b (Chrome visual diff awaits its first CI run) (`docs/plans/P02-P03-subtasks.md`); the product owner asked for P03 to start with default answers to its open questions, recorded in that plan
 - **In review:** P00-02 (CI): all four database jobs are green in GitHub Actions; branch protection on `main` is off by the product owner's decision (2026-10-27) while P02 and P03 are built, so tasks keep merging straight to `main`; turn it on afterwards (`docs/runbooks/ci.md` § 3) and mark P00-02 complete. P00-12 (backups): built and drilled locally; needs one real run to an S3-compatible bucket and a Google Shared Drive (PRE-03 accounts)
 - **Next task:** P03 waves 2–14 in order, two at a time; PRE-01 to PRE-04 continue with the product owner
 - **Blocked:** P00-13 (staging): the deploy scripts, the deploy on merge and the deploy drill are built and drilled locally; it needs a staging host (PRE-04). Until then the Deploy workflow fails at "Check deploy settings" on every push to `main`
@@ -19,18 +19,168 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | P00 | 13 | 10 | In progress |
 | P01 | 9 | 9 | Complete (2026-10-27) |
 | P02 | 7 | 7 | Complete (2026-10-27) |
-| P03 | 15 | 1 | In progress |
+| P03 | 15 | 2 | In progress |
 | P04 | 3 | 0 | Not started |
 | P05 | 6 | 0 | Not started |
 | P06 | 11 | 0 | Not started |
 | P07 | 4 | 0 | Not started |
 | P08 | 4 | 0 | Not started |
 | P09 | 8 | 0 | Not started |
-| **Total** | **85** | **28** | |
+| **Total** | **85** | **29** | |
 
 ## Ledger (newest first)
 
 Each entry: task ID and status, date, what was delivered, tests run and results, follow-ups, next task.
+
+### P03-01b — Complete (2026-10-27): tenant portal access: invitations by email, the agency's WhatsApp (stand-in sender) and link / QR, acceptance without account takeover, "confirmed in person", one-time sign-in links, resend/revoke, rate limits
+
+With P03-01a done, this completes the parent **P03-01 — Complete (2026-10-27)**.
+
+**Delivered** ([ONBOARDING_COMPLIANCE.md § 2](../ONBOARDING_COMPLIANCE.md) "Tenants" and the new "How tenant invitations behave", [UX_DESIGN.md § 3.3](../UX_DESIGN.md), [ARCHITECTURE.md § 4, § 5, § 6.1, § 6.7, § 10](../ARCHITECTURE.md), [DATABASE_SCHEMA.md § 1](../DATABASE_SCHEMA.md); `docs/plans/P02-P03-subtasks.md` P03-01b):
+- **Schema (3 migrations):**
+  - Core `2026_11_08_010101`: `users.phone_verified_at`, `phone_verification_method` (`whatsapp_link` / `agency_confirmed`, enum `App\Enums\PhoneVerificationMethod`), `phone_confirmed_by_user_id` (FK, null on delete). These columns were in DB § 1 but did not exist yet.
+  - Core `2026_11_08_010102`: `invitations.user_id` (the account a sign-in link opens; null on delete).
+  - Tenants module `2026_11_08_010103`: `invitations.tenant_profile_id` (FK, restrict) + index `(organization_id, tenant_profile_id, kind, status)`. This follows the precedent of SaasBilling's `billing_transfer_id`.
+- **Core:**
+  - `InvitationKind::Tenant` and `::SignInLink`; `InvitationChannel::WhatsApp` and `::Link` (with labels).
+  - New permission `tenants.portal_access` (org-owner, org-admin, agent). It is **not** allowed while suspended and **blocked while impersonating**.
+  - `App\Auth\PhoneVerification` (`byWhatsAppLink`, `confirmedInPerson`: only the account's current number, only once).
+  - `User::hasVerifiedEmail()`: a phone-only account counts as verified, so `/portal` and Settings open for it. `OrganizationPolicy::create` now needs an email, so phone-only accounts cannot sign up an organization.
+  - `App\Tenancy\PortalLanding` registry. `WorkspaceLanding` and `/dashboard` send someone with no workspace to their portal. Before this, tenants were sent to the signup wizard (the P01-01 behaviour assumed tenants were members).
+- **`App\WhatsApp`** (decision 3):
+  - `WhatsAppSender` contract (`available`, `send`) and `WhatsAppMessage` (event + placeholder variables, so P05-06 can map Meta templates).
+  - `SendWhatsAppMessage` job: queue `notifications`, encrypted, 3 tries, after commit.
+  - `LogWhatsAppSender` (driver `log`, the default): sends nothing, keeps the messages in memory for tests, and logs only the event and the masked number. It is never `available()` in production.
+  - `NoWhatsAppSender` (driver `none`). Config `services.whatsapp.driver` / `WHATSAPP_DRIVER` (commented in `.env.example`).
+- **Tenants module, `Portal\*`:**
+  - `TenantInvitations` (invite / resend by any channel / revoke):
+    - one live invitation per tenant; none for a tenant with an account or an archived tenant;
+    - 14 days, single use, only the hash is stored;
+    - email notification `TenantPortalInvitation` (mail only, encrypted on the queue); WhatsApp through the contract; link / QR returned to be shown once.
+  - `PortalInvitationAcceptance`: token → organization (P01-04 pattern), then `OrganizationContext::run`. It links `tenant_profiles.user_id` and never writes `organization_user` or roles. It refuses in a suspended organization.
+  - `SignInLinks`: 24 h, single use; a new link cancels the previous one; WhatsApp or link / QR. GET changes nothing; POST signs the tenant in, with an optional new password. Creation is in the authentication log (`agency_signin_link_created`, an existing event); create, use and revoke are audited.
+  - `PhoneConfirmations` ("confirmed in person").
+  - `LinkedTenantProfiles`: the ARCH § 4 "linked to my user" read, raw, of `organization_id` only.
+  - `PortalAccessAudit`: log `tenants`, the tenant as subject, never the link.
+- **Account-takeover rules** (in `PortalInvitationAcceptance`; ARCH § 6.1 as built):
+  - The link is bound to what it was sent to: the email address (email channel) or the tenant's number (WhatsApp and link channels).
+  - An account that already holds that address or number must sign in first. The link never opens an existing account.
+  - A signed-in account may join only if it is that holder, or if it has no address / number yet and nobody else holds it (it then gains it). Anyone else gets a 403.
+  - A new account gets only what the link proves. An emailed link stores the profile's phone only if no account has it.
+- **Sign-in link eligibility:** a link can be made only for an account that is phone-only, has no 2FA, has no `organization_user` row anywhere and is not a tenant of another organization. This is checked when the link is made and again when it is used.
+- **Pages:**
+  - `/portal/invitations/{token}` and `/portal/sign-in/{token}` (sign-in split layout; `#[BlockedWhileImpersonating]`; 30 GET / 10 POST a minute per IP). Unknown, used, expired and revoked links get one identical 404 page; the wrong account gets a 403 page.
+  - `/portal/welcome`: optional passkey via Settings → Security, with the password marked confirmed in the session.
+  - "Portal access" section on the tenant record (`Livewire\TenantPortalAccess`, nested in `TenantShow`):
+    - invite (email / WhatsApp / "Show link and QR code" with copy and print), resend, revoke;
+    - account and phone status, "Phone number confirmed in person";
+    - sign-in link create/revoke, or the reason it is refused.
+  - Every action carries `#[BlockedWhileImpersonating]` and is checked by `TenantProfilePolicy::managePortalAccess` (narrowed, active tenants only).
+- **Docs:**
+  - DATABASE_SCHEMA.md § 1: users, invitations (the two new kinds), tenant_profiles writer of `user_id`.
+  - ARCHITECTURE.md: § 4 (portal path and landing), § 5 "Tenant portal access", § 6.1 "How tenant invitations and sign-in links are built", § 6.7 (the WhatsApp contract), § 10.
+  - ONBOARDING_COMPLIANCE.md § 2 (as built).
+  - UX_DESIGN.md § 3.3.
+  - PLATFORM_CONSOLE.md § 6 (always blocked).
+  - `.env.example`.
+
+**Orchestrator review:** the branch already contained `main` (`a59aef1`). **GitHub Actions** run [40523642256](https://github.com/thekingchild/Goproperty/actions/runs/40523642256) on the branch: green on MySQL 8.0/8.4, MariaDB 10.6/11.4 and the old-PHP guard. Read `PortalInvitationAcceptance`: a new account is refused while anyone holds the invited email/phone (they must sign in), an existing account accepts only an invitation bound to its own address/number, and acceptance locks the invitation and tenant rows in one transaction.
+
+**Decisions relied on (to confirm with the product owner):**
+- **Orchestrator decision 3:** the `WhatsAppSender` contract with a fake (`log`) driver. My addition: the fake is never offered in production, so an agency is never told a message went out. No SMS anywhere.
+- **Orchestrator decision 4:**
+  - Sign-in links are Core `invitations` rows of kind `sign_in_link` (token hash, 24 h, single use). Tenant invitations are kind `tenant`.
+  - Tenants never get `organization_user` rows (tested).
+  - Needed for this: Core `invitations.user_id`, and `tenant_profile_id` added by the module.
+- **Orchestrator decision 9:** narrowing through `TenantNarrowing` in `managePortalAccess`.
+- **Orchestrator decision 8:** WhatsApp is Growth+ (BILLING § 1.2). This is not gated yet; P06-01 follow-up.
+- **My decisions:**
+  - **Sign-in links only for "pure" tenant accounts** (phone-only, no 2FA, no workspace membership, no tenancy elsewhere).
+    - Reason: an agency-made link signs in without a password. Otherwise agency A's staff could open an account that also holds agency B's records or a workspace.
+    - Consequence: a phone-only tenant of two agencies cannot be reset by either until P05 adds WhatsApp reset links.
+  - **No 2FA bypass:** an account with 2FA gets no sign-in link.
+  - **"Confirmed in person" only after acceptance,** on the record, for the account's current number when it equals the record's. It is not a tick on the invite form.
+  - **Optional "Add an email" for phone-only tenants is deferred to P03-11a's portal profile.** UX § 3.3 puts it on the acceptance page. An unverified address would block the `verified` pages, and asking for one there needs its own verify flow.
+  - **New permission `tenants.portal_access`** rather than reusing `tenants.manage`, so that it can be blocked while impersonating (`tenants.manage` is not). Agents hold it because they sign leases and hand over keys.
+  - **Sign-in links still work in a suspended organization.** The tenant must still reach the portal for payment proofs (ARCH § 4). Creating links (a write) is refused while suspended. Invitation acceptance is refused while suspended (as for members).
+  - Routes are under `/portal/...` rather than reusing `/invitations/{token}`, which stays member-only (as P02-04 did with `/billing-transfers/{token}`).
+  - `User::hasVerifiedEmail()` override for null email (see Delivered).
+
+**For P03-14 (management handover):** these tables hold nothing building-linked. `invitations` rows of kinds `tenant` and `sign_in_link` are history of the organization that wrote them. A moved tenant's *pending* invitation or sign-in link should be revoked by the old organization's side, and the receiving organization re-invites. The `tenant_profiles.user_id` link should be copied onto the receiving organization's copy of the tenant (as P03-01a's note says), so the tenant keeps portal access. Users' phone-verification columns are account-level and do not move.
+
+**Tests and evidence (local, MariaDB 11.4, branch merged with `main` at a59aef1):**
+- `composer ci` (after merging `main` with P03-03a): Pint passed; Larastan 0 errors; Pest **2,310 tests: 2,282 passed, 28 skipped, 23,636 assertions**, 0 failed. The 28 skips are all the Chrome/Gotenberg halves of the document visual diffs (no Gotenberg locally); `tests/Feature/Documents` alone shows the same 28.
+- New tests are in `Modules/Tenants/tests/Feature/Portal/` (all through HTTP and Livewire update requests), with `helpers.php`:
+  - `PortalInvitationsTest` (9)
+  - `PortalSignInLinksTest` (13, incl. a 5-case dataset)
+  - `PortalAccountSafetyTest` (19, incl. datasets)
+- **AC: each invite channel produces a working one-time link:**
+  - "acceptance: an emailed invitation link sets up a working account, once, and lands in the portal". Mail only, on `notifications`. The account's email is confirmed and the phone is stored unverified. It lands on `/portal/welcome`, and then `/portal` and Settings → Security open. `/o/acme-homes` answers 404 and there is no membership. Auth log and audit are written and the audit chain verifies. Reuse answers 404. Sign-in by email and by phone both land on `/portal`.
+  - "acceptance: a WhatsApp invitation link works once and verifies the phone number (whatsapp_link)": a phone-only account; `/dashboard` → `/portal`; `/signup/organization` 403.
+  - "acceptance: a copy link / QR code works once; the phone is not verified until the agency confirms it in person". The QR code is a PNG data URI; the link is shown once and only its hash is stored. "Confirmed in person" records who confirmed it and works only once.
+- **AC: used or expired links rejected:** "rejects expired, used and revoked links, and unknown ones, all the same way". The link still works on its last day, fails 14 days + 1 minute later, and the status is recorded as expired. Revoked and unknown links get an identical page. The "acceptance" tests above also show used links rejected.
+- **Sub-AC: the sign-in link dies after 24 h and after one use:**
+  - `PortalSignInLinksTest` › "acceptance: a one-time sign-in link signs the tenant in once, may set a new password, and dies after use": GET does not use it up; a short password is refused without using it; a second use answers 404.
+  - "kills a sign-in link after 24 hours" (23:59 works, 24:01 fails).
+  - "replaces the previous sign-in link with a new one, and revokes one".
+- **Sub-AC: no SMS sent anywhere:** `PortalInvitationsTest` › "never sends an SMS: only email and the agency's WhatsApp, and nothing leaves the server":
+  - every notification channel is `['mail']`;
+  - the WhatsApp fake recorded exactly the expected events;
+  - `Http::assertNothingSent()`;
+  - a static scan of `app/WhatsApp` and the module's Portal, Notifications and Livewire code finds no sms/termii/vonage/twilio.
+- **Sub-AC: blocked during impersonation:** `PortalAccountSafetyTest` › "refuses every portal-access action while GoProperty staff impersonate, and the links do not open in that session", in read-only and write mode:
+  - all 6 Livewire actions answer 403 and no buttons are shown;
+  - `/portal/invitations/{token}` GET and POST answer 403;
+  - the policy denies; nothing changes; `impersonation.blocked` is audited at least 8 times.
+  - `ImpersonationGuardTest`'s classification list now includes `tenants.portal_access`.
+- **Resend invalidates the previous token:** "sends an invitation again with a new link, by any channel: the old link stops working" (email → link → WhatsApp → expired → resend; send_count; audit).
+- **Revoke works:** the expired/revoked test above, plus the sign-in link revoke test.
+- **Cross-org:** "cross-org: an invitation or sign-in link of one organization never touches another organization's tenant":
+  - a forged Acme invitation row pointing at Other's tenant answers 404;
+  - the real link links Acme's tenant only, though Other has the same person;
+  - Other's member gets 404 on the record and on a Livewire action, and 419 with a tampered locked `tenantId` (debug off).
+- **Account takeover refused:**
+  - "never opens an existing account from an emailed link…";
+  - "never opens the account that has the tenant's phone number from a WhatsApp or shared link" (×2);
+  - "refuses a signed-in account the link is not for" (×3);
+  - "lets a signed-in account without that address or number join…";
+  - "gives a new account only what the link proves…";
+  - sign-in link: "refuses a sign-in link for an account the agency must not open" (×5: no account, has email, 2FA, workspace member, tenant elsewhere), "checks again when the link is used…", "refuses someone signed in with another account…".
+- **Rate limits:**
+  - "limits invitation sends per tenant, per member and per organization, and the links per address": 5 per tenant a day, 30/h per user, 50/h per organization; the 31st GET in a minute gets 429.
+  - "limits sign-in links per tenant, per member and per organization": 5/day, 20/h, 30/h; the 11th POST in a minute gets 429.
+- **Others:**
+  - "never makes a tenant a member…" (no `organization_user` or `model_has_roles` rows; `/o/…`, the tenant list and the switch answer 404; login lands on `/portal`);
+  - "changes no portal access in a suspended organization…";
+  - the role matrix for 5 roles;
+  - "keeps tenant invitations and sign-in links out of Settings → Members and the member invitation page".
+- **Existing tests changed (none weakened):**
+  - `ImpersonationGuardTest`: `tenants.portal_access` added to the blocked list.
+  - `TenantPagesTest` › "never deletes a tenant row for good…": the scan still bans `forceDelete`/`truncate` everywhere and raw `DB::table('tenant_profiles')` everywhere except `Portal/LinkedTenantProfiles.php`. That file is allowed only while it contains no delete/update/insert/upsert/truncate/increment/decrement call.
+- With `APP_DEBUG=true`: the whole `Modules/Tenants` suite (new and P03-01a/P03-03a tests), `ImpersonationGuardTest`, `OrganizationSwitcherTest` and `DashboardTest`: 163 passed, 1,973 assertions.
+- MySQL JSON key order: no new assertion compares a map read from a JSON column by key order (roles `[]`, audit properties read one key at a time).
+- Not run: release/install drills (3 new migrations; module migration ordering follows the file names), and no browser smoke (pages exercised over HTTP and Livewire only).
+
+**Follow-ups:**
+- **P03-11a (portal):**
+  - replace `/portal` and `/portal/welcome`'s target;
+  - "Add an email for easy password resets" for phone-only accounts, with its verification;
+  - show the session `status` flash;
+  - read-only checks per record use `LinkedTenantProfiles` + `OrganizationContext::run`.
+- **P05-06:**
+  - the real WhatsApp driver behind `WhatsAppSender::available()` (agency connection, template mapping for events `tenant_invitation` and `tenant_sign_in_link` with variables `tenant.first_name`, `organization.name`, `invitation_link` / `sign_in_link`);
+  - delivery rows;
+  - WhatsApp password-reset links (the forgot-password reply still says email only).
+- **P05 (SMS):** send only to `users.phone_verified_at` numbers; the verification is in place.
+- **P03-15 (owners):**
+  - reuse `TenantInvitations`' pattern;
+  - extend `SignInLinks::refusal()` with "is an owner somewhere";
+  - register `/owner` in `PortalLanding`.
+- **P06-01:** gate WhatsApp to Growth+.
+- The agency logo on the acceptance pages (as for member invitations).
+- "Mixed" users (agent who also rents) land in their workspace. The "My rentals" switcher entry is P03-11a's.
+
+**Next:** P03 wave 4 continues (P03-04b alongside); then P03-11a (tenant portal) can build on this.
 
 ### P03-03a — Complete (2026-10-27): `LeaseService` + lease CRUD: leases and their deposit ledger, the state machine (draft/reserve → active → renew/terminate/expire), one active lease per unit under the unit lock, contract numbers at activation, unit status from lease events, the daily `leases:expire-and-flag` job, `LeaseBillingSchedule`, lease pages with export, tenant narrowing by lease
 

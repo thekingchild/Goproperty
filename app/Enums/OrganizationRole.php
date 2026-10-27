@@ -45,7 +45,7 @@ enum OrganizationRole: string
     public function permissions(): array
     {
         $operations = [
-            P::ViewProperties, P::ManageProperties, P::ViewTenants, P::ManageTenants, P::ViewLeases, P::ManageLeases, P::ViewBills, P::ManageBills,
+            P::ViewProperties, P::ManageProperties, P::ViewTenants, P::ManageTenants, P::ManageTenantPortalAccess, P::ViewLeases, P::ManageLeases, P::ViewBills, P::ManageBills,
             P::ViewPayments, P::ConfirmPayments, P::ViewTickets, P::CreateTickets, P::RespondToTickets, P::ManageTickets,
             P::ParticipateInBuildingGroups, P::ModerateBuildingGroups,
         ];

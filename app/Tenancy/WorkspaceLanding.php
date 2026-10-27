@@ -16,11 +16,14 @@ use Laravel\Fortify\Fortify;
  * - one workspace (an organization where their role opens /o/{slug}): it;
  * - several: the one they switched to last (`organization_user.is_default`),
  *   else the organization picker;
- * - none (e.g. only a tenant or property owner): the dashboard, until the
- *   portals (P03/P04) take tenants and owners there.
+ * - none: the portal the user belongs in (PortalLanding: a tenant goes to
+ *   /portal, P03-01b), else the dashboard (the organization picker, which
+ *   sends someone with no organization at all to signup).
  */
 final class WorkspaceLanding
 {
+    public function __construct(private readonly PortalLanding $portals) {}
+
     public function organizationFor(User $user): ?Organization
     {
         $organizations = $user->workspaceOrganizations()->get();
@@ -36,9 +39,19 @@ final class WorkspaceLanding
     {
         $organization = $this->organizationFor($user);
 
-        return $organization !== null
-            ? route('workspace.home', $organization)
-            : Fortify::redirects('login');
+        if ($organization !== null) {
+            return route('workspace.home', $organization);
+        }
+
+        if ($user->workspaceOrganizationIds() === []) {
+            $portal = $this->portals->url($user);
+
+            if ($portal !== null) {
+                return $portal;
+            }
+        }
+
+        return Fortify::redirects('login');
     }
 
     /**

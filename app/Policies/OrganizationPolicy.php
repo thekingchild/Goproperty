@@ -36,10 +36,14 @@ final class OrganizationPolicy
         return $this->view($user, $organization);
     }
 
-    /** Signing up an organization: the account's email must be confirmed first. */
+    /**
+     * Signing up an organization: the account's email must be confirmed
+     * first. A phone-only account (a tenant's, P03-01b) has none, so it
+     * cannot (ONBOARDING_COMPLIANCE.md § 2: the account step needs an email).
+     */
     public function create(User $user): bool
     {
-        return $user->hasVerifiedEmail();
+        return $user->email !== null && $user->hasVerifiedEmail();
     }
 
     /** Seeing or saving one step of the signup wizard. */

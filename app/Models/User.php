@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\PhoneVerificationMethod;
 use App\Tenancy\HasOrganizationRoles;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
@@ -25,6 +26,9 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property string $name
  * @property string|null $email
  * @property string|null $phone sign-in name, E.164 (+234…); never sent an SMS
+ * @property Carbon|null $phone_verified_at opened a link sent to it by WhatsApp, or confirmed by an agency in person (P03-01b)
+ * @property PhoneVerificationMethod|null $phone_verification_method
+ * @property int|null $phone_confirmed_by_user_id the agency member who confirmed it in person
  * @property Carbon|null $email_verified_at
  * @property string $password
  * @property string|null $two_factor_secret
@@ -50,8 +54,35 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     {
         return [
             'email_verified_at' => 'datetime',
+            'phone_verified_at' => 'datetime',
+            'phone_verification_method' => PhoneVerificationMethod::class,
             'password' => 'hashed',
         ];
+    }
+
+    /**
+     * A phone-only account (a tenant invited by WhatsApp or a shared link,
+     * P03-01b) has no email address to confirm, so the `verified` pages
+     * (the portal, Settings) open for it; an account with an address must
+     * have confirmed it. Signing up an organization needs a confirmed
+     * address all the same (OrganizationPolicy::create).
+     */
+    public function hasVerifiedEmail(): bool
+    {
+        return $this->email === null || $this->email_verified_at !== null;
+    }
+
+    /** No address, nothing to send (phone-only accounts never get an SMS instead). */
+    public function sendEmailVerificationNotification(): void
+    {
+        if ($this->email !== null) {
+            parent::sendEmailVerificationNotification();
+        }
+    }
+
+    public function hasVerifiedPhone(): bool
+    {
+        return $this->phone !== null && $this->phone_verified_at !== null;
     }
 
     /**

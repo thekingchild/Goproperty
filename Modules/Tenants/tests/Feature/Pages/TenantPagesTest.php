@@ -256,7 +256,12 @@ it('never deletes a tenant row for good: the module archives (soft delete) and h
     foreach (File::allFiles(dirname(__DIR__, 3).'/app') as $file) {
         $source = (string) file_get_contents($file->getPathname());
 
-        if (preg_match('/forceDelete|forceDestroy|->truncate\(|DB::table\([\'"]tenant_profiles/', $source) === 1) {
+        // The portal's "linked to my user" path (P03-01b, ARCHITECTURE.md § 4) reads tenant_profiles raw, and only reads.
+        $reader = $file->getRelativePathname() === 'Portal/LinkedTenantProfiles.php'
+            && preg_match('/->(delete|update|insert\w*|upsert|truncate|increment|decrement)\(/', $source) === 0;
+
+        if (preg_match('/forceDelete|forceDestroy|->truncate\(/', $source) === 1
+            || (! $reader && preg_match('/DB::table\([\'"]tenant_profiles/', $source) === 1)) {
             $offending[] = $file->getRelativePathname();
         }
     }

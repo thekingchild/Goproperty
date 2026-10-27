@@ -105,6 +105,9 @@
             </dl>
         </section>
 
+        {{-- Invitations, sign-in links and phone confirmation (P03-01b). --}}
+        <livewire:tenants::tenant-portal-access :tenant="$tenant->id" :key="'portal-access-'.$tenant->id" />
+
         {{-- Leases (P03-03a); bills join them with P03-04b. --}}
         <section class="rounded-xl border border-zinc-200 bg-white p-5 lg:col-span-3 dark:border-zinc-700 dark:bg-zinc-900" data-test="tenant-leases-bills">
             <div class="flex flex-wrap items-center justify-between gap-2">

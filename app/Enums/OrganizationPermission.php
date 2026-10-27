@@ -46,6 +46,7 @@ enum OrganizationPermission: string
     case AssignAgents = 'properties.assign_agents';
     case ViewTenants = 'tenants.view';
     case ManageTenants = 'tenants.manage';
+    case ManageTenantPortalAccess = 'tenants.portal_access';
     case ViewLeases = 'leases.view';
     case ManageLeases = 'leases.manage';
     case ViewBills = 'bills.view';
@@ -101,6 +102,7 @@ enum OrganizationPermission: string
             self::ManagePropertyPortfolio,
             self::AssignAgents,
             self::ManageTenants,
+            self::ManageTenantPortalAccess,
             self::ManageLeases,
             self::ManageBills,
             self::ConfirmPayments,
@@ -121,7 +123,10 @@ enum OrganizationPermission: string
      * bills, the subscription and billing transfers), bank accounts and
      * Paystack keys (viewing them too: the Payment collection page needs
      * `payment_settings.view`, also blocked), members and roles (assigning
-     * agents to buildings too: it decides what a member sees), closing the organization, data
+     * agents to buildings too: it decides what a member sees), tenants'
+     * portal access (invitations, one-time sign-in links and confirming a
+     * phone number: they decide who signs in to an account, P03-01b),
+     * closing the organization, data
      * imports (commit and rollback, DATA_IMPORT.md § 5), and Transaction Tier
      * applications and compliance documents (`organization.compliance`: they
      * change the organization's compliance standing, so staff never apply,
@@ -141,6 +146,7 @@ enum OrganizationPermission: string
             self::ManageCompliance,
             self::ManageMembers,
             self::AssignAgents,
+            self::ManageTenantPortalAccess,
             self::ManageBills,
             self::ConfirmPayments,
             self::SubmitPaymentProof,
@@ -196,6 +202,7 @@ enum OrganizationPermission: string
             self::AssignAgents => 'Choose which agents work on a building (an assigned agent sees only their buildings)',
             self::ViewTenants => 'See tenants\' details (ID numbers masked)',
             self::ManageTenants => 'Add, edit, archive and restore tenants',
+            self::ManageTenantPortalAccess => 'Invite tenants to the portal, send or revoke their invitations, create one-time sign-in links and confirm their phone numbers in person',
             self::ViewLeases => 'See leases',
             self::ManageLeases => 'Create, renew and end leases',
             self::ViewBills => 'See bills',

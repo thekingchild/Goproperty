@@ -191,6 +191,8 @@ it('classes the money, bank, Paystack, billing, compliance, member, delete and i
         'members.manage',
         // Which buildings an agent sees (P02-03): a member-access change.
         'properties.assign_agents',
+        // Who signs in to a tenant's account (P03-01b): invitations, sign-in links, phone confirmation.
+        'tenants.portal_access',
         'bills.manage',
         'payments.confirm',
         'payments.submit_proof',

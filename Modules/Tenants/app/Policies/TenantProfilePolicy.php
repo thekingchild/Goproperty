@@ -94,6 +94,29 @@ final class TenantProfilePolicy
         return $this->managed($user, $tenant, archived: true);
     }
 
+    /**
+     * The tenant's portal access (P03-01b, Modules\Tenants\Portal):
+     * invite, send again, revoke, create or revoke a one-time sign-in link,
+     * confirm the phone number in person. `tenants.portal_access`
+     * (org-owner, org-admin, agent), active tenants only, narrowed like the
+     * record. These decide who signs in to an account, so they are never
+     * done while GoProperty staff impersonate (the permission is blocked
+     * too) nor in a suspended organization (not a read).
+     */
+    #[BlockedWhileImpersonating]
+    public function managePortalAccess(User $user, TenantProfile $tenant): Response|bool
+    {
+        if (! $this->belongsHere($tenant)) {
+            return false;
+        }
+
+        if (! $this->narrowing->allows($user, $tenant)) {
+            return Response::denyAsNotFound();
+        }
+
+        return ! $tenant->trashed() && $this->holds($user, OrganizationPermission::ManageTenantPortalAccess);
+    }
+
     private function managed(User $user, TenantProfile $tenant, bool $archived): Response|bool
     {
         if (! $this->belongsHere($tenant)) {

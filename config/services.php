@@ -41,6 +41,13 @@ return [
         'timeout' => (int) env('PAYSTACK_TIMEOUT', 8),
     ],
 
+    // Organizations' own WhatsApp Business accounts (ARCHITECTURE.md § 6.7).
+    // `log` (the default until P05-06 builds the Cloud API driver) sends
+    // nothing and is never offered in production; `none` switches it off.
+    'whatsapp' => [
+        'driver' => env('WHATSAPP_DRIVER', 'log'),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
