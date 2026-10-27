@@ -62,6 +62,11 @@ it('runs a queued job from cron with exec and proc_open disabled', function () {
 
     $heartbeats = app(Heartbeats::class);
 
+    // At least this drill's job: a Schedule::job that is due in the same
+    // minute (e.g. hourlyAt(20)) is queued by the same cron run and drained too.
+    $tick = $heartbeats->last(Heartbeats::QUEUE_TICK);
+
     expect($heartbeats->lastAt(Heartbeats::SCHEDULER))->not->toBeNull()
-        ->and($heartbeats->last(Heartbeats::QUEUE_TICK))->toMatchArray(['stopped_by' => 'drained', 'total' => 1]);
+        ->and($tick)->toMatchArray(['stopped_by' => 'drained'])
+        ->and($tick['total'] ?? 0)->toBeGreaterThanOrEqual(1);
 });
