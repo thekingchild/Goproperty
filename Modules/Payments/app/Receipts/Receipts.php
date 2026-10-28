@@ -245,6 +245,7 @@ final readonly class Receipts
             PaymentSource::PaystackWebhook => 'Paystack',
             PaymentSource::StatementMatch => 'Matched from bank statement',
             PaymentSource::ProofUpload => 'Proof reviewed',
+            PaymentSource::Import => 'From the agency\'s earlier records',
             PaymentSource::Manual => match ($method) {
                 PaymentMethod::Cash => 'Cash received',
                 PaymentMethod::Pos => 'POS slip checked',

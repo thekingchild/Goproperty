@@ -85,7 +85,8 @@ final readonly class ReceiptDetails
             'credit_balance_kobo' => $this->credit->balance($payment->tenant_profile_id)->kobo,
             'confirmed_by' => self::confirmedBy($payment),
             'confirmed_at' => ($payment->confirmed_at ?? CarbonImmutable::now())->toIso8601String(),
-            'sent_via' => $tenant !== null ? $this->notices->channelsFor($tenant, $organization)->printed() : [],
+            // Imported history is never sent to the tenant (P03-13b).
+            'sent_via' => $tenant !== null && $payment->source !== PaymentSource::Import ? $this->notices->channelsFor($tenant, $organization)->printed() : [],
         ];
     }
 
@@ -113,6 +114,7 @@ final readonly class ReceiptDetails
         return match ($payment->source) {
             PaymentSource::PaystackWebhook => 'Automatically — Paystack',
             PaymentSource::StatementMatch => 'Statement match',
+            PaymentSource::Import => 'Imported from earlier records',
             default => 'Automatically',
         };
     }

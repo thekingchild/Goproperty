@@ -29,6 +29,13 @@ use Modules\Payments\Enums\PaymentStatus;
  * and a later reversal may mark it refunded. The model refuses anything
  * else, whoever calls it. No payment is ever force-deleted (rule 7).
  *
+ * One exception, sanctioned by DATA_IMPORT.md § 2 "Undo" (P03-13b): a
+ * payment imported as history (source `import`: a payment from before
+ * GoProperty, confirmed with no allocation and no credit) that has no
+ * receipt may be soft deleted by its import's rollback and brought back
+ * by a later import (`deleted_at`, `import_batch_id`). Once it has a
+ * receipt it is history like any other.
+ *
  * The tenant and bill belong to other modules: the payment keeps their ids
  * and reads them through their contracts.
  *
@@ -69,6 +76,9 @@ final class Payment extends Model
     /** What may still change on a confirmed payment. */
     private const array CHANGEABLE_ONCE_CONFIRMED = ['receipt_id', 'status', 'updated_at'];
 
+    /** What an import's rollback and re-import may also change on imported history without a receipt (P03-13b). */
+    private const array CHANGEABLE_BY_ITS_IMPORT = ['deleted_at', 'import_batch_id'];
+
     /** @var array<string, mixed> */
     protected $attributes = ['status' => 'pending_confirmation', 'payer_type' => 'individual'];
 
@@ -79,7 +89,10 @@ final class Payment extends Model
                 return;
             }
 
-            $changed = array_diff(array_keys($payment->getDirty()), self::CHANGEABLE_ONCE_CONFIRMED);
+            $changeable = $payment->isImportedHistoryWithoutReceipt()
+                ? [...self::CHANGEABLE_ONCE_CONFIRMED, ...self::CHANGEABLE_BY_ITS_IMPORT]
+                : self::CHANGEABLE_ONCE_CONFIRMED;
+            $changed = array_diff(array_keys($payment->getDirty()), $changeable);
 
             if ($changed !== [] || ($payment->isDirty('status') && $payment->status !== PaymentStatus::Refunded)) {
                 throw new LogicException('A confirmed payment is never changed; reverse it instead.');
@@ -91,10 +104,18 @@ final class Payment extends Model
                 throw new LogicException('Payments are never deleted for good.');
             }
 
-            if ($payment->getRawOriginal('status') === PaymentStatus::Confirmed->value) {
+            if ($payment->getRawOriginal('status') === PaymentStatus::Confirmed->value && ! $payment->isImportedHistoryWithoutReceipt()) {
                 throw new LogicException('A confirmed payment is never deleted; reverse it instead.');
             }
         });
+    }
+
+    /** A payment imported as history (P03-13b) with no receipt (as stored, whatever is being changed). */
+    public function isImportedHistoryWithoutReceipt(): bool
+    {
+        return $this->getRawOriginal('source') === PaymentSource::Import->value
+            && $this->getRawOriginal('receipt_id') === null
+            && $this->receipt_id === null;
     }
 
     /** @return HasMany<PaymentAllocation, $this> */

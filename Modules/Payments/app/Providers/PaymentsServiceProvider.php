@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Livewire;
 use Modules\Billing\Events\BillIssued;
+use Modules\Import\Contracts\ImportTargets;
 use Modules\Import\Contracts\ImportUsages;
 use Modules\Payments\Contracts\PaymentProofs;
 use Modules\Payments\Contracts\PaymentRecorder;
@@ -22,6 +23,8 @@ use Modules\Payments\Events\PaymentConfirmed;
 use Modules\Payments\Events\PaymentRecorded;
 use Modules\Payments\Events\PaymentRejected;
 use Modules\Payments\Events\ReceiptVoided;
+use Modules\Payments\Import\OpeningBalancesImportTarget;
+use Modules\Payments\Import\PaymentHistoryImportTarget;
 use Modules\Payments\Import\PaymentUsage;
 use Modules\Payments\Listeners\ApplyCreditToNewBill;
 use Modules\Payments\Listeners\IssueReceipt;
@@ -87,6 +90,8 @@ final class PaymentsServiceProvider extends ModuleServiceProvider
         $this->app->bind(PaymentProofs::class, ProofSubmissions::class);
         $this->app->bind(TenantReceipts::class, TenantReceiptRecords::class);
         $this->app->bind(TenantProofs::class, TenantProofRecords::class);
+        $this->app->singleton(OpeningBalancesImportTarget::class);
+        $this->app->singleton(PaymentHistoryImportTarget::class);
 
         // Proofs of payment: a screenshot, a photo of a teller slip or a
         // PDF, at most 10 MB; evidence (never deleted; ARCHITECTURE.md § 9).
@@ -121,6 +126,11 @@ final class PaymentsServiceProvider extends ModuleServiceProvider
 
         // An imported tenant is used once a payment names them (an import's rollback check, P03-13a).
         $this->callAfterResolving(ImportUsages::class, static fn (ImportUsages $usages) => $usages->register(PaymentUsage::class));
+        // The Opening balances and Payment history import sheets (P03-13b, DATA_IMPORT.md § 1 rows 6 and 8).
+        $this->callAfterResolving(ImportTargets::class, static function (ImportTargets $targets): void {
+            $targets->register(OpeningBalancesImportTarget::class);
+            $targets->register(PaymentHistoryImportTarget::class);
+        });
 
         // Every list of the module exports (P02-07).
         $this->callAfterResolving(ListExports::class, static function (ListExports $exports): void {

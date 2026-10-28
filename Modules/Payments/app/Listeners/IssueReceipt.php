@@ -27,6 +27,11 @@ final readonly class IssueReceipt
 
     public function handle(PaymentConfirmed $event): void
     {
+        // Imported history issues a receipt only when the agency asked (P03-13b).
+        if (! $event->issueReceipt) {
+            return;
+        }
+
         $organization = Organization::query()->findOrFail($event->organizationId);
 
         $this->context->run($organization, fn () => $this->receipts->issue($event->paymentId));

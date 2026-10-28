@@ -20,14 +20,17 @@ use Livewire\Livewire;
 use Modules\Billing\Bills\BillIssuer;
 use Modules\Billing\Bills\BillService;
 use Modules\Billing\Bills\Ledger;
+use Modules\Billing\Bills\OpeningBalanceBillRecords;
 use Modules\Billing\Bills\TenantBillRecords;
 use Modules\Billing\Contracts\BillLedger;
+use Modules\Billing\Contracts\OpeningBalanceBills;
 use Modules\Billing\Contracts\PaymentOptions;
 use Modules\Billing\Contracts\TenantBills;
 use Modules\Billing\Documents\InvoiceVerifier;
 use Modules\Billing\Events\BillIssued;
 use Modules\Billing\Events\BillVoided;
 use Modules\Billing\Import\BillUsage;
+use Modules\Billing\Import\UtilitiesImportTarget;
 use Modules\Billing\Jobs\FlagOverdueBills;
 use Modules\Billing\Jobs\GenerateBills;
 use Modules\Billing\Listeners\QueueInvoicePdf;
@@ -43,6 +46,7 @@ use Modules\Billing\Policies\BillPolicy;
 use Modules\Billing\Policies\UnitUtilitySettingPolicy;
 use Modules\Billing\Policies\UtilityReadingPolicy;
 use Modules\Billing\Policies\UtilityTypePolicy;
+use Modules\Import\Contracts\ImportTargets;
 use Modules\Import\Contracts\ImportUsages;
 use Modules\Leasing\Contracts\CycleCalculator;
 use Nwidart\Modules\Support\ModuleServiceProvider;
@@ -90,6 +94,8 @@ final class BillingServiceProvider extends ModuleServiceProvider
         parent::register();
 
         $this->app->bind(BillLedger::class, Ledger::class);
+        $this->app->bind(OpeningBalanceBills::class, OpeningBalanceBillRecords::class);
+        $this->app->singleton(UtilitiesImportTarget::class);
         $this->app->bind(TenantBills::class, TenantBillRecords::class);
         $this->app->singleton(PaymentOptions::class);
 
@@ -119,6 +125,8 @@ final class BillingServiceProvider extends ModuleServiceProvider
 
         // Imported leases, tenants and units are used once a bill names them (an import's rollback check, P03-13a).
         $this->callAfterResolving(ImportUsages::class, static fn (ImportUsages $usages) => $usages->register(BillUsage::class));
+        // The Utilities import sheet (P03-13b, DATA_IMPORT.md § 1 row 7).
+        $this->callAfterResolving(ImportTargets::class, static fn (ImportTargets $targets) => $targets->register(UtilitiesImportTarget::class));
 
         $this->callAfterResolving(DocumentVerifiers::class, static function (DocumentVerifiers $verifiers): void {
             $verifiers->register(BillIssuer::VERIFICATION_KIND, InvoiceVerifier::class);

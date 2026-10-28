@@ -16,7 +16,14 @@ use Illuminate\Foundation\Events\Dispatchable;
  * `allocations` lists the bills it settled as ['billId' => …,
  * 'amountKobo' => …]; `creditKobo` went to the tenant's credit.
  * `confirmedByUserId` is null when the system confirmed it (a verified
- * Paystack webhook).
+ * Paystack webhook, an import).
+ *
+ * Imported payment history (P03-13b, `source` = `import`): a payment from
+ * before GoProperty, confirmed with no allocation and no credit. Imports
+ * never contact tenants (DATA_IMPORT.md § 3): listeners that tell the
+ * tenant skip it, and `issueReceipt` is false unless the agency ticked
+ * "Issue receipt" on its row (then the receipt is issued, still without a
+ * notice). Every other confirmation issues its receipt.
  */
 final class PaymentConfirmed
 {
@@ -35,5 +42,6 @@ final class PaymentConfirmed
         public readonly ?int $confirmedByUserId,
         public readonly array $allocations,
         public readonly int $creditKobo,
+        public readonly bool $issueReceipt = true,
     ) {}
 }

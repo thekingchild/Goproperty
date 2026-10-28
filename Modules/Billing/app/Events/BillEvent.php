@@ -24,5 +24,6 @@ abstract class BillEvent
         public readonly string $type,
         public readonly string $number,
         public readonly int $amountKobo,
+        public readonly bool $imported = false,
     ) {}
 }

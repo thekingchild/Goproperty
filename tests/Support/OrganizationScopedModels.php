@@ -65,6 +65,7 @@ use Modules\Payments\Contracts\PaymentMethod;
 use Modules\Payments\Contracts\PaymentSource;
 use Modules\Payments\Enums\CreditReason;
 use Modules\Payments\Enums\ProofSubmitter;
+use Modules\Payments\Models\OpeningBalance;
 use Modules\Payments\Models\Payment;
 use Modules\Payments\Models\PaymentAllocation;
 use Modules\Payments\Models\PaymentNotice;
@@ -194,6 +195,11 @@ final class OrganizationScopedModels
                 'tenant_profile_id' => TenantProfile::factory()->create()->id,
                 'amount_kobo' => Money::naira(50_000),
                 'reason' => CreditReason::Overpayment,
+            ])->save()),
+            OpeningBalance::class => fn (): Model => tap(new OpeningBalance, fn (OpeningBalance $balance): bool => $balance->forceFill([
+                'tenant_profile_id' => TenantProfile::factory()->create()->id,
+                'as_of_date' => '2026-09-30',
+                'amount_kobo' => Money::naira(-50_000),
             ])->save()),
             TenantCreditBalance::class => fn (): Model => tap(new TenantCreditBalance, fn (TenantCreditBalance $balance): bool => $balance->forceFill([
                 'tenant_profile_id' => TenantProfile::factory()->create()->id,

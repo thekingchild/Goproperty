@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Modules\Billing\Utilities;
 
 use App\Models\User;
+use App\Support\Money;
 use App\Tenancy\OrganizationContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Modules\Billing\Enums\ChargingMode;
@@ -108,6 +110,75 @@ final class UtilityTypes
         });
     }
 
+    /**
+     * A utility type the Utilities import sheet names and the organization
+     * does not have yet (P03-13b, DATA_IMPORT.md § 1 row 7: "utility types
+     * created if missing"), inside the import's chunk transaction. Its code
+     * is made from the name (unique, archived types included); it carries
+     * the batch (`import_batch_id`), so a rollback archives it again.
+     */
+    public function addForImport(int $batchId, string $name, ChargingMode $mode, ?MeterUnit $unit, Money $amount, BillingCycle $cycle): UtilityType
+    {
+        $type = new UtilityType;
+        $type->forceFill([
+            'name' => $name,
+            'code' => $this->freeCode($name),
+            'charging_mode' => $mode,
+            'unit_of_measure' => $mode === ChargingMode::Metered ? ($unit ?? MeterUnit::Unit) : null,
+            'default_amount_kobo' => $amount,
+            'default_cycle' => $cycle,
+            'import_batch_id' => $batchId,
+        ])->save();
+        $this->audit('utility_type.imported', $type, null, 'Utility type added by an import', ['import_batch_id' => $batchId]);
+
+        return $type;
+    }
+
+    /** A type an import added and its rollback archived, brought back by a later import (P03-13b). */
+    public function restoreForImport(UtilityType $type, int $batchId): UtilityType
+    {
+        $type = UtilityType::query()->whereKey($type->id)->lockForUpdate()->firstOrFail();
+        $type->forceFill(['active' => true, 'import_batch_id' => $batchId])->save();
+        $this->audit('utility_type.restored', $type, null, 'Utility type brought back by an import', ['import_batch_id' => $batchId]);
+
+        return $type;
+    }
+
+    /**
+     * An import's rollback (P03-13b): archives the types the batch added or
+     * brought back. The rollback runs only while no unit outside the batch
+     * uses them (Import\UtilitiesImportTarget::usedSince()).
+     *
+     * @return int how many were archived
+     */
+    public function rollBackImport(int $batchId): int
+    {
+        $archived = 0;
+
+        foreach (UtilityType::query()->where('import_batch_id', $batchId)->where('active', true)->orderBy('id')->lockForUpdate()->get() as $type) {
+            $type->forceFill(['active' => false])->save();
+            $this->audit('utility_type.import_rolled_back', $type, null, 'Utility type archived with its import', ['import_batch_id' => $batchId]);
+            $archived++;
+        }
+
+        return $archived;
+    }
+
+    /** A code for a new type from its name ("Security levy" → SECURITY-LEVY), unique in the organization, archived types included. */
+    public function freeCode(string $name): string
+    {
+        $base = trim((string) preg_replace('/[^A-Z0-9]+/', '-', mb_strtoupper(Str::ascii($name))), '-');
+        $base = $base === '' ? 'UTILITY' : mb_substr($base, 0, 16);
+        $base = rtrim($base, '-');
+        $code = $base;
+
+        for ($n = 2; UtilityType::query()->where('code', $code)->exists(); $n++) {
+            $code = $base.'-'.$n;
+        }
+
+        return $code;
+    }
+
     /** Whether any unit has a setting for this type (switched off ones too). */
     public function inUse(UtilityType $type): bool
     {
@@ -173,13 +244,17 @@ final class UtilityTypes
     }
 
     /** @param  array<string, mixed>  $properties */
-    private function audit(string $event, UtilityType $type, User $by, string $description, array $properties = []): void
+    private function audit(string $event, UtilityType $type, ?User $by, string $description, array $properties = []): void
     {
-        activity(self::LOG)
+        $entry = activity(self::LOG)
             ->event($event)
             ->performedOn($type)
-            ->causedBy($by)
-            ->withProperties(['utility' => $type->name, ...$properties])
-            ->log($description);
+            ->withProperties(['utility' => $type->name, ...$properties]);
+
+        if ($by !== null) {
+            $entry->causedBy($by);
+        }
+
+        $entry->log($description);
     }
 }

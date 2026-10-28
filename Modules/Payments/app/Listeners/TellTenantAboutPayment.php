@@ -41,6 +41,12 @@ final readonly class TellTenantAboutPayment implements ShouldHandleEventsAfterCo
             return;
         }
 
+        // Imported history is never told to the tenant (P03-13b; DATA_IMPORT.md
+        // § 3: an import contacts nobody), whether or not a receipt was asked.
+        if (! $event instanceof ReceiptVoided && $event->source === PaymentSource::Import->value) {
+            return;
+        }
+
         $organization = Organization::query()->find($event->organizationId);
 
         if ($organization === null) {

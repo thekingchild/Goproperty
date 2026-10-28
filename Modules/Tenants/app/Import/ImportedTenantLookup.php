@@ -45,7 +45,11 @@ final readonly class ImportedTenantLookup implements ImportedTenants
         }
 
         if ($inFile) {
-            return new TenantReference(null, true, $record !== null ? 'id:'.$record->id : ($phone !== null ? 'phone:'.$phone : 'ref:'.mb_strtolower($reference)), $record?->fullName() ?? $reference, null);
+            // The Tenants sheet row that adds them: the same key whether a row
+            // names them by phone or by Your ID (P03-13b: exact dry-run counts).
+            $row = $run->rowOf(TenantsImportTarget::KEY, 'ref:'.$reference) ?? ($phone !== null ? $run->rowOf(TenantsImportTarget::KEY, $phone) : null);
+
+            return new TenantReference(null, true, $record !== null ? 'id:'.$record->id : 'row:'.$row, $record?->fullName() ?? $reference, null);
         }
 
         if ($record !== null) {

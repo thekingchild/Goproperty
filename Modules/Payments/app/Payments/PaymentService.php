@@ -14,9 +14,11 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use LogicException;
 use Modules\Billing\Contracts\BillBalance;
 use Modules\Billing\Contracts\BillLedger;
 use Modules\Billing\Contracts\BillNotPayable;
+use Modules\Import\Contracts\ImportAction;
 use Modules\Payments\Contracts\PayerType;
 use Modules\Payments\Contracts\PaymentDraft;
 use Modules\Payments\Contracts\PaymentMethod;
@@ -30,6 +32,7 @@ use Modules\Payments\Events\PaymentRejected;
 use Modules\Payments\Models\Payment;
 use Modules\Payments\Models\PaymentAllocation;
 use Modules\Payments\Models\TenantCreditEntry;
+use Modules\Payments\Receipts\Receipts;
 use Modules\Properties\Contracts\BuildingAccess;
 use Modules\Tenants\Contracts\TenantDirectory;
 
@@ -58,6 +61,12 @@ use Modules\Tenants\Contracts\TenantDirectory;
  *   Proofs\ProofSubmissions: waiting for confirmation, source `proof_upload`.
  * - recordDraft(): Contracts\PaymentRecorder's work (Collections,
  *   OnlinePayments): idempotent by key, optionally confirmed at once.
+ * - importHistory() / rollBackImportedHistory(): the Payment history import
+ *   sheet (P03-13b): a payment from before GoProperty, recorded confirmed
+ *   with NO allocation and NO credit (the arrears and credit it left are the
+ *   Opening balances sheet's), no receipt unless the row asks for one, and
+ *   no tenant notice (source `import`); taken back by the import's rollback
+ *   while it has no receipt.
  *
  * A member narrowed to some buildings (decision 9) works only on payments
  * of tenants they see, and their confirmations settle only bills of their
@@ -354,6 +363,116 @@ final readonly class PaymentService
 
             return $this->recorded($payment, $created);
         });
+    }
+
+    /**
+     * A payment from the Payment history import sheet (P03-13b; DATA_IMPORT.md
+     * § 1 row 8: "for records and statements only; never re-issues receipts
+     * unless asked"), inside the import's chunk transaction: a new confirmed
+     * payment (source `import`, the batch's), one a rollback took back
+     * brought back, or the one already on file (its receipt issued now when
+     * the row asks and it has none). Settles no bill and adds no credit.
+     * PaymentConfirmed carries `issueReceipt` from the row; the tenant is
+     * never told (Listeners\TellTenantAboutPayment skips imports).
+     *
+     * @return array{0: ImportAction, 1: Payment}
+     */
+    public function importHistory(int $batchId, ImportedPayment $data, ?Payment $match): array
+    {
+        if (DB::transactionLevel() === 0) {
+            throw new LogicException('Import payments inside the import\'s transaction.');
+        }
+
+        if ($match !== null) {
+            $payment = Payment::query()->withTrashed()->whereKey($match->id)->lockForUpdate()->firstOrFail();
+            $action = $payment->trashed() ? ImportAction::Restore : ImportAction::Update;
+
+            if ($payment->trashed()) {
+                $payment->restore();
+                $payment->import_batch_id = $batchId;
+                $payment->save();
+
+                activity(self::LOG)
+                    ->event('payment.import_restored')
+                    ->performedOn($payment)
+                    ->withProperties(['import_batch_id' => $batchId, 'tenant_profile_id' => $payment->tenant_profile_id, 'amount_kobo' => $payment->amount_kobo->kobo])
+                    ->log('Imported payment brought back by an import');
+            }
+
+            if ($data->issueReceipt && $payment->receipt_id === null) {
+                app(Receipts::class)->issue($payment->id);
+                $payment->refresh();
+            }
+
+            return [$action, $payment];
+        }
+
+        $payment = new Payment;
+        $payment->tenant_profile_id = $data->tenantProfileId;
+        $payment->amount_kobo = $data->amount;
+        $payment->method = $data->method;
+        $payment->source = PaymentSource::Import;
+        $payment->status = PaymentStatus::Confirmed;
+        $payment->paid_at = CarbonImmutable::parse($data->paidAt->toDateString());
+        $payment->reference = self::text($data->reference);
+        $payment->note = self::text($data->note);
+        $payment->confirmed_at = CarbonImmutable::now();
+        $payment->import_batch_id = $batchId;
+        $payment->external_ref = $data->externalRef;
+        $payment->save();
+
+        activity(self::LOG)
+            ->event('payment.imported')
+            ->performedOn($payment)
+            ->withProperties([
+                'import_batch_id' => $batchId,
+                'tenant_profile_id' => $payment->tenant_profile_id,
+                'amount_kobo' => $payment->amount_kobo->kobo,
+                'method' => $payment->method->value,
+                'paid_at' => $payment->paid_at->toDateString(),
+                'issue_receipt' => $data->issueReceipt,
+            ])
+            ->log('Payment imported as history');
+
+        event(new PaymentConfirmed(
+            paymentId: $payment->id,
+            organizationId: $payment->organization_id,
+            tenantProfileId: $payment->tenant_profile_id,
+            amountKobo: $payment->amount_kobo->kobo,
+            method: $payment->method->value,
+            source: $payment->source->value,
+            confirmedByUserId: null,
+            allocations: [],
+            creditKobo: 0,
+            issueReceipt: $data->issueReceipt,
+        ));
+
+        return [ImportAction::Create, $payment->refresh()];
+    }
+
+    /**
+     * The import's rollback (P03-13b): soft deletes the batch's imported
+     * history (DATA_IMPORT.md § 2 "Undo"), audited. Payments with a receipt
+     * stay (the rollback is refused for them before: usedSince()).
+     *
+     * @return int how many were taken back
+     */
+    public function rollBackImportedHistory(int $batchId): int
+    {
+        $count = 0;
+
+        foreach (Payment::query()->where('import_batch_id', $batchId)->where('source', PaymentSource::Import)->whereNull('receipt_id')->orderBy('id')->lockForUpdate()->get() as $payment) {
+            $payment->delete();
+
+            activity(self::LOG)
+                ->event('payment.import_rolled_back')
+                ->performedOn($payment)
+                ->withProperties(['import_batch_id' => $batchId, 'tenant_profile_id' => $payment->tenant_profile_id, 'amount_kobo' => $payment->amount_kobo->kobo])
+                ->log('Imported payment removed with its import');
+            $count++;
+        }
+
+        return $count;
     }
 
     /** The payment as a RecordedPayment: its split and credit once confirmed. */

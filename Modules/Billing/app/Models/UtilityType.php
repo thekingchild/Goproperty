@@ -20,7 +20,8 @@ use Modules\Leasing\Contracts\BillingCycle;
  * `utility_types`, ARCHITECTURE.md § 6.4; P03-06a): flat (a fixed amount
  * each cycle) or metered (a rate per unit of measure times the
  * consumption), with a default amount and cycle that units' settings may
- * override. Organization-scoped; written only by Utilities\UtilityTypes;
+ * override. Organization-scoped; written only by Utilities\UtilityTypes (the
+ * Utilities import sheet adds missing types through it, P03-13b);
  * archived (`active` false), never deleted. Nothing is mass assignable.
  *
  * @property int $id
@@ -32,6 +33,7 @@ use Modules\Leasing\Contracts\BillingCycle;
  * @property Money $default_amount_kobo
  * @property BillingCycle $default_cycle
  * @property bool $active
+ * @property int|null $import_batch_id the import that added it (P03-13b; a rollback archives it)
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  */
@@ -77,6 +79,7 @@ final class UtilityType extends Model
             'default_amount_kobo' => MoneyCast::class,
             'default_cycle' => BillingCycle::class,
             'active' => 'boolean',
+            'import_batch_id' => 'integer',
         ];
     }
 }

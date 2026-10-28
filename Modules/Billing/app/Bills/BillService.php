@@ -158,7 +158,7 @@ final readonly class BillService
     /**
      * The values every bill event carries.
      *
-     * @return array{billId: int, organizationId: int, tenantProfileId: int, leaseId: int|null, type: string, number: string, amountKobo: int}
+     * @return array{billId: int, organizationId: int, tenantProfileId: int, leaseId: int|null, type: string, number: string, amountKobo: int, imported: bool}
      */
     public static function eventIds(Bill $bill): array
     {
@@ -170,6 +170,7 @@ final readonly class BillService
             'type' => $bill->type->value,
             'number' => $bill->number,
             'amountKobo' => $bill->amount_kobo->kobo,
+            'imported' => $bill->import_batch_id !== null,
         ];
     }
 

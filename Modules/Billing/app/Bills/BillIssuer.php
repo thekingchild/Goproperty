@@ -101,6 +101,7 @@ final readonly class BillIssuer
             'branding_snapshot' => $branding->toArray(),
             'details' => $this->details->take($draft->tenantProfileId, $draft->propertyId, $draft->unitId, $draft->leaseNumber, $draft->cycle)->toArray(),
             'created_by_user_id' => $draft->createdByUserId,
+            'import_batch_id' => $draft->importBatchId,
         ]);
         $bill->number = $this->numberer->next(DocumentType::Invoice, $issuedAt, $branding->branding);
         $bill->verification_code = $this->codes->issue(self::VERIFICATION_KIND);
@@ -132,6 +133,7 @@ final readonly class BillIssuer
                 'amount_kobo' => $amount->kobo,
                 'period_start' => $bill->period_start?->toDateString(),
                 'due_date' => $bill->due_date->toDateString(),
+                'import_batch_id' => $bill->import_batch_id,
             ])
             ->log('Bill issued');
 

@@ -37,5 +37,6 @@ final readonly class BillDraft
         public ?string $leaseNumber = null,
         public ?BillingCycle $cycle = null,
         public ?int $unitUtilitySettingId = null,
+        public ?int $importBatchId = null,
     ) {}
 }

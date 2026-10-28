@@ -47,6 +47,9 @@ it('is registered into the import engine by the Properties module, owners → bu
             ['units', 'Units', 30],
             ['tenants', 'Tenants', 40],
             ['leases', 'Leases', 50], // the Leasing module's (P03-13a), after them
+            ['opening_balances', 'Opening balances', 60], // the Payments module's (P03-13b)
+            ['utilities', 'Utilities', 70], // the Billing module's (P03-13b)
+            ['payment_history', 'Payment history', 80], // the Payments module's (P03-13b)
         ])
         ->and(array_column(array_map(fn ($c) => (array) $c, $targets->find('owners')->columns()), 'label'))->toBe(PORTFOLIO_OWNERS)
         ->and(array_column(array_map(fn ($c) => (array) $c, $targets->find('properties')->columns()), 'label'))->toBe(PORTFOLIO_BUILDINGS)

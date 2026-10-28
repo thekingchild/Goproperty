@@ -28,6 +28,11 @@ use Modules\Payments\Models\TenantCreditEntry;
  * using credit never deadlock each other.
  *
  * - addOverpayment(): + the part of a confirmed payment no open bill took.
+ * - addOpeningCredit(): + credit the tenant had before GoProperty (the
+ *   Opening balances import sheet, P03-13b), inside the import's chunk
+ *   transaction; reverseOpeningCredit() takes it back for the import's
+ *   rollback with a − entry (entries are never deleted), refused once any
+ *   of it was used.
  * - applyToBill(): on BillIssued (Listeners\ApplyCreditToNewBill), as much
  *   credit as the new bill still owes, settled through BillLedger::apply.
  *   Once per bill: the entry's `applied_bill_id` is unique, and the bill's
@@ -67,6 +72,55 @@ final readonly class TenantCredit
         $balance->save();
 
         return $entry;
+    }
+
+    /**
+     * Credit the tenant had on the as-of date of an import's Opening balances
+     * sheet (P03-13b; DATA_IMPORT.md § 3: "imported as a credit entry and
+     * applied automatically to the next bill"), inside the import's
+     * transaction. The next bill issued to the tenant takes it (applyToBill).
+     */
+    public function addOpeningCredit(int $tenantProfileId, Money $amount, int $importBatchId, ?string $note): TenantCreditEntry
+    {
+        self::requireTransaction();
+
+        if (! $amount->isPositive()) {
+            throw new LogicException('Opening credit is a positive amount.');
+        }
+
+        $balance = $this->lockBalance($tenantProfileId);
+        $entry = $this->entry($tenantProfileId, $amount, CreditReason::OpeningBalance, null, note: $note, importBatchId: $importBatchId);
+        $balance->balance_kobo = $balance->balance_kobo->plus($amount);
+        $balance->save();
+
+        return $entry;
+    }
+
+    /**
+     * Take an imported opening credit back (the import's rollback, P03-13b)
+     * with a − entry beside it, inside the caller's transaction. Refused
+     * (false) when the tenant's credit no longer holds it all: some was
+     * used for a bill since.
+     */
+    public function reverseOpeningCredit(TenantCreditEntry $opening, int $importBatchId): bool
+    {
+        self::requireTransaction();
+
+        if ($opening->reason !== CreditReason::OpeningBalance) {
+            throw new LogicException('Only an imported opening credit is reversed this way.');
+        }
+
+        $balance = $this->lockBalance($opening->tenant_profile_id);
+
+        if ($balance->balance_kobo->lessThan($opening->amount_kobo)) {
+            return false;
+        }
+
+        $this->entry($opening->tenant_profile_id, $opening->amount_kobo->negate(), CreditReason::ImportRolledBack, null, note: __('Opening credit removed: its import was rolled back.'), importBatchId: $importBatchId);
+        $balance->balance_kobo = $balance->balance_kobo->minus($opening->amount_kobo);
+        $balance->save();
+
+        return true;
     }
 
     /**
@@ -140,7 +194,7 @@ final readonly class TenantCredit
         return TenantCreditBalance::query()->where('tenant_profile_id', $tenantProfileId)->lockForUpdate()->firstOrFail();
     }
 
-    private function entry(int $tenantProfileId, Money $amount, CreditReason $reason, ?User $by, ?int $paymentId = null, ?int $billId = null, ?int $appliedBillId = null): TenantCreditEntry
+    private function entry(int $tenantProfileId, Money $amount, CreditReason $reason, ?User $by, ?int $paymentId = null, ?int $billId = null, ?int $appliedBillId = null, ?string $note = null, ?int $importBatchId = null): TenantCreditEntry
     {
         $entry = new TenantCreditEntry;
         $entry->tenant_profile_id = $tenantProfileId;
@@ -150,6 +204,8 @@ final readonly class TenantCredit
         $entry->bill_id = $billId;
         $entry->applied_bill_id = $appliedBillId;
         $entry->created_by_user_id = $by?->id;
+        $entry->note = $note === null ? null : mb_substr($note, 0, 500);
+        $entry->import_batch_id = $importBatchId;
         $entry->save();
 
         return $entry;

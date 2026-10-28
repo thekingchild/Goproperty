@@ -15,9 +15,11 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Modules\Billing\Bills\BillDates;
+use Modules\Billing\Models\Bill;
 use Modules\Billing\Models\UnitUtilitySetting;
 use Modules\Billing\Models\UtilityReading;
 use Modules\Billing\Models\UtilityType;
+use Modules\Import\Contracts\ImportAction;
 use Modules\Leasing\Contracts\BillingCycle;
 use Modules\Leasing\Contracts\CycleCalculator;
 use Modules\Properties\Contracts\BuildingAccess;
@@ -170,6 +172,122 @@ final class UnitUtilitySettings
 
             return $setting;
         }, 3);
+    }
+
+    /**
+     * The Utilities import sheet's write (P03-13b; DATA_IMPORT.md § 1 row 7),
+     * inside the import's chunk transaction, checked by
+     * Import\UtilitiesImportTarget: a new setting for the unit, or the one
+     * the row matched (by Your ID, else unit + utility) — changed while it
+     * has no bill and no reading, switched on again when it was off.
+     * `next_billing_date` is always set (never a period that started before
+     * the import day), so an import never back-bills (P03-06b's warning).
+     * The batch is kept on a setting it adds or switches back on, so its
+     * rollback can switch it off again. Audited (`utility_setting.imported`).
+     *
+     * @return array{0: ImportAction, 1: UnitUtilitySetting}
+     */
+    public function import(int $batchId, ImportedUtilitySetting $data, ?UnitUtilitySetting $match): array
+    {
+        $setting = $match !== null ? UnitUtilitySetting::query()->whereKey($match->id)->lockForUpdate()->firstOrFail() : new UnitUtilitySetting;
+        $action = match (true) {
+            $match === null => ImportAction::Create,
+            ! $setting->active => ImportAction::Restore,
+            default => ImportAction::Update,
+        };
+
+        if ($action !== ImportAction::Update && $this->billedOrRead($setting)) {
+            throw ValidationException::withMessages(['unit' => __('This utility was billed or read before it was switched off. Switch it on on its page.')]);
+        }
+
+        $terms = [
+            'amount_kobo' => $data->amount,
+            'cycle' => $data->cycle,
+            'starting_reading' => $data->startingReading,
+        ];
+
+        if ($action === ImportAction::Update && $this->billedOrRead($setting)) {
+            // Billed or read since: an import changes nothing (the target refuses a different row).
+            return [$action, $setting];
+        }
+
+        $setting->forceFill([
+            'property_id' => $match->property_id ?? $data->propertyId,
+            'unit_id' => $match->unit_id ?? $data->unitId,
+            'utility_type_id' => $match->utility_type_id ?? $data->utilityTypeId,
+            ...$terms,
+            'active' => true,
+            'effective_from' => $data->effectiveFrom,
+            'next_billing_date' => $data->nextBillingDate,
+            'billing_hold' => null,
+            'billing_hold_since' => null,
+        ]);
+
+        if ($data->externalRef !== null) {
+            $setting->external_ref = $data->externalRef;
+        }
+
+        if ($action !== ImportAction::Update) {
+            $setting->import_batch_id = $batchId;
+        }
+
+        $changed = array_values(array_intersect([...self::AUDITED, 'next_billing_date'], array_keys($setting->getDirty())));
+
+        if ($action === ImportAction::Update && $changed === []) {
+            return [$action, $setting];
+        }
+
+        $setting->save();
+        $setting->load('utilityType');
+
+        activity(UtilityTypes::LOG)
+            ->event('utility_setting.imported')
+            ->performedOn($setting)
+            ->withProperties([
+                'utility' => $setting->utilityType->name,
+                'import_batch_id' => $batchId,
+                'action' => $action->value,
+                'changed' => $action === ImportAction::Update ? $changed : null,
+                'next_billing_date' => $setting->next_billing_date?->toDateString(),
+            ])
+            ->log('Unit\'s utility imported');
+
+        return [$action, $setting];
+    }
+
+    /**
+     * An import's rollback (P03-13b): switches off the settings the batch
+     * added or switched back on (settings are never deleted). Runs only
+     * while none of them has a bill or a reading (usedSince()).
+     *
+     * @return int how many were switched off
+     */
+    public function rollBackImport(int $batchId): int
+    {
+        $off = 0;
+
+        foreach (UnitUtilitySetting::query()->with('utilityType')->where('import_batch_id', $batchId)->where('active', true)->orderBy('id')->lockForUpdate()->get() as $setting) {
+            $setting->active = false;
+            $setting->save();
+
+            activity(UtilityTypes::LOG)
+                ->event('utility_setting.import_rolled_back')
+                ->performedOn($setting)
+                ->withProperties(['utility' => $setting->utilityType->name, 'import_batch_id' => $batchId])
+                ->log('Unit\'s utility switched off with its import');
+            $off++;
+        }
+
+        return $off;
+    }
+
+    /** Whether the setting has a bill or a reading (kept or removed): then an import leaves its terms alone. */
+    public function billedOrRead(UnitUtilitySetting $setting): bool
+    {
+        return $setting->exists && (
+            UtilityReading::query()->withTrashed()->where('unit_utility_setting_id', $setting->id)->exists()
+            || Bill::query()->withTrashed()->where('unit_utility_setting_id', $setting->id)->exists()
+        );
     }
 
     /**

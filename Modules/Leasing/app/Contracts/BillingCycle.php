@@ -41,6 +41,33 @@ enum BillingCycle: string
         };
     }
 
+    /**
+     * A cycle as listed, or as agencies write it in a spreadsheet ("Annual",
+     * "Per annum", "Bi-annual", "Every 3 months"…), for the import sheets
+     * (Leases, P03-13a; Utilities, P03-13b). Null when it is none of them.
+     */
+    public static function fromText(string $text): ?self
+    {
+        $key = (string) preg_replace('/[^a-z0-9]/', '', mb_strtolower($text));
+
+        foreach (self::cases() as $cycle) {
+            if ($key === preg_replace('/[^a-z0-9]/', '', mb_strtolower($cycle->label())) || $key === str_replace('_', '', $cycle->value)) {
+                return $cycle;
+            }
+        }
+
+        return match ($key) {
+            'day', 'perday', 'everyday' => self::Daily,
+            'week', 'perweek', 'everyweek' => self::Weekly,
+            'month', 'permonth', 'everymonth', 'monthly' => self::Monthly,
+            'quarter', 'perquarter', 'every3months', 'everythreemonths', '3months', 'threemonths' => self::Quarterly,
+            'semiannually', 'biannual', 'biannually', 'halfyearly', 'every6months', 'everysixmonths', '6months', 'sixmonths' => self::SemiAnnual,
+            'year', 'yearly', 'annually', 'perannum', 'peryear', 'everyyear', 'pa', '1year', 'oneyear' => self::Annual,
+            'biennially', 'every2years', 'everytwoyears', '2years', 'twoyears' => self::Biennial,
+            default => null,
+        };
+    }
+
     /** The period length in days for a day-count cycle, else null. */
     public function days(): ?int
     {

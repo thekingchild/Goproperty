@@ -685,24 +685,7 @@ final class LeasesImportTarget implements ImportTarget
     /** A billing cycle as listed, or as agencies write it ("Annual", "Per annum", "Bi-annual", "Every 3 months"…). */
     public static function cycle(string $text): ?BillingCycle
     {
-        $key = (string) preg_replace('/[^a-z0-9]/', '', mb_strtolower($text));
-
-        foreach (BillingCycle::cases() as $cycle) {
-            if ($key === preg_replace('/[^a-z0-9]/', '', mb_strtolower($cycle->label())) || $key === str_replace('_', '', $cycle->value)) {
-                return $cycle;
-            }
-        }
-
-        return match ($key) {
-            'day', 'perday', 'everyday' => BillingCycle::Daily,
-            'week', 'perweek', 'everyweek' => BillingCycle::Weekly,
-            'month', 'permonth', 'everymonth', 'monthly' => BillingCycle::Monthly,
-            'quarter', 'perquarter', 'every3months', 'everythreemonths', '3months', 'threemonths' => BillingCycle::Quarterly,
-            'semiannually', 'biannual', 'biannually', 'halfyearly', 'every6months', 'everysixmonths', '6months', 'sixmonths' => BillingCycle::SemiAnnual,
-            'year', 'yearly', 'annually', 'perannum', 'peryear', 'everyyear', 'pa', '1year', 'oneyear' => BillingCycle::Annual,
-            'biennially', 'every2years', 'everytwoyears', '2years', 'twoyears' => BillingCycle::Biennial,
-            default => null,
-        };
+        return BillingCycle::fromText($text);
     }
 
     private static function yesNo(string $text): ?bool
