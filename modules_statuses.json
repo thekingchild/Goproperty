@@ -10,5 +10,6 @@
     "OnlinePayments": true,
     "Expenses": true,
     "Handovers": true,
-    "OwnerStatements": true
+    "OwnerStatements": true,
+    "Tickets": true
 }

@@ -32,6 +32,7 @@ use Modules\Properties\Livewire\PropertyShow;
 use Modules\Properties\Livewire\UnitIndex;
 use Modules\Properties\Models\OwnerProfile;
 use Modules\Properties\Models\Unit;
+use Modules\Tickets\Tickets\TicketService;
 use Tests\Fixtures\Livewire\UnexportedListProbe;
 
 require_once __DIR__.'/helpers.php';
@@ -90,6 +91,8 @@ beforeEach(function () {
     $this->statement = uploadStatement($this->acme, $this->owner, statementAccount($this->acme, $this->owner), statementCsv(gtStatementRows(januaryTransactions())));
     // An expense of the building (P03-12).
     recordExpense($this->acme, $this->owner, ['propertyId' => (string) $this->palm->id]);
+    // A maintenance ticket for the flat (P04-01).
+    inOrganization($this->acme, fn () => app(TicketService::class)->createOnBehalf($this->owner, ['unitId' => $flat->id, 'category' => 'plumbing', 'title' => 'Kitchen sink leaking', 'description' => 'Water under the sink.']));
     inOrganization($this->acme, function (): void {
         ImportBatch::query()->create(['kind' => 'workbook', 'file_type' => 'xlsx', 'file_name' => 'portfolio.xlsx', 'status' => ImportStatus::Uploaded, 'created_by_user_id' => $this->owner->id]);
         app(MemberInvitations::class)->invite($this->owner, 'new.agent@acme.ng', [OrganizationRole::Agent]);
@@ -231,7 +234,7 @@ it('gives every workspace list page a working export, in Excel and CSV', functio
     $offered = array_values(array_unique($offered));
     sort($offered);
     expect($offered)->toBe(array_keys($registry->keys()))
-        ->toBe(['bank_statement_lines', 'bank_statements', 'bills', 'building_agents', 'buildings', 'expenses', 'handovers_made', 'handovers_received', 'imports', 'leases', 'member_invitations', 'members', 'owner_statements', 'owners', 'payments', 'receipts', 'tenants', 'units', 'utility_readings', 'utility_settings', 'utility_types']);
+        ->toBe(['bank_statement_lines', 'bank_statements', 'bills', 'building_agents', 'buildings', 'expenses', 'handovers_made', 'handovers_received', 'imports', 'leases', 'member_invitations', 'members', 'owner_statements', 'owners', 'payments', 'receipts', 'tenants', 'tickets', 'units', 'utility_readings', 'utility_settings', 'utility_types']);
 });
 
 it('makes every Livewire component that pages through a list use the export', function () {

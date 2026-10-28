@@ -84,6 +84,11 @@ use Modules\Properties\Models\OwnerProfile;
 use Modules\Properties\Models\Property;
 use Modules\Properties\Models\Unit;
 use Modules\Tenants\Models\TenantProfile;
+use Modules\Tickets\Enums\TicketCategory;
+use Modules\Tickets\Enums\TicketSource;
+use Modules\Tickets\Enums\TicketStatus;
+use Modules\Tickets\Models\Ticket;
+use Modules\Tickets\Models\TicketStatusChange;
 
 /**
  * Every organization-owned model (BelongsToOrganization) and how to make one
@@ -327,7 +332,31 @@ final class OrganizationScopedModels
                 'figures' => ['format' => 1],
                 'version' => 1,
             ])->save()),
+            // Maintenance tickets (P04-01): TicketService is the writer; the probes are about the rows.
+            Ticket::class => fn (): Model => self::ticket(),
+            TicketStatusChange::class => fn (): Model => tap(new TicketStatusChange, fn (TicketStatusChange $change): bool => $change->forceFill([
+                'ticket_id' => self::ticket()->id,
+                'to_status' => TicketStatus::Submitted,
+                'changed_at' => now(),
+            ])->save()),
         ];
+    }
+
+    /** A sent ticket for a new unit, in the current organization. */
+    private static function ticket(): Ticket
+    {
+        $unit = Unit::factory()->in(Property::factory()->create())->create();
+
+        return tap(new Ticket, fn (Ticket $ticket): bool => $ticket->forceFill([
+            'number' => 'TKT-'.random_int(100_000, 999_999),
+            'property_id' => $unit->property_id,
+            'unit_id' => $unit->id,
+            'source' => TicketSource::Staff,
+            'category' => TicketCategory::Plumbing,
+            'status' => TicketStatus::Submitted,
+            'title' => 'Probe leak',
+            'submitted_at' => now(),
+        ])->save());
     }
 
     /** A pending handover offered by the current organization. */

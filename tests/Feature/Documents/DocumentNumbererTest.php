@@ -116,6 +116,21 @@ it('starts again at 1 each year, the year of issue in Lagos', function () {
         ->and(issueNumber($this->acme, DocumentType::Invoice, CarbonImmutable::parse('2026-12-31 18:00', 'Africa/Lagos')))->toBe('INV-ADR-2026-000003');
 });
 
+it('numbers maintenance tickets TKT-000001 per organization, one sequence that never restarts (P04-01)', function () {
+    $this->acme->forceFill(['branding' => ['invoice_prefix' => 'ADR-INV']])->save();
+
+    expect(issueNumber($this->acme, DocumentType::Ticket, CarbonImmutable::parse('2026-12-31 22:00', 'Africa/Lagos')))->toBe('TKT-000001')
+        ->and(issueNumber($this->acme, DocumentType::Ticket, CarbonImmutable::parse('2027-01-01 09:00', 'Africa/Lagos')))->toBe('TKT-000002')
+        ->and(issueNumber($this->other, DocumentType::Ticket))->toBe('TKT-000001')
+        ->and(issueNumber($this->acme, DocumentType::Invoice, CarbonImmutable::parse('2027-01-01 09:00', 'Africa/Lagos')))->toBe('ADR-INV-2027-000001')
+        ->and(DocumentType::Ticket->yearly())->toBeFalse()
+        ->and(DocumentType::Invoice->yearly())->toBeTrue();
+
+    $counters = DB::table('document_counters')->where('doc_type', 'ticket')->orderBy('organization_id')->get(['organization_id', 'year', 'last_seq']);
+    expect($counters->map(fn (object $row): array => [(int) $row->organization_id, (int) $row->year, (int) $row->last_seq])->all())
+        ->toBe([[$this->acme->id, 0, 2], [$this->other->id, 0, 1]]);
+});
+
 it('takes the year from now in Lagos when no date is given', function () {
     $this->travelTo(CarbonImmutable::parse('2027-12-31 23:30', 'UTC'));
 
@@ -171,7 +186,8 @@ it('keeps one counter per organization, type and year in the database', function
 it('lists the numbered document types with their branding prefixes', function () {
     $branding = sampleBranding();
 
-    expect(DocumentType::values())->toBe(['invoice', 'receipt', 'lease_contract'])
-        ->and(array_map(fn (DocumentType $type): string => $type->prefix($branding), DocumentType::cases()))->toBe(['INV-ADR', 'RCT-ADR', 'LS-ADR'])
-        ->and(array_map(fn (DocumentType $type): string => $type->label(), DocumentType::cases()))->toBe(['Invoice', 'Receipt', 'Lease contract']);
+    // Maintenance tickets (P04-01) are numbered with the fixed prefix TKT, not the branding's.
+    expect(DocumentType::values())->toBe(['invoice', 'receipt', 'lease_contract', 'ticket'])
+        ->and(array_map(fn (DocumentType $type): string => $type->prefix($branding), DocumentType::cases()))->toBe(['INV-ADR', 'RCT-ADR', 'LS-ADR', 'TKT'])
+        ->and(array_map(fn (DocumentType $type): string => $type->label(), DocumentType::cases()))->toBe(['Invoice', 'Receipt', 'Lease contract', 'Maintenance ticket']);
 });

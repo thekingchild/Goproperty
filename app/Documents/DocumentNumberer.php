@@ -18,7 +18,9 @@ use Illuminate\Support\Facades\DB;
  * prefix is the document type's prefix in the organization's branding (it
  * carries the organization's code), the year is the year of issue in Lagos
  * and the sequence counts from 1 per organization, document type and year,
- * zero-padded to six digits (longer once it passes 999999).
+ * zero-padded to six digits (longer once it passes 999999). A type that is
+ * not yearly (DocumentType::yearly(), maintenance tickets) counts on for
+ * ever under year 0 and its number has no year: `TKT-000001`.
  *
  * Numbers are gap-free: next() takes the number inside the caller's
  * transaction with the counter row locked (`SELECT … FOR UPDATE`) until
@@ -66,10 +68,13 @@ final readonly class DocumentNumberer
             throw NumberingRequiresTransaction::for($type);
         }
 
-        $year = self::yearOf($issuedAt ?? CarbonImmutable::now());
+        $year = $type->yearly() ? self::yearOf($issuedAt ?? CarbonImmutable::now()) : 0;
         $sequence = $this->take($type, $year);
+        $prefix = $type->prefix($branding ?? Branding::fromOrganization($organization));
 
-        return self::format($type->prefix($branding ?? Branding::fromOrganization($organization)), $year, $sequence);
+        return $type->yearly()
+            ? self::format($prefix, $year, $sequence)
+            : $prefix.'-'.str_pad((string) $sequence, self::SEQUENCE_DIGITS, '0', STR_PAD_LEFT);
     }
 
     /** "INV-ADR-2027-000142". */

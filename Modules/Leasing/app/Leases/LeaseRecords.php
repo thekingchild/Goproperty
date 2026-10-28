@@ -16,17 +16,19 @@ use Modules\Leasing\Contracts\ImportedLeases;
 use Modules\Leasing\Contracts\LeaseBillingSchedule;
 use Modules\Leasing\Contracts\LeaseSummary;
 use Modules\Leasing\Contracts\TenantLeases;
+use Modules\Leasing\Contracts\UnitLeases;
 use Modules\Leasing\Enums\LeaseStatus;
 use Modules\Leasing\Models\Lease;
 
 /**
  * The Leasing module's answers to Contracts\TenantLeases (for the Tenants
  * module), Contracts\LeaseBillingSchedule (for Billing) and
- * Contracts\ImportedLeases (imports, P03-13a), read through
+ * Contracts\ImportedLeases (imports, P03-13a) and Contracts\UnitLeases
+ * (maintenance tickets, P04-01), read through
  * the organization scope. The one write, advance(), goes through
  * LeaseService.
  */
-final readonly class LeaseRecords implements ImportedLeases, LeaseBillingSchedule, TenantLeases
+final readonly class LeaseRecords implements ImportedLeases, LeaseBillingSchedule, TenantLeases, UnitLeases
 {
     public function __construct(private CycleCalculator $calculator) {}
 
@@ -67,20 +69,17 @@ final readonly class LeaseRecords implements ImportedLeases, LeaseBillingSchedul
     {
         return array_values(Lease::query()->where('tenant_profile_id', $tenantProfileId)
             ->orderByDesc('start_date')->orderByDesc('id')->get()
-            ->map(static fn (Lease $lease): LeaseSummary => new LeaseSummary(
-                id: $lease->id,
-                organizationId: $lease->organization_id,
-                propertyId: $lease->property_id,
-                unitId: $lease->unit_id,
-                tenantProfileId: $lease->tenant_profile_id,
-                contractNumber: $lease->contract_number,
-                status: $lease->status->value,
-                statusLabel: $lease->status->label(),
-                cycle: $lease->billing_cycle,
-                startDate: $lease->start_date,
-                endDate: $lease->end_date,
-                rent: $lease->rent_amount_kobo,
-            ))
+            ->map(self::summary(...))
+            ->all());
+    }
+
+    public function live(int $unitId): array
+    {
+        return array_values(Lease::query()->where('unit_id', $unitId)
+            ->whereIn('status', [LeaseStatus::Active, LeaseStatus::Draft])
+            ->orderByRaw('case when status = ? then 0 else 1 end', [LeaseStatus::Active->value])
+            ->orderByDesc('start_date')->orderByDesc('id')->get()
+            ->map(self::summary(...))
             ->all());
     }
 
@@ -140,6 +139,24 @@ final readonly class LeaseRecords implements ImportedLeases, LeaseBillingSchedul
             ->whereIn('status', [LeaseStatus::Active, LeaseStatus::Renewed])
             ->whereNotNull('next_billing_date')
             ->whereColumn('next_billing_date', '<=', 'end_date');
+    }
+
+    private static function summary(Lease $lease): LeaseSummary
+    {
+        return new LeaseSummary(
+            id: $lease->id,
+            organizationId: $lease->organization_id,
+            propertyId: $lease->property_id,
+            unitId: $lease->unit_id,
+            tenantProfileId: $lease->tenant_profile_id,
+            contractNumber: $lease->contract_number,
+            status: $lease->status->value,
+            statusLabel: $lease->status->label(),
+            cycle: $lease->billing_cycle,
+            startDate: $lease->start_date,
+            endDate: $lease->end_date,
+            rent: $lease->rent_amount_kobo,
+        );
     }
 
     private static function billableLease(Lease $lease): BillableLease

@@ -18,6 +18,11 @@ use App\Enums\Concerns\HasValues;
  * whose `number` is unique per organization, so they share one sequence. A
  * new numbered document (owner statements, notices) adds a case here and a
  * prefix in Branding.
+ *
+ * Maintenance tickets (P04-01, docs/plans/P04-subtasks.md default 4) are
+ * numbered records rather than documents: one sequence per organization
+ * that never restarts (`yearly()` false: counted under year 0), with the
+ * fixed prefix `TKT` and no year in the number (`TKT-000001`).
  */
 enum DocumentType: string
 {
@@ -26,6 +31,7 @@ enum DocumentType: string
     case Invoice = 'invoice';
     case Receipt = 'receipt';
     case LeaseContract = 'lease_contract';
+    case Ticket = 'ticket';
 
     public function label(): string
     {
@@ -33,6 +39,7 @@ enum DocumentType: string
             self::Invoice => 'Invoice',
             self::Receipt => 'Receipt',
             self::LeaseContract => 'Lease contract',
+            self::Ticket => 'Maintenance ticket',
         };
     }
 
@@ -43,6 +50,13 @@ enum DocumentType: string
             self::Invoice => $branding->invoicePrefix,
             self::Receipt => $branding->receiptPrefix,
             self::LeaseContract => $branding->leasePrefix,
+            self::Ticket => 'TKT',
         };
+    }
+
+    /** Whether the sequence starts again at 1 each year (and the number carries the year). */
+    public function yearly(): bool
+    {
+        return $this !== self::Ticket;
     }
 }

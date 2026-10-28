@@ -6,6 +6,8 @@ namespace Modules\Tenants\Providers;
 
 use App\Exports\ListExports;
 use App\Models\User;
+use App\Navigation\PortalTab;
+use App\Navigation\PortalTabs;
 use App\Navigation\WorkspaceNavigation;
 use App\Navigation\WorkspaceNavItem;
 use App\Tenancy\Moves\BuildingRecordMovers;
@@ -21,6 +23,7 @@ use Modules\Import\Contracts\ImportTargets;
 use Modules\Payments\Events\PaymentConfirmed;
 use Modules\Tenants\Contracts\ImportedTenants;
 use Modules\Tenants\Contracts\TenantDirectory;
+use Modules\Tenants\Contracts\TenantPortalAccess;
 use Modules\Tenants\Handover\LeftPortalLinksRevoker;
 use Modules\Tenants\Handover\TenantsMover;
 use Modules\Tenants\Import\ImportedTenantLookup;
@@ -31,6 +34,7 @@ use Modules\Tenants\Lists\TenantList;
 use Modules\Tenants\Models\TenantProfile;
 use Modules\Tenants\Policies\TenantProfilePolicy;
 use Modules\Tenants\Portal\LinkedTenantProfiles;
+use Modules\Tenants\Portal\TenantPortalAccessRecords;
 use Modules\Tenants\Profiles\TenantDirectoryService;
 use Nwidart\Modules\Support\ModuleServiceProvider;
 
@@ -52,7 +56,9 @@ use Nwidart\Modules\Support\ModuleServiceProvider;
  * (App\Tenancy\PortalLanding). The tenant portal itself (P03-11a,
  * routes; Livewire\Portal\*): my rentals, my bills and a bill with how
  * to pay it, a lease, across every organization the user rents from
- * (Portal\PortalTenancies, TenantProfilePolicy::viewAsTenant).
+ * (Portal\PortalTenancies, TenantProfilePolicy::viewAsTenant), its tabs
+ * (App\Navigation\PortalTabs), and Contracts\TenantPortalAccess, the same
+ * path for other modules' portal pages (maintenance tickets, P04-01).
  */
 final class TenantsServiceProvider extends ModuleServiceProvider
 {
@@ -71,6 +77,8 @@ final class TenantsServiceProvider extends ModuleServiceProvider
 
         // For other modules (ARCHITECTURE.md § 8 rule 3): Leasing first.
         $this->app->bind(TenantDirectory::class, TenantDirectoryService::class);
+        // The portal path for other modules' /portal pages (maintenance tickets, P04-01).
+        $this->app->bind(TenantPortalAccess::class, TenantPortalAccessRecords::class);
         // How other modules' import sheets name a tenant (the Leases sheet, P03-13a).
         $this->app->bind(ImportedTenants::class, ImportedTenantLookup::class);
     }
@@ -114,6 +122,14 @@ final class TenantsServiceProvider extends ModuleServiceProvider
         // Tenants never get an organization_user row (P03 decision 4): this is how they land on /portal.
         $this->callAfterResolving(PortalLanding::class, static function (PortalLanding $landing, $app): void {
             $landing->register('portal.home', static fn (User $user): bool => $app->make(LinkedTenantProfiles::class)->any($user), 'My rentals', 'home-modern');
+        });
+
+        // The tenant portal's tabs (P03-11a, P03-11b; Core's <x-portal.nav />, other modules add theirs).
+        $this->callAfterResolving(PortalTabs::class, static function (PortalTabs $tabs): void {
+            $tabs->add(new PortalTab(key: 'home', label: 'Home', icon: 'home-modern', route: 'portal.home', active: ['portal.home', 'portal.leases.*'], order: 10));
+            $tabs->add(new PortalTab(key: 'bills', label: 'My bills', icon: 'banknotes', route: 'portal.bills.index', active: ['portal.bills.*'], order: 20));
+            $tabs->add(new PortalTab(key: 'payments', label: 'Payments', icon: 'receipt-percent', route: 'portal.payments.index', active: ['portal.payments.*', 'portal.receipts.*'], order: 30));
+            $tabs->add(new PortalTab(key: 'documents', label: 'Documents', icon: 'document-text', route: 'portal.documents.index', active: ['portal.documents.*'], order: 40));
         });
 
         $this->callAfterResolving(WorkspaceNavigation::class, static function (WorkspaceNavigation $navigation): void {

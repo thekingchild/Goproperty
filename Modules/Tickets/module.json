@@ -1,0 +1,11 @@
+{
+    "name": "Tickets",
+    "alias": "tickets",
+    "description": "Maintenance tickets: raised by tenants or staff, assigned, worked and resolved through TicketService (ARCHITECTURE.md \u00a7 6.6)",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\Tickets\\Providers\\TicketsServiceProvider"
+    ],
+    "files": []
+}

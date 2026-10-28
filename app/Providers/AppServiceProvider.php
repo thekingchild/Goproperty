@@ -9,6 +9,7 @@ use App\Exports\ListExports;
 use App\Media\MediaMover;
 use App\Members\InvitationList;
 use App\Members\MemberList;
+use App\Navigation\PortalTabs;
 use App\Navigation\SettingsTabs;
 use App\Navigation\WorkspaceNavigation;
 use App\Settings\SettingDefinition;
@@ -44,6 +45,7 @@ class AppServiceProvider extends ServiceProvider
         // from their providers (callAfterResolving).
         $this->app->singleton(WorkspaceNavigation::class, static fn (): WorkspaceNavigation => WorkspaceNavigation::withCoreItems());
         $this->app->singleton(SettingsTabs::class, static fn (): SettingsTabs => SettingsTabs::withCoreTabs());
+        $this->app->singleton(PortalTabs::class);
 
         // Where someone with no workspace lands: modules register their
         // portals from their providers (callAfterResolving), like the sidebar.
