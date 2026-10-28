@@ -41,3 +41,15 @@ Rules: [ARCHITECTURE.md § 6.6](../../ARCHITECTURE.md) (state machine, thread, n
    - each transition notifies each party once: the tenant, the assigned member, or the owners and admins when the ticket is unassigned.
 10. **Expenses:** `expenses.ticket_id` stays unwritten in P04. "Record an expense for this ticket" is a follow-up.
 11. **Plan limit `tickets.limit`:** not enforced until P06 (SaaS billing).
+
+## Settled by the product owner (2026-10-28, after P04-01 to P04-04)
+
+- **Accepted as built:** the defaults above and every decision listed in the P04-01, P04-02 and P04-03 ledger entries, except the one below.
+- **Open tickets move with the building on a handover** (replaces P04-01 decision 10, "tickets stay with their organization"). Built as **P04-05**, with these orchestrator defaults for the product owner to confirm:
+  1. **Which tickets:** a moved building's tickets that are not closed (submitted, under review, in progress, resolved, reopened, and a tenant's unsent draft). Closed tickets stay behind as history. The same rule applies to a management handover and to the one-way return (P04-04).
+  2. **How, like tenants (P04-04):** the receiving organization gets its own ticket. It has a new number in its sequence, the old number and agency shown as "Moved from {agency}, was TKT-000012", and the tenant record and lease of the moved tenant there. The old organization keeps its ticket, closed with a history note "Building moved to {organization} on {date}". Nothing is reassigned between organizations, and no evidence is deleted.
+  3. **The thread:** public messages and their attachments are copied (the files as new evidence in the receiving organization). Internal notes stay with the organization that wrote them, and so do the status history and the notices.
+  4. **Status and assignment:** a resolved ticket stays resolved (the tenant can still confirm or reopen, the window counting from the original resolution). Every other open ticket arrives as `submitted`, for the new agency to review. A draft stays a draft. Nobody is assigned.
+  5. **Who is told:** the tenant once ("your repair request is now handled by {agency}"), and the receiving organization's owners and administrators once per moved ticket, through P04-03's notifier.
+  6. **All or nothing:** the tickets move in the same transaction as the handover's acceptance, or it fails as a whole.
+
