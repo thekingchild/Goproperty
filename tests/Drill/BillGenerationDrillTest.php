@@ -25,6 +25,12 @@ use Modules\Billing\Enums\BillableType;
 use Modules\Billing\Enums\BillType;
 use Modules\Billing\Jobs\RenderInvoice;
 use Modules\Billing\Models\Bill;
+use Modules\Billing\Models\UnitUtilitySetting;
+use Modules\Billing\Models\UtilityReading;
+use Modules\Billing\Utilities\MeterReadings;
+use Modules\Billing\Utilities\UnitUtilitySettings;
+use Modules\Billing\Utilities\UtilityTypes;
+use Modules\Leasing\Contracts\CycleCalculator;
 use Modules\Leasing\Contracts\LeaseBillingSchedule;
 use Modules\Leasing\Jobs\RenderLeaseContract;
 use Modules\Leasing\Leases\LeaseService;
@@ -43,11 +49,14 @@ use Modules\Tenants\Models\TenantProfile;
  * (LeaseBillingSchedule::lock) and the unique natural key
  * (lease_id, type, period_start) are what keep them apart. Also the bill
  * ledger under concurrent payments (designed for P03-10a), and its refusal
- * to work outside a transaction. Drill: the processes see only committed
+ * to work outside a transaction. Utility bills too (P03-06b): the
+ * setting's row lock and the unique natural key
+ * (unit_utility_setting_id, period_start) keep concurrent runs from billing
+ * a utility's period twice or a meter reading on two bills. Drill: the processes see only committed
  * rows, so this test commits and cleans up after itself.
  */
 
-const BILL_DRILL_TABLES = ['bill_items', 'bills', 'document_verifications', 'lease_contracts', 'lease_deposit_entries', 'leases', 'units', 'properties', 'tenant_profiles', 'document_counters', 'settings', 'organizations', 'users', 'activity_log'];
+const BILL_DRILL_TABLES = ['bill_items', 'utility_readings', 'bills', 'unit_utility_settings', 'utility_types', 'document_verifications', 'lease_contracts', 'lease_deposit_entries', 'leases', 'units', 'properties', 'tenant_profiles', 'document_counters', 'settings', 'organizations', 'users', 'activity_log'];
 
 beforeEach(function () {
     DB::table('audit_chain_head')->insertOrIgnore(['id' => 1, 'last_hash' => null, 'updated_at' => now()]);
@@ -206,6 +215,115 @@ it('acceptance: bills every period once when several runs of bill generation wor
 
     // A rerun afterwards finds nothing to do.
     $again = runTogether('bill-generation.php', [[(string) $this->organization->id], [(string) $this->organization->id]]);
+    expect(collect($again)->flatMap(fn (array $line): array => $line['issued'])->all())->toBe([])
+        ->and(app(OrganizationContext::class)->run($this->organization, fn () => Bill::query()->count()))->toBe($expected);
+});
+
+it('acceptance: bills every utility period once, and every meter reading on one bill, when several runs work on the same utilities at once', function () {
+    $today = CarbonImmutable::now('Africa/Lagos')->startOfDay();
+    $processes = 4;
+    $calculator = app(CycleCalculator::class);
+
+    // Committed set-up: twelve let units, each with a utility behind by several periods.
+    $settingIds = app(OrganizationContext::class)->run($this->organization, function () use ($today): array {
+        $building = Property::factory()->create(['name' => 'Palm Court']);
+        $types = [
+            app(UtilityTypes::class)->create($this->user, ['name' => 'Waste', 'code' => 'WASTE', 'chargingMode' => 'flat', 'unitOfMeasure' => '', 'amount' => '500', 'cycle' => 'daily']),
+            app(UtilityTypes::class)->create($this->user, ['name' => 'Security levy', 'code' => 'SECURITY', 'chargingMode' => 'flat', 'unitOfMeasure' => '', 'amount' => '5,000', 'cycle' => 'weekly']),
+            app(UtilityTypes::class)->create($this->user, ['name' => 'Service charge', 'code' => 'SERVICE', 'chargingMode' => 'flat', 'unitOfMeasure' => '', 'amount' => '20,000', 'cycle' => 'monthly']),
+            app(UtilityTypes::class)->create($this->user, ['name' => 'Electricity', 'code' => 'ELEC', 'chargingMode' => 'metered', 'unitOfMeasure' => 'kwh', 'amount' => '250', 'cycle' => 'monthly']),
+        ];
+        $from = [$today->subDays(20), $today->subDays(60), $today->subDays(100), $today->subDays(100)];
+        $ids = [];
+
+        foreach (range(0, 11) as $n) {
+            $unit = Unit::factory()->in($building)->create(['unit_label' => 'Flat '.($n + 1)]);
+            $lease = app(LeaseService::class)->draft($this->user, [
+                'tenantId' => TenantProfile::factory()->create()->id,
+                'unitId' => $unit->id,
+                'billingCycle' => 'annual',
+                'startDate' => $today->subDays(120)->toDateString(),
+                'endDate' => $today->addDays(240)->toDateString(),
+                'rent' => '1,200,000',
+                'deposit' => '0',
+            ]);
+            app(LeaseService::class)->activate($this->user, $lease);
+            $setting = app(UnitUtilitySettings::class)->add($this->user, [
+                'building' => $building->id,
+                'utilityType' => $types[$n % 4]->id,
+                'units' => [$unit->id],
+                'amount' => '',
+                'cycle' => '',
+                'effectiveFrom' => $from[$n % 4]->toDateString(),
+                'startingReading' => '',
+            ])->created[0];
+
+            if ($n % 4 === 3) {
+                // One reading in each of the meter's first three (ended) months.
+                foreach ([10, 40, 70] as $step => $days) {
+                    app(MeterReadings::class)->record($this->user, $setting, ['readingDate' => $from[3]->addDays($days)->toDateString(), 'value' => (string) (($step + 1) * 100 + $n), 'meterReplaced' => false, 'newMeterStart' => '', 'note' => '']);
+                }
+            }
+
+            $ids[] = $setting->id;
+        }
+
+        return $ids;
+    });
+
+    $lines = runTogether('utility-bill-generation.php', array_fill(0, $processes, [(string) $this->organization->id]));
+
+    [$bills, $settings, $readings, $counter, $codes] = app(OrganizationContext::class)->run($this->organization, fn (): array => [
+        Bill::query()->orderBy('id')->get(),
+        UnitUtilitySetting::query()->with('utilityType')->whereKey($settingIds)->get(),
+        UtilityReading::query()->orderBy('id')->get(),
+        (int) DB::table('document_counters')->where('organization_id', $this->organization->id)->where('doc_type', 'invoice')->sum('last_seq'),
+        DB::table('document_verifications')->where('organization_id', $this->organization->id)->where('kind', 'invoice')->count(),
+    ]);
+    $issued = collect($lines)->flatMap(fn (array $line): array => $line['issued']);
+
+    expect($lines)->toHaveCount($processes)
+        ->and(collect($lines)->pluck('pid')->unique())->toHaveCount($processes)
+        ->and(processesOverlapped($lines))->toBeTrue()
+        ->and(collect($lines)->pluck('finished')->unique()->all())->toBe([true])
+        ->and(collect($lines)->flatMap(fn (array $line): array => $line['reported'])->all())->toBe([]);
+
+    // Each flat setting: every period whose bill date (7 days ahead) has come; each meter: its three ended months, one reading each.
+    $expected = 0;
+    foreach ($settings as $setting) {
+        $count = 0;
+
+        if ($setting->isMetered()) {
+            $count = 3;
+        } else {
+            while ($calculator->billingDate($calculator->periodStart($setting->effective_from, $setting->billingCycle(), $count), 7)->toDateString() <= $today->toDateString()) {
+                $count++;
+            }
+        }
+
+        expect($bills->where('unit_utility_setting_id', $setting->id))->toHaveCount($count);
+        $expected += $count;
+    }
+
+    $keys = $bills->map(fn (Bill $bill): string => $bill->unit_utility_setting_id.'@'.$bill->period_start?->toDateString());
+    expect($bills)->toHaveCount($expected)
+        ->and($keys->unique())->toHaveCount($expected)
+        ->and($issued->sort()->values()->all())->toBe($bills->pluck('id')->all())
+        ->and($codes)->toBe($expected)
+        // Every reading on exactly one bill: a bill of its own meter, for the period it was read in.
+        ->and($readings)->toHaveCount(9)
+        ->and($readings->every(fn (UtilityReading $reading): bool => $bills->firstWhere('id', $reading->bill_id)?->unit_utility_setting_id === $reading->unit_utility_setting_id
+            && $bills->firstWhere('id', $reading->bill_id)?->period_start?->lessThanOrEqualTo($reading->reading_date)
+            && $bills->firstWhere('id', $reading->bill_id)?->period_end?->greaterThanOrEqualTo($reading->reading_date)))->toBeTrue()
+        ->and($bills->where('type', BillType::Utility))->toHaveCount($expected);
+
+    // Numbers 1..N, no gap, no duplicate.
+    $sequences = $bills->map(fn (Bill $bill): int => (int) Str::afterLast($bill->number, '-'))->sort()->values()->all();
+    expect($sequences)->toBe(range(1, $expected))
+        ->and($counter)->toBe($expected);
+
+    // A rerun afterwards finds nothing to do.
+    $again = runTogether('utility-bill-generation.php', [[(string) $this->organization->id], [(string) $this->organization->id]]);
     expect(collect($again)->flatMap(fn (array $line): array => $line['issued'])->all())->toBe([])
         ->and(app(OrganizationContext::class)->run($this->organization, fn () => Bill::query()->count()))->toBe($expected);
 });

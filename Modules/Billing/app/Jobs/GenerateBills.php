@@ -14,13 +14,16 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\Cache;
 use Modules\Billing\Bills\RentBillGenerator;
+use Modules\Billing\Bills\UtilityBillGenerator;
 use Throwable;
 
 /**
  * `bill:generate` (ARCHITECTURE.md § 6.4, § 7: daily 00:10, `billing`
- * queue): rent bills from leases (Bills\RentBillGenerator; utility bills
- * plug in here with P03-06b), organization by organization, each inside
- * its own context (OrganizationContext::run, no scope removed).
+ * queue): rent bills from leases (Bills\RentBillGenerator), then utility
+ * bills from units' utility settings (Bills\UtilityBillGenerator, P03-06b),
+ * organization by organization, each inside its own context
+ * (OrganizationContext::run, no scope removed). A failure in one of the
+ * two is reported and does not stop the other.
  *
  * Every organization except cancelled ones is billed: a suspended
  * organization's members cannot change anything, but its leases still run
@@ -32,7 +35,8 @@ use Throwable;
  * most once (ShouldBeUniqueUntilProcessing), run one at a time (a cache
  * lock while it works; a second copy that finds it taken leaves the work
  * to the first), and each period billed in a transaction keyed by
- * `(lease_id, type, period_start)`, unique in the database. Stops after
+ * `(lease_id, type, period_start)` (rent) or `(unit_utility_setting_id,
+ * period_start)` (utilities), unique in the database. Stops after
  * BUDGET_SECONDS and queues itself again from the organization it was
  * working on, so a shared host's worker never runs it past ~50 s
  * (AGENT.md § 4); what it did is never done again.
@@ -59,7 +63,7 @@ final class GenerateBills implements ShouldBeUniqueUntilProcessing, ShouldQueue
         $this->onQueue('billing');
     }
 
-    public function handle(OrganizationContext $context, RentBillGenerator $rent): void
+    public function handle(OrganizationContext $context, RentBillGenerator $rent, UtilityBillGenerator $utilities): void
     {
         // Longer than a run can last ($timeout), so it never lapses mid-run.
         $lock = Cache::lock(self::LOCK, $this->timeout + 30);
@@ -78,13 +82,8 @@ final class GenerateBills implements ShouldBeUniqueUntilProcessing, ShouldQueue
                 ->where('status', '!=', OrganizationStatus::Cancelled);
 
             foreach ($organizations->lazyById(100) as $organization) {
-                try {
-                    $finished = $context->run($organization, static fn (): bool => $rent->generate($stop));
-                } catch (Throwable $failure) {
-                    // One organization's failure (its branding, say) must not stop the others' bills.
-                    report($failure);
-                    $finished = true;
-                }
+                $finished = self::guarded(static fn (): bool => $context->run($organization, static fn (): bool => $rent->generate($stop)))
+                    && self::guarded(static fn (): bool => $context->run($organization, static fn (): bool => $utilities->generate($stop)));
 
                 if (! $finished) {
                     $resumeFrom = $organization->id;
@@ -98,6 +97,24 @@ final class GenerateBills implements ShouldBeUniqueUntilProcessing, ShouldQueue
 
         if ($resumeFrom !== null) {
             self::dispatch($resumeFrom);
+        }
+    }
+
+    /**
+     * Runs one generator for one organization; a failure (its branding,
+     * say) is reported and counts as done, so it never stops the other
+     * generator or the next organizations' bills.
+     *
+     * @param  callable(): bool  $run
+     */
+    private static function guarded(callable $run): bool
+    {
+        try {
+            return $run();
+        } catch (Throwable $failure) {
+            report($failure);
+
+            return true;
         }
     }
 

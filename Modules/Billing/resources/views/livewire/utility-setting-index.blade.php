@@ -74,6 +74,9 @@
                                     <span data-test="last-reading-{{ $setting->id }}">{{ __('starts at :value, no reading yet', ['value' => $setting->startingReading()->format()]) }}</span>
                                 @endif
                             @endif
+                            @if ($setting->active && $type->active && $setting->next_billing_date !== null)
+                                · <span data-test="next-bill-{{ $setting->id }}">{{ __('next period from :date', ['date' => $setting->next_billing_date->format('d/m/Y')]) }}</span>
+                            @endif
                         </span>
                     </div>
 
@@ -87,6 +90,10 @@
                         @endif
                         @if ($row->unitArchived)
                             <flux:badge size="sm" color="zinc">{{ __('Unit archived') }}</flux:badge>
+                        @endif
+                        @if ($setting->active && $setting->billing_hold !== null)
+                            {{-- P03-06b: why the utility is not being billed (Bills\UtilityBillGenerator). --}}
+                            <flux:badge size="sm" color="amber" data-test="billing-hold-{{ $setting->id }}">{{ __($setting->billing_hold->label()) }}@if ($setting->billing_hold_since) · {{ __('since :date', ['date' => $setting->billing_hold_since->format('d/m/Y')]) }}@endif</flux:badge>
                         @endif
                         @if ($type->isMetered() && $canSeeReadings)
                             <flux:button size="sm" variant="ghost" :href="route('workspace.utilities.readings.index', [$organization, 'meter' => $setting->id])" wire:navigate data-test="readings-{{ $setting->id }}">{{ __('Readings') }}</flux:button>

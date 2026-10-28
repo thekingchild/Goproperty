@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use LogicException;
+use Modules\Billing\Enums\UtilityBillingHold;
 use Modules\Billing\Utilities\MeterValue;
 use Modules\Billing\Utilities\MeterValueCast;
 use Modules\Leasing\Contracts\BillingCycle;
@@ -29,6 +30,9 @@ use Modules\Leasing\Contracts\BillingCycle;
  * Organization-scoped; written only by Utilities\UnitUtilitySettings;
  * switched off, never deleted. Nothing is mass assignable.
  *
+ * Bills\UtilityBillGenerator keeps where its billing stands
+ * (`next_billing_date`, `billing_hold`, `billing_hold_since`; P03-06b).
+ *
  * Live, building-linked record: a management handover (P03-14) moves it
  * with its building (BILLING_PAYMENTS.md § 7).
  *
@@ -42,6 +46,9 @@ use Modules\Leasing\Contracts\BillingCycle;
  * @property bool $active
  * @property CarbonImmutable $effective_from
  * @property MeterValue|null $starting_reading
+ * @property CarbonImmutable|null $next_billing_date the next period to bill (null: from effective_from; P03-06b)
+ * @property UtilityBillingHold|null $billing_hold why it is not being billed (P03-06b)
+ * @property CarbonImmutable|null $billing_hold_since the first period start the hold applies to
  * @property int|null $import_batch_id
  * @property string|null $external_ref
  * @property CarbonImmutable|null $created_at
@@ -110,6 +117,9 @@ final class UnitUtilitySetting extends Model
             'active' => 'boolean',
             'effective_from' => 'immutable_date',
             'starting_reading' => MeterValueCast::class,
+            'next_billing_date' => 'immutable_date',
+            'billing_hold' => UtilityBillingHold::class,
+            'billing_hold_since' => 'immutable_date',
             'import_batch_id' => 'integer',
         ];
     }

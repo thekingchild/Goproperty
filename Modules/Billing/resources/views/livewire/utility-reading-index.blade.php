@@ -71,7 +71,8 @@
                             <flux:badge size="sm" color="amber" data-test="meter-replaced-{{ $reading->id }}">{{ __('Meter replaced') }}</flux:badge>
                         @endif
                         @if ($reading->isBilled())
-                            <flux:badge size="sm" color="green">{{ __('Billed') }}</flux:badge>
+                            {{-- The bill page checks BillPolicy::view (404 outside the member's buildings). --}}
+                            <a href="{{ route('workspace.bills.show', [$organization, $reading->bill_id]) }}" wire:navigate data-test="reading-bill-{{ $reading->id }}"><flux:badge size="sm" color="green">{{ __('Billed') }}</flux:badge></a>
                         @else
                             <flux:badge size="sm" color="zinc">{{ __('Not billed yet') }}</flux:badge>
                         @endif

@@ -14,10 +14,12 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Modules\Billing\Bills\BillDates;
 use Modules\Billing\Models\UnitUtilitySetting;
 use Modules\Billing\Models\UtilityReading;
 use Modules\Billing\Models\UtilityType;
 use Modules\Leasing\Contracts\BillingCycle;
+use Modules\Leasing\Contracts\CycleCalculator;
 use Modules\Properties\Contracts\BuildingAccess;
 use Modules\Properties\Contracts\PropertyDirectory;
 use Modules\Properties\Contracts\UnitDirectory;
@@ -37,7 +39,9 @@ use Modules\Properties\Contracts\UnitDirectory;
  * units that have the utility already are skipped and named. Units and
  * buildings are read through the Properties module's contracts only. The
  * starting reading changes only while the meter has no kept reading (the
- * readings after it count from it).
+ * readings after it count from it). A utility switched on again bills from
+ * the first period starting on or after that day (P03-06b): the periods it
+ * was off are never billed.
  */
 final class UnitUtilitySettings
 {
@@ -47,6 +51,7 @@ final class UnitUtilitySettings
         private readonly PropertyDirectory $buildings,
         private readonly UnitDirectory $units,
         private readonly BuildingAccess $access,
+        private readonly CycleCalculator $calculator,
     ) {}
 
     /**
@@ -140,7 +145,17 @@ final class UnitUtilitySettings
         return DB::transaction(function () use ($by, $setting, $type, $values, $input): UnitUtilitySetting {
             $setting = UnitUtilitySetting::query()->whereKey($setting->getKey())->lockForUpdate()->firstOrFail();
             $setting->setRelation('utilityType', $type);
+            $wasActive = $setting->active;
             $setting->forceFill([...$this->columns($values, $type), 'active' => filter_var($input['active'] ?? true, FILTER_VALIDATE_BOOLEAN)]);
+
+            if (! $wasActive && $setting->active) {
+                // Switched on again (P03-06b): billing resumes with the first
+                // period starting on or after today; the periods while it
+                // was off are not billed.
+                $setting->next_billing_date = $this->calculator->nextPeriodStart($setting->effective_from, $setting->billingCycle(), $this->calculator->daysAfter(BillDates::today(), -1));
+                $setting->billing_hold = null;
+                $setting->billing_hold_since = null;
+            }
 
             if ($setting->isDirty('starting_reading') && UtilityReading::query()->where('unit_utility_setting_id', $setting->id)->exists()) {
                 throw ValidationException::withMessages(['startingReading' => __('This meter has readings already: the starting reading stays as it is. Correct the latest reading instead.')]);

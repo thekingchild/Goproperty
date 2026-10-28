@@ -6,6 +6,7 @@ namespace Modules\Billing\Documents;
 
 use App\Banking\BankAccounts;
 use App\Documents\BrandingSnapshot;
+use App\Documents\Document;
 use App\Documents\DocumentBranding;
 use App\Documents\DocumentRenderer;
 use App\Documents\Invoice\BankTransfer;
@@ -18,12 +19,18 @@ use App\Documents\Parts\DocumentProperty;
 use App\Documents\Parts\DocumentTenant;
 use App\Media\Media;
 use App\Models\OrganizationBankAccount;
+use App\Support\Money;
+use Carbon\CarbonImmutable;
+use Illuminate\Support\Collection;
 use Modules\Billing\Bills\BillDetails;
 use Modules\Billing\Contracts\PayableBill;
 use Modules\Billing\Contracts\PaymentOptions;
 use Modules\Billing\Enums\BillStatus;
+use Modules\Billing\Enums\BillType;
+use Modules\Billing\Enums\MeterUnit;
 use Modules\Billing\Models\Bill;
 use Modules\Billing\Models\BillItem;
+use Modules\Billing\Utilities\MeterValue;
 
 /**
  * A bill's invoice (P03-05c; BRANDING_DOCUMENTS.md § 2, § 5; ARCHITECTURE.md
@@ -63,8 +70,19 @@ final readonly class Invoices
         return BrandingSnapshot::fromArray($bill->branding_snapshot)->documentBranding();
     }
 
+    /**
+     * What the bill prints as now: its invoice, or for a utility bill the
+     * utility bill built on it (P03-06b).
+     */
+    public function document(Bill $bill): Document
+    {
+        $invoice = $this->invoice($bill);
+
+        return $bill->type === BillType::Utility ? $this->utilityBill($invoice, $this->items($bill)) : $invoice;
+    }
+
     /** The invoice as printed now (current status and payments, branding and parties as issued). */
-    public function document(Bill $bill): InvoiceDocument
+    public function invoice(Bill $bill): InvoiceDocument
     {
         $parties = $this->details->of($bill);
         $period = $bill->period_start !== null && $bill->period_end !== null ? new DocumentPeriod($bill->period_start, $bill->period_end) : null;
@@ -139,10 +157,63 @@ final readonly class Invoices
         return $this->renderer->kept($bill, $this->key($bill));
     }
 
+    /**
+     * A utility bill from its invoice and its lines as issued: the utility's
+     * name is the lines' label, and a metered bill's lines carry their
+     * reading in `meta` (Bills\UtilityBillGenerator).
+     *
+     * @param  Collection<int, BillItem>  $items
+     */
+    private function utilityBill(InvoiceDocument $invoice, Collection $items): UtilityBillDocument
+    {
+        $first = $items->firstOrFail();
+        $meta = $first->meta ?? [];
+        $metered = ($meta['charging'] ?? null) === 'metered';
+        $unit = __((MeterUnit::tryFrom(is_string($meta['unit'] ?? null) ? $meta['unit'] : '') ?? MeterUnit::Unit)->label());
+
+        if (! $metered) {
+            return new UtilityBillDocument(
+                invoice: $invoice,
+                utility: $first->label,
+                charging: $first->note ?? __('Flat charge'),
+                metered: false,
+            );
+        }
+
+        return new UtilityBillDocument(
+            invoice: $invoice,
+            utility: $first->label,
+            charging: __('Metered, per :unit', ['unit' => $unit]),
+            metered: true,
+            unit: $unit,
+            readings: array_values($items->map(static function (BillItem $item) use ($unit): UtilityReadingLine {
+                $meta = $item->meta ?? [];
+                $value = static fn (string $key): string => MeterValue::parse(is_string($meta[$key] ?? null) ? $meta[$key] : null)?->format() ?? '';
+
+                return new UtilityReadingLine(
+                    readOn: is_string($meta['reading_date'] ?? null) ? CarbonImmutable::parse($meta['reading_date']) : ($item->period_end ?? CarbonImmutable::today()),
+                    previous: $value('previous'),
+                    current: $value('current'),
+                    consumption: $value('consumption'),
+                    unit: $unit,
+                    rate: Money::kobo(is_int($meta['rate_kobo'] ?? null) ? $meta['rate_kobo'] : 0),
+                    amount: $item->amount_kobo,
+                    meterReplaced: ($meta['meter_replaced'] ?? false) === true,
+                );
+            })->all()),
+        );
+    }
+
+    /** @return Collection<int, BillItem> */
+    private function items(Bill $bill): Collection
+    {
+        return BillItem::query()->where('bill_id', $bill->id)->orderBy('id')->get();
+    }
+
     /** @return list<InvoiceLine> */
     private function lines(Bill $bill): array
     {
-        return array_values(BillItem::query()->where('bill_id', $bill->id)->orderBy('id')->get()
+        return array_values($this->items($bill)
             ->map(static fn (BillItem $item): InvoiceLine => new InvoiceLine(
                 description: $item->label,
                 amount: $item->amount_kobo,

@@ -47,6 +47,7 @@ use Spatie\MediaLibrary\HasMedia;
  * @property int $tenant_profile_id
  * @property int|null $property_id
  * @property int|null $unit_id
+ * @property int|null $unit_utility_setting_id the unit's utility a `utility` bill is for (P03-06b)
  * @property string $payment_reference
  * @property string $number
  * @property string $description
@@ -127,6 +128,7 @@ final class Bill extends Model implements HasMedia
             'branding_snapshot' => 'array',
             'details' => 'array',
             'document_media_id' => 'integer',
+            'unit_utility_setting_id' => 'integer',
         ];
     }
 }
