@@ -26,9 +26,11 @@ use Modules\Collections\Livewire\StatementShow;
 use Modules\Handovers\Handovers\HandoverService;
 use Modules\Import\Enums\ImportStatus;
 use Modules\Import\Models\ImportBatch;
+use Modules\OwnerStatements\Livewire\OwnerStatementIndex;
 use Modules\Properties\Enums\UnitStatus;
 use Modules\Properties\Livewire\PropertyShow;
 use Modules\Properties\Livewire\UnitIndex;
+use Modules\Properties\Models\OwnerProfile;
 use Modules\Properties\Models\Unit;
 use Tests\Fixtures\Livewire\UnexportedListProbe;
 
@@ -132,6 +134,9 @@ function workspaceListPages(User $user, Organization $organization, string $buil
     $pages["/o/{$organization->slug}/statements/{$statementId}"] = StatementShow::class;
     $pages["/o/{$organization->slug}/utilities/units"] = UtilitySettingIndex::class;
     $pages["/o/{$organization->slug}/utilities/readings"] = UtilityReadingIndex::class;
+    // An owner's monthly statements (P08-05), from the owner's page.
+    $owner = inOrganization($organization, fn () => OwnerProfile::query()->orderBy('id')->value('id'));
+    $pages["/o/{$organization->slug}/owners/{$owner}/statements"] = OwnerStatementIndex::class;
 
     return array_map(static fn (mixed $component): string => (string) $component, $pages);
 }
@@ -226,7 +231,7 @@ it('gives every workspace list page a working export, in Excel and CSV', functio
     $offered = array_values(array_unique($offered));
     sort($offered);
     expect($offered)->toBe(array_keys($registry->keys()))
-        ->toBe(['bank_statement_lines', 'bank_statements', 'bills', 'building_agents', 'buildings', 'expenses', 'handovers_made', 'handovers_received', 'imports', 'leases', 'member_invitations', 'members', 'owners', 'payments', 'receipts', 'tenants', 'units', 'utility_readings', 'utility_settings', 'utility_types']);
+        ->toBe(['bank_statement_lines', 'bank_statements', 'bills', 'building_agents', 'buildings', 'expenses', 'handovers_made', 'handovers_received', 'imports', 'leases', 'member_invitations', 'members', 'owner_statements', 'owners', 'payments', 'receipts', 'tenants', 'units', 'utility_readings', 'utility_settings', 'utility_types']);
 });
 
 it('makes every Livewire component that pages through a list use the export', function () {

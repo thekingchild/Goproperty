@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Modules\Billing\Contracts;
 
+use Carbon\CarbonImmutable;
+
 /**
  * How the owner portal (P03-15, the Properties module's /owner pages)
  * reads the bills of an owner's buildings: never the Billing module's
@@ -44,4 +46,24 @@ interface OwnerBills
      * @param  list<int>  $propertyIds
      */
     public function find(int $billId, array $propertyIds): ?OwnerBill;
+
+    /**
+     * The bills of these buildings issued in [$from, $to) (`issued_at`),
+     * void ones included, by issue time (the owner statements' "bills
+     * issued", P08-05).
+     *
+     * @param  list<int>  $propertyIds
+     * @return list<OwnerBill> without lines
+     */
+    public function issuedBetween(array $propertyIds, CarbonImmutable $from, CarbonImmutable $to): array;
+
+    /**
+     * The bills of these ids that the current organization has, any
+     * building (the caller keeps those of its buildings); unknown ids are
+     * left out.
+     *
+     * @param  list<int>  $billIds
+     * @return array<int, OwnerBill> by id, without lines
+     */
+    public function findMany(array $billIds): array;
 }

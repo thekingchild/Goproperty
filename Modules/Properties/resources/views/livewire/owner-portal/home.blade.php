@@ -6,6 +6,12 @@
     Read-only.
 --}}
 <x-page :heading="__('My properties')" :description="__('Your buildings, units, leases and bills, from every agency that manages them for you.')">
+    @if ($agencies !== [] && Route::has('owner.statements.index'))
+        <x-slot:actions>
+            {{-- Monthly statements, renewals and settlements (Modules\OwnerStatements, P08-05). --}}
+            <flux:button icon="document-text" :href="route('owner.statements.index')" wire:navigate class="min-h-11" data-test="owner-statements-link">{{ __('Statements') }}</flux:button>
+        </x-slot:actions>
+    @endif
     @if (session('status'))
         <flux:callout variant="success" icon="check-circle" :heading="session('status')" role="status" data-test="owner-status" />
     @endif

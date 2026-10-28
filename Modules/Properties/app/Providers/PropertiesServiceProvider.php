@@ -27,7 +27,10 @@ use Modules\Properties\Assignments\DropRemovedMemberAssignments;
 use Modules\Properties\Buildings\PropertyDirectoryService;
 use Modules\Properties\Contracts\BuildingAccess;
 use Modules\Properties\Contracts\ImportedUnits;
+use Modules\Properties\Contracts\OwnerPortalAccess;
+use Modules\Properties\Contracts\OwnerProfileDirectory;
 use Modules\Properties\Contracts\PropertyDirectory;
+use Modules\Properties\Contracts\ReadOnlyOwnerPage;
 use Modules\Properties\Contracts\UnitDirectory;
 use Modules\Properties\Handover\BuildingsMover;
 use Modules\Properties\Import\ImportedUnitLookup;
@@ -42,7 +45,8 @@ use Modules\Properties\Models\OwnerProfile;
 use Modules\Properties\Models\Property;
 use Modules\Properties\Models\Unit;
 use Modules\Properties\OwnerPortal\LinkedOwnerProfiles;
-use Modules\Properties\OwnerPortal\ReadOnlyOwnerPage;
+use Modules\Properties\OwnerPortal\OwnerPortalAccessService;
+use Modules\Properties\Owners\OwnerProfileDirectoryService;
 use Modules\Properties\Policies\OwnerProfilePolicy;
 use Modules\Properties\Policies\PropertyPolicy;
 use Modules\Properties\Policies\UnitPolicy;
@@ -77,7 +81,7 @@ use function Livewire\before;
  * read-only /owner pages across organizations (OwnerPortal\OwnerPortfolios),
  * the landing (someone with no workspace who is an owner somewhere lands on
  * /owner, App\Tenancy\PortalLanding), and the refusal of every method call
- * to the portal's pages (OwnerPortal\ReadOnlyOwnerPage).
+ * to the portal's pages (Contracts\ReadOnlyOwnerPage).
  */
 final class PropertiesServiceProvider extends ModuleServiceProvider
 {
@@ -98,6 +102,9 @@ final class PropertiesServiceProvider extends ModuleServiceProvider
         $this->app->bind(PropertyDirectory::class, PropertyDirectoryService::class);
         $this->app->bind(UnitDirectory::class, UnitDirectoryService::class);
         $this->app->bind(BuildingAccess::class, AgentNarrowing::class);
+        // Owners and the owner portal's path, for the owner statements (P08-05).
+        $this->app->bind(OwnerProfileDirectory::class, OwnerProfileDirectoryService::class);
+        $this->app->bind(OwnerPortalAccess::class, OwnerPortalAccessService::class);
         // How other modules' import sheets name a unit (the Leases sheet, P03-13a).
         $this->app->bind(ImportedUnits::class, ImportedUnitLookup::class);
 

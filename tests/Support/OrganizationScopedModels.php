@@ -64,6 +64,9 @@ use Modules\OnlinePayments\Enums\ConnectionStatus;
 use Modules\OnlinePayments\Models\PaystackConnection;
 use Modules\OnlinePayments\Models\PaystackTransaction;
 use Modules\OnlinePayments\Models\PaystackWebhookLog;
+use Modules\OwnerStatements\Enums\SettlementStatus;
+use Modules\OwnerStatements\Models\OwnerStatementSettlement;
+use Modules\OwnerStatements\Models\OwnerStatementTerms;
 use Modules\Payments\Contracts\PaymentMethod;
 use Modules\Payments\Contracts\PaymentSource;
 use Modules\Payments\Enums\CreditReason;
@@ -308,6 +311,21 @@ final class OrganizationScopedModels
                 'management_handover_id' => self::handover()->id,
                 'tenant_profile_id' => TenantProfile::factory()->create()->id,
                 'tenant_name' => 'Probe Tenant',
+            ])->save()),
+            // Owner statements (P08-05): StatementTermsBook and Settlements are the writers; the probes are about the rows.
+            OwnerStatementTerms::class => fn (): Model => tap(new OwnerStatementTerms, fn (OwnerStatementTerms $terms): bool => $terms->forceFill([
+                'owner_profile_id' => OwnerProfile::factory()->create()->id,
+                'commission_bps' => 1000,
+            ])->save()),
+            OwnerStatementSettlement::class => fn (): Model => tap(new OwnerStatementSettlement, fn (OwnerStatementSettlement $settlement): bool => $settlement->forceFill([
+                'owner_profile_id' => OwnerProfile::factory()->create()->id,
+                'month' => '2027-01-01',
+                'status' => SettlementStatus::Settled,
+                'paid_on' => '2027-02-02',
+                'reference' => 'TRF-PROBE',
+                'net_due_kobo' => 100_000,
+                'figures' => ['format' => 1],
+                'version' => 1,
             ])->save()),
         ];
     }

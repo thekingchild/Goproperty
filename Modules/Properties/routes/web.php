@@ -78,7 +78,7 @@ Route::middleware(SignInPageHeaders::class)->prefix('owner')->name('owner.')->gr
  * OwnerProfilePolicy::viewAsOwner; a building, lease or bill that is not
  * one of the user's own buildings' answers 404. Read-only: GET pages only,
  * and every method call to these Livewire pages is refused
- * (OwnerPortal\ReadOnlyOwnerPage).
+ * (Contracts\ReadOnlyOwnerPage).
  */
 Route::middleware(['auth', 'verified'])->prefix('owner')->name('owner.')->group(function () {
     Route::livewire('/', OwnerHome::class)->name('home');

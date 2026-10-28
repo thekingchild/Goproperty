@@ -1,0 +1,28 @@
+{
+    "name": "goproperty/ownerstatements",
+    "description": "Owner statements: what each month's rent, utilities, commission and charged expenses leave due to a building's owner, settled by the agency (P08-05)",
+    "authors": [
+        {
+            "name": "GoProperty",
+            "email": ""
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [],
+            "aliases": {
+
+            }
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Modules\\OwnerStatements\\": "app/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Modules\\OwnerStatements\\Tests\\": "tests/"
+        }
+    }
+}

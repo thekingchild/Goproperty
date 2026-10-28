@@ -75,6 +75,8 @@ enum OrganizationPermission: string
     case ViewImports = 'imports.view';
     case ManageImports = 'imports.manage';
     case ManageHandovers = 'handovers.manage';
+    case ViewOwnerStatements = 'owner_statements.view';
+    case ManageOwnerStatements = 'owner_statements.manage';
 
     /**
      * Whether members keep this permission while their organization is
@@ -106,6 +108,7 @@ enum OrganizationPermission: string
             self::ViewTickets,
             self::ViewReports,
             self::ViewImports,
+            self::ViewOwnerStatements,
             self::ManageBilling,
             self::SubmitPaymentProof => true,
             self::UpdateOrganization,
@@ -135,7 +138,8 @@ enum OrganizationPermission: string
             self::ParticipateInBuildingGroups,
             self::ModerateBuildingGroups,
             self::ManageImports,
-            self::ManageHandovers => false,
+            self::ManageHandovers,
+            self::ManageOwnerStatements => false,
         };
     }
 
@@ -146,7 +150,10 @@ enum OrganizationPermission: string
      * (confirming or rejecting payments, payment proofs, issuing and voiding
      * bills, approving receipt voids, the subscription), management handovers
      * (they move buildings and their tenants between organizations and settle
-     * tenants' credit, P03-14), bank accounts and
+     * tenants' credit, P03-14), owner statements' terms and settlements
+     * (the agency's commission, what an owner sees of tenants, and marking
+     * a month paid to the owner, P08-05; seeing statements stays allowed),
+     * bank accounts and
      * Paystack keys (viewing them too: the Payment collection page needs
      * `payment_settings.view`, also blocked), members and roles (assigning
      * agents to buildings too: it decides what a member sees), tenants'
@@ -186,7 +193,8 @@ enum OrganizationPermission: string
             self::ImportStatements,
             self::MatchStatements,
             self::ManageImports,
-            self::ManageHandovers => true,
+            self::ManageHandovers,
+            self::ManageOwnerStatements => true,
             self::OpenWorkspace,
             self::UpdateOrganization,
             self::ViewSettings,
@@ -219,7 +227,8 @@ enum OrganizationPermission: string
             self::ParticipateInBuildingGroups,
             self::ModerateBuildingGroups,
             self::ViewReports,
-            self::ViewImports => false,
+            self::ViewImports,
+            self::ViewOwnerStatements => false,
         };
     }
 
@@ -274,6 +283,8 @@ enum OrganizationPermission: string
             self::ViewReports => 'See financial reports',
             self::ViewImports => 'See imports, their dry-run reports and error files',
             self::ManageImports => 'Import data from spreadsheets: upload, dry run, commit and roll back',
+            self::ViewOwnerStatements => 'See property owners\' monthly statements: rent and utilities collected, commission, charged expenses, the net due to the owner and whether each month is settled',
+            self::ManageOwnerStatements => 'Set an owner\'s commission, whether utilities pass to them and whether they see tenants\' contact details, and mark a month settled (paid to the owner, with the date and a reference) or unsettled again',
             self::ManageHandovers => 'Hand buildings to another organization for management or take them over, give or withdraw notice, and settle the moving tenants\' credit (management handovers)',
         };
     }

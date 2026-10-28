@@ -9,12 +9,12 @@ use App\Models\User;
 use App\Platform\Impersonation\ImpersonationMode;
 use Illuminate\Support\Facades\Route;
 use Livewire\Component;
+use Modules\Properties\Contracts\ReadOnlyOwnerPage;
 use Modules\Properties\Livewire\OwnerPortal\OwnerBillShow;
 use Modules\Properties\Livewire\OwnerPortal\OwnerBuildingShow;
 use Modules\Properties\Livewire\OwnerPortal\OwnerHome;
 use Modules\Properties\Livewire\OwnerPortal\OwnerLeaseShow;
 use Modules\Properties\Models\OwnerProfile;
-use Modules\Properties\OwnerPortal\ReadOnlyOwnerPage;
 use Tests\Support\LivewireHttp;
 
 require_once __DIR__.'/owner-world.php';

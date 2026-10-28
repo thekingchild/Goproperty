@@ -64,6 +64,13 @@
                 <flux:input wire:model="reference" :label="__('Reference (optional)')" :description="__('A transfer reference, a cheque or invoice number.')" maxlength="100" data-test="expense-reference" />
                 <flux:textarea wire:model="note" :label="__('Note (optional)')" rows="2" maxlength="1000" data-test="expense-note" />
 
+                <div class="sm:col-span-2">
+                    <flux:checkbox wire:model="chargedToOwner" :label="__('Charge to the building\'s owner')" :description="__('Deducted from what the owner is due on their monthly statement.')" data-test="expense-charged-to-owner" />
+                    @error('chargedToOwner')
+                        <flux:text class="mt-1 text-sm text-red-600 dark:text-red-400" role="alert" data-test="expense-charged-error">{{ $message }}</flux:text>
+                    @enderror
+                </div>
+
                 @if ($canAttach)
                     <div class="sm:col-span-2">
                         <flux:input type="file" wire:model="receipts" multiple accept="image/jpeg,image/png,image/webp,application/pdf" :label="__('Receipts (optional)')" :description="__('Photos, scans or PDFs of the receipt or invoice: JPEG, PNG, WebP or PDF, up to 10 MB each, :count at a time. Kept as evidence.', ['count' => $maxFiles])" data-test="expense-receipts" />

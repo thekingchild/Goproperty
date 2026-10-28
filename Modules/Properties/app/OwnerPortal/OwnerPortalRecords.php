@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Modules\Billing\Contracts\OwnerBills;
 use Modules\Leasing\Contracts\LeaseSummary;
 use Modules\Leasing\Contracts\OwnerLeases;
+use Modules\OwnerStatements\Contracts\TenantContactSharing;
 use Modules\Properties\Enums\UnitStatus;
 use Modules\Properties\Models\Property;
 use Modules\Properties\Models\Unit;
@@ -20,7 +21,9 @@ use Modules\Tenants\Contracts\TenantDirectory;
  * every building of the user's owner profiles in each organization that
  * manages some (archived buildings too, marked: the agency no longer
  * manages them), their units and occupancy, the active leases (the
- * tenant's name only), and the buildings' bills with their status. A
+ * tenant's name only; their phone and email too when the agency shares
+ * tenants' contact details with the owner, P08-05), and the buildings'
+ * bills with their status. A
  * building, lease or bill page finds its record among the user's own
  * buildings, so anyone else's answers null (the page: 404). Reads only:
  * nothing here writes.
@@ -35,6 +38,7 @@ final readonly class OwnerPortalRecords
         private OwnerLeases $leases,
         private OwnerBills $bills,
         private TenantDirectory $tenants,
+        private TenantContactSharing $sharing,
     ) {}
 
     /**
@@ -176,16 +180,25 @@ final readonly class OwnerPortalRecords
         );
     }
 
+    /**
+     * The lease page's lease: the tenant's name, and their phone and email
+     * only when the agency shares tenants' contact details with the
+     * building's owner (P08-05, Modules\OwnerStatements' switch).
+     */
     private function ownerLease(LeaseSummary $lease): OwnerLease
     {
         $unit = Unit::query()->withTrashed()->whereKey($lease->unitId)->first();
         $building = Property::query()->withTrashed()->whereKey($lease->propertyId)->first();
+        $tenant = $this->tenants->findMany([$lease->tenantProfileId])[$lease->tenantProfileId] ?? null;
+        $shares = $building instanceof Property && $building->owner_profile_id !== null && $this->sharing->sharesWith($building->owner_profile_id);
 
         return new OwnerLease(
             lease: $lease,
-            tenantName: $this->tenantNames([$lease])[$lease->tenantProfileId] ?? '',
+            tenantName: $tenant !== null ? $tenant->name : '',
             unit: $unit instanceof Unit ? $unit->unit_label : '',
             building: $building instanceof Property ? $building->name : '',
+            tenantPhone: $shares ? $tenant?->phone : null,
+            tenantEmail: $shares ? $tenant?->email : null,
         );
     }
 

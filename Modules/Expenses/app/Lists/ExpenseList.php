@@ -133,6 +133,7 @@ final class ExpenseList implements ListExport
             ExportColumn::make('Paid to', fn (ExpenseRow $row) => $row->expense->vendor_name),
             ExportColumn::make('Payment method', fn (ExpenseRow $row) => $row->expense->payment_method),
             ExportColumn::make('Reference', fn (ExpenseRow $row) => $row->expense->reference),
+            ExportColumn::make('Charged to owner', fn (ExpenseRow $row) => $row->expense->charged_to_owner ? 'Yes' : 'No'),
             ExportColumn::make('Note', fn (ExpenseRow $row) => $row->expense->note),
             ExportColumn::make('Receipt files', fn (ExpenseRow $row) => $row->receipts),
             ExportColumn::make('Recorded by', fn (ExpenseRow $row) => $row->recordedBy),

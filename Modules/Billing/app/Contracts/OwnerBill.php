@@ -42,6 +42,7 @@ final readonly class OwnerBill
         public ?string $tenantName,
         public ?string $unit,
         public array $lines = [],
+        public string $type = 'rent',
     ) {}
 
     public function isVoid(): bool

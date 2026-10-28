@@ -280,6 +280,8 @@ it('keeps exactly the reading, exporting and paying permissions while suspended'
         'tickets.view',
         'reports.view',
         'imports.view',
+        // Owner statements (P08-05): seeing them.
+        'owner_statements.view',
     ]);
 });
 

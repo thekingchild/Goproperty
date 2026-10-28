@@ -80,6 +80,9 @@
                     </div>
 
                     <div class="flex flex-wrap items-center gap-2">
+                        @if ($expense->charged_to_owner)
+                            <flux:badge size="sm" color="indigo" data-test="charged-{{ $expense->id }}">{{ __('Charged to owner') }}</flux:badge>
+                        @endif
                         @if ($row->receipts === 0)
                             <flux:badge size="sm" color="amber" data-test="no-receipt-{{ $expense->id }}">{{ __('No receipt') }}</flux:badge>
                         @endif

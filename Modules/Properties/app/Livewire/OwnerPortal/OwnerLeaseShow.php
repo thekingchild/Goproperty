@@ -10,8 +10,8 @@ use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
 use Livewire\Component;
+use Modules\Properties\Contracts\ReadOnlyOwnerPage;
 use Modules\Properties\OwnerPortal\OwnerPortalRecords;
-use Modules\Properties\OwnerPortal\ReadOnlyOwnerPage;
 
 /**
  * A lease of one of the owner's units, /owner/leases/{id} (P03-15): the

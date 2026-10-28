@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Modules\Leasing\Leases;
 
+use Carbon\CarbonImmutable;
+use Modules\Leasing\Contracts\EndingLease;
 use Modules\Leasing\Contracts\LeaseSummary;
 use Modules\Leasing\Contracts\OwnerLeases;
 use Modules\Leasing\Enums\LeaseStatus;
@@ -41,6 +43,37 @@ final readonly class OwnerLeaseRecords implements OwnerLeases
             ->first();
 
         return $lease instanceof Lease ? self::summary($lease) : null;
+    }
+
+    public function endingBetween(array $propertyIds, CarbonImmutable $from, CarbonImmutable $to): array
+    {
+        if ($propertyIds === []) {
+            return [];
+        }
+
+        $ending = Lease::query()->whereIn('property_id', $propertyIds)
+            ->where('status', LeaseStatus::Active)
+            ->whereDate('end_date', '>=', $from->toDateString())
+            ->whereDate('end_date', '<=', $to->toDateString())
+            ->orderBy('end_date')->orderBy('property_id')->orderBy('unit_id')->orderBy('id')
+            ->get();
+
+        $renewals = $ending->isEmpty() ? collect() : Lease::query()
+            ->whereIn('renewal_of_lease_id', $ending->pluck('id')->all())
+            ->where('status', LeaseStatus::Draft)
+            ->orderBy('id')
+            ->get()
+            ->keyBy('renewal_of_lease_id');
+
+        return array_values($ending->map(static function (Lease $lease) use ($renewals): EndingLease {
+            $renewal = $renewals->get($lease->id);
+
+            return new EndingLease(
+                lease: self::summary($lease),
+                autoRenew: (bool) $lease->auto_renew,
+                renewal: $renewal instanceof Lease ? self::summary($renewal) : null,
+            );
+        })->all());
     }
 
     private static function summary(Lease $lease): LeaseSummary

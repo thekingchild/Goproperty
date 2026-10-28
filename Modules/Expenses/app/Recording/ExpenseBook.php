@@ -22,6 +22,7 @@ use Modules\Expenses\Enums\ExpenseCategory;
 use Modules\Expenses\Enums\ExpensePaymentMethod;
 use Modules\Expenses\Models\Expense;
 use Modules\Expenses\Models\ExpenseReceipt;
+use Modules\OwnerStatements\Contracts\SettledMonths;
 use Modules\Properties\Contracts\BuildingAccess;
 use Modules\Properties\Contracts\PropertyDirectory;
 use Modules\Properties\Contracts\UnitDirectory;
@@ -49,6 +50,15 @@ use Modules\Properties\Contracts\UnitDirectory;
  * written, stored through App\Media\MediaUploads in the expense's
  * `expense_receipts` collection with an ExpenseReceipt row, and never
  * deleted: "remove" archives the row with a reason and keeps the file.
+ *
+ * "Charged to owner" (P08-05): an expense of a building may be charged to
+ * the building's owner, which deducts it from what the owner is due in the
+ * month it was paid (the owner statements). Once the agency marks that
+ * month settled with the owner, the expense is part of the settled
+ * statement: an expense charged into a settled month, or a change to the
+ * amount, date, building or charge of a charged one there, is refused (Modules\OwnerStatements\Contracts\SettledMonths)
+ * until the month is marked unsettled again, so the settled figures and
+ * the expenses always agree.
  */
 final readonly class ExpenseBook
 {
@@ -61,7 +71,7 @@ final readonly class ExpenseBook
     public const int MAX_RECEIPTS = 10;
 
     /** Columns compared for the audit entry of an edit. */
-    private const array AUDITED = ['property_id', 'unit_id', 'category', 'description', 'amount_kobo', 'spent_on', 'vendor_name', 'payment_method', 'reference', 'note'];
+    private const array AUDITED = ['property_id', 'unit_id', 'category', 'description', 'amount_kobo', 'spent_on', 'vendor_name', 'payment_method', 'reference', 'charged_to_owner', 'note'];
 
     public function __construct(
         private OrganizationContext $context,
@@ -70,10 +80,11 @@ final readonly class ExpenseBook
         private BuildingAccess $access,
         private UploadValidator $validator,
         private MediaUploads $uploads,
+        private SettledMonths $settled,
     ) {}
 
     /**
-     * @param  array<string, mixed>  $input  propertyId, unitId, category, description, amount (naira), spentOn (Y-m-d), vendorName, paymentMethod, reference, note
+     * @param  array<string, mixed>  $input  propertyId, unitId, category, description, amount (naira), spentOn (Y-m-d), vendorName, paymentMethod, reference, chargedToOwner (bool), note
      * @param  list<UploadedFile>  $receipts  receipt files to keep with it
      *
      * @throws ValidationException
@@ -94,6 +105,7 @@ final readonly class ExpenseBook
 
         return DB::transaction(function () use ($by, $values, $place, $expense, $receipts): Expense {
             $this->fill($expense, $values, $place);
+            $this->refuseSettled($expense, null);
             $expense->recorded_by_user_id = $by->id;
             $expense->save();
 
@@ -103,6 +115,7 @@ final readonly class ExpenseBook
                 'spent_on' => $expense->spent_on->toDateString(),
                 'property_id' => $expense->property_id,
                 'unit_id' => $expense->unit_id,
+                'charged_to_owner' => $expense->charged_to_owner,
             ]);
 
             foreach ($receipts as $file) {
@@ -128,6 +141,7 @@ final readonly class ExpenseBook
             $expense = $this->locked($expense);
             Gate::forUser($by)->authorize('update', $expense);
             $before = ['amount_kobo' => $expense->amount_kobo->kobo, 'property_id' => $expense->property_id];
+            $was = ['charged' => $expense->charged_to_owner, 'property_id' => $expense->property_id, 'spent_on' => $expense->spent_on];
             $place = $this->place($by, $expense, $values['propertyId'], $values['unitId']);
 
             $this->fill($expense, $values, $place);
@@ -135,6 +149,10 @@ final readonly class ExpenseBook
 
             if ($changed === []) {
                 return $expense;
+            }
+
+            if (array_intersect(['charged_to_owner', 'amount_kobo', 'spent_on', 'property_id'], $changed) !== []) {
+                $this->refuseSettled($expense, $was);
             }
 
             $expense->updated_by_user_id = $by->id;
@@ -373,7 +391,7 @@ final readonly class ExpenseBook
     }
 
     /**
-     * @param  array{propertyId: int|null, unitId: int|null, category: ExpenseCategory, description: string, amount: Money, spentOn: CarbonImmutable, vendorName: string|null, paymentMethod: ExpensePaymentMethod, reference: string|null, note: string|null}  $values
+     * @param  array{propertyId: int|null, unitId: int|null, category: ExpenseCategory, description: string, amount: Money, spentOn: CarbonImmutable, vendorName: string|null, paymentMethod: ExpensePaymentMethod, reference: string|null, chargedToOwner: bool, note: string|null}  $values
      * @param  array{property_id: int|null, property_name: string|null, unit_id: int|null, unit_label: string|null}  $place
      */
     private function fill(Expense $expense, array $values, array $place): void
@@ -386,13 +404,37 @@ final readonly class ExpenseBook
             'vendor_name' => $values['vendorName'],
             'payment_method' => $values['paymentMethod'],
             'reference' => $values['reference'],
+            'charged_to_owner' => $values['chargedToOwner'],
             'note' => $values['note'],
         ]);
     }
 
     /**
+     * Refuse (on `chargedToOwner`) an expense charged to the owner in a
+     * month already settled with the owner, or a change to one that was
+     * (see the class comment). $was: the expense before the edit, null for
+     * a new one.
+     *
+     * @param  array{charged: bool, property_id: int|null, spent_on: CarbonImmutable}|null  $was
+     *
+     * @throws ValidationException
+     */
+    private function refuseSettled(Expense $expense, ?array $was): void
+    {
+        if ($was !== null && $was['charged'] && $was['property_id'] !== null
+            && ($month = $this->settled->settledMonth($was['property_id'], $was['spent_on'])) !== null) {
+            throw ValidationException::withMessages(['chargedToOwner' => __('This expense is in the owner\'s statement for :month, which is marked settled. Mark that month unsettled first to change it.', ['month' => $month])]);
+        }
+
+        if ($expense->charged_to_owner && $expense->property_id !== null
+            && ($month = $this->settled->settledMonth($expense->property_id, $expense->spent_on)) !== null) {
+            throw ValidationException::withMessages(['chargedToOwner' => __('The owner\'s statement for :month is already settled. Charge this expense in a later month, or mark that month unsettled first.', ['month' => $month])]);
+        }
+    }
+
+    /**
      * @param  array<string, mixed>  $input
-     * @return array{propertyId: int|null, unitId: int|null, category: ExpenseCategory, description: string, amount: Money, spentOn: CarbonImmutable, vendorName: string|null, paymentMethod: ExpensePaymentMethod, reference: string|null, note: string|null}
+     * @return array{propertyId: int|null, unitId: int|null, category: ExpenseCategory, description: string, amount: Money, spentOn: CarbonImmutable, vendorName: string|null, paymentMethod: ExpensePaymentMethod, reference: string|null, chargedToOwner: bool, note: string|null}
      *
      * @throws ValidationException
      */
@@ -410,6 +452,12 @@ final readonly class ExpenseBook
             'reference' => self::text($input['reference'] ?? null),
             'note' => self::text($input['note'] ?? null, multiline: true),
         ];
+        $charged = filter_var($input['chargedToOwner'] ?? false, FILTER_VALIDATE_BOOL);
+
+        if ($charged && $values['propertyId'] === null) {
+            throw ValidationException::withMessages(['chargedToOwner' => __('Only an expense of a building can be charged to its owner.')]);
+        }
+
         $amount = $values['amount'] !== null ? ExpenseInput::amount($values['amount']) : null;
         $spentOn = ExpenseInput::date($values['spentOn']);
         $today = ExpenseInput::today();
@@ -470,6 +518,7 @@ final readonly class ExpenseBook
             'vendorName' => $values['vendorName'],
             'paymentMethod' => ExpensePaymentMethod::from((string) $values['paymentMethod']),
             'reference' => $values['reference'],
+            'chargedToOwner' => $charged,
             'note' => $values['note'],
         ];
     }

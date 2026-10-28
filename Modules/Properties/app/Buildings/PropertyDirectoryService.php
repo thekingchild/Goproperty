@@ -52,7 +52,8 @@ final readonly class PropertyDirectoryService implements PropertyDirectory
         return Property::query()->where('status', PropertyStatus::Active)->count();
     }
 
-    private static function summary(Property $property): PropertySummary
+    /** A building as other modules see it (also OwnerProfileDirectoryService). */
+    public static function summary(Property $property): PropertySummary
     {
         return new PropertySummary(
             id: $property->id,

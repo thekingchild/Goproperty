@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Modules\Leasing\Contracts;
 
+use Carbon\CarbonImmutable;
+
 /**
  * How the owner portal (P03-15, the Properties module's /owner pages)
  * reads the leases of an owner's buildings: never the Leasing module's
@@ -35,4 +37,15 @@ interface OwnerLeases
      * @param  list<int>  $propertyIds
      */
     public function find(int $leaseId, array $propertyIds): ?LeaseSummary;
+
+    /**
+     * The active leases in these buildings whose end date falls between
+     * $from and $to (both days included), soonest first, each with its
+     * draft renewal if one was made (the owner statements' upcoming
+     * renewals, P08-05).
+     *
+     * @param  list<int>  $propertyIds
+     * @return list<EndingLease>
+     */
+    public function endingBetween(array $propertyIds, CarbonImmutable $from, CarbonImmutable $to): array;
 }

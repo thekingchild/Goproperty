@@ -16,6 +16,7 @@ use Modules\Billing\Events\BillIssued;
 use Modules\Import\Contracts\ImportTargets;
 use Modules\Import\Contracts\ImportUsages;
 use Modules\Payments\Contracts\HandoverCredits;
+use Modules\Payments\Contracts\OwnerCollections;
 use Modules\Payments\Contracts\PaymentProofs;
 use Modules\Payments\Contracts\PaymentRecorder;
 use Modules\Payments\Contracts\TenantProofs;
@@ -36,6 +37,7 @@ use Modules\Payments\Lists\ReceiptList;
 use Modules\Payments\Models\Payment;
 use Modules\Payments\Models\PaymentProof;
 use Modules\Payments\Models\Receipt;
+use Modules\Payments\Payments\OwnerCollectionRecords;
 use Modules\Payments\Payments\Recorder;
 use Modules\Payments\Policies\PaymentPolicy;
 use Modules\Payments\Policies\PaymentProofPolicy;
@@ -93,6 +95,8 @@ final class PaymentsServiceProvider extends ModuleServiceProvider
         $this->app->bind(TenantReceipts::class, TenantReceiptRecords::class);
         $this->app->bind(TenantProofs::class, TenantProofRecords::class);
         $this->app->bind(HandoverCredits::class, HandoverCreditRecords::class);
+        // What was collected for bills, by when it counts (the owner statements, P08-05).
+        $this->app->bind(OwnerCollections::class, OwnerCollectionRecords::class);
         $this->app->singleton(OpeningBalancesImportTarget::class);
         $this->app->singleton(PaymentHistoryImportTarget::class);
 

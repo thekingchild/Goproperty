@@ -204,6 +204,8 @@ it('classes the money, bank, Paystack, billing, compliance, member, delete, impo
         'imports.manage',
         // Management handovers (P03-14): buildings, tenants and their credit move between organizations.
         'handovers.manage',
+        // Owner statements (P08-05): the agency's commission, what an owner sees and marking a month paid to the owner.
+        'owner_statements.manage',
     ]);
 });
 

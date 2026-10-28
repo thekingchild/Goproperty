@@ -5,6 +5,12 @@
 <x-page :heading="$owner ? $owner->display_name : __('Add owner')" :description="$owner ? __('Owner of buildings managed by :organization.', ['organization' => $organization->name]) : __('A person or a company that owns buildings you manage. Owners do not need an account.')">
     <x-slot:actions>
         <flux:button icon="arrow-left" :href="route('workspace.owners.index', $organization)" wire:navigate>{{ __('All owners') }}</flux:button>
+        {{-- The owner's monthly statements (Modules\OwnerStatements, P08-05): owners and administrators. --}}
+        @if ($owner && Route::has('workspace.owner-statements.index'))
+            @can('owner_statements.view')
+                <flux:button icon="document-text" :href="route('workspace.owner-statements.index', [$organization, $owner->id])" wire:navigate data-test="owner-statements-link">{{ __('Statements') }}</flux:button>
+            @endcan
+        @endif
     </x-slot:actions>
 
     @if ($flash)

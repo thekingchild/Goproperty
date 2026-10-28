@@ -70,6 +70,9 @@ final class ExpenseForm extends Component
 
     public string $reference = '';
 
+    /** Deducted from what the building's owner is due (P08-05). */
+    public bool $chargedToOwner = false;
+
     public string $note = '';
 
     /** @var array<int, mixed> Receipt files chosen (Livewire's temporary uploads), when recording. */
@@ -113,6 +116,7 @@ final class ExpenseForm extends Component
         $this->vendorName = (string) $expense->vendor_name;
         $this->paymentMethod = $expense->payment_method->value;
         $this->reference = (string) $expense->reference;
+        $this->chargedToOwner = $expense->charged_to_owner;
         $this->note = (string) $expense->note;
     }
 
@@ -135,6 +139,7 @@ final class ExpenseForm extends Component
             'vendorName' => $this->vendorName,
             'paymentMethod' => $this->paymentMethod,
             'reference' => $this->reference,
+            'chargedToOwner' => $this->chargedToOwner,
             'note' => $this->note,
         ];
 

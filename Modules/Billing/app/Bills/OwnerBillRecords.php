@@ -63,6 +63,35 @@ final readonly class OwnerBillRecords implements OwnerBills
             ])->all()));
     }
 
+    public function issuedBetween(array $propertyIds, CarbonImmutable $from, CarbonImmutable $to): array
+    {
+        if ($propertyIds === []) {
+            return [];
+        }
+
+        return array_values(self::of($propertyIds)
+            ->where('issued_at', '>=', $from)
+            ->where('issued_at', '<', $to)
+            ->orderBy('issued_at')
+            ->orderBy('id')
+            ->get()
+            ->map(fn (Bill $bill): OwnerBill => $this->summary($bill))
+            ->all());
+    }
+
+    public function findMany(array $billIds): array
+    {
+        $found = [];
+
+        foreach (array_chunk(array_values(array_unique($billIds)), 1000) as $chunk) {
+            foreach (Bill::query()->whereKey($chunk)->get() as $bill) {
+                $found[$bill->id] = $this->summary($bill);
+            }
+        }
+
+        return $found;
+    }
+
     /**
      * @param  list<int>  $propertyIds
      * @return Builder<Bill>
@@ -100,6 +129,7 @@ final readonly class OwnerBillRecords implements OwnerBills
             tenantName: $parties->tenantName !== '' ? $parties->tenantName : null,
             unit: $parties->unit,
             lines: $lines,
+            type: $bill->type->value,
         );
     }
 

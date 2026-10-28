@@ -1,0 +1,11 @@
+{
+    "name": "OwnerStatements",
+    "alias": "ownerstatements",
+    "description": "Owner statements: what each month's rent, utilities, commission and charged expenses leave due to a building's owner, settled by the agency (P08-05)",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\OwnerStatements\\Providers\\OwnerStatementsServiceProvider"
+    ],
+    "files": []
+}

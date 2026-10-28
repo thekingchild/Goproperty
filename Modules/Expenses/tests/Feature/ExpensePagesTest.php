@@ -163,9 +163,9 @@ describe('list exports', function () {
     it('exports the expenses list in Excel and CSV with exact columns and the page\'s rows', function (string $format) {
         $rows = exportRows($this->owner, '/expenses', 'expenses', $format);
 
-        expect($rows[0])->toBe(['Date paid', 'Category', 'Description', 'Amount', 'Building', 'Unit', 'Paid to', 'Payment method', 'Reference', 'Note', 'Receipt files', 'Recorded by', 'Recorded on', 'Archived on', 'Reason archived'])
+        expect($rows[0])->toBe(['Date paid', 'Category', 'Description', 'Amount', 'Building', 'Unit', 'Paid to', 'Payment method', 'Reference', 'Charged to owner', 'Note', 'Receipt files', 'Recorded by', 'Recorded on', 'Archived on', 'Reason archived'])
             ->and(array_slice($rows, 1))->toHaveCount(4)
-            ->and(array_slice($rows[1], 0, 13))->toBe(['2027-03-10', 'Repairs and maintenance', 'Kitchen pipe replaced', '25000.50', 'Palm Court', 'Flat 2', 'Musa Plumbing Works', 'Cash', 'TRF-1001', '', '1', 'Bola Agent', '2027-03-15 11:00'])
+            ->and(array_slice($rows[1], 0, 14))->toBe(['2027-03-10', 'Repairs and maintenance', 'Kitchen pipe replaced', '25000.50', 'Palm Court', 'Flat 2', 'Musa Plumbing Works', 'Cash', 'TRF-1001', 'No', '', '1', 'Bola Agent', '2027-03-15 11:00'])
             ->and(exportColumn($rows, 'Description'))->toBe(['Kitchen pipe replaced', 'Office rent for March', 'Diesel for the generator', 'Land Use Charge 2027'])
             ->and(exportColumn($rows, 'Building'))->toBe(['Palm Court', '', 'Oak Lodge', 'Oak Lodge'])
             ->and(exportColumn($rows, 'Amount'))->toBe(['25000.50', '350000.00', '180000.00', '95000.00'])

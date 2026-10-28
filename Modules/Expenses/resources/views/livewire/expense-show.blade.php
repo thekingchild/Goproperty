@@ -57,6 +57,10 @@
                     <dt class="text-sm text-zinc-500 dark:text-zinc-400">{{ __('Reference') }}</dt>
                     <dd class="break-all text-zinc-900 dark:text-white">{{ $expense->reference ?? __('Not given') }}</dd>
                 </div>
+                <div>
+                    <dt class="text-sm text-zinc-500 dark:text-zinc-400">{{ __('Charged to the owner') }}</dt>
+                    <dd class="text-zinc-900 dark:text-white" data-test="expense-charged">{{ $expense->charged_to_owner ? __('Yes: deducted from what the owner is due') : __('No') }}</dd>
+                </div>
                 @if ($expense->note)
                     <div class="sm:col-span-2">
                         <dt class="text-sm text-zinc-500 dark:text-zinc-400">{{ __('Note') }}</dt>

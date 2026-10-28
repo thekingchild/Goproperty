@@ -45,6 +45,7 @@ use Spatie\MediaLibrary\HasMedia;
  * @property string|null $vendor_name
  * @property ExpensePaymentMethod $payment_method
  * @property string|null $reference
+ * @property bool $charged_to_owner deducted from what the building's owner is due (P08-05)
  * @property string|null $note
  * @property int|null $ticket_id
  * @property int|null $bill_id
@@ -88,6 +89,7 @@ final class Expense extends Model implements HasMedia
             'amount_kobo' => MoneyCast::class,
             'spent_on' => 'immutable_date',
             'payment_method' => ExpensePaymentMethod::class,
+            'charged_to_owner' => 'boolean',
             'ticket_id' => 'integer',
             'bill_id' => 'integer',
         ];

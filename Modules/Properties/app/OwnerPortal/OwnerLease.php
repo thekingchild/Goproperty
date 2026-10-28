@@ -20,6 +20,8 @@ final readonly class OwnerLease
         public string $tenantName,
         public string $unit,
         public string $building,
+        public ?string $tenantPhone = null,
+        public ?string $tenantEmail = null,
     ) {}
 
     public function statusColor(): string

@@ -9,5 +9,6 @@
     "Collections": true,
     "OnlinePayments": true,
     "Expenses": true,
-    "Handovers": true
+    "Handovers": true,
+    "OwnerStatements": true
 }

@@ -25,6 +25,13 @@
                 <dt class="text-sm text-zinc-500 dark:text-zinc-400">{{ __('Tenant') }}</dt>
                 <dd class="font-medium break-words text-zinc-900 dark:text-white" data-test="owner-lease-tenant">{{ $home->tenantName }}</dd>
             </div>
+            @if ($home->tenantPhone || $home->tenantEmail)
+                {{-- Only when the agency shares tenants' contact details with this owner (P08-05). --}}
+                <div>
+                    <dt class="text-sm text-zinc-500 dark:text-zinc-400">{{ __('Tenant\'s contact details') }}</dt>
+                    <dd class="break-words text-zinc-900 dark:text-white" data-test="owner-lease-tenant-contacts">{{ collect([$home->tenantPhone, $home->tenantEmail])->filter()->implode(' · ') }}</dd>
+                </div>
+            @endif
             @if ($lease->contractNumber)
                 <div>
                     <dt class="text-sm text-zinc-500 dark:text-zinc-400">{{ __('Contract number') }}</dt>

@@ -10,9 +10,11 @@ use App\Navigation\WorkspaceNavigation;
 use App\Navigation\WorkspaceNavItem;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Livewire;
+use Modules\Expenses\Contracts\OwnerChargedExpenses;
 use Modules\Expenses\Lists\ExpenseList;
 use Modules\Expenses\Models\Expense;
 use Modules\Expenses\Policies\ExpensePolicy;
+use Modules\Expenses\Recording\OwnerChargedExpenseRecords;
 use Nwidart\Modules\Support\ModuleServiceProvider;
 
 /**
@@ -44,6 +46,9 @@ final class ExpensesServiceProvider extends ModuleServiceProvider
     public function register(): void
     {
         parent::register();
+
+        // The expenses charged to buildings' owners, for the owner statements (P08-05).
+        $this->app->bind(OwnerChargedExpenses::class, OwnerChargedExpenseRecords::class);
 
         // Expense receipts: a photo, a scan or a PDF of a vendor's receipt
         // or invoice, at most 10 MB; evidence (never deleted; ARCHITECTURE.md § 9).
