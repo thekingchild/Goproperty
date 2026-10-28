@@ -8,7 +8,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 - **In progress:** nothing. P03 is complete (2026-10-28): all 15 tasks, and the phase-exit RentLoopTest journey passes on all four databases in GitHub CI (`docs/plans/P02-P03-subtasks.md`). P03 was built with default answers to its open questions; each task's ledger entry lists the decisions for the product owner to confirm
 - **In review:** P00-02 (CI): all four database jobs are green in GitHub Actions; branch protection on `main` is off by the product owner's decision (2026-10-27) while P02 and P03 are built, so tasks keep merging straight to `main`; turn it on afterwards (`docs/runbooks/ci.md` § 3) and mark P00-02 complete. P00-12 (backups): built and drilled locally; needs one real run to an S3-compatible bucket and a Google Shared Drive (PRE-03 accounts)
-- **Next task:** P04 (maintenance tickets) once the product owner asks; turn on branch protection and mark P00-02 complete now that P02 and P03 are built; PRE-01 to PRE-04 continue with the product owner
+- **Next task:** P04 (maintenance tickets, plus P04-04 handover follow-ups) once the product owner asks; P08-05 (owner statements) depends only on P03 and can be brought forward. The product owner settled the P03-14 questions on 2026-10-28 (`docs/plans/P02-P03-subtasks.md`); turn on branch protection and mark P00-02 complete now that P02 and P03 are built; PRE-01 to PRE-04 continue with the product owner
 - **Blocked:** P00-13 (staging): the deploy scripts, the deploy on merge and the deploy drill are built and drilled locally; it needs a staging host (PRE-04). Until then the Deploy workflow fails at "Check deploy settings" on every push to `main`
 
 ## Board
@@ -20,13 +20,13 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | P01 | 9 | 9 | Complete (2026-10-27) |
 | P02 | 7 | 7 | Complete (2026-10-27) |
 | P03 | 15 | 15 | Complete (2026-10-28) |
-| P04 | 3 | 0 | Not started |
+| P04 | 4 | 0 | Not started |
 | P05 | 6 | 0 | Not started |
 | P06 | 11 | 0 | Not started |
 | P07 | 4 | 0 | Not started |
-| P08 | 4 | 0 | Not started |
+| P08 | 5 | 0 | Not started |
 | P09 | 8 | 0 | Not started |
-| **Total** | **85** | **42** | |
+| **Total** | **87** | **42** | |
 
 ## Ledger (newest first)
 
