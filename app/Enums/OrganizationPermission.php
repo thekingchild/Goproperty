@@ -51,6 +51,9 @@ enum OrganizationPermission: string
     case ManageLeases = 'leases.manage';
     case ViewBills = 'bills.view';
     case ManageBills = 'bills.manage';
+    case ViewUtilities = 'utilities.view';
+    case ManageUtilities = 'utilities.manage';
+    case RecordMeterReadings = 'utilities.record_readings';
     case ViewPayments = 'payments.view';
     case ConfirmPayments = 'payments.confirm';
     case SubmitPaymentProof = 'payments.submit_proof';
@@ -90,6 +93,7 @@ enum OrganizationPermission: string
             self::ViewTenants,
             self::ViewLeases,
             self::ViewBills,
+            self::ViewUtilities,
             self::ViewPayments,
             self::ViewStatements,
             self::ViewTickets,
@@ -110,6 +114,8 @@ enum OrganizationPermission: string
             self::ManageTenantPortalAccess,
             self::ManageLeases,
             self::ManageBills,
+            self::ManageUtilities,
+            self::RecordMeterReadings,
             self::ConfirmPayments,
             self::ImportStatements,
             self::MatchStatements,
@@ -181,6 +187,9 @@ enum OrganizationPermission: string
             self::ViewLeases,
             self::ManageLeases,
             self::ViewBills,
+            self::ViewUtilities,
+            self::ManageUtilities,
+            self::RecordMeterReadings,
             self::ViewPayments,
             self::ViewStatements,
             self::ViewTickets,
@@ -222,6 +231,9 @@ enum OrganizationPermission: string
             self::ManageLeases => 'Create, renew and end leases',
             self::ViewBills => 'See bills',
             self::ManageBills => 'Issue and void bills',
+            self::ViewUtilities => 'See utility types, which utilities each unit is charged and meter readings',
+            self::ManageUtilities => 'Add, edit, archive and restore utility types, and choose which utilities each unit is charged, at what rate and cycle',
+            self::RecordMeterReadings => 'Record meter readings of units\' metered utilities, and correct or remove the latest one before it is billed',
             self::ViewPayments => 'See payments',
             self::ConfirmPayments => 'Record, confirm and reject payments',
             self::SubmitPaymentProof => 'Upload proof of a payment',

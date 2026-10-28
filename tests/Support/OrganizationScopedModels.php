@@ -30,8 +30,14 @@ use Illuminate\Support\Str;
 use LogicException;
 use Modules\Billing\Enums\BillableType;
 use Modules\Billing\Enums\BillType;
+use Modules\Billing\Enums\ChargingMode;
+use Modules\Billing\Enums\MeterUnit;
 use Modules\Billing\Models\Bill;
 use Modules\Billing\Models\BillItem;
+use Modules\Billing\Models\UnitUtilitySetting;
+use Modules\Billing\Models\UtilityReading;
+use Modules\Billing\Models\UtilityType;
+use Modules\Billing\Utilities\MeterValue;
 use Modules\Collections\Enums\DateOrder;
 use Modules\Collections\Enums\LineDirection;
 use Modules\Collections\Enums\StatementFormat;
@@ -161,6 +167,17 @@ final class OrganizationScopedModels
                 'bill_id' => self::bill()->id,
                 'label' => 'Rent',
                 'amount_kobo' => Money::naira(1_500_000),
+            ])->save()),
+            // Rows on their own (Utilities\UtilityTypes, UnitUtilitySettings and MeterReadings are the writers; P03-06a).
+            UtilityType::class => fn (): Model => self::utilityType(),
+            UnitUtilitySetting::class => fn (): Model => self::utilitySetting(),
+            UtilityReading::class => fn (): Model => tap(new UtilityReading, fn (UtilityReading $reading): bool => $reading->forceFill([
+                'unit_utility_setting_id' => self::utilitySetting()->id,
+                'reading_date' => '2027-01-31',
+                'previous_value' => MeterValue::zero(),
+                'current_value' => MeterValue::parse('120.5'),
+                'consumption' => MeterValue::parse('120.5'),
+                'rate_kobo' => Money::naira(250),
             ])->save()),
             // Rows on their own (PaymentService and TenantCredit are the writers; the probes are about the rows).
             Payment::class => fn (): Model => self::payment(),
@@ -307,6 +324,34 @@ final class OrganizationScopedModels
             'issued_at' => now(),
             'branding_snapshot' => ['version' => 1],
             'verification_code' => strtoupper(Str::random(10)),
+        ])->save());
+    }
+
+    /** A metered utility type with a unique code, in the current organization. */
+    private static function utilityType(): UtilityType
+    {
+        $code = 'PRB-'.strtoupper(Str::random(8));
+
+        return tap(new UtilityType, fn (UtilityType $type): bool => $type->forceFill([
+            'name' => 'Probe electricity '.$code,
+            'code' => $code,
+            'charging_mode' => ChargingMode::Metered,
+            'unit_of_measure' => MeterUnit::Kwh,
+            'default_amount_kobo' => Money::naira(250),
+            'default_cycle' => BillingCycle::Monthly,
+        ])->save());
+    }
+
+    /** A new unit's metered utility, in the current organization. */
+    private static function utilitySetting(): UnitUtilitySetting
+    {
+        $unit = Unit::factory()->in(Property::factory()->create())->create();
+
+        return tap(new UnitUtilitySetting, fn (UnitUtilitySetting $setting): bool => $setting->forceFill([
+            'property_id' => $unit->property_id,
+            'unit_id' => $unit->id,
+            'utility_type_id' => self::utilityType()->id,
+            'effective_from' => '2027-01-01',
         ])->save());
     }
 

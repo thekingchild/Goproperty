@@ -31,8 +31,17 @@ use Modules\Billing\Jobs\FlagOverdueBills;
 use Modules\Billing\Jobs\GenerateBills;
 use Modules\Billing\Listeners\QueueInvoicePdf;
 use Modules\Billing\Lists\BillList;
+use Modules\Billing\Lists\UtilityReadingList;
+use Modules\Billing\Lists\UtilitySettingList;
+use Modules\Billing\Lists\UtilityTypeList;
 use Modules\Billing\Models\Bill;
+use Modules\Billing\Models\UnitUtilitySetting;
+use Modules\Billing\Models\UtilityReading;
+use Modules\Billing\Models\UtilityType;
 use Modules\Billing\Policies\BillPolicy;
+use Modules\Billing\Policies\UnitUtilitySettingPolicy;
+use Modules\Billing\Policies\UtilityReadingPolicy;
+use Modules\Billing\Policies\UtilityTypePolicy;
 use Modules\Leasing\Contracts\CycleCalculator;
 use Nwidart\Modules\Support\ModuleServiceProvider;
 
@@ -57,6 +66,11 @@ use Nwidart\Modules\Support\ModuleServiceProvider;
  *
  * Tenant portal (P03-11a): Contracts\TenantBills, a tenant's own bills,
  * their pay instructions and invoice page for the Tenants module's /portal.
+ *
+ * Utilities (P03-06a): utility types, the units' utilities and meter
+ * readings — their policies, pages (routes), the sidebar item "Utilities",
+ * the three lists' exports, and the meter photos' evidence media
+ * collection `meter_photos` (merged into config `media.collections`).
  */
 final class BillingServiceProvider extends ModuleServiceProvider
 {
@@ -76,6 +90,17 @@ final class BillingServiceProvider extends ModuleServiceProvider
         $this->app->bind(BillLedger::class, Ledger::class);
         $this->app->bind(TenantBills::class, TenantBillRecords::class);
         $this->app->singleton(PaymentOptions::class);
+
+        // Meter photos (P03-06a): a phone photo of the meter, at most 10 MB;
+        // evidence of the reading, never deleted (ARCHITECTURE.md § 9).
+        if (! is_array(config('media.collections.'.UtilityReading::PHOTO_COLLECTION))) {
+            config(['media.collections.'.UtilityReading::PHOTO_COLLECTION => [
+                'mimes' => ['image/jpeg', 'image/png', 'image/webp'],
+                'max_kb' => 10 * 1024,
+                'conversions' => ['thumb'],
+                'kind' => 'evidence',
+            ]]);
+        }
     }
 
     public function boot(): void
@@ -83,6 +108,9 @@ final class BillingServiceProvider extends ModuleServiceProvider
         parent::boot();
 
         Gate::policy(Bill::class, BillPolicy::class);
+        Gate::policy(UtilityType::class, UtilityTypePolicy::class);
+        Gate::policy(UnitUtilitySetting::class, UnitUtilitySettingPolicy::class);
+        Gate::policy(UtilityReading::class, UtilityReadingPolicy::class);
 
         Event::listen(BillIssued::class, QueueInvoicePdf::class);
         Event::listen(BillVoided::class, QueueInvoicePdf::class);
@@ -100,6 +128,9 @@ final class BillingServiceProvider extends ModuleServiceProvider
         // Every list of the module exports (P02-07).
         $this->callAfterResolving(ListExports::class, static function (ListExports $exports): void {
             $exports->register(BillList::class);
+            $exports->register(UtilityTypeList::class);
+            $exports->register(UtilitySettingList::class);
+            $exports->register(UtilityReadingList::class);
         });
 
         $this->callAfterResolving(WorkspaceNavigation::class, static function (WorkspaceNavigation $navigation): void {
@@ -111,6 +142,15 @@ final class BillingServiceProvider extends ModuleServiceProvider
                 active: ['workspace.bills.*'],
                 visible: static fn (User $user): bool => $user->can('viewAny', Bill::class),
                 order: 460,
+            ));
+            $navigation->add(new WorkspaceNavItem(
+                key: 'utilities',
+                label: 'Utilities',
+                icon: 'bolt',
+                route: 'workspace.utilities.index',
+                active: ['workspace.utilities.*'],
+                visible: static fn (User $user): bool => $user->can('viewAny', UtilityType::class),
+                order: 465,
             ));
         });
 

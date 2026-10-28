@@ -63,7 +63,8 @@ return [
         // Receipts for expenses, signed papers: a photo or a PDF. Conversions
         // apply to the images only. (Payment proofs have their own evidence
         // collection, `payment_proofs`, added by the Payments module's
-        // provider: P03-09.)
+        // provider: P03-09; so do meter photos, `meter_photos`, added by the
+        // Billing module's provider: P03-06a.)
         'documents' => [
             'mimes' => ['application/pdf', 'image/jpeg', 'image/png'],
             'max_kb' => 10 * 1024,

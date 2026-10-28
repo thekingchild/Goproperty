@@ -19,6 +19,8 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use Livewire\WithPagination;
 use Modules\Billing\Jobs\RenderInvoice;
+use Modules\Billing\Livewire\UtilityReadingIndex;
+use Modules\Billing\Livewire\UtilitySettingIndex;
 use Modules\Collections\Livewire\StatementShow;
 use Modules\Import\Enums\ImportStatus;
 use Modules\Import\Models\ImportBatch;
@@ -33,6 +35,7 @@ require_once __DIR__.'/helpers.php';
 require_once __DIR__.'/../../../Modules/Tenants/tests/Feature/helpers.php';
 require_once __DIR__.'/../../../Modules/Leasing/tests/Feature/helpers.php';
 require_once __DIR__.'/../../../Modules/Billing/tests/Feature/helpers.php';
+require_once __DIR__.'/../../../Modules/Billing/tests/Feature/utility-helpers.php';
 require_once __DIR__.'/../../../Modules/Payments/tests/Feature/helpers.php';
 require_once __DIR__.'/../../../Modules/Collections/tests/Feature/helpers.php';
 
@@ -87,6 +90,8 @@ beforeEach(function () {
         app(BillingTransferService::class)->initiate($this->owner, $this->other);
     });
     inOrganization($this->other, fn () => app(BillingTransferService::class)->initiate($otherOwner, $this->acme));
+    // A metered utility on the flat and a reading of its meter (P03-06a).
+    readMeter($this->acme, $this->owner, utilityOn($this->acme, $this->owner, $flat, electricityIn($this->acme, $this->owner), ['effectiveFrom' => now()->subMonth()->toDateString()]), now()->toDateString(), '120.5');
 });
 
 afterEach(fn () => exportsFreshRequest());
@@ -114,9 +119,12 @@ function workspaceListPages(User $user, Organization $organization, string $buil
     }
 
     // Lists inside pages reached from the sidebar: a building's agents and
-    // units, a bank statement's lines.
+    // units, a bank statement's lines, the units' utilities and meter
+    // readings (the Utilities page's other two lists, P03-06a).
     $pages["/o/{$organization->slug}/buildings/{$buildingSlug}"] = PropertyShow::class;
     $pages["/o/{$organization->slug}/statements/{$statementId}"] = StatementShow::class;
+    $pages["/o/{$organization->slug}/utilities/units"] = UtilitySettingIndex::class;
+    $pages["/o/{$organization->slug}/utilities/readings"] = UtilityReadingIndex::class;
 
     return array_map(static fn (mixed $component): string => (string) $component, $pages);
 }
@@ -211,7 +219,7 @@ it('gives every workspace list page a working export, in Excel and CSV', functio
     $offered = array_values(array_unique($offered));
     sort($offered);
     expect($offered)->toBe(array_keys($registry->keys()))
-        ->toBe(['bank_statement_lines', 'bank_statements', 'billing_transfers_made', 'billing_transfers_received', 'bills', 'building_agents', 'buildings', 'imports', 'leases', 'member_invitations', 'members', 'owners', 'payments', 'receipts', 'tenants', 'units']);
+        ->toBe(['bank_statement_lines', 'bank_statements', 'billing_transfers_made', 'billing_transfers_received', 'bills', 'building_agents', 'buildings', 'imports', 'leases', 'member_invitations', 'members', 'owners', 'payments', 'receipts', 'tenants', 'units', 'utility_readings', 'utility_settings', 'utility_types']);
 });
 
 it('makes every Livewire component that pages through a list use the export', function () {
