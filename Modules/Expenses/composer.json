@@ -1,0 +1,28 @@
+{
+    "name": "goproperty/expenses",
+    "description": "Expenses: money the organization spent, by building, with receipts kept as evidence (DATABASE_SCHEMA.md § 4)",
+    "authors": [
+        {
+            "name": "GoProperty",
+            "email": ""
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [],
+            "aliases": {
+
+            }
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Modules\\Expenses\\": "app/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Modules\\Expenses\\Tests\\": "tests/"
+        }
+    }
+}

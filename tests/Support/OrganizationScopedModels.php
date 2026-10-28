@@ -44,6 +44,10 @@ use Modules\Collections\Enums\StatementFormat;
 use Modules\Collections\Models\BankStatementColumnMapping;
 use Modules\Collections\Models\BankStatementImport;
 use Modules\Collections\Models\BankStatementLine;
+use Modules\Expenses\Enums\ExpenseCategory;
+use Modules\Expenses\Enums\ExpensePaymentMethod;
+use Modules\Expenses\Models\Expense;
+use Modules\Expenses\Models\ExpenseReceipt;
 use Modules\Import\Enums\ImportFileType;
 use Modules\Import\Models\ImportBatch;
 use Modules\Import\Models\ImportColumnMapping;
@@ -276,6 +280,13 @@ final class OrganizationScopedModels
                     'submitted_by' => ProofSubmitter::Member,
                 ])->save();
             }),
+            // Rows on their own (Recording\ExpenseBook is the writer; the probes are about the rows).
+            Expense::class => fn (): Model => self::expense(),
+            ExpenseReceipt::class => fn (): Model => tap(new ExpenseReceipt, fn (ExpenseReceipt $receipt): bool => $receipt->forceFill([
+                'expense_id' => self::expense()->id,
+                'media_id' => self::make(Media::class)->getKey(),
+                'file_sha256' => hash('sha256', Str::random(32)),
+            ])->save()),
             // Owned by the offering organization; the receiving one reads it
             // only through Modules\SaasBilling\Transfers\IncomingTransfers.
             BillingTransferRequest::class => fn (): Model => tap(new BillingTransferRequest, fn (BillingTransferRequest $transfer): bool => $transfer->forceFill([
@@ -283,6 +294,19 @@ final class OrganizationScopedModels
                 'expires_at' => now()->addDays(14),
             ])->save()),
         ];
+    }
+
+    /** An expense of a new building, in the current organization. */
+    private static function expense(): Expense
+    {
+        return tap(new Expense, fn (Expense $expense): bool => $expense->forceFill([
+            'property_id' => Property::factory()->create()->id,
+            'category' => ExpenseCategory::Repairs,
+            'description' => 'Probe repair',
+            'amount_kobo' => Money::naira(25_000),
+            'spent_on' => '2027-01-01',
+            'payment_method' => ExpensePaymentMethod::Cash,
+        ])->save());
     }
 
     /** A draft lease of a new unit for a new tenant, in the current organization. */

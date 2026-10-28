@@ -7,5 +7,6 @@
     "Billing": true,
     "Payments": true,
     "Collections": true,
-    "OnlinePayments": true
+    "OnlinePayments": true,
+    "Expenses": true
 }

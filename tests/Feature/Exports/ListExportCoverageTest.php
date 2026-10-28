@@ -38,6 +38,7 @@ require_once __DIR__.'/../../../Modules/Billing/tests/Feature/helpers.php';
 require_once __DIR__.'/../../../Modules/Billing/tests/Feature/utility-helpers.php';
 require_once __DIR__.'/../../../Modules/Payments/tests/Feature/helpers.php';
 require_once __DIR__.'/../../../Modules/Collections/tests/Feature/helpers.php';
+require_once __DIR__.'/../../../Modules/Expenses/tests/Feature/helpers.php';
 
 /*
  * P02-07 AC "every list page exports" (IMPLEMENTATION_PLAN.md § 3;
@@ -84,6 +85,8 @@ beforeEach(function () {
     // An uploaded bank statement and its lines (P03-07a).
     Storage::fake('media');
     $this->statement = uploadStatement($this->acme, $this->owner, statementAccount($this->acme, $this->owner), statementCsv(gtStatementRows(januaryTransactions())));
+    // An expense of the building (P03-12).
+    recordExpense($this->acme, $this->owner, ['propertyId' => (string) $this->palm->id]);
     inOrganization($this->acme, function (): void {
         ImportBatch::query()->create(['kind' => 'workbook', 'file_type' => 'xlsx', 'file_name' => 'portfolio.xlsx', 'status' => ImportStatus::Uploaded, 'created_by_user_id' => $this->owner->id]);
         app(MemberInvitations::class)->invite($this->owner, 'new.agent@acme.ng', [OrganizationRole::Agent]);
@@ -219,7 +222,7 @@ it('gives every workspace list page a working export, in Excel and CSV', functio
     $offered = array_values(array_unique($offered));
     sort($offered);
     expect($offered)->toBe(array_keys($registry->keys()))
-        ->toBe(['bank_statement_lines', 'bank_statements', 'billing_transfers_made', 'billing_transfers_received', 'bills', 'building_agents', 'buildings', 'imports', 'leases', 'member_invitations', 'members', 'owners', 'payments', 'receipts', 'tenants', 'units', 'utility_readings', 'utility_settings', 'utility_types']);
+        ->toBe(['bank_statement_lines', 'bank_statements', 'billing_transfers_made', 'billing_transfers_received', 'bills', 'building_agents', 'buildings', 'expenses', 'imports', 'leases', 'member_invitations', 'members', 'owners', 'payments', 'receipts', 'tenants', 'units', 'utility_readings', 'utility_settings', 'utility_types']);
 });
 
 it('makes every Livewire component that pages through a list use the export', function () {

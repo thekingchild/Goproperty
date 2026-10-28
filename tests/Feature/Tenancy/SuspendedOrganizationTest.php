@@ -274,6 +274,9 @@ it('keeps exactly the reading, exporting and paying permissions while suspended'
         'payments.view',
         'payments.submit_proof',
         'statements.view',
+        // Expenses (P03-12): the buildings' and the organization's own.
+        'expenses.view',
+        'expenses.view_organization',
         'tickets.view',
         'reports.view',
         'imports.view',

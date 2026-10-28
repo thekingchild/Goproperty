@@ -61,6 +61,10 @@ enum OrganizationPermission: string
     case ImportStatements = 'statements.import';
     case MatchStatements = 'statements.match';
     case ApproveReceiptVoids = 'receipts.approve_void';
+    case ViewExpenses = 'expenses.view';
+    case ViewOrganizationExpenses = 'expenses.view_organization';
+    case RecordExpenses = 'expenses.record';
+    case ManageExpenses = 'expenses.manage';
     case ViewTickets = 'tickets.view';
     case CreateTickets = 'tickets.create';
     case RespondToTickets = 'tickets.respond';
@@ -96,6 +100,8 @@ enum OrganizationPermission: string
             self::ViewUtilities,
             self::ViewPayments,
             self::ViewStatements,
+            self::ViewExpenses,
+            self::ViewOrganizationExpenses,
             self::ViewTickets,
             self::ViewReports,
             self::ViewImports,
@@ -120,6 +126,8 @@ enum OrganizationPermission: string
             self::ImportStatements,
             self::MatchStatements,
             self::ApproveReceiptVoids,
+            self::RecordExpenses,
+            self::ManageExpenses,
             self::CreateTickets,
             self::RespondToTickets,
             self::ManageTickets,
@@ -148,8 +156,11 @@ enum OrganizationPermission: string
      * applications and compliance documents (`organization.compliance`: they
      * change the organization's compliance standing, so staff never apply,
      * upload or submit for a customer; seeing them, `compliance.view`, stays
-     * allowed). Read-only sessions
-     * also lose every permission that writes (allowedWhileSuspended() false).
+     * allowed). Expenses (P03-12) are the organization's own
+     * bookkeeping, not tenant money: none of their permissions is blocked;
+     * archiving one (a `delete` ability), adding or archiving a receipt and
+     * opening a receipt file are refused by ExpensePolicy instead. Read-only
+     * sessions also lose every permission that writes (allowedWhileSuspended() false).
      * Every new permission must be placed here; the match has no default,
      * so one left out fails the build.
      */
@@ -192,6 +203,10 @@ enum OrganizationPermission: string
             self::RecordMeterReadings,
             self::ViewPayments,
             self::ViewStatements,
+            self::ViewExpenses,
+            self::ViewOrganizationExpenses,
+            self::RecordExpenses,
+            self::ManageExpenses,
             self::ViewTickets,
             self::CreateTickets,
             self::RespondToTickets,
@@ -241,6 +256,10 @@ enum OrganizationPermission: string
             self::ImportStatements => 'Upload bank statements (CSV or Excel) of the organization\'s bank accounts',
             self::MatchStatements => 'Match bank statement credits to tenants\' bills by hand (one credit split across bills too), look for matches again and confirm high-confidence matches in bulk',
             self::ApproveReceiptVoids => 'Approve another member\'s request to void a receipt (the second approver; voids a receipt alone only when no other owner or administrator exists)',
+            self::ViewExpenses => 'See expenses of the buildings they work on, and their receipts',
+            self::ViewOrganizationExpenses => 'See the organization\'s own expenses, not linked to a building (office costs, salaries)',
+            self::RecordExpenses => 'Record and edit expenses and add their receipts (the organization\'s own expenses also need to see them)',
+            self::ManageExpenses => 'Archive and restore expenses, and archive their receipts',
             self::ViewTickets => 'See maintenance tickets',
             self::CreateTickets => 'Raise maintenance tickets',
             self::RespondToTickets => 'Reply to maintenance tickets',

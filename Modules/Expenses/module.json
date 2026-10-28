@@ -1,0 +1,11 @@
+{
+    "name": "Expenses",
+    "alias": "expenses",
+    "description": "Expenses: money the organization spent, by building, with receipts kept as evidence (DATABASE_SCHEMA.md § 4)",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\Expenses\\Providers\\ExpensesServiceProvider"
+    ],
+    "files": []
+}
