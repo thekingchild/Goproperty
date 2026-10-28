@@ -41,6 +41,10 @@
 
                 <p class="mt-3 break-words whitespace-pre-line text-zinc-800 dark:text-zinc-200" data-test="ticket-description">{{ $ticket->description }}</p>
 
+                @if ($ticket->movedFromLine() || $ticket->movedToLine())
+                    <flux:text class="mt-3" data-test="ticket-moved">{{ $ticket->movedFromLine() ?? $ticket->movedToLine() }}</flux:text>
+                @endif
+
                 <dl class="mt-4 grid gap-4 sm:grid-cols-2">
                     <div>
                         <dt class="text-sm text-zinc-500 dark:text-zinc-400">{{ __('Kind of problem') }}</dt>

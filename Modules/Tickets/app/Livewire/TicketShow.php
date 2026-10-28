@@ -138,7 +138,7 @@ final class TicketShow extends Component
             'canStart' => $manages && $ticket->status->canMoveTo(TicketStatus::InProgress),
             'canResolve' => $manages && $ticket->status->canMoveTo(TicketStatus::Resolved),
             'canClose' => $manages && $ticket->status->canMoveTo(TicketStatus::Closed),
-            'canReopen' => $manages && $ticket->status->canMoveTo(TicketStatus::Reopened),
+            'canReopen' => $manages && $ticket->status->canMoveTo(TicketStatus::Reopened) && ! $ticket->movedOut(),
             'canUpdate' => $updates,
             'assignees' => $updates ? $assignees->for($ticket->property_id) : [],
             'categories' => TicketCategory::cases(),

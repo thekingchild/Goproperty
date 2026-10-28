@@ -14,6 +14,7 @@ use Modules\Tickets\Enums\TicketCategory;
 use Modules\Tickets\Enums\TicketPriority;
 use Modules\Tickets\Enums\TicketSource;
 use Modules\Tickets\Enums\TicketStatus;
+use Modules\Tickets\Tickets\TicketDates;
 
 /**
  * A maintenance ticket (DATABASE_SCHEMA.md § 5 `tickets`, ARCHITECTURE.md
@@ -22,6 +23,10 @@ use Modules\Tickets\Enums\TicketStatus;
  * and the status changes only through the service's moves (TicketStatus).
  * Never deleted for good: only a tenant's unsent draft is discarded, as a
  * soft delete.
+ *
+ * A ticket that moved with its building on a handover (P04-05) is a new
+ * ticket in the receiving organization (`moved_from_*`); the one left
+ * behind is closed there for good (`moved_out_at`).
  *
  * The unit, its building, the lease and the tenant belong to other
  * modules: the ticket keeps their ids and reads them through their
@@ -48,6 +53,11 @@ use Modules\Tickets\Enums\TicketStatus;
  * @property CarbonImmutable|null $closed_at
  * @property CarbonImmutable|null $reopened_at
  * @property int $reopen_count
+ * @property int|null $moved_from_ticket_id
+ * @property string|null $moved_from_organization
+ * @property string|null $moved_from_number
+ * @property string|null $moved_to_organization
+ * @property CarbonImmutable|null $moved_out_at
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  * @property CarbonImmutable|null $deleted_at
@@ -68,6 +78,34 @@ final class Ticket extends Model
     public function reference(): string
     {
         return $this->number ?? __('Draft');
+    }
+
+    /** "Moved from Eze Properties, was TKT-000012" on a ticket that came with its building (P04-05), else null. */
+    public function movedFromLine(): ?string
+    {
+        if ($this->moved_from_organization === null) {
+            return null;
+        }
+
+        return $this->moved_from_number !== null
+            ? (string) __('Moved from :organization, was :number', ['organization' => $this->moved_from_organization, 'number' => $this->moved_from_number])
+            : (string) __('Moved from :organization', ['organization' => $this->moved_from_organization]);
+    }
+
+    /** "Building moved to Adeyemi Realty Ltd on 4 Jan 2027" on a ticket left behind, else null. */
+    public function movedToLine(): ?string
+    {
+        if ($this->moved_out_at === null) {
+            return null;
+        }
+
+        return (string) __('Building moved to :organization on :date', ['organization' => (string) $this->moved_to_organization, 'date' => TicketDates::day($this->moved_out_at)]);
+    }
+
+    /** Whether this ticket was left behind when its building moved (closed for good here; it goes on there). */
+    public function movedOut(): bool
+    {
+        return $this->moved_out_at !== null;
     }
 
     /**
@@ -94,6 +132,8 @@ final class Ticket extends Model
             'resolved_at' => 'immutable_datetime',
             'closed_at' => 'immutable_datetime',
             'reopened_at' => 'immutable_datetime',
+            'moved_from_ticket_id' => 'integer',
+            'moved_out_at' => 'immutable_datetime',
         ];
     }
 }

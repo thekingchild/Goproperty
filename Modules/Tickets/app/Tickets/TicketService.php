@@ -27,6 +27,7 @@ use Modules\Tickets\Enums\TicketPriority;
 use Modules\Tickets\Enums\TicketSource;
 use Modules\Tickets\Enums\TicketStatus;
 use Modules\Tickets\Events\TicketAssignmentChanged;
+use Modules\Tickets\Events\TicketMovedIn;
 use Modules\Tickets\Events\TicketStatusChanged;
 use Modules\Tickets\Models\Ticket;
 use Modules\Tickets\Models\TicketStatusChange;
@@ -56,6 +57,12 @@ use Modules\Tickets\Models\TicketStatusChange;
  * - The system: autoClose() closes a resolved ticket the tenant has not
  *   answered for `tickets.auto_close_days` (tickets-auto-close, default 7;
  *   default 2), once; unassignMember() when a member leaves.
+ * - A building move (P04-05, Handover\TicketsMover, inside the handover's
+ *   transaction): receiveMoved() makes the receiving organization's own
+ *   ticket for one that was open, and closeMovedOut() closes the one left
+ *   behind for good (any open state → closed: the one move that skips
+ *   `resolved`; a draft is discarded instead). A ticket left behind makes
+ *   no more moves.
  *
  * Numbers come from App\Documents\DocumentNumberer (`TKT-000001`, one
  * sequence per organization, default 4) inside the sending transaction, so
@@ -365,6 +372,10 @@ final readonly class TicketService implements TicketServiceContract
      */
     public function reopenableUntil(Ticket $ticket): ?CarbonImmutable
     {
+        if ($ticket->movedOut()) {
+            return null;
+        }
+
         if (! in_array($ticket->status, [TicketStatus::Resolved, TicketStatus::Closed], true) || $ticket->resolved_at === null) {
             return null;
         }
@@ -392,6 +403,112 @@ final readonly class TicketService implements TicketServiceContract
             $this->apply($ticket, TicketStatus::Closed, null, 'ticket.closed', 'Ticket closed automatically', $note, TicketStatusChanged::ACTOR_SYSTEM, ['auto_close_days' => $days]);
 
             return true;
+        });
+    }
+
+    /**
+     * A building move (P04-05; docs/plans/P04-subtasks.md "Settled by the
+     * product owner" 2 and 4): the receiving organization's own ticket for
+     * $original, an open ticket of a building that moved here from
+     * $fromOrganization. Runs in the receiving organization (the current
+     * one) inside the handover's transaction.
+     *
+     * It has the next number here (a draft none), says where it came from
+     * ("Moved from {agency}, was TKT-000012"), and stands for the moved
+     * tenant's record and lease here ($tenantProfileId, $leaseId: null when
+     * they did not move). A resolved ticket stays resolved, with its
+     * resolution time (the reopen window counts from it); a draft stays a
+     * draft; every other open ticket arrives `submitted` for this
+     * organization to review. Nobody is assigned. One history row (from
+     * nothing, with the "Moved from" note), one audit entry, and
+     * TicketMovedIn after the commit (not for a draft).
+     */
+    public function receiveMoved(Ticket $original, string $fromOrganization, ?int $tenantProfileId, ?int $leaseId): Ticket
+    {
+        return $this->transaction(function () use ($original, $fromOrganization, $tenantProfileId, $leaseId): Ticket {
+            $status = match ($original->status) {
+                TicketStatus::Draft, TicketStatus::Resolved => $original->status,
+                default => TicketStatus::Submitted,
+            };
+
+            $ticket = new Ticket;
+            $ticket->property_id = $original->property_id;
+            $ticket->unit_id = $original->unit_id;
+            $ticket->lease_id = $leaseId;
+            $ticket->tenant_profile_id = $tenantProfileId;
+            $ticket->source = $original->source;
+            $ticket->raised_by_user_id = $original->raised_by_user_id;
+            $ticket->category = $original->category;
+            $ticket->priority = $original->priority;
+            $ticket->title = $original->title;
+            $ticket->description = $original->description;
+            $ticket->status = $status;
+            // When the tenant (or staff) first reported it; a draft was never sent.
+            $ticket->submitted_at = $status === TicketStatus::Draft ? null : $original->submitted_at;
+            $ticket->resolved_at = $status === TicketStatus::Resolved ? $original->resolved_at : null;
+            $ticket->moved_from_ticket_id = $original->id;
+            $ticket->moved_from_organization = $fromOrganization;
+            $ticket->moved_from_number = $original->number;
+            $ticket->number = $status === TicketStatus::Draft ? null : $this->numberer->next(DocumentType::Ticket);
+            $ticket->save();
+
+            $note = $ticket->movedFromLine();
+            $this->history($ticket, null, null, $note);
+            $this->audit('ticket.moved_in', $ticket, null, 'Ticket arrived with its building', [
+                'to' => $status->value,
+                'from_status' => $original->status->value,
+                'moved_from_ticket_id' => $original->id,
+                'moved_from_organization' => $fromOrganization,
+                'moved_from_number' => $original->number,
+                'lease_id' => $leaseId,
+            ]);
+
+            if ($ticket->number !== null) {
+                event(new TicketMovedIn($ticket->organization_id, $ticket->id, $ticket->number, $fromOrganization, $original->number, $tenantProfileId));
+            }
+
+            return $ticket;
+        });
+    }
+
+    /**
+     * A building move (P04-05): the ticket left behind when its building
+     * moved to $toOrganization on $on is closed for good, with the history
+     * note "Building moved to {organization} on {date}" (any open state:
+     * the one move that skips `resolved`; it is no longer this
+     * organization's to fix). Nobody is told (TicketStatusChanged's actor
+     * `move`): the tenant hears from the organization it moved to. A
+     * tenant's draft, which nobody here saw, is discarded instead (a soft
+     * delete, as discardDraft()). Its history, thread and files stay.
+     * Runs in the organization the building left, inside the handover's
+     * transaction.
+     *
+     * @throws TicketRefused when it is closed already
+     */
+    public function closeMovedOut(Ticket $ticket, string $toOrganization, CarbonImmutable $on, int $movedToTicketId): Ticket
+    {
+        return $this->transaction(function () use ($ticket, $toOrganization, $on, $movedToTicketId): Ticket {
+            $ticket = $this->lock($ticket->id);
+
+            if ($ticket->status === TicketStatus::Closed || $ticket->movedOut()) {
+                throw TicketRefused::because(__('Ticket :number is closed already.', ['number' => $ticket->reference()]));
+            }
+
+            $ticket->moved_to_organization = $toOrganization;
+            $ticket->moved_out_at = $on;
+            $properties = ['to_organization' => $toOrganization, 'moved_to_ticket_id' => $movedToTicketId];
+
+            if ($ticket->status === TicketStatus::Draft) {
+                $ticket->save();
+                $ticket->delete();
+                $this->audit('ticket.moved_out', $ticket, null, 'Draft ticket moved with its building', ['from' => TicketStatus::Draft->value, ...$properties]);
+
+                return $ticket;
+            }
+
+            $this->apply($ticket, TicketStatus::Closed, null, 'ticket.moved_out', 'Ticket closed: its building moved to another organization', $ticket->movedToLine(), TicketStatusChanged::ACTOR_MOVE, $properties);
+
+            return $ticket;
         });
     }
 
@@ -562,6 +679,13 @@ final readonly class TicketService implements TicketServiceContract
     {
         return $this->transaction(function () use ($by, $ticket, $to, $event, $description, $note, $actor, $check): Ticket {
             $ticket = $this->lock($ticket->id);
+
+            if ($ticket->movedOut()) {
+                throw TicketRefused::because(__('This ticket was closed when its building moved to :organization on :date. It goes on there.', [
+                    'organization' => (string) $ticket->moved_to_organization,
+                    'date' => TicketDates::day($ticket->moved_out_at),
+                ]));
+            }
 
             if (! $ticket->status->canMoveTo($to)) {
                 throw TicketRefused::because(__('A ticket that is :status cannot be :action.', [

@@ -7,10 +7,10 @@ namespace App\Tenancy\Moves;
 /**
  * "Move these buildings' live records to organization X" (ARCHITECTURE.md
  * § 6.1, BILLING_PAYMENTS.md § 7.4): implemented by every module that owns
- * building-linked live records (Properties, Tenants, Leasing, Billing) and
- * by Core's media library (App\Media\MediaMover), and registered into
- * BuildingRecordMovers from the owner's service provider, the way import
- * targets are (§ 6.12).
+ * building-linked live records (Properties, Tenants, Leasing, Billing,
+ * Tickets) and by Core's media library (App\Media\MediaMover), and
+ * registered into BuildingRecordMovers from the owner's service provider,
+ * the way import targets are (§ 6.12).
  *
  * The management handover (Modules\Handovers) runs them through
  * OrganizationMoves::run(), in order(), inside its one transaction: any
@@ -18,10 +18,13 @@ namespace App\Tenancy\Moves;
  * records, only live ones (history stays with the organization that wrote
  * it), and changes `organization_id` only through BuildingMove::reassign(),
  * the one sanctioned path (BelongsToOrganization refuses it anywhere else).
+ * A mover may instead make the receiving organization its own records and
+ * close the old ones (Tickets, P04-05: a new numbered ticket there, the old
+ * one closed here), still inside the move's transaction.
  */
 interface MovesBuildingRecords
 {
-    /** Lower runs first: Properties 10, Tenants 20, Leasing 30, Tenants' portal links 35, Billing 40, media 90. */
+    /** Lower runs first: Properties 10, Tenants 20, Leasing 30, Tenants' portal links 35, Billing 40, Tickets 50, media 90. */
     public function order(): int;
 
     /**

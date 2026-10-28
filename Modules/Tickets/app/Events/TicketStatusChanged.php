@@ -20,8 +20,8 @@ use Illuminate\Support\Str;
  *
  * Plain values only, never the Tickets models: `from` and `to` are
  * `tickets.status` values; `actor` says who moved it — `tenant` (from the
- * portal), `staff` (a member) or `system` (tickets-auto-close, actorUserId
- * null) — so a listener need not tell the person who acted.
+ * portal), `staff` (a member), `system` (tickets-auto-close, actorUserId
+ * null) or `move` (closed because its building moved, P04-05) — so a listener need not tell the person who acted.
  *
  * `key` names this one move (a ULID, made when the event is): the
  * notifications (P04-03, Notices\TicketNotifier) tell each party once per
@@ -36,6 +36,13 @@ final readonly class TicketStatusChanged implements ShouldDispatchAfterCommit
     public const string ACTOR_STAFF = 'staff';
 
     public const string ACTOR_SYSTEM = 'system';
+
+    /**
+     * The ticket was left behind when its building moved to another
+     * organization on a handover (P04-05) and closed here for good; nobody
+     * is told of it (the tenant hears from the organization it moved to).
+     */
+    public const string ACTOR_MOVE = 'move';
 
     public string $key;
 

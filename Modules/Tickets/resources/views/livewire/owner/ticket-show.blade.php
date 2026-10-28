@@ -24,6 +24,10 @@
             <p class="break-words whitespace-pre-line text-zinc-800 dark:text-zinc-200">{{ $ticket->description }}</p>
         @endif
 
+        @if ($ticket->movedFromLine() || $ticket->movedToLine())
+            <flux:text data-test="owner-ticket-moved">{{ $ticket->movedFromLine() ?? $ticket->movedToLine() }}</flux:text>
+        @endif
+
         <dl class="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
                 <dt class="text-sm text-zinc-500 dark:text-zinc-400">{{ __('Kind of problem') }}</dt>

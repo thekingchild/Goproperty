@@ -23,7 +23,7 @@ Each phase below is split into numbered tasks (`P00-01`, `P00-02`, …). Each ta
 | P01 | Tenancy, auth, registration, Transaction Tiers, staff console core & web installer | 3–5 | M1 | Complete (2026-10-27) |
 | P02 | Properties, units, owners & import (part 1) | 6–8 | M2 | Complete (2026-10-27) |
 | P03 | Leasing, branded documents & the customer money loop + import (part 2) | 9–12 | M3 | Complete (2026-10-28) |
-| P04 | Maintenance tickets | 13 | M4 | In progress |
+| P04 | Maintenance tickets | 13 | M4 | Complete (2026-10-28) |
 | P05 | Reminders, notifications, email templates & WhatsApp | 14–15 | M5 | Not started |
 | P06 | SaaS billing, compliance monitoring & full platform console | 16–18 | M6 | Not started |
 | P07 | Building Group | 19 | M7 | Not started |
@@ -132,7 +132,7 @@ Depends on: P02. Sub-tasks, run order and open decisions: [docs/plans/P02-P03-su
 
 **Phase exit:** all P03 tasks complete; end-to-end integration test passes: building → 3 units → tenant → lease (annual) → scheduler generates invoice → payment + proof upload → confirmation → receipt number increments → tenant portal shows receipt. Same for weekly and semi-annual cycles.
 
-### P04 — Maintenance tickets (Week 13) — In progress
+### P04 — Maintenance tickets (Week 13) — Complete (2026-10-28)
 
 Depends on: P03-01 (tenants) and P03-03 (leases).
 
@@ -142,7 +142,7 @@ Depends on: P03-01 (tenants) and P03-03 (leases).
 | P04-02 — **Complete (2026-10-28)** | Threaded replies with attachments; staff internal notes; tenant "confirm resolution / reopen" | Staff see internal notes the tenant never sees (enforced server-side) |
 | P04-03 — **Complete (2026-10-28)** | Agent and tenant views (inbox by status), notification on transitions, ticket from lease context | Each transition notifies the right party once |
 | P04-04 — **Complete (2026-10-28)** | **Handover follow-ups** (from P03-14; product owner decisions 2026-10-28 in `docs/plans/P02-P03-subtasks.md`; independent of tickets, can run alongside P04-01–03): the one-way return of § 7.1 (an agency offers buildings it holds without a handover to the landlord's organization; accepting moves them and the handover ends as `returned`, final); on the landlord's record of a moved tenant, "Moved to {agency} on {date}", archiving refused while it has unpaid bills or unsettled credit, archived automatically once both are clear; on any return, the tenant's original record from the handover first, then the phone; moved tenants' pending portal invitations on the old side revoked | A return moves exactly the chosen buildings into the landlord's organization in one transaction and ends as `returned`; notice and end are refused on it; only an agency's `org-owner` offers a return and only the landlord's accepts; a returning tenant whose phone changed lands on their original record (no third record); archiving a moved tenant with an unpaid bill or unsettled credit is refused, and the record archives itself once both are clear; blocked while impersonating; cross-org probes |
-| P04-05 — **In progress** | **Open tickets move with the building on a handover** (product owner 2026-10-28, replacing P04-01 decision 10; defaults in `docs/plans/P04-subtasks.md` "Settled by the product owner"): on accepting a management handover or a return, each open ticket of a moved building is recreated in the receiving organization (new number, "Moved from" the old one, the moved tenant and lease there, public messages and attachments copied, resolved stays resolved, others `submitted`, unassigned) and the old organization's ticket is closed with a "Building moved" note; closed tickets stay | Accepting a handover moves exactly the open tickets of the chosen buildings, in the same transaction (a failure moves nothing); the receiving organization's copy carries the tenant and lease records there, the public thread and its files, never an internal note; the old ticket is closed with the note and keeps its history; numbers stay gap-free in both organizations; the tenant and the receiving owners/admins are told once; works for a return too; cross-org probes |
+| P04-05 — **Complete (2026-10-28)** | **Open tickets move with the building on a handover** (product owner 2026-10-28, replacing P04-01 decision 10; defaults in `docs/plans/P04-subtasks.md` "Settled by the product owner"): on accepting a management handover or a return, each open ticket of a moved building is recreated in the receiving organization (new number, "Moved from" the old one, the moved tenant and lease there, public messages and attachments copied, resolved stays resolved, others `submitted`, unassigned) and the old organization's ticket is closed with a "Building moved" note; closed tickets stay | Accepting a handover moves exactly the open tickets of the chosen buildings, in the same transaction (a failure moves nothing); the receiving organization's copy carries the tenant and lease records there, the public thread and its files, never an internal note; the old ticket is closed with the note and keeps its history; numbers stay gap-free in both organizations; the tenant and the receiving owners/admins are told once; works for a return too; cross-org probes |
 
 **Phase exit:** all P04 tasks complete.
 

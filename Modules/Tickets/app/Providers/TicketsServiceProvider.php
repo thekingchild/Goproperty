@@ -18,6 +18,7 @@ use App\Settings\SettingDefinition;
 use App\Settings\SettingScope;
 use App\Settings\SettingsRegistry;
 use App\Settings\SettingType;
+use App\Tenancy\Moves\BuildingRecordMovers;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Notifications\Events\NotificationSent;
 use Illuminate\Support\Facades\Event;
@@ -27,7 +28,9 @@ use Modules\Leasing\Contracts\LeasePagePanels;
 use Modules\Tickets\Contracts\TicketService as TicketServiceContract;
 use Modules\Tickets\Events\TicketAssignmentChanged;
 use Modules\Tickets\Events\TicketMessagePosted;
+use Modules\Tickets\Events\TicketMovedIn;
 use Modules\Tickets\Events\TicketStatusChanged;
+use Modules\Tickets\Handover\TicketsMover;
 use Modules\Tickets\Jobs\CloseResolvedTickets;
 use Modules\Tickets\Listeners\MarkTicketNoticeMailed;
 use Modules\Tickets\Listeners\TellTicketParties;
@@ -63,6 +66,12 @@ use Nwidart\Modules\Support\ModuleServiceProvider;
  * (evidence) and, in routes/web.php, the files' routes and the owner
  * portal's tickets (`/owner/tickets`); Events\TicketMessagePosted is sent
  * for every message (Messages\TicketMessages).
+ *
+ * P04-05 registers Handover\TicketsMover into Core's BuildingRecordMovers:
+ * the open tickets of buildings that move on a handover go with them (a
+ * new ticket there, the old one closed here), in the handover's
+ * transaction; without this module nothing of it runs. TicketMovedIn tells
+ * the tenant and the receiving owners and administrators.
  */
 final class TicketsServiceProvider extends ModuleServiceProvider
 {
@@ -140,6 +149,9 @@ final class TicketsServiceProvider extends ModuleServiceProvider
         // A lease's page lists its tickets and offers "Raise a ticket" (P04-03).
         $this->callAfterResolving(LeasePagePanels::class, static fn (LeasePagePanels $panels) => $panels->register('tickets::lease-tickets'));
 
+        // Open tickets move with their building on a handover (P04-05; BILLING_PAYMENTS.md § 7.4).
+        $this->callAfterResolving(BuildingRecordMovers::class, static fn (BuildingRecordMovers $movers) => $movers->register(TicketsMover::class));
+
         // A member who leaves stops holding tickets (inside the removal's transaction).
         Event::listen(MemberRemoved::class, UnassignRemovedMember::class);
 
@@ -147,6 +159,7 @@ final class TicketsServiceProvider extends ModuleServiceProvider
         Event::listen(TicketStatusChanged::class, TellTicketParties::class);
         Event::listen(TicketAssignmentChanged::class, TellTicketParties::class);
         Event::listen(TicketMessagePosted::class, TellTicketParties::class);
+        Event::listen(TicketMovedIn::class, TellTicketParties::class);
         Event::listen(NotificationSent::class, MarkTicketNoticeMailed::class);
 
         // Resolved tickets nobody answered close themselves (ARCHITECTURE.md § 7).
