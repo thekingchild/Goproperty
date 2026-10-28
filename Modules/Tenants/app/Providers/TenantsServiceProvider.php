@@ -9,16 +9,24 @@ use App\Models\User;
 use App\Navigation\WorkspaceNavigation;
 use App\Navigation\WorkspaceNavItem;
 use App\Tenancy\Moves\BuildingRecordMovers;
+use App\Tenancy\Moves\MovedTenantsChanged;
 use App\Tenancy\PortalLanding;
+use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Livewire;
+use Modules\Billing\Events\BillVoided;
 use Modules\Import\Contracts\ImportReportPanels;
 use Modules\Import\Contracts\ImportTargets;
+use Modules\Payments\Events\PaymentConfirmed;
 use Modules\Tenants\Contracts\ImportedTenants;
 use Modules\Tenants\Contracts\TenantDirectory;
+use Modules\Tenants\Handover\LeftPortalLinksRevoker;
 use Modules\Tenants\Handover\TenantsMover;
 use Modules\Tenants\Import\ImportedTenantLookup;
 use Modules\Tenants\Import\TenantsImportTarget;
+use Modules\Tenants\Jobs\ArchiveSettledMovedTenants as ArchiveSettledMovedTenantsJob;
+use Modules\Tenants\Listeners\ArchiveSettledMovedTenants;
 use Modules\Tenants\Lists\TenantList;
 use Modules\Tenants\Models\TenantProfile;
 use Modules\Tenants\Policies\TenantProfilePolicy;
@@ -84,7 +92,20 @@ final class TenantsServiceProvider extends ModuleServiceProvider
 
         // Every list of the module exports (P02-07).
         // A management handover brings the tenants of the moved buildings' live leases along (BILLING_PAYMENTS.md § 7.4).
-        $this->callAfterResolving(BuildingRecordMovers::class, static fn (BuildingRecordMovers $movers) => $movers->register(TenantsMover::class));
+        $this->callAfterResolving(BuildingRecordMovers::class, static function (BuildingRecordMovers $movers): void {
+            $movers->register(TenantsMover::class);
+            // Portal links left on the side moved tenants left are revoked (P04-04).
+            $movers->register(LeftPortalLinksRevoker::class);
+        });
+
+        // The record a moved tenant left behind archives itself once nothing is owed either way (§ 7.4, P04-04).
+        Event::listen(PaymentConfirmed::class, ArchiveSettledMovedTenants::class);
+        Event::listen(BillVoided::class, ArchiveSettledMovedTenants::class);
+        Event::listen(MovedTenantsChanged::class, ArchiveSettledMovedTenants::class);
+
+        $this->callAfterResolving(Schedule::class, static function (Schedule $schedule): void {
+            $schedule->job(new ArchiveSettledMovedTenantsJob, 'default')->name('tenants-archive-moved')->dailyAt('03:50');
+        });
 
         $this->callAfterResolving(ListExports::class, static function (ListExports $exports): void {
             $exports->register(TenantList::class);

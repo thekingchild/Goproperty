@@ -55,6 +55,7 @@ final class BuildingMove
     /**
      * @param  list<int>  $propertyIds  the buildings that move
      * @param  array<int, int|null>  $restoreOwnerProfileIds  on a return: building id => its owner profile in $to before the handover
+     * @param  array<int, int>  $knownTenants  tenant id in $from => the same tenant's record in $to, as an earlier handover recorded it (P04-04: used before the phone match)
      */
     public function __construct(
         public readonly Organization $from,
@@ -64,12 +65,13 @@ final class BuildingMove
         public readonly int $handoverId,
         /** The landlord's organization (where buildings return). */
         public readonly Organization $landlordOrganization,
-        /** The landlord's user: linked as the buildings' owner where they go (handover), unlinked where they leave (return). */
+        /** The landlord's user: linked as the buildings' owner where they go (handover), unlinked where they leave (return); on a one-way return, the account linked to the buildings' owner record in the agency, whose owner record in their own organization takes the buildings. */
         public readonly ?User $landlord,
         /** On a return: the landlord's owner profile in $from, unlinked when they own nothing more there. */
         public readonly ?int $landlordOwnerProfileId,
         public readonly array $restoreOwnerProfileIds,
         private readonly OrganizationContext $context,
+        public readonly array $knownTenants = [],
     ) {}
 
     /**
@@ -137,6 +139,18 @@ final class BuildingMove
     public function mapTenant(int $fromTenantId, int $toTenantId): void
     {
         $this->tenantMap[$fromTenantId] = $toTenantId;
+    }
+
+    /**
+     * The tenant's own record where the buildings go, as an earlier handover
+     * between the two organizations recorded it (BILLING_PAYMENTS.md § 7.4:
+     * "the tenant's original record, recorded on the handover, is used
+     * first, then the phone"), if any. The Tenants mover checks it is still
+     * there.
+     */
+    public function knownTenantIn(int $fromTenantId): ?int
+    {
+        return $this->knownTenants[$fromTenantId] ?? null;
     }
 
     public function tenantIn(int $fromTenantId): ?int

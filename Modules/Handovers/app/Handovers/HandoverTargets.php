@@ -25,14 +25,58 @@ use Illuminate\Support\Str;
  * the organization's workspace would. Organizations that are suspended or
  * closed, and landlords' own organizations, take no offers and are
  * reported the same way.
+ *
+ * A one-way return (§ 7.1, P04-04) is offered the same way to the
+ * landlord's own organization (type `property_owner` or `hybrid`):
+ * findLandlord(). Who may be offered a return is narrowed further by the
+ * service (an owner there must be the buildings' owner, ownedBy()).
  */
 final class HandoverTargets
 {
     public const string NOT_FOUND = 'No agency on GoProperty matches that. Check the web address (it looks like goproperty.ng/o/their-agency) or use the email address of one of its owners.';
 
+    public const string LANDLORD_NOT_FOUND = 'No landlord\'s organization on GoProperty matches that. Check the web address (it looks like goproperty.ng/o/their-name) or use the email address of one of its owners. A landlord without one registers a free property owner\'s account first.';
+
     private const string SLUG = '/^[a-z0-9]+(?:-[a-z0-9]+)*$/';
 
     public function find(string $input): ?Organization
+    {
+        $organization = $this->lookup($input);
+
+        return $organization !== null && self::takesHandovers($organization) ? $organization : null;
+    }
+
+    /** The landlord's own organization a one-way return is offered to (§ 7.1), found the same way. */
+    public function findLandlord(string $input): ?Organization
+    {
+        $organization = $this->lookup($input);
+
+        return $organization !== null && self::takesReturns($organization) ? $organization : null;
+    }
+
+    /** Whether buildings can be returned to the organization: a landlord's own (or both), open for business. */
+    public static function takesReturns(Organization $organization): bool
+    {
+        return in_array($organization->type, [OrganizationType::PropertyOwner, OrganizationType::Hybrid], true)
+            && ! $organization->status->blocksWrites()
+            && ! $organization->trashed();
+    }
+
+    /** Whether the user is an owner (`org-owner`, and a member) of the organization. */
+    public static function ownedBy(int $userId, Organization $organization): bool
+    {
+        return DB::table('model_has_roles')
+            ->join('roles', 'roles.id', '=', 'model_has_roles.role_id')
+            ->where('roles.name', OrganizationRole::Owner->value)
+            ->whereNull('roles.organization_id')
+            ->where('model_has_roles.organization_id', $organization->id)
+            ->where('model_has_roles.model_type', (new User)->getMorphClass())
+            ->where('model_has_roles.model_id', $userId)
+            ->exists()
+            && DB::table('organization_user')->where('organization_id', $organization->id)->where('user_id', $userId)->exists();
+    }
+
+    private function lookup(string $input): ?Organization
     {
         $input = Str::lower(trim($input));
 
@@ -40,11 +84,9 @@ final class HandoverTargets
             return null;
         }
 
-        $organization = str_contains($input, '@') && ! str_contains($input, '/')
+        return str_contains($input, '@') && ! str_contains($input, '/')
             ? $this->byOwnerEmail($input)
             : $this->bySlug($this->slugFrom($input));
-
-        return $organization !== null && self::takesHandovers($organization) ? $organization : null;
     }
 
     /** Whether the organization can be offered buildings to manage: an agency (or both), open for business. */

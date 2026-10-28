@@ -15,7 +15,12 @@
     $status = $handover->shownStatus();
     $landlord = $handover->landlordOrganization;
     $agency = $handover->toOrganization;
+    $holder = $handover->organization;
+    $isReturn = $handover->isReturn();
     $heading = match (true) {
+        $isReturn && $receiving && $handover->isAwaitingAnswer() => __(':agency offers to return its buildings to you', ['agency' => $holder->name]),
+        $isReturn && $receiving => __('Buildings returned by :agency', ['agency' => $holder->name]),
+        $isReturn => __('Return to :landlord', ['landlord' => $agency->name]),
         $receiving && $handover->isAwaitingAnswer() => __(':landlord offers you its buildings to manage', ['landlord' => $handover->organization->name]),
         $receiving => __('Buildings managed for :landlord', ['landlord' => $handover->organization->name]),
         default => __('Handover to :agency', ['agency' => $agency->name]),
@@ -49,6 +54,9 @@
                 @case(HandoverStatus::Ended)
                     {{ __('The buildings returned to :landlord on :date.', ['landlord' => $landlord->name, 'date' => $date($handover->ended_at)]) }}
                     @break
+                @case(HandoverStatus::Returned)
+                    <span data-test="returned-text">{{ __('The buildings returned to :landlord on :date, for good. A return is final: there is no notice and no end.', ['landlord' => $landlord->name, 'date' => $date($handover->accepted_at)]) }}</span>
+                    @break
                 @case(HandoverStatus::Declined)
                     {{ __(':agency declined on :date. Nothing moved.', ['agency' => $agency->name, 'date' => $date($handover->responded_at)]) }}
                     @break
@@ -80,11 +88,19 @@
                 <flux:callout class="mt-3" icon="light-bulb" data-test="cheaper-plan" :heading="__('The :plan plan would cost :amount a month for these units: you can change plan in Billing.', ['plan' => $change->cheaper->plan->name, 'amount' => $change->cheaper->amount->format()])" />
             @endif
             <flux:text class="mt-2">{{ __(':vat% VAT is added on each invoice. Units are counted on the billing day; there is no part-month charge.', ['vat' => $change->after->vatPercent]) }}</flux:text>
-            <flux:text class="mt-1">{{ __('Accepting moves the buildings, their units, the tenants of their active leases, those leases with their deposits, utility settings and meter readings, and their photos into your account. Bills, receipts and payments :landlord issued stay with it, and it collects what is still owed on them.', ['landlord' => $handover->organization->name]) }}</flux:text>
+            @if ($isReturn)
+                <flux:text class="mt-1" data-test="return-explainer">{{ __('Accepting moves the buildings, their units, the tenants of their active leases, those leases with their deposits, utility settings and meter readings, and their photos into your account, for good: a return has no notice and no end. Bills, receipts and payments :agency issued stay with it, and it collects what is still owed on them.', ['agency' => $holder->name]) }}</flux:text>
+            @else
+                <flux:text class="mt-1">{{ __('Accepting moves the buildings, their units, the tenants of their active leases, those leases with their deposits, utility settings and meter readings, and their photos into your account. Bills, receipts and payments :landlord issued stay with it, and it collects what is still owed on them.', ['landlord' => $handover->organization->name]) }}</flux:text>
+            @endif
 
             @if ($canRespond)
                 <div class="mt-4 flex flex-wrap gap-2">
-                    <flux:button variant="primary" wire:click="accept" wire:confirm="{{ __('Take over the management of these buildings? Your bill goes to :amount a month.', ['amount' => $change->after->amount->format()]) }}" data-test="accept-button">{{ __('Accept and manage the buildings') }}</flux:button>
+                    @if ($isReturn)
+                        <flux:button variant="primary" wire:click="accept" wire:confirm="{{ __('Take these buildings back, for good? Your bill goes to :amount a month.', ['amount' => $change->after->amount->format()]) }}" data-test="accept-button">{{ __('Accept: take the buildings back') }}</flux:button>
+                    @else
+                        <flux:button variant="primary" wire:click="accept" wire:confirm="{{ __('Take over the management of these buildings? Your bill goes to :amount a month.', ['amount' => $change->after->amount->format()]) }}" data-test="accept-button">{{ __('Accept and manage the buildings') }}</flux:button>
+                    @endif
                     <flux:button variant="danger" wire:click="decline" wire:confirm="{{ __('Decline :landlord\'s offer?', ['landlord' => $handover->organization->name]) }}" data-test="decline-button">{{ __('Decline') }}</flux:button>
                 </div>
             @endif
@@ -106,16 +122,20 @@
                 </li>
             @endforeach
         </ul>
+        @if ($isReturn)
+            <flux:text class="mt-4" data-test="return-final">{{ __('A return to the landlord: once accepted the buildings are theirs to manage, for good. No rent collection choice and no notice apply.') }}</flux:text>
+        @else
         <dl class="mt-4 grid gap-3 sm:grid-cols-2">
             <div>
                 <dt class="text-sm text-zinc-500 dark:text-zinc-400">{{ __('Who collects rent') }}</dt>
-                <dd class="text-zinc-900 dark:text-white" data-test="rent-collection">{{ __($handover->rent_collected_by->label()) }}</dd>
+                <dd class="text-zinc-900 dark:text-white" data-test="rent-collection">{{ __($handover->rent_collected_by?->label() ?? '') }}</dd>
             </div>
             <div>
                 <dt class="text-sm text-zinc-500 dark:text-zinc-400">{{ __('Notice to end it') }}</dt>
                 <dd class="text-zinc-900 dark:text-white" data-test="notice-days">{{ trans_choice('{0} No notice: it ends within the hour|{1} :count day|[2,*] :count days', $handover->notice_days, ['count' => $handover->notice_days]) }}</dd>
             </div>
         </dl>
+        @endif
 
         @if ($canWithdraw || $canGiveNotice || $canWithdrawNotice)
             <div class="mt-4 flex flex-wrap gap-2">
@@ -134,7 +154,11 @@
 
     <section class="flex flex-col gap-3" aria-labelledby="tenants-heading">
         <flux:heading size="lg" level="2" id="tenants-heading">{{ __('Tenants and their credit') }}</flux:heading>
-        <flux:text>{{ __('Credit is money a tenant paid :landlord ahead. It never moves by itself: :landlord passes it to the agency (the agency records it once the money arrives) or refunds the tenant, both outside GoProperty. Until then it stays on :landlord\'s books. Unpaid bills stay with :landlord, which collects them.', ['landlord' => $landlord->name]) }}</flux:text>
+        @if ($isReturn)
+            <flux:text>{{ __('Credit is money a tenant paid :agency ahead. It never moves by itself: :agency passes it to the landlord (the landlord records it once the money arrives) or refunds the tenant, both outside GoProperty. Until then it stays on :agency\'s books. Unpaid bills stay with :agency, which collects them.', ['agency' => $holder->name]) }}</flux:text>
+        @else
+            <flux:text>{{ __('Credit is money a tenant paid :landlord ahead. It never moves by itself: :landlord passes it to the agency (the agency records it once the money arrives) or refunds the tenant, both outside GoProperty. Until then it stays on :landlord\'s books. Unpaid bills stay with :landlord, which collects them.', ['landlord' => $landlord->name]) }}</flux:text>
+        @endif
 
         @if ($handover->tenants->isEmpty())
             <flux:text data-test="no-tenants">{{ __('No tenant holds a lease in these buildings.') }}</flux:text>
@@ -157,19 +181,19 @@
 
                         @if (! $line->isSettled() && $credit->isPositive())
                             <div class="flex flex-wrap items-center gap-2">
-                                <flux:badge size="sm" color="zinc" data-test="credit-choice">{{ __($line->settlement->label()) }}</flux:badge>
-                                @if ($canSettle && $landlordSide)
+                                <flux:badge size="sm" color="zinc" data-test="credit-choice">{{ __($line->settlement->label($handover->kind)) }}</flux:badge>
+                                @if ($canSettle && $holderSide)
                                     @foreach (CreditSettlement::cases() as $choice)
                                         @if ($choice !== $line->settlement)
-                                            <flux:button size="sm" variant="ghost" wire:click="chooseSettlement({{ $line->id }}, '{{ $choice->value }}')" data-test="choose-{{ $choice->value }}-{{ $line->id }}">{{ __('Change to: :choice', ['choice' => __($choice->label())]) }}</flux:button>
+                                            <flux:button size="sm" variant="ghost" wire:click="chooseSettlement({{ $line->id }}, '{{ $choice->value }}')" data-test="choose-{{ $choice->value }}-{{ $line->id }}">{{ __('Change to: :choice', ['choice' => __($choice->label($handover->kind))]) }}</flux:button>
                                         @endif
                                     @endforeach
                                     @if ($line->settlement === CreditSettlement::Refund && $handover->status->wasAccepted())
                                         <flux:button size="sm" variant="primary" wire:click="recordRefund({{ $line->id }})" wire:confirm="{{ __('Record that you refunded :amount to :name? Their credit closes.', ['amount' => $credit->format(), 'name' => $line->tenant_name]) }}" data-test="refund-{{ $line->id }}">{{ __('I refunded :amount', ['amount' => $credit->format()]) }}</flux:button>
                                     @endif
                                 @endif
-                                @if ($canSettle && $receiving && $line->settlement === CreditSettlement::PassToAgency && in_array($handover->status, [HandoverStatus::Active, HandoverStatus::Ending], true))
-                                    <flux:button size="sm" variant="primary" wire:click="confirmArrived({{ $line->id }})" wire:confirm="{{ __('Confirm :amount from :landlord reached your account? It becomes :name\'s opening credit here.', ['amount' => $credit->format(), 'landlord' => $landlord->name, 'name' => $line->tenant_name]) }}" data-test="confirm-{{ $line->id }}">{{ __(':amount arrived', ['amount' => $credit->format()]) }}</flux:button>
+                                @if ($canSettle && $receiving && $line->settlement === CreditSettlement::PassToAgency && in_array($handover->status, [HandoverStatus::Active, HandoverStatus::Ending, HandoverStatus::Returned], true))
+                                    <flux:button size="sm" variant="primary" wire:click="confirmArrived({{ $line->id }})" wire:confirm="{{ __('Confirm :amount from :landlord reached your account? It becomes :name\'s opening credit here.', ['amount' => $credit->format(), 'landlord' => $holder->name, 'name' => $line->tenant_name]) }}" data-test="confirm-{{ $line->id }}">{{ __(':amount arrived', ['amount' => $credit->format()]) }}</flux:button>
                                 @endif
                             </div>
                         @endif

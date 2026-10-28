@@ -26,6 +26,19 @@
         <flux:callout variant="warning" icon="exclamation-triangle" :heading="$message" role="alert" data-test="tenant-warning" />
     @enderror
 
+    @if ($movedTo !== null)
+        @php
+            $movedText = match (true) {
+                $tenant->trashed() => __('The tenant moved with their building. Nothing was owed either way, so this record archived itself; its history stays here.'),
+                collect($leases)->contains(fn ($lease): bool => in_array($lease->status, ['draft', 'active'], true)) => __('The lease of a building that moved went with it; the tenant still rents here too.'),
+                default => __('The tenant moved with their building. This record keeps their history here, and archives itself once they owe nothing here and any credit they had is settled.'),
+            };
+        @endphp
+        <flux:callout icon="arrow-right-circle" data-test="moved-to"
+            :heading="__('Moved to :organization on :date', ['organization' => $movedTo->organizationName, 'date' => $movedTo->movedAt->timezone('Africa/Lagos')->format('j F Y')])"
+            :text="$movedText" />
+    @endif
+
     @if ($tenant->trashed())
         <flux:callout variant="warning" icon="archive-box" :heading="__('This tenant is archived')" :text="__('The record is kept with its history and cannot be changed until it is restored.')" data-test="archived-banner" />
     @endif

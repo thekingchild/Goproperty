@@ -19,6 +19,7 @@ use Modules\Properties\Contracts\BuildingAccess;
 use Modules\Properties\Contracts\PropertyDirectory;
 use Modules\Properties\Contracts\UnitDirectory;
 use Modules\Tenants\Models\TenantProfile;
+use Modules\Tenants\Profiles\MovedTenantArchive;
 use Modules\Tenants\Profiles\TenantProfiles;
 
 /**
@@ -111,6 +112,8 @@ final class TenantShow extends Component
             'canArchive' => $user->can('delete', $tenant),
             'canRestore' => $user->can('restore', $tenant),
             'flash' => session('tenant-status'),
+            // "Moved to {organization} on {date}" (BILLING_PAYMENTS.md § 7.4).
+            'movedTo' => app(MovedTenantArchive::class)->movedTo($tenant->id),
         ]);
     }
 

@@ -19,7 +19,13 @@ use App\Enums\InvitationStatus;
  *     ending ──withdraw notice──▶ active   (the side that gave it, before the end date)
  *     ending ──end date─▶ ended       (the live records move back)
  *
- * Any other move is refused. Changed only by
+ * A one-way return (HandoverKind::Return, § 7.1, P04-04) goes
+ *
+ *     pending ──accept──▶ returned    (the buildings move to the landlord's own organization; final)
+ *
+ * and is declined, withdrawn or expires like any offer. Which accepted
+ * state an offer reaches is its kind's (HandoverKind::acceptedStatus());
+ * HandoverService refuses the other. Any other move is refused. Changed only by
  * Modules\Handovers\Handovers\HandoverService (AGENT.md § 3 rule 5).
  */
 enum HandoverStatus: string
@@ -33,6 +39,7 @@ enum HandoverStatus: string
     case Expired = 'expired';
     case Ending = 'ending';
     case Ended = 'ended';
+    case Returned = 'returned';
 
     public function label(): string
     {
@@ -44,6 +51,7 @@ enum HandoverStatus: string
             self::Expired => 'Expired',
             self::Ending => 'Ending (notice given)',
             self::Ended => 'Ended',
+            self::Returned => 'Returned',
         };
     }
 
@@ -52,7 +60,7 @@ enum HandoverStatus: string
     {
         return match ($this) {
             self::Pending => 'sky',
-            self::Active => 'green',
+            self::Active, self::Returned => 'green',
             self::Ending => 'amber',
             self::Declined => 'red',
             self::Cancelled, self::Expired, self::Ended => 'zinc',
@@ -63,10 +71,10 @@ enum HandoverStatus: string
     public function canMoveTo(self $next): bool
     {
         return match ($this) {
-            self::Pending => in_array($next, [self::Active, self::Declined, self::Cancelled, self::Expired], true),
+            self::Pending => in_array($next, [self::Active, self::Returned, self::Declined, self::Cancelled, self::Expired], true),
             self::Active => $next === self::Ending,
             self::Ending => in_array($next, [self::Active, self::Ended], true),
-            self::Declined, self::Cancelled, self::Expired, self::Ended => false,
+            self::Declined, self::Cancelled, self::Expired, self::Ended, self::Returned => false,
         };
     }
 
@@ -79,7 +87,22 @@ enum HandoverStatus: string
     /** Accepted at some point: its buildings moved. */
     public function wasAccepted(): bool
     {
-        return in_array($this, [self::Active, self::Ending, self::Ended], true);
+        return in_array($this, [self::Active, self::Ending, self::Ended, self::Returned], true);
+    }
+
+    /**
+     * Its tenants are elsewhere now: a management that is still on, or a
+     * one-way return (after a management ended they came back).
+     */
+    public function tenantsMovedOut(): bool
+    {
+        return in_array($this, [self::Active, self::Ending, self::Returned], true);
+    }
+
+    /** @return list<string> */
+    public static function movedOutValues(): array
+    {
+        return [self::Active->value, self::Ending->value, self::Returned->value];
     }
 
     /** @return list<string> */
@@ -96,7 +119,7 @@ enum HandoverStatus: string
             self::Declined => InvitationStatus::Declined,
             self::Cancelled => InvitationStatus::Cancelled,
             self::Expired => InvitationStatus::Expired,
-            self::Active, self::Ending, self::Ended => InvitationStatus::Accepted,
+            self::Active, self::Ending, self::Ended, self::Returned => InvitationStatus::Accepted,
         };
     }
 }

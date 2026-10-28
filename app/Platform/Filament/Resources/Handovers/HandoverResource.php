@@ -61,8 +61,9 @@ final class HandoverResource extends Resource
     {
         return $table
             ->columns([
-                TextColumn::make('landlord.name')->label('Landlord')->searchable(),
-                TextColumn::make('agency.name')->label('Agency')->searchable(),
+                // The offering organization is the landlord's at a management, the agency's at a one-way return (BILLING_PAYMENTS.md § 7.1).
+                TextColumn::make('landlord.name')->label('Offered by')->searchable(),
+                TextColumn::make('agency.name')->label('Offered to')->searchable(),
                 TextColumn::make('status')
                     ->badge()
                     ->formatStateUsing(fn (HandoverOverview $record): string => $record->statusLabel())
@@ -78,11 +79,11 @@ final class HandoverResource extends Resource
             ])
             ->recordActions([
                 Action::make('landlord')
-                    ->label('Landlord')
+                    ->label('Offered by')
                     ->icon('heroicon-o-arrow-top-right-on-square')
                     ->url(fn (HandoverOverview $record): string => CustomerResource::getUrl('view', ['record' => $record->organization_id])),
                 Action::make('agency')
-                    ->label('Agency')
+                    ->label('Offered to')
                     ->icon('heroicon-o-arrow-top-right-on-square')
                     ->url(fn (HandoverOverview $record): string => CustomerResource::getUrl('view', ['record' => $record->to_organization_id])),
             ])

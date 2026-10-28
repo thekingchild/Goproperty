@@ -22,9 +22,9 @@ use Spatie\Permission\Exceptions\PermissionDoesNotExist;
  * does not keep (they are writes; OrganizationPermission::
  * allowedWhileSuspended).
  *
- * The offering organization (the row's owner, the landlord's) offers and
- * withdraws; the receiving organization (`to_organization_id`) accepts or
- * declines. Either side gives notice; only the side that gave it withdraws
+ * The offering organization (the row's owner: the landlord's, or the
+ * agency's for a one-way return, § 7.1) offers and withdraws; the
+ * receiving organization (`to_organization_id`) accepts or declines. Either side gives notice; only the side that gave it withdraws
  * it. Both see the handover and settle the moving tenants' credit, each
  * its own part (Handovers\HandoverCredits).
  */
@@ -56,6 +56,18 @@ final class ManagementHandoverPolicy
     {
         return $this->holds($user)
             && in_array($this->context->get()->type, [OrganizationType::PropertyOwner, OrganizationType::Hybrid], true);
+    }
+
+    /**
+     * Return buildings held without a handover to the landlord's own
+     * organization (§ 7.1, P04-04): an agency (or both) only. Which
+     * buildings, and to whom, HandoverService checks.
+     */
+    #[BlockedWhileImpersonating]
+    public function offerReturn(User $user): bool
+    {
+        return $this->holds($user)
+            && in_array($this->context->get()->type, [OrganizationType::Agency, OrganizationType::Hybrid], true);
     }
 
     /** Withdraw an offer this organization made. */

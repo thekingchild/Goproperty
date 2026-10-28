@@ -66,6 +66,7 @@ final readonly class PropertyDirectoryService implements PropertyDirectory
             archived: $property->isArchived(),
             ownerProfileId: $property->owner_profile_id,
             ownerName: $property->owner?->display_name,
+            ownerUserId: $property->owner?->user_id,
         );
     }
 }

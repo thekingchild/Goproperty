@@ -8,9 +8,11 @@ use App\Exports\ListExports;
 use App\Models\User;
 use App\Navigation\WorkspaceNavigation;
 use App\Navigation\WorkspaceNavItem;
+use App\Tenancy\Moves\MovedTenants;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Livewire;
+use Modules\Handovers\Handovers\MovedTenantRecords;
 use Modules\Handovers\Jobs\EndHandovers;
 use Modules\Handovers\Jobs\ExpireHandovers;
 use Modules\Handovers\Lists\HandoversMadeList;
@@ -35,7 +37,8 @@ use Nwidart\Modules\Support\ModuleServiceProvider;
  * `handovers::`, both lists' exports, the sidebar item "Handovers" (owners
  * only) and the two hourly jobs: offers expire after 14 days, and
  * managements whose notice ran out end (Schedule::job, ARCHITECTURE.md
- * § 7).
+ * § 7). It answers Core's App\Tenancy\Moves\MovedTenants (which tenants
+ * moved out with their buildings, P04-04) for the Tenants module.
  */
 final class HandoversServiceProvider extends ModuleServiceProvider
 {
@@ -47,6 +50,14 @@ final class HandoversServiceProvider extends ModuleServiceProvider
     protected array $providers = [
         RouteServiceProvider::class,
     ];
+
+    public function register(): void
+    {
+        parent::register();
+
+        // Where tenants moved with their buildings (BILLING_PAYMENTS.md § 7.4), for the Tenants module.
+        $this->app->bind(MovedTenants::class, MovedTenantRecords::class);
+    }
 
     public function boot(): void
     {

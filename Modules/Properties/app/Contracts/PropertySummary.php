@@ -24,5 +24,6 @@ final readonly class PropertySummary
         public bool $archived,
         public ?int $ownerProfileId,
         public ?string $ownerName,
+        public ?int $ownerUserId = null,
     ) {}
 }

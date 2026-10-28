@@ -31,7 +31,10 @@ use Modules\Handovers\Models\ManagementHandover;
  * period), and the handovers it offered (with "Withdraw" while waiting);
  * for every organization, the handovers offered to it (the inbox, and the
  * buildings it manages for landlords), each opening its page
- * (HandoverShow). Owners only (`handovers.manage`).
+ * (HandoverShow). For an agency's organization (P04-04, § 7.1), the form
+ * to return buildings it holds without a handover to their landlord's own
+ * organization (its web address or an owner's email), for good. Owners
+ * only (`handovers.manage`).
  *
  * Runs inside the `organization` middleware, replayed for Livewire
  * updates; the component refuses any other organization. Every action
@@ -62,6 +65,12 @@ final class HandoverIndex extends Component
     public string $noticeDays = '30';
 
     public string $rentCollection = 'agency';
+
+    /** The one-way return's form (§ 7.1): the landlord's organization and the buildings. */
+    public string $returnTarget = '';
+
+    /** @var array<int|string, int|string> */
+    public array $returnBuildings = [];
 
     #[Locked]
     public ?string $notice = null;
@@ -137,6 +146,50 @@ final class HandoverIndex extends Component
         $this->notice = __('Your buildings were offered to :agency. Its owners have :days days to accept or decline; you will be told either way.', ['agency' => $agency->name, 'days' => HandoverService::VALID_DAYS]);
     }
 
+    /** Return chosen buildings to their landlord's own organization, for good (BILLING_PAYMENTS.md § 7.1). */
+    #[BlockedWhileImpersonating]
+    public function offerReturn(HandoverService $handovers, HandoverTargets $targets): void
+    {
+        $this->authorize('offerReturn', ManagementHandover::class);
+        $this->validate([
+            'returnTarget' => ['required', 'string', 'max:255'],
+            'returnBuildings' => ['required', 'array', 'min:1', 'max:200'],
+            'returnBuildings.*' => ['integer'],
+        ], [
+            'returnBuildings.required' => __('Choose at least one building to return.'),
+        ], ['returnTarget' => 'landlord\'s web address or email']);
+        $this->notice = null;
+
+        $key = 'handovers:offers:'.$this->organizationId;
+
+        if (RateLimiter::tooManyAttempts($key, self::ATTEMPTS_PER_HOUR)) {
+            $this->addError('returnTarget', __('Too many offers were tried. Try again in an hour.'));
+
+            return;
+        }
+
+        RateLimiter::hit($key, 3600);
+        $landlord = $targets->findLandlord($this->returnTarget);
+
+        if ($landlord === null) {
+            $this->addError('returnTarget', __(HandoverTargets::LANDLORD_NOT_FOUND));
+
+            return;
+        }
+
+        try {
+            $handovers->offerReturn($this->user(), $landlord, array_map('intval', array_values($this->returnBuildings)));
+        } catch (HandoverRefused $refused) {
+            $this->addError('returnBuildings', $refused->getMessage());
+
+            return;
+        }
+
+        $this->resetValidation();
+        $this->reset('returnTarget', 'returnBuildings');
+        $this->notice = __('You offered to return the buildings to :landlord. Its owners have :days days to accept or decline; you will be told either way.', ['landlord' => $landlord->name, 'days' => HandoverService::VALID_DAYS]);
+    }
+
     #[BlockedWhileImpersonating]
     public function withdraw(int $handoverId, HandoverService $handovers): void
     {
@@ -159,11 +212,15 @@ final class HandoverIndex extends Component
     public function render(OrganizationContext $context, IncomingHandovers $incoming, HandoversMadeList $made, OfferableBuildings $offerable): View
     {
         $canOffer = $this->user()->can('create', ManagementHandover::class);
+        $canOfferReturn = $this->user()->can('offerReturn', ManagementHandover::class);
+        $options = $canOffer || $canOfferReturn ? $offerable->options() : [];
 
         return view('handovers::livewire.handover-index', [
             'organization' => $context->get(),
             'canOffer' => $canOffer,
-            'buildingOptions' => $canOffer ? $offerable->options() : [],
+            'canOfferReturn' => $canOfferReturn,
+            'buildingOptions' => $canOffer ? $options : [],
+            'returnOptions' => $canOfferReturn ? $options : [],
             'outgoing' => IncomingHandovers::ordered($made->query($this->user(), [])->limit(HandoversMadeList::PAGE_LIMIT)->get()->toBase()),
             'incoming' => $incoming->recent(),
             'validDays' => HandoverService::VALID_DAYS,

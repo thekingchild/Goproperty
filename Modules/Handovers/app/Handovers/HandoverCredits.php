@@ -7,6 +7,7 @@ namespace Modules\Handovers\Handovers;
 use App\Models\Organization;
 use App\Models\User;
 use App\Support\Money;
+use App\Tenancy\Moves\MovedTenantsChanged;
 use App\Tenancy\OrganizationContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -43,6 +44,14 @@ use Modules\Tenants\Contracts\TenantDirectory;
  * (ManagementHandoverPolicy::settleCredit, blocked while staff
  * impersonate); the amount acted on is the one shown, refused when it
  * changed. Every settlement is audited and both sides are told.
+ *
+ * A one-way return (§ 7.1, P04-04) mirrors it with the roles swapped: the
+ * credit is on the agency's books (the offering organization, which
+ * collected it), so the agency chooses "pass to the landlord" (the
+ * default) or "refund the tenant", and the landlord confirms the money
+ * arrived. In general: the offering organization holds the credit and
+ * chooses; the receiving one confirms. Once a tenant's credit is settled,
+ * their record left behind may archive itself (MovedTenantsChanged).
  */
 final readonly class HandoverCredits
 {
@@ -90,29 +99,31 @@ final readonly class HandoverCredits
     }
 
     /**
-     * Each line's credit on the landlord's books now (zero when used or
-     * settled), read in the landlord's organization.
+     * Each line's credit on the books of the organization holding it (the
+     * offering one: the landlord at a management, the agency at a return)
+     * now (zero when used or settled), read there.
      *
      * @return array<int, Money> by line id
      */
     public function liveCredits(ManagementHandover $handover): array
     {
-        $landlord = Organization::query()->findOrFail($handover->landlord_organization_id);
+        $holder = Organization::query()->findOrFail($handover->organization_id);
         $lines = $handover->tenants;
-        $balances = $this->context->run($landlord, fn (): array => $this->credits->balances(array_values($lines->pluck('tenant_profile_id')->map(static fn (mixed $id): int => (int) $id)->all())));
+        $balances = $this->context->run($holder, fn (): array => $this->credits->balances(array_values($lines->pluck('tenant_profile_id')->map(static fn (mixed $id): int => (int) $id)->all())));
 
         return $lines->mapWithKeys(static fn (HandoverTenant $line): array => [$line->id => $line->isSettled() ? Money::zero() : ($balances[$line->tenant_profile_id] ?? Money::zero())])->all();
     }
 
     /**
-     * The landlord chooses how a tenant's credit is settled.
+     * The organization holding the credit (the landlord; the agency on a
+     * return) chooses how a tenant's credit is settled.
      *
      * @throws HandoverRefused
      */
     public function choose(User $actor, ManagementHandover $handover, int $lineId, CreditSettlement $choice): void
     {
-        $this->asLandlord($actor, $handover, function (ManagementHandover $locked, HandoverTenant $line) use ($actor, $choice): void {
-            if (! in_array($locked->status, [HandoverStatus::Pending, HandoverStatus::Active, HandoverStatus::Ending, HandoverStatus::Ended], true)) {
+        $this->asHolder($actor, $handover, function (ManagementHandover $locked, HandoverTenant $line) use ($actor, $choice): void {
+            if (! in_array($locked->status, [HandoverStatus::Pending, HandoverStatus::Active, HandoverStatus::Ending, HandoverStatus::Ended, HandoverStatus::Returned], true)) {
                 throw new HandoverRefused(__('This handover is closed: nothing moved, so there is no credit to settle.'));
             }
 
@@ -121,19 +132,19 @@ final readonly class HandoverCredits
             }
 
             $line->forceFill(['settlement' => $choice])->save();
-            $this->audit('handover.credit_choice', $locked, $actor, "Chose to {$choice->label()} for {$line->tenant_name}", ['tenant_profile_id' => $line->tenant_profile_id, 'settlement' => $choice->value]);
+            $this->audit('handover.credit_choice', $locked, $actor, "Chose to {$choice->label($locked->kind)} for {$line->tenant_name}", ['tenant_profile_id' => $line->tenant_profile_id, 'settlement' => $choice->value]);
         }, $lineId);
     }
 
     /**
-     * The landlord records that it refunded the tenant's credit outside
-     * GoProperty: the credit is closed on its books.
+     * The organization holding the credit records that it refunded the
+     * tenant outside GoProperty: the credit is closed on its books.
      *
      * @throws HandoverRefused
      */
     public function refund(User $actor, ManagementHandover $handover, int $lineId, Money $shown): void
     {
-        $this->asLandlord($actor, $handover, function (ManagementHandover $locked, HandoverTenant $line, Organization $landlord) use ($actor, $shown): void {
+        $this->asHolder($actor, $handover, function (ManagementHandover $locked, HandoverTenant $line, Organization $landlord) use ($actor, $shown): void {
             if (! $locked->status->wasAccepted()) {
                 throw new HandoverRefused(__('The credit is settled once the handover is accepted.'));
             }
@@ -142,48 +153,58 @@ final readonly class HandoverCredits
                 throw new HandoverRefused(__('Choose "Refund the tenant" first.'));
             }
 
-            $this->closeAt($landlord, $line, $shown, true, $actor, __('Refunded to the tenant at the management handover to :agency.', ['agency' => $locked->toOrganization->name]));
+            $this->closeAt($landlord, $line, $shown, true, $actor, $locked->isReturn()
+                ? __('Refunded to the tenant when the buildings returned to :landlord.', ['landlord' => $locked->toOrganization->name])
+                : __('Refunded to the tenant at the management handover to :agency.', ['agency' => $locked->toOrganization->name]));
             $this->settled($locked, $line, $shown, $actor, $landlord, 'handover.credit_refunded', "Refunded {$line->tenant_name}'s credit of {$shown->format()}");
         }, $lineId);
     }
 
     /**
-     * The agency confirms the landlord's payment of the tenant's credit
-     * arrived (outside GoProperty): one transaction closes it on the
-     * landlord's books and records it as the tenant's opening credit here.
+     * The receiving organization (the agency; the landlord on a return)
+     * confirms the holder's payment of the tenant's credit arrived (outside
+     * GoProperty): one transaction closes it on the holder's books and
+     * records it as the tenant's opening credit here.
      *
      * @throws HandoverRefused
      */
     public function confirmArrived(User $actor, ManagementHandover $handover, int $lineId, Money $shown): void
     {
         Gate::forUser($actor)->authorize('settleCredit', $handover);
-        $agency = $this->context->get();
+        $receiver = $this->context->get();
 
-        if ($agency->id !== $handover->to_organization_id) {
-            throw new HandoverRefused(__('Only the agency managing the buildings confirms that the money arrived.'));
+        if ($receiver->id !== $handover->to_organization_id) {
+            throw new HandoverRefused($handover->isReturn()
+                ? __('Only the landlord the buildings returned to confirms that the money arrived.')
+                : __('Only the agency managing the buildings confirms that the money arrived.'));
         }
 
-        $offering = Organization::query()->findOrFail($handover->organization_id);
-        $landlord = Organization::query()->findOrFail($handover->landlord_organization_id);
+        $holder = Organization::query()->findOrFail($handover->organization_id);
 
-        DB::transaction(fn () => $this->context->run($offering, function () use ($actor, $handover, $lineId, $shown, $agency, $landlord): void {
+        DB::transaction(fn () => $this->context->run($holder, function () use ($actor, $handover, $lineId, $shown, $receiver, $holder): void {
             [$locked, $line] = $this->lock($handover, $lineId);
 
-            if (! in_array($locked->status, [HandoverStatus::Active, HandoverStatus::Ending], true)) {
-                throw new HandoverRefused(__('Credit is passed to the agency while it manages the buildings.'));
+            if (! in_array($locked->status, [HandoverStatus::Active, HandoverStatus::Ending, HandoverStatus::Returned], true)) {
+                throw new HandoverRefused($locked->isReturn()
+                    ? __('Credit is passed to the landlord once the buildings have returned.')
+                    : __('Credit is passed to the agency while it manages the buildings.'));
             }
 
             if ($line->settlement !== CreditSettlement::PassToAgency) {
-                throw new HandoverRefused(__(':landlord chose to refund this tenant instead.', ['landlord' => $landlord->name]));
+                throw new HandoverRefused(__(':landlord chose to refund this tenant instead.', ['landlord' => $holder->name]));
             }
 
             if ($line->receiving_tenant_profile_id === null) {
                 throw new HandoverRefused(__('This tenant did not move with the buildings.'));
             }
 
-            $this->closeAt($landlord, $line, $shown, false, $actor, __('Passed to :agency at the management handover.', ['agency' => $agency->name]));
-            $this->context->run($agency, fn () => $this->credits->open((int) $line->receiving_tenant_profile_id, $shown, $actor, __('Credit passed on by :landlord at the management handover, received outside GoProperty.', ['landlord' => $landlord->name])));
-            $this->settled($locked, $line, $shown, $actor, $agency, 'handover.credit_passed_on', "{$agency->name} confirmed {$line->tenant_name}'s credit of {$shown->format()} arrived");
+            $this->closeAt($holder, $line, $shown, false, $actor, $locked->isReturn()
+                ? __('Passed to :landlord when the buildings returned.', ['landlord' => $receiver->name])
+                : __('Passed to :agency at the management handover.', ['agency' => $receiver->name]));
+            $this->context->run($receiver, fn () => $this->credits->open((int) $line->receiving_tenant_profile_id, $shown, $actor, $locked->isReturn()
+                ? __('Credit passed on by :agency when the buildings returned, received outside GoProperty.', ['agency' => $holder->name])
+                : __('Credit passed on by :landlord at the management handover, received outside GoProperty.', ['landlord' => $holder->name])));
+            $this->settled($locked, $line, $shown, $actor, $receiver, 'handover.credit_passed_on', "{$receiver->name} confirmed {$line->tenant_name}'s credit of {$shown->format()} arrived");
         }));
     }
 
@@ -192,20 +213,20 @@ final readonly class HandoverCredits
      *
      * @throws HandoverRefused
      */
-    private function asLandlord(User $actor, ManagementHandover $handover, callable $step, int $lineId): void
+    private function asHolder(User $actor, ManagementHandover $handover, callable $step, int $lineId): void
     {
         Gate::forUser($actor)->authorize('settleCredit', $handover);
-        $landlord = $this->context->get();
+        $holder = $this->context->get();
 
-        if ($landlord->id !== $handover->landlord_organization_id) {
-            throw new HandoverRefused(__('Only the landlord chooses how a tenant\'s credit is settled.'));
+        if ($holder->id !== $handover->organization_id) {
+            throw new HandoverRefused($handover->isReturn()
+                ? __('Only the agency that held the buildings chooses how a tenant\'s credit is settled.')
+                : __('Only the landlord chooses how a tenant\'s credit is settled.'));
         }
 
-        $offering = Organization::query()->findOrFail($handover->organization_id);
-
-        DB::transaction(fn () => $this->context->run($offering, function () use ($handover, $lineId, $step, $landlord): void {
+        DB::transaction(fn () => $this->context->run($holder, function () use ($handover, $lineId, $step, $holder): void {
             [$locked, $line] = $this->lock($handover, $lineId);
-            $step($locked, $line, $landlord);
+            $step($locked, $line, $holder);
         }));
     }
 
@@ -248,6 +269,11 @@ final readonly class HandoverCredits
 
         $this->audit($event, $handover, $actor, $description, ['tenant_profile_id' => $line->tenant_profile_id, 'receiving_tenant_profile_id' => $line->receiving_tenant_profile_id, 'amount_kobo' => $amount->kobo]);
         $this->notices->tell($handover, $event, __('Tenant credit settled: :name', ['name' => $line->tenant_name]), [$description.'.']);
+
+        // The tenant's record left behind may now archive itself (BILLING_PAYMENTS.md § 7.4).
+        $holderId = $handover->organization_id;
+        $tenantId = $line->tenant_profile_id;
+        DB::afterCommit(static fn () => event(new MovedTenantsChanged($holderId, [$tenantId])));
     }
 
     /** @param  array<string, mixed>  $properties */

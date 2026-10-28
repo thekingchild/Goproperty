@@ -114,7 +114,9 @@ it('moves exactly the chosen buildings with their units, tenants, live leases, d
         ->and($leases[$this->tundeLease->id]->status)->toBe(LeaseStatus::Active)
         ->and($leases[$this->bisiDraft->id]->status)->toBe(LeaseStatus::Draft)
         ->and($leases[$this->tundeLease->id]->next_billing_date?->toDateString())->toBe($nextBilling);
-    expect(inOrganization($this->landlord, fn () => TenantProfile::query()->count()))->toBe(5);
+    // The landlord keeps all five records; Bisi's (a draft lease, nothing owed either way) archived itself (P04-04, § 7.4).
+    expect(inOrganization($this->landlord, fn () => TenantProfile::query()->withTrashed()->count()))->toBe(5)
+        ->and(inOrganization($this->landlord, fn () => TenantProfile::query()->onlyTrashed()->pluck('id')->all()))->toBe([$this->bisi->id]);
 
     // Utility settings point at the agency's types (Water matched by code, the security levy made there); readings and the meter photo follow.
     $settings = inOrganization($this->agency, fn () => UnitUtilitySetting::query()->with('utilityType')->orderBy('id')->get());

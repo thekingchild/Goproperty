@@ -21,7 +21,7 @@ namespace App\Tenancy\Moves;
  */
 interface MovesBuildingRecords
 {
-    /** Lower runs first: Properties 10, Tenants 20, Leasing 30, Billing 40, media 90. */
+    /** Lower runs first: Properties 10, Tenants 20, Leasing 30, Tenants' portal links 35, Billing 40, media 90. */
     public function order(): int;
 
     /**

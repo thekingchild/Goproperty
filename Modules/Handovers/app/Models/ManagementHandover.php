@@ -14,12 +14,15 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Modules\Handovers\Enums\HandoverKind;
 use Modules\Handovers\Enums\HandoverStatus;
 use Modules\Handovers\Enums\RentCollection;
 
 /**
  * A management handover (DATABASE_SCHEMA.md § 1, BILLING_PAYMENTS.md § 7):
- * a landlord's buildings handed to an agency for management, and back.
+ * a landlord's buildings handed to an agency for management, and back; or
+ * (`kind` = `return`, § 7.1, P04-04) buildings an agency held without a
+ * handover handed to the landlord's own organization, for good.
  *
  * Organization-scoped to the offering organization (`organization_id`).
  * The receiving organization (`to_organization_id`) never queries this
@@ -34,16 +37,17 @@ use Modules\Handovers\Enums\RentCollection;
  * @property int $id
  * @property int $organization_id the offering organization
  * @property int $to_organization_id the organization asked to manage the buildings
- * @property int $landlord_organization_id where the buildings return when management ends
+ * @property int $landlord_organization_id where the buildings return when management ends (on a return: the receiving organization)
+ * @property HandoverKind $kind
  * @property HandoverStatus $status
- * @property RentCollection $rent_collected_by
+ * @property RentCollection|null $rent_collected_by null on a return (§ 7.5 does not apply)
  * @property int $notice_days 0–180
  * @property string|null $plan_key the receiving organization's plan when it accepted
  * @property int|null $billable_units handed-over units its bill counts, recorded on acceptance
  * @property Money|null $monthly_before_kobo the receiving organization's monthly bill before (before VAT)
  * @property Money|null $monthly_after_kobo … and after the handed-over units, as accepted
  * @property int|null $owner_profile_id the landlord's owner profile in the receiving organization
- * @property int|null $initiated_by_user_id the landlord's owner who offered (linked as the buildings' owner there)
+ * @property int|null $initiated_by_user_id the owner who offered (at a management, the landlord's: linked as the buildings' owner there)
  * @property int|null $responded_by_user_id
  * @property CarbonImmutable|null $responded_at accepted or declined
  * @property CarbonImmutable|null $cancelled_at
@@ -72,6 +76,7 @@ final class ManagementHandover extends Model
 
     /** @var array<string, mixed> */
     protected $attributes = [
+        'kind' => 'management',
         'status' => 'pending',
         'rent_collected_by' => 'agency',
         'notice_days' => 30,
@@ -81,6 +86,7 @@ final class ManagementHandover extends Model
     protected function casts(): array
     {
         return [
+            'kind' => HandoverKind::class,
             'status' => HandoverStatus::class,
             'rent_collected_by' => RentCollection::class,
             'notice_days' => 'integer',
@@ -137,6 +143,12 @@ final class ManagementHandover extends Model
     public function tenants(): HasMany
     {
         return $this->hasMany(HandoverTenant::class)->orderBy('tenant_name')->orderBy('id');
+    }
+
+    /** A one-way return to the landlord's own organization (§ 7.1). */
+    public function isReturn(): bool
+    {
+        return $this->kind === HandoverKind::Return;
     }
 
     /** Past its 14 days (whether or not the expiry has been recorded yet). */

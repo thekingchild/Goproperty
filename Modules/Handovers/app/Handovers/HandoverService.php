@@ -14,6 +14,7 @@ use App\Support\Money;
 use App\Tenancy\Moves\BuildingMove;
 use App\Tenancy\Moves\BuildingMoveFailed;
 use App\Tenancy\Moves\MoveDirection;
+use App\Tenancy\Moves\MovedTenantsChanged;
 use App\Tenancy\Moves\OrganizationMoves;
 use App\Tenancy\OrganizationContext;
 use Carbon\CarbonInterface;
@@ -21,6 +22,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use LogicException;
+use Modules\Handovers\Enums\HandoverKind;
 use Modules\Handovers\Enums\HandoverStatus;
 use Modules\Handovers\Enums\RentCollection;
 use Modules\Handovers\Models\HandoverBuilding;
@@ -28,6 +30,7 @@ use Modules\Handovers\Models\HandoverTenant;
 use Modules\Handovers\Models\ManagementHandover;
 use Modules\Handovers\Notifications\HandoverOffered;
 use Modules\Properties\Contracts\PropertyDirectory;
+use Modules\Properties\Contracts\PropertySummary;
 use Throwable;
 
 /**
@@ -43,6 +46,8 @@ use Throwable;
  *     giveNotice      either side ends it with notice                     → ending
  *     withdrawNotice  the side that gave notice, before the end date      → active
  *     end             the end date passed (hourly job): the buildings go back → ended
+ *     offerReturn     an agency offers buildings back to their landlord     → pending (kind return)
+ *     accept (return) the landlord accepts: the buildings move for good      → returned
  *
  * Every step but the system's (expire, end) checks
  * ManagementHandoverPolicy for the acting user in that user's own
@@ -61,9 +66,14 @@ use Throwable;
  * payments, documents, audit entries) never moves.
  *
  * Built: a landlord's organization (type `property_owner` or `hybrid`)
- * offers its buildings to an agency (`agency` or `hybrid`). Not built yet:
- * an agency returning buildings it holds without a handover to the
- * landlord's own organization (§ 7.1, a follow-up).
+ * offers its buildings to an agency (`agency` or `hybrid`); and (§ 7.1,
+ * P04-04) an agency returns buildings it holds without a handover to the
+ * landlord's own organization (`offerReturn`, kind `return`): the same
+ * offer, answer, withdrawal and expiry, but accepting ends it as
+ * `returned`, final (no notice, no end), and the buildings move for good.
+ * A return goes only to an organization one of whose owners is the account
+ * linked to the buildings' owner record in the agency (so an agency cannot
+ * push buildings into an unrelated organization).
  */
 final readonly class HandoverService
 {
@@ -83,6 +93,7 @@ final readonly class HandoverService
         private HandoverCredits $credits,
         private HandoverNotices $notices,
         private OrganizationMoves $moves,
+        private TenantOrigins $origins,
     ) {}
 
     /**
@@ -125,29 +136,14 @@ final readonly class HandoverService
         }
 
         return DB::transaction(function () use ($actor, $target, $from, $propertyIds, $noticeDays, $rent): ManagementHandover {
-            // One offer at a time per organization, so a building is never offered twice at once.
-            Organization::query()->whereKey($from->id)->lockForUpdate()->first();
-
-            $buildings = $this->properties->findMany($propertyIds);
-
-            foreach ($propertyIds as $propertyId) {
-                $building = $buildings[$propertyId] ?? null;
-
-                if ($building === null || $building->archived) {
-                    throw new HandoverRefused(__('Only your active buildings can be handed over.'));
-                }
-            }
-
-            if (($busy = $this->offerable->inOpenHandover($propertyIds)) !== []) {
-                throw new HandoverRefused(__(':building is already in an open handover.', ['building' => $buildings[$busy[0]]->name]));
-            }
-
+            $buildings = $this->lockOfferable($from, $propertyIds);
             $units = $this->quotes->unitsIn($from, $propertyIds);
 
             $handover = new ManagementHandover;
             $handover->forceFill([
                 'to_organization_id' => $target->id,
                 'landlord_organization_id' => $from->id,
+                'kind' => HandoverKind::Management,
                 'status' => HandoverStatus::Pending,
                 'rent_collected_by' => $rent,
                 'notice_days' => $noticeDays,
@@ -155,37 +151,7 @@ final readonly class HandoverService
                 'expires_at' => now()->addDays(self::VALID_DAYS),
             ])->save();
 
-            foreach ($propertyIds as $propertyId) {
-                $building = $buildings[$propertyId];
-                $row = new HandoverBuilding;
-                $row->forceFill([
-                    'management_handover_id' => $handover->id,
-                    'property_id' => $propertyId,
-                    'property_name' => Str::limit($building->name, 160, ''),
-                    'property_address' => Str::limit($building->address, 300, ''),
-                    'unit_count' => $units[$propertyId] ?? 0,
-                ])->save();
-            }
-
-            $this->credits->refresh($handover, $propertyIds);
-
-            $token = Str::random(48);
-            $invitation = new Invitation;
-            $invitation->forceFill([
-                'kind' => InvitationKind::ManagementHandover,
-                'channel' => InvitationChannel::Email,
-                'roles' => [],
-                'target_organization_id' => $target->id,
-                'management_handover_id' => $handover->id,
-                'token_hash' => HandoverLinks::hash($token),
-                'status' => HandoverStatus::Pending->invitationStatus(),
-                'expires_at' => $handover->expires_at,
-                'sent_at' => now(),
-                'send_count' => 1,
-                'invited_by_user_id' => $actor->id,
-            ])->save();
-
-            $handover->setRelation('organization', $from)->setRelation('toOrganization', $target);
+            [$invitation, $token] = $this->recordOffer($handover, $actor, $target, $from, $propertyIds, $buildings, $units);
             $unitCount = array_sum($units);
             $what = $this->describe(count($propertyIds), $unitCount);
 
@@ -217,11 +183,100 @@ final readonly class HandoverService
     }
 
     /**
+     * The current organization (an agency) offers buildings it holds
+     * without a handover back to their landlord's own organization $target,
+     * for good (BILLING_PAYMENTS.md § 7.1, P04-04). Its owners are emailed
+     * a link to the accept screen. No rent collection and no notice: once
+     * accepted the buildings are the landlord's own again.
+     *
+     * Safeguard: every building's owner record here must be linked to an
+     * account (the owner portal, P03-15), the same account for all of
+     * them, and that account must be an owner of $target.
+     *
+     * @param  list<int>  $propertyIds
+     *
+     * @throws HandoverRefused
+     */
+    public function offerReturn(User $actor, Organization $target, array $propertyIds): ManagementHandover
+    {
+        Gate::forUser($actor)->authorize('offerReturn', ManagementHandover::class);
+        $from = $this->context->get();
+        $propertyIds = array_values(array_unique(array_map('intval', $propertyIds)));
+
+        if (! in_array($from->type, [OrganizationType::Agency, OrganizationType::Hybrid], true)) {
+            throw new HandoverRefused(__('Only an agency returns buildings to their landlord.'));
+        }
+
+        if ($target->is($from)) {
+            throw new HandoverRefused(__('Choose the landlord\'s own organization: these buildings are already here.'));
+        }
+
+        if (! HandoverTargets::takesReturns($target)) {
+            throw new HandoverRefused(__(HandoverTargets::LANDLORD_NOT_FOUND));
+        }
+
+        if ($propertyIds === []) {
+            throw new HandoverRefused(__('Choose at least one building to return.'));
+        }
+
+        return DB::transaction(function () use ($actor, $target, $from, $propertyIds): ManagementHandover {
+            $buildings = $this->lockOfferable($from, $propertyIds);
+            $landlord = $this->returnOwner($buildings, $target);
+            $units = $this->quotes->unitsIn($from, $propertyIds);
+
+            $handover = new ManagementHandover;
+            $handover->forceFill([
+                'to_organization_id' => $target->id,
+                'landlord_organization_id' => $target->id,
+                'kind' => HandoverKind::Return,
+                'status' => HandoverStatus::Pending,
+                'rent_collected_by' => null,
+                'notice_days' => 0,
+                'initiated_by_user_id' => $actor->id,
+                'expires_at' => now()->addDays(self::VALID_DAYS),
+            ])->save();
+
+            [$invitation, $token] = $this->recordOffer($handover, $actor, $target, $from, $propertyIds, $buildings, $units);
+            $unitCount = array_sum($units);
+            $what = $this->describe(count($propertyIds), $unitCount);
+
+            $this->audit('handover.return_offered', $handover, $actor, "Offered to return {$what} to {$target->name}", [
+                'invitation_id' => $invitation->id,
+                'property_ids' => $propertyIds,
+                'units' => $unitCount,
+                'owner_user_id' => $landlord->id,
+                'expires_at' => $handover->expires_at?->toIso8601String(),
+            ]);
+
+            $this->notices->offered($handover, new HandoverOffered(
+                token: $token,
+                handoverId: $handover->id,
+                fromOrganization: $from->name,
+                toOrganization: $target->name,
+                toSlug: $target->slug,
+                offeredBy: $actor->name,
+                buildings: count($propertyIds),
+                units: $unitCount,
+                expiresAt: $handover->expires_at ?? now()->toImmutable(),
+                isReturn: true,
+            ), __('You offered to return :what to :landlord', ['what' => $what, 'landlord' => $target->name]), [
+                __(':name offered to return :what to :landlord, for good. Nothing moves unless one of its owners accepts by :date.', ['name' => $actor->name, 'what' => $what, 'landlord' => $target->name, 'date' => $this->date($handover->expires_at)]),
+            ]);
+
+            return $handover;
+        });
+    }
+
+    /**
      * The receiving organization (the current one) accepts: the buildings
      * and their live records move to it, in one transaction. $shownAfter is
      * the monthly bill after the handed-over units its owner was shown on
      * the accept screen (BILLING_PAYMENTS.md § 7.3): when it has changed
      * since, nothing is accepted.
+     *
+     * A management becomes `active`; a one-way return (§ 7.1) becomes
+     * `returned`, final: the landlord's owner record here takes the
+     * buildings, and the agency's link to the landlord is removed there.
      *
      * @throws HandoverRefused
      */
@@ -235,7 +290,8 @@ final readonly class HandoverService
         try {
             return DB::transaction(fn (): ManagementHandover => $this->context->run($from, function () use ($actor, $handover, $shownAfter, $receiver, $from, $attempt): ManagementHandover {
                 $locked = $this->lockAddressedTo($handover, $receiver);
-                $this->ensureCanMove($locked, HandoverStatus::Active);
+                $accepted = $locked->kind->acceptedStatus();
+                $this->ensureCanMove($locked, $accepted);
                 $propertyIds = $locked->propertyIds();
 
                 foreach ($propertyIds as $propertyId) {
@@ -243,6 +299,11 @@ final readonly class HandoverService
                         throw new HandoverRefused(__(':organization no longer has one of these buildings as active. Ask them to offer again.', ['organization' => $from->name]));
                     }
                 }
+
+                // A return: the buildings' owner must still be an owner here (their links may have changed since the offer).
+                $landlord = $locked->isReturn()
+                    ? $this->returnOwner($this->properties->findMany($propertyIds), $receiver)
+                    : $locked->initiatedBy;
 
                 $units = $this->quotes->unitsIn($from, $propertyIds);
                 $change = $this->quotes->change($receiver, array_sum($units));
@@ -253,12 +314,21 @@ final readonly class HandoverService
 
                 $this->credits->refresh($locked, $propertyIds);
 
-                $move = $attempt->move = $this->moves->run($from, $receiver, MoveDirection::Handover, $propertyIds, $locked->id, landlordOrganization: $from, landlord: $locked->initiatedBy);
+                $move = $attempt->move = $this->moves->run(
+                    $from,
+                    $receiver,
+                    $locked->isReturn() ? MoveDirection::OneWayReturn : MoveDirection::Handover,
+                    $propertyIds,
+                    $locked->id,
+                    landlordOrganization: $locked->isReturn() ? $receiver : $from,
+                    landlord: $landlord,
+                    knownTenants: $this->origins->between($from, $receiver),
+                );
 
                 foreach ($locked->buildings as $building) {
                     $building->forceFill([
                         'unit_count' => $units[$building->property_id] ?? 0,
-                        'previous_owner_profile_id' => $move->previousOwnerProfileIds()[$building->property_id] ?? null,
+                        'previous_owner_profile_id' => $locked->isReturn() ? null : ($move->previousOwnerProfileIds()[$building->property_id] ?? null),
                     ])->save();
                 }
 
@@ -267,7 +337,7 @@ final readonly class HandoverService
                 }
 
                 $locked->forceFill([
-                    'status' => HandoverStatus::Active,
+                    'status' => $accepted,
                     'responded_by_user_id' => $actor->id,
                     'responded_at' => now(),
                     'accepted_at' => now(),
@@ -280,7 +350,7 @@ final readonly class HandoverService
 
                 $this->closeInvitation($locked, $actor);
                 $what = $this->describe(count($propertyIds), $change->units);
-                $this->audit('handover.accepted', $locked, $actor, "{$receiver->name} accepted to manage {$what}", [
+                $this->audit($locked->isReturn() ? 'handover.returned' : 'handover.accepted', $locked, $actor, $locked->isReturn() ? "{$receiver->name} accepted the return of {$what} from {$from->name}" : "{$receiver->name} accepted to manage {$what}", [
                     'property_ids' => $propertyIds,
                     'billable_units' => $change->units,
                     'monthly_before_kobo' => $change->before->amount->kobo,
@@ -290,11 +360,21 @@ final readonly class HandoverService
                 ]);
                 $this->auditMove($locked, $move, $actor);
 
-                $this->notices->tell($locked, 'handover.accepted', __(':agency now manages :what', ['agency' => $receiver->name, 'what' => $what]), [
-                    __(':agency accepted your offer: :what moved to its account with their units, tenants and leases. You follow them in the owner portal. Bills, receipts and payments you issued stay with you.', ['agency' => $receiver->name, 'what' => $what]),
-                ], [
-                    __('You now manage :what for :landlord. Your GoProperty bill goes from :before to :after a month (before VAT) from :date.', ['what' => $what, 'landlord' => $from->name, 'before' => $change->before->amount->format(), 'after' => $change->after->amount->format(), 'date' => $change->from->format('j F Y')]),
-                ]);
+                if ($locked->isReturn()) {
+                    $this->notices->tell($locked, 'handover.returned', __(':landlord took back :what', ['landlord' => $receiver->name, 'what' => $what]), [
+                        __(':landlord accepted the return: :what moved to its account for good, with their units, tenants and leases. The bills, receipts and payments you issued stay with you, and you collect what is still owed on them.', ['landlord' => $receiver->name, 'what' => $what]),
+                    ], [
+                        __(':what returned from :agency to your account for good, with their units, tenants and leases. Your GoProperty bill goes from :before to :after a month (before VAT) from :date.', ['what' => $what, 'agency' => $from->name, 'before' => $change->before->amount->format(), 'after' => $change->after->amount->format(), 'date' => $change->from->format('j F Y')]),
+                    ]);
+                } else {
+                    $this->notices->tell($locked, 'handover.accepted', __(':agency now manages :what', ['agency' => $receiver->name, 'what' => $what]), [
+                        __(':agency accepted your offer: :what moved to its account with their units, tenants and leases. You follow them in the owner portal. Bills, receipts and payments you issued stay with you.', ['agency' => $receiver->name, 'what' => $what]),
+                    ], [
+                        __('You now manage :what for :landlord. Your GoProperty bill goes from :before to :after a month (before VAT) from :date.', ['what' => $what, 'landlord' => $from->name, 'before' => $change->before->amount->format(), 'after' => $change->after->amount->format(), 'date' => $change->from->format('j F Y')]),
+                    ]);
+                }
+
+                $this->tenantsMovedOut($from, $move);
 
                 return $locked;
             }));
@@ -331,10 +411,18 @@ final readonly class HandoverService
             ])->save();
 
             $this->closeInvitation($locked, $actor);
-            $this->audit('handover.declined', $locked, $actor, "{$receiver->name} declined to manage the buildings");
-            $this->notices->tell($locked, 'handover.declined', __(':agency declined the handover', ['agency' => $receiver->name]), [
-                __(':agency declined your offer. Nothing moved; your buildings stay with :landlord.', ['agency' => $receiver->name, 'landlord' => $from->name]),
-            ]);
+
+            if ($locked->isReturn()) {
+                $this->audit('handover.declined', $locked, $actor, "{$receiver->name} declined the return of the buildings");
+                $this->notices->tell($locked, 'handover.declined', __(':landlord declined the return', ['landlord' => $receiver->name]), [
+                    __(':landlord declined the return. Nothing moved; the buildings stay with :agency.', ['landlord' => $receiver->name, 'agency' => $from->name]),
+                ]);
+            } else {
+                $this->audit('handover.declined', $locked, $actor, "{$receiver->name} declined to manage the buildings");
+                $this->notices->tell($locked, 'handover.declined', __(':agency declined the handover', ['agency' => $receiver->name]), [
+                    __(':agency declined your offer. Nothing moved; your buildings stay with :landlord.', ['agency' => $receiver->name, 'landlord' => $from->name]),
+                ]);
+            }
 
             return $locked;
         }));
@@ -357,11 +445,13 @@ final readonly class HandoverService
             $locked->forceFill(['status' => HandoverStatus::Cancelled, 'cancelled_at' => now()])->save();
 
             $this->closeInvitation($locked, null);
-            $this->audit('handover.cancelled', $locked, $actor, "Withdrew the handover offer to {$locked->toOrganization->name}");
+            $this->audit('handover.cancelled', $locked, $actor, ($locked->isReturn() ? 'Withdrew the return offer to ' : 'Withdrew the handover offer to ').$locked->toOrganization->name);
             $this->notices->tell($locked, 'handover.cancelled', __(':landlord withdrew its handover offer', ['landlord' => $locked->organization->name]), [
                 __('You withdrew the offer to :agency. Nothing moved.', ['agency' => $locked->toOrganization->name]),
             ], [
-                __(':landlord withdrew its offer of buildings to manage. Nothing moved.', ['landlord' => $locked->organization->name]),
+                $locked->isReturn()
+                    ? __(':agency withdrew its offer to return buildings to you. Nothing moved.', ['agency' => $locked->organization->name])
+                    : __(':landlord withdrew its offer of buildings to manage. Nothing moved.', ['landlord' => $locked->organization->name]),
             ]);
 
             return $locked;
@@ -531,6 +621,7 @@ final readonly class HandoverService
                     landlord: $locked->initiatedBy,
                     landlordOwnerProfileId: $locked->owner_profile_id,
                     restoreOwnerProfileIds: $locked->buildings->mapWithKeys(static fn (HandoverBuilding $building): array => [$building->property_id => $building->previous_owner_profile_id])->all(),
+                    knownTenants: $this->origins->between($agency, $landlord),
                 );
 
                 $locked->forceFill(['status' => HandoverStatus::Ended, 'ended_at' => now()])->save();
@@ -598,6 +689,132 @@ final readonly class HandoverService
         }
 
         return $ended;
+    }
+
+    /**
+     * Locks the offering organization (one offer at a time, so a building is
+     * never offered twice at once) and checks the buildings are its own,
+     * active and in no open handover.
+     *
+     * @param  list<int>  $propertyIds
+     * @return array<int, PropertySummary> by id
+     *
+     * @throws HandoverRefused
+     */
+    private function lockOfferable(Organization $from, array $propertyIds): array
+    {
+        Organization::query()->whereKey($from->id)->lockForUpdate()->first();
+
+        $buildings = $this->properties->findMany($propertyIds);
+
+        foreach ($propertyIds as $propertyId) {
+            $building = $buildings[$propertyId] ?? null;
+
+            if ($building === null || $building->archived) {
+                throw new HandoverRefused(__('Only your active buildings can be handed over.'));
+            }
+        }
+
+        if (($busy = $this->offerable->inOpenHandover($propertyIds)) !== []) {
+            throw new HandoverRefused(__(':building is already in an open handover.', ['building' => $buildings[$busy[0]]->name]));
+        }
+
+        return $buildings;
+    }
+
+    /**
+     * The offer's buildings, the moving tenants' credit lines and the
+     * invitation carrying its link.
+     *
+     * @param  list<int>  $propertyIds
+     * @param  array<int, PropertySummary>  $buildings
+     * @param  array<int, int>  $units
+     * @return array{Invitation, string} the invitation and its token
+     */
+    private function recordOffer(ManagementHandover $handover, User $actor, Organization $target, Organization $from, array $propertyIds, array $buildings, array $units): array
+    {
+        foreach ($propertyIds as $propertyId) {
+            $building = $buildings[$propertyId];
+            $row = new HandoverBuilding;
+            $row->forceFill([
+                'management_handover_id' => $handover->id,
+                'property_id' => $propertyId,
+                'property_name' => Str::limit($building->name, 160, ''),
+                'property_address' => Str::limit($building->address, 300, ''),
+                'unit_count' => $units[$propertyId] ?? 0,
+            ])->save();
+        }
+
+        $this->credits->refresh($handover, $propertyIds);
+
+        $token = Str::random(48);
+        $invitation = new Invitation;
+        $invitation->forceFill([
+            'kind' => InvitationKind::ManagementHandover,
+            'channel' => InvitationChannel::Email,
+            'roles' => [],
+            'target_organization_id' => $target->id,
+            'management_handover_id' => $handover->id,
+            'token_hash' => HandoverLinks::hash($token),
+            'status' => HandoverStatus::Pending->invitationStatus(),
+            'expires_at' => $handover->expires_at,
+            'sent_at' => now(),
+            'send_count' => 1,
+            'invited_by_user_id' => $actor->id,
+        ])->save();
+
+        $handover->setRelation('organization', $from)->setRelation('toOrganization', $target);
+
+        return [$invitation, $token];
+    }
+
+    /**
+     * The landlord a one-way return goes to (§ 7.1, P04-04 safeguard): the
+     * account linked to the buildings' owner record in the offering
+     * organization, the same for every building, which must be an owner of
+     * $target. Read in the offering organization's context.
+     *
+     * @param  array<int, PropertySummary>  $buildings
+     *
+     * @throws HandoverRefused
+     */
+    private function returnOwner(array $buildings, Organization $target): User
+    {
+        $userIds = [];
+
+        foreach ($buildings as $building) {
+            if ($building->ownerProfileId === null) {
+                throw new HandoverRefused(__(':building has no owner on record. Add its owner, invite them to the owner portal, then offer the return.', ['building' => $building->name]));
+            }
+
+            if ($building->ownerUserId === null) {
+                throw new HandoverRefused(__(':owner, the owner of :building, has no GoProperty account linked yet. Invite them to the owner portal first (Owners → Invite to the owner portal); once they accept, offer the return.', ['owner' => $building->ownerName ?? __('The owner'), 'building' => $building->name]));
+            }
+
+            $userIds[$building->ownerUserId] = true;
+        }
+
+        if (count($userIds) !== 1) {
+            throw new HandoverRefused(__('These buildings belong to different owners. Return one owner\'s buildings at a time.'));
+        }
+
+        $landlord = User::query()->find(array_key_first($userIds));
+
+        if ($landlord === null || ! HandoverTargets::ownedBy($landlord->id, $target)) {
+            throw new HandoverRefused(__('Buildings return only to their owner\'s own organization, and :organization is not one their owner runs. Check the web address, or ask the owner for their organization\'s.', ['organization' => $target->name]));
+        }
+
+        return $landlord;
+    }
+
+    /** Once the move is committed, the tenants' records left behind may archive themselves (BILLING_PAYMENTS.md § 7.4). */
+    private function tenantsMovedOut(Organization $from, BuildingMove $move): void
+    {
+        $tenantIds = array_map('intval', array_keys($move->tenantMap()));
+
+        if ($tenantIds !== []) {
+            DB::afterCommit(static fn () => event(new MovedTenantsChanged($from->id, $tenantIds)));
+        }
     }
 
     /** The offering organization of a handover (the row's owner). */
@@ -678,6 +895,7 @@ final readonly class HandoverService
             HandoverStatus::Cancelled => __('This offer was withdrawn.'),
             HandoverStatus::Expired => __('This offer expired on :date.', ['date' => $this->date($handover->expires_at)]),
             HandoverStatus::Ended => __('This management ended on :date.', ['date' => $this->date($handover->ended_at)]),
+            HandoverStatus::Returned => __('These buildings were returned to :landlord on :date, for good: a return has no notice and no end. To have them managed again, the landlord offers them with a new handover.', ['landlord' => $handover->toOrganization->name, 'date' => $this->date($handover->accepted_at)]),
         };
     }
 
@@ -704,7 +922,7 @@ final readonly class HandoverService
             return;
         }
 
-        $accepted = $handover->status === HandoverStatus::Active;
+        $accepted = $handover->status->wasAccepted();
         $invitation->forceFill(array_filter([
             'status' => $handover->status->invitationStatus(),
             'accepted_at' => $accepted ? now() : null,

@@ -22,8 +22,9 @@ use LogicException;
  * `management_handover_buildings`.
  *
  * @property int $id
- * @property int $organization_id the offering (landlord's) organization
- * @property int $to_organization_id the agency
+ * @property int $organization_id the offering organization (the landlord's; the agency's on a one-way return)
+ * @property int $to_organization_id the receiving organization (the agency; the landlord's on a one-way return)
+ * @property string $kind `management` or `return` (§ 7.1)
  * @property string $status
  * @property int $notice_days
  * @property int|null $buildings_count
@@ -78,6 +79,10 @@ final class HandoverOverview extends Model
 
     public function statusLabel(): string
     {
+        if ($this->kind === 'return' && $this->status === 'pending') {
+            return 'Return waiting for the landlord';
+        }
+
         return self::OPEN[$this->status] ?? ucfirst($this->status);
     }
 }

@@ -124,8 +124,12 @@ final class TenantProfiles
      * a draft or active lease holds a unit for them (asked of the Leasing
      * module through Modules\Leasing\Contracts\TenantLeases, with the
      * tenant's row locked, so a lease drafted meanwhile waits for this).
+     * Refused too while a tenant who moved with their building still has
+     * unpaid bills or unsettled credit here (BILLING_PAYMENTS.md § 7.4,
+     * MovedTenantArchive::refusal()); that record archives itself once
+     * both are clear.
      *
-     * @throws ValidationException (key `archive`) while a lease holds a unit for the tenant
+     * @throws ValidationException (key `archive`) while a lease holds a unit for the tenant, or a moved tenant still owes or is owed
      */
     public function archive(User $by, TenantProfile $tenant): void
     {
@@ -136,6 +140,10 @@ final class TenantProfiles
 
             if (app()->bound(TenantLeases::class) && app(TenantLeases::class)->holdsUnit($tenant->id)) {
                 throw ValidationException::withMessages(['archive' => __(':name has an active or draft lease. End or cancel it before archiving them.', ['name' => $tenant->fullName()])]);
+            }
+
+            if (($refusal = app(MovedTenantArchive::class)->refusal($tenant)) !== null) {
+                throw ValidationException::withMessages(['archive' => $refusal]);
             }
 
             $tenant->delete();

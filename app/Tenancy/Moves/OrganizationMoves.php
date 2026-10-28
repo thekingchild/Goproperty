@@ -34,6 +34,7 @@ final readonly class OrganizationMoves
     /**
      * @param  list<int>  $propertyIds
      * @param  array<int, int|null>  $restoreOwnerProfileIds  on a return: building id => owner profile in $to before the handover
+     * @param  array<int, int>  $knownTenants  tenant id in $from => their record in $to, from earlier handovers (BuildingMove::knownTenantIn)
      *
      * @throws BuildingMoveFailed|Throwable whatever a mover threw; the caller's transaction must roll back
      */
@@ -47,6 +48,7 @@ final readonly class OrganizationMoves
         ?User $landlord,
         ?int $landlordOwnerProfileId = null,
         array $restoreOwnerProfileIds = [],
+        array $knownTenants = [],
     ): BuildingMove {
         if (DB::transactionLevel() === 0) {
             throw new LogicException('A building move runs inside one database transaction.');
@@ -60,7 +62,7 @@ final readonly class OrganizationMoves
             throw new BuildingMoveFailed('No buildings to move.');
         }
 
-        $move = new BuildingMove($from, $to, $direction, array_values(array_unique($propertyIds)), $handoverId, $landlordOrganization, $landlord, $landlordOwnerProfileId, $restoreOwnerProfileIds, $this->context);
+        $move = new BuildingMove($from, $to, $direction, array_values(array_unique($propertyIds)), $handoverId, $landlordOrganization, $landlord, $landlordOwnerProfileId, $restoreOwnerProfileIds, $this->context, $knownTenants);
         $move->start();
 
         try {

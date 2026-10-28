@@ -1,9 +1,10 @@
 {{--
     Handovers (/o/{organization}/handovers; Modules\Handovers\Livewire\
     HandoverIndex), BILLING_PAYMENTS.md § 7. A landlord's organization
-    offers chosen buildings to an agency; every organization sees the
-    handovers it offered and those offered to it. Owners only; every action
-    checks its policy again.
+    offers chosen buildings to an agency; an agency returns buildings it
+    holds without a handover to their landlord's own organization (§ 7.1,
+    one-way); every organization sees the handovers it offered and those
+    offered to it. Owners only; every action checks its policy again.
 --}}
 @php
     $date = fn ($value) => $value?->timezone('Africa/Lagos')->format('j M Y');
@@ -48,6 +49,33 @@
         @endif
     </section>
 
+    @if ($canOfferReturn)
+        <section class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900" aria-labelledby="return-heading" data-test="return-section">
+            <flux:heading size="lg" level="2" id="return-heading">{{ __('Return buildings to their landlord') }}</flux:heading>
+
+            @if ($returnOptions === [])
+                <flux:text class="mt-1" data-test="no-returnable-buildings">{{ __('You have no active building that is not already in a handover.') }}</flux:text>
+            @else
+                <flux:text class="mt-1">{{ __('For buildings you added or imported yourself. They go to the landlord\'s own organization on GoProperty, for good: once one of its owners accepts, they move there with their units, tenants, active leases and files, and nothing comes back. The landlord must be the buildings\' owner on record here and have accepted your owner portal invitation. Bills, receipts and payments you issued stay with you, and you collect what is still owed on them.') }}</flux:text>
+
+                <form wire:submit="offerReturn" class="mt-4 flex flex-col gap-5" novalidate>
+                    <flux:checkbox.group wire:model="returnBuildings" :label="__('Buildings')" data-test="return-buildings">
+                        @foreach ($returnOptions as $buildingId => $name)
+                            <flux:checkbox :value="(string) $buildingId" :label="$name" data-test="return-building-{{ $buildingId }}" />
+                        @endforeach
+                    </flux:checkbox.group>
+                    @error('returnBuildings')<flux:callout variant="danger" icon="x-circle" :heading="$message" role="alert" data-test="return-error" />@enderror
+
+                    <flux:input wire:model="returnTarget" :label="__('The landlord\'s web address or an owner\'s email')" placeholder="goproperty.ng/o/their-name" autocomplete="off" maxlength="255" required data-test="return-target" />
+
+                    <div>
+                        <flux:button type="submit" variant="primary" data-test="return-button" wire:confirm="{{ __('Offer to return these buildings to this landlord, for good? Its owners will be emailed.') }}">{{ __('Offer the return') }}</flux:button>
+                    </div>
+                </form>
+            @endif
+        </section>
+    @endif
+
     <section aria-labelledby="outgoing-heading" class="flex flex-col gap-3">
         <div class="flex flex-wrap items-center justify-between gap-2">
             <flux:heading size="lg" level="2" id="outgoing-heading">{{ __('Handovers you offered') }}</flux:heading>
@@ -64,7 +92,7 @@
                 @foreach ($outgoing as $handover)
                     <li class="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between" wire:key="outgoing-{{ $handover->id }}" data-handover="{{ $handover->id }}">
                         <div class="flex min-w-0 flex-col">
-                            <span class="truncate font-medium text-zinc-900 dark:text-white">{{ $handover->toOrganization->name }}</span>
+                            <span class="truncate font-medium text-zinc-900 dark:text-white">{{ $handover->toOrganization->name }}@if ($handover->isReturn()) <span class="text-sm font-normal text-zinc-500 dark:text-zinc-400" data-test="kind-return">· {{ __('Return') }}</span>@endif</span>
                             <span class="text-sm text-zinc-500 dark:text-zinc-400">
                                 {{ $units($handover) }} · {{ __('offered :date', ['date' => $date($handover->created_at)]) }}
                                 @if ($handover->isAwaitingAnswer())
@@ -102,7 +130,7 @@
                 @foreach ($incoming as $handover)
                     <li class="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between" wire:key="incoming-{{ $handover->id }}" data-handover="{{ $handover->id }}">
                         <div class="flex min-w-0 flex-col">
-                            <span class="truncate font-medium text-zinc-900 dark:text-white">{{ $handover->organization->name }}</span>
+                            <span class="truncate font-medium text-zinc-900 dark:text-white">{{ $handover->organization->name }}@if ($handover->isReturn()) <span class="text-sm font-normal text-zinc-500 dark:text-zinc-400" data-test="kind-return">· {{ __('Return') }}</span>@endif</span>
                             <span class="text-sm text-zinc-500 dark:text-zinc-400">
                                 {{ $units($handover) }} · {{ __('offered :date', ['date' => $date($handover->created_at)]) }}
                                 @if ($handover->isAwaitingAnswer())

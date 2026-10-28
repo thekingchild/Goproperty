@@ -29,6 +29,12 @@ use Modules\Handovers\Models\ManagementHandover;
  * moving tenants with their unused credit and unpaid bills (P03 decision
  * 11).
  *
+ * A one-way return (§ 7.1, P04-04) shows the same page with the roles
+ * swapped: the landlord's owners get the accept screen (buildings, units,
+ * the bill change), the agency holds the credit and chooses how it is
+ * settled, the landlord confirms passed-on credit arrived. A returned
+ * handover is final: no notice.
+ *
  * For the receiving organization's owners, while the offer waits, it is
  * the accept screen (§ 7.3): "Your GoProperty bill goes from {before}/month
  * to {after}/month (before VAT) from your next billing day, {date}", a
@@ -100,7 +106,9 @@ final class HandoverShow extends Component
             return;
         }
 
-        $this->notice = __('You now manage :organization\'s buildings: they are in your buildings list.', ['organization' => $record->organization->name]);
+        $this->notice = $record->isReturn()
+            ? __('The buildings are yours again: they are in your buildings list.')
+            : __('You now manage :organization\'s buildings: they are in your buildings list.', ['organization' => $record->organization->name]);
     }
 
     #[BlockedWhileImpersonating]
@@ -132,7 +140,7 @@ final class HandoverShow extends Component
     {
         $settlement = CreditSettlement::tryFrom($choice);
         abort_if($settlement === null, 422);
-        $this->act($incoming, 'settleCredit', fn (ManagementHandover $record) => $credits->choose($this->user(), $record, $lineId, $settlement), __('Saved: :choice.', ['choice' => __($settlement->label())]));
+        $this->act($incoming, 'settleCredit', fn (ManagementHandover $record) => $credits->choose($this->user(), $record, $lineId, $settlement), __('Saved: :choice.', ['choice' => __($settlement->label($this->record($incoming)->kind))]));
     }
 
     #[BlockedWhileImpersonating]
@@ -168,7 +176,7 @@ final class HandoverShow extends Component
             'organization' => $organization,
             'handover' => $record,
             'receiving' => $receiving,
-            'landlordSide' => $record->landlord_organization_id === $organization->id,
+            'holderSide' => $record->organization_id === $organization->id,
             'other' => $receiving ? $record->organization : $record->toOrganization,
             'change' => $change,
             'credits' => $live,

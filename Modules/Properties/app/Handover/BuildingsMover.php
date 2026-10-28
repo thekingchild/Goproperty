@@ -43,6 +43,15 @@ use Modules\Properties\OwnerPortal\OwnerLinks;
  *   handover (when it still exists); the landlord's link in the agency's
  *   organization is removed with OwnerLinks::unlink() unless they own other
  *   buildings there.
+ * - One-way return (§ 7.1, P04-04: an agency hands buildings it held
+ *   without a handover to the landlord's own organization): each building
+ *   gets the landlord's owner profile there, found as on a handover (the
+ *   one linked to their user, else one with their email, else a new one
+ *   from the organization's details) but not linked: the landlord is an
+ *   owner of that organization and sees everything already. In the
+ *   agency's organization, each owner profile the buildings had is
+ *   unlinked with OwnerLinks::unlink() unless it still owns buildings
+ *   there.
  */
 final readonly class BuildingsMover implements MovesBuildingRecords
 {
@@ -65,13 +74,14 @@ final readonly class BuildingsMover implements MovesBuildingRecords
             throw new BuildingMoveFailed("A building of this handover is no longer in {$move->from->name}.");
         }
 
-        if ($move->direction === MoveDirection::Handover && $buildings->contains(fn (Property $building): bool => $building->status !== PropertyStatus::Active)) {
+        if ($move->direction !== MoveDirection::Return && $buildings->contains(fn (Property $building): bool => $building->status !== PropertyStatus::Active)) {
             throw new BuildingMoveFailed('Only active buildings are handed over: one of them was archived meanwhile.');
         }
 
         $move->count('agent_assignments_dropped', AgentAssignment::query()->whereIn('property_id', $move->propertyIds)->delete());
 
-        $ownerId = $move->direction === MoveDirection::Handover ? $this->landlordOwnerIn($move) : null;
+        $ownerId = $move->direction !== MoveDirection::Return ? $this->landlordOwnerIn($move) : null;
+        $previousOwners = array_values($buildings->pluck('owner_profile_id')->filter()->unique()->map(static fn (mixed $id): int => (int) $id)->all());
 
         foreach ($buildings as $building) {
             [$slug, $refTaken] = $this->context->run($move->to, fn (): array => [
@@ -86,7 +96,7 @@ final readonly class BuildingsMover implements MovesBuildingRecords
             $move->reassign(Property::class, [$building->id], [
                 'slug' => $slug,
                 'external_ref' => $refTaken ? null : $building->external_ref,
-                'owner_profile_id' => $move->direction === MoveDirection::Handover ? $ownerId : $this->restoredOwner($move, $building->id),
+                'owner_profile_id' => $move->direction !== MoveDirection::Return ? $ownerId : $this->restoredOwner($move, $building->id),
                 'import_batch_id' => null,
             ]);
         }
@@ -95,6 +105,10 @@ final readonly class BuildingsMover implements MovesBuildingRecords
 
         if ($move->direction === MoveDirection::Return) {
             $this->unlinkLandlord($move);
+        }
+
+        if ($move->direction === MoveDirection::OneWayReturn) {
+            $this->unlinkOwners($move, $previousOwners);
         }
     }
 
@@ -111,10 +125,16 @@ final readonly class BuildingsMover implements MovesBuildingRecords
         $move->count('external_refs_cleared', $clashing->count());
     }
 
-    /** The landlord's owner profile in the receiving organization, linked to their user (made when missing). */
+    /**
+     * The landlord's owner profile in the receiving organization (made when
+     * missing), linked to their user on a handover; on a one-way return the
+     * receiving organization is the landlord's own, so nothing is linked.
+     */
     private function landlordOwnerIn(BuildingMove $move): int
     {
-        return $this->context->run($move->to, function () use ($move): int {
+        $handover = $move->direction === MoveDirection::Handover;
+
+        return $this->context->run($move->to, function () use ($move, $handover): int {
             $landlord = $move->landlord;
             $owner = $landlord !== null ? OwnerProfile::query()->withTrashed()->where('user_id', $landlord->id)->first() : null;
 
@@ -132,14 +152,16 @@ final readonly class BuildingsMover implements MovesBuildingRecords
                     'address' => $organization->address !== null ? Str::limit($organization->address, 300, '') : null,
                     'state' => $organization->state,
                     'lga' => $organization->lga,
-                    'notes' => __('Added when :organization handed its buildings over.', ['organization' => $organization->name]),
+                    'notes' => $handover
+                        ? __('Added when :organization handed its buildings over.', ['organization' => $organization->name])
+                        : __('Added when :agency returned its buildings.', ['agency' => $move->from->name]),
                 ]);
                 $move->count('owner_profiles_created');
             } elseif ($owner->trashed()) {
                 $owner->restore();
             }
 
-            if ($landlord !== null) {
+            if ($landlord !== null && $handover) {
                 $this->links->link($owner, $landlord, $move->to);
             }
 
@@ -159,6 +181,27 @@ final readonly class BuildingsMover implements MovesBuildingRecords
         }
 
         return $this->context->run($move->to, static fn (): bool => OwnerProfile::query()->whereKey($ownerId)->exists()) ? $ownerId : null;
+    }
+
+    /**
+     * On a one-way return: the owners of the returned buildings no longer
+     * follow buildings here (the agency's organization) unless they own
+     * others.
+     *
+     * @param  list<int>  $ownerProfileIds
+     */
+    private function unlinkOwners(BuildingMove $move, array $ownerProfileIds): void
+    {
+        foreach ($ownerProfileIds as $ownerProfileId) {
+            $owner = OwnerProfile::query()->withTrashed()->find($ownerProfileId);
+
+            if ($owner === null || $owner->user_id === null || Property::query()->where('owner_profile_id', $owner->id)->exists()) {
+                continue;
+            }
+
+            $this->links->unlink($owner, User::query()->find($owner->user_id), $move->from);
+            $move->count('owner_links_removed');
+        }
     }
 
     /** On a return: the landlord no longer follows buildings here unless they own others. */

@@ -21,6 +21,7 @@ final class HandoverColumns
     {
         return [
             ExportColumn::make('Status', fn (ManagementHandover $handover) => $handover->shownStatus()),
+            ExportColumn::make('Kind', fn (ManagementHandover $handover) => $handover->kind),
             ExportColumn::make('Buildings', fn (ManagementHandover $handover) => $handover->buildings->pluck('property_name')->implode(', ')),
             ExportColumn::make('Units', fn (ManagementHandover $handover) => $handover->unitCount()),
             ExportColumn::make('Rent collected by', fn (ManagementHandover $handover) => $handover->rent_collected_by),

@@ -19,6 +19,7 @@ use Modules\Billing\Handover\UtilitiesMover;
 use Modules\Leasing\Handover\LeasesMover;
 use Modules\Properties\Handover\BuildingsMover;
 use Modules\Properties\Models\Property;
+use Modules\Tenants\Handover\LeftPortalLinksRevoker;
 use Modules\Tenants\Handover\TenantsMover;
 
 /*
@@ -99,7 +100,7 @@ it('refuses rows that are not in the organization the buildings leave, and recor
 
 it('runs every module\'s mover, in order, media last', function () {
     expect(array_map(fn (MovesBuildingRecords $mover): string => $mover::class, app(BuildingRecordMovers::class)->all()))
-        ->toBe([BuildingsMover::class, TenantsMover::class, LeasesMover::class, UtilitiesMover::class, MediaMover::class]);
+        ->toBe([BuildingsMover::class, TenantsMover::class, LeasesMover::class, LeftPortalLinksRevoker::class, UtilitiesMover::class, MediaMover::class]);
 });
 
 it('lets only the management handover run moves, and only OrganizationMoves start one', function () {

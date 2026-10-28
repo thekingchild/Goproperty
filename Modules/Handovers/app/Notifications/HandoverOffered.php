@@ -34,6 +34,7 @@ final class HandoverOffered extends Notification implements ShouldQueue
         public readonly int $buildings,
         public readonly int $units,
         public readonly CarbonImmutable $expiresAt,
+        public readonly bool $isReturn = false,
     ) {
         $this->onQueue('notifications');
         $this->afterCommit();
@@ -55,6 +56,16 @@ final class HandoverOffered extends Notification implements ShouldQueue
         $brand = app(ThemeContext::class)->current()->name();
         $what = trans_choice('{1} :count building|[2,*] :count buildings', $this->buildings, ['count' => $this->buildings]).' ('.trans_choice('{1} :count unit|[2,*] :count units', $this->units, ['count' => $this->units]).')';
 
+        if ($this->isReturn) {
+            // A one-way return (BILLING_PAYMENTS.md § 7.1, P04-04).
+            return (new MailMessage)
+                ->subject("{$this->fromOrganization} offers to return {$what} to {$this->toOrganization}")
+                ->line("{$this->offeredBy} of {$this->fromOrganization} offers to return {$what} to {$this->toOrganization} on {$brand}, for good.")
+                ->line("Nothing moves unless an owner of {$this->toOrganization} accepts. The accept screen shows the buildings, their units and how your {$brand} bill changes. Once accepted, the buildings are yours to manage; a return has no notice and no end.")
+                ->action('Review the return', $this->url())
+                ->line('The offer expires on '.$this->expiresAt->timezone('Africa/Lagos')->format('j F Y').'. If you did not expect it, you can ignore this email.');
+        }
+
         return (new MailMessage)
             ->subject("{$this->fromOrganization} offers {$this->toOrganization} the management of {$what}")
             ->line("{$this->offeredBy} of {$this->fromOrganization} asks {$this->toOrganization} to manage {$what} on {$brand}.")
@@ -67,7 +78,7 @@ final class HandoverOffered extends Notification implements ShouldQueue
     public function toArray(object $notifiable): array
     {
         return [
-            'event' => 'handover.offered',
+            'event' => $this->isReturn ? 'handover.return_offered' : 'handover.offered',
             'handover_id' => $this->handoverId,
             'from_organization' => $this->fromOrganization,
             'to_organization' => $this->toOrganization,
