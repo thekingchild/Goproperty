@@ -16,6 +16,7 @@ use App\Settings\SettingDefinition;
 use App\Settings\SettingScope;
 use App\Settings\SettingsRegistry;
 use App\Settings\SettingType;
+use App\Tenancy\Moves\BuildingRecordMovers;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
@@ -25,6 +26,7 @@ use Modules\Import\Contracts\ImportUsages;
 use Modules\Leasing\Contracts\CycleCalculator as CycleCalculatorContract;
 use Modules\Leasing\Contracts\ImportedLeases;
 use Modules\Leasing\Contracts\LeaseBillingSchedule;
+use Modules\Leasing\Contracts\LiveLeases;
 use Modules\Leasing\Contracts\OwnerLeases;
 use Modules\Leasing\Contracts\TenantLeaseContracts;
 use Modules\Leasing\Contracts\TenantLeases;
@@ -34,6 +36,7 @@ use Modules\Leasing\Documents\LeaseContracts;
 use Modules\Leasing\Documents\LeaseContractVerifier;
 use Modules\Leasing\Documents\TenantContractFiles;
 use Modules\Leasing\Events\LeaseActivated;
+use Modules\Leasing\Handover\LeasesMover;
 use Modules\Leasing\Import\LeaseImportUsage;
 use Modules\Leasing\Import\LeasesImportTarget;
 use Modules\Leasing\Jobs\ExpireAndFlagLeases;
@@ -94,6 +97,7 @@ final class LeasingServiceProvider extends ModuleServiceProvider
         $this->app->bind(TenantLeaseContracts::class, TenantContractFiles::class);
         $this->app->bind(ImportedLeases::class, LeaseRecords::class);
         $this->app->bind(OwnerLeases::class, OwnerLeaseRecords::class);
+        $this->app->bind(LiveLeases::class, LeasesMover::class);
         // One of it, so a dry run's memory of the tenants and units it looked up is kept between rows.
         $this->app->singleton(LeasesImportTarget::class);
     }
@@ -116,6 +120,9 @@ final class LeasingServiceProvider extends ModuleServiceProvider
         // Ongoing leases are importable (P03-13a); their rows tell imports whether units and tenants are used.
         $this->callAfterResolving(ImportTargets::class, static fn (ImportTargets $targets) => $targets->register(LeasesImportTarget::class));
         $this->callAfterResolving(ImportUsages::class, static fn (ImportUsages $usages) => $usages->register(LeaseImportUsage::class));
+
+        // A management handover moves the buildings' live leases with their deposits (BILLING_PAYMENTS.md § 7.4).
+        $this->callAfterResolving(BuildingRecordMovers::class, static fn (BuildingRecordMovers $movers) => $movers->register(LeasesMover::class));
 
         // Contracts: issued after an activation commits, their PDF queued on `pdf`.
         Event::listen(LeaseActivated::class, IssueLeaseContract::class);

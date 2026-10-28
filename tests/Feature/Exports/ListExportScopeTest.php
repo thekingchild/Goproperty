@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Enums\OrganizationRole;
+use App\Enums\OrganizationType;
 use App\Exports\ListExportRequests;
 use App\Models\Organization;
 use App\Models\User;
@@ -10,11 +11,11 @@ use App\Support\Money;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Notification;
+use Modules\Handovers\Handovers\HandoverService;
 use Modules\Properties\Enums\PropertyType;
 use Modules\Properties\Enums\UnitStatus;
 use Modules\Properties\Enums\UnitType;
 use Modules\Properties\Models\Unit;
-use Modules\SaasBilling\Transfers\BillingTransferService;
 
 require_once __DIR__.'/helpers.php';
 
@@ -133,22 +134,27 @@ it('gives a narrowed agent only the buildings assigned to them, in every list', 
         ->and(exportColumn(exportRows($free, '/owners', 'owners'), 'Name'))->toBe(['Ngozi Eze', 'Tunde Bello']);
 });
 
-it('exports the billing offers made and received by this organization only', function () {
-    $third = Organization::factory()->create(['slug' => 'third-homes', 'name' => 'Third Homes']);
+it('exports the handovers offered and received by this organization only', function () {
+    $third = Organization::factory()->create(['slug' => 'third-homes', 'name' => 'Third Homes', 'type' => OrganizationType::PropertyOwner]);
     $thirdOwner = joinAs(User::factory()->create(), $third);
-    inOrganization($this->acme, fn () => app(BillingTransferService::class)->initiate($this->owner, $this->other));
-    inOrganization($this->other, fn () => app(BillingTransferService::class)->initiate($this->otherOwner, $this->acme));
-    // An offer between two other organizations.
-    inOrganization($third, fn () => app(BillingTransferService::class)->initiate($thirdOwner, $this->other));
+    foreach ([$this->acme, $this->other] as $organization) {
+        $organization->forceFill(['type' => OrganizationType::Hybrid])->save();
+    }
+    inOrganization($this->acme, fn () => app(HandoverService::class)->offer($this->owner, $this->other, [$this->cedar->id]));
+    inOrganization($this->other, fn () => app(HandoverService::class)->offer($this->otherOwner, $this->acme, [$this->otherPalm->id]));
+    // A handover between two other organizations.
+    inOrganization($third, fn () => app(HandoverService::class)->offer($thirdOwner, $this->other, [buildingIn($third, ['name' => 'Third Court', 'slug' => 'third-court'])->id]));
 
-    $made = exportRows($this->owner, '/billing-transfers', 'billing_transfers_made');
-    $received = exportRows($this->owner, '/billing-transfers', 'billing_transfers_received', 'xlsx');
+    $made = exportRows($this->owner, '/handovers', 'handovers_made');
+    $received = exportRows($this->owner, '/handovers', 'handovers_received', 'xlsx');
 
     expect(exportColumn($made, 'Offered to'))->toBe(['Other Realty'])
         ->and(exportColumn($made, 'Status'))->toBe(['Waiting for an answer'])
+        ->and(exportColumn($made, 'Buildings'))->toBe(['Cedar Gardens'])
+        ->and(exportColumn($made, 'Units'))->toBe(['10'])
         ->and(exportColumn($received, 'Offered by organization'))->toBe(['Other Realty'])
         ->and(exportColumn($received, 'Offered by'))->toBe(['Chidi Owner'])
-        ->and(exportColumn(exportRows($this->otherOwner, '/billing-transfers', 'billing_transfers_received', 'csv', [], 'other-realty'), 'Offered by organization'))->toBe(['Third Homes', 'Acme Homes']);
+        ->and(exportColumn(exportRows($this->otherOwner, '/handovers', 'handovers_received', 'csv', [], 'other-realty'), 'Offered by organization'))->toBe(['Third Homes', 'Acme Homes']);
 });
 
 it('writes money from kobo, times in Lagos, and enums by their label', function () {

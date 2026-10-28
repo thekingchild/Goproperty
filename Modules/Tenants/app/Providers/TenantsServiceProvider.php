@@ -8,6 +8,7 @@ use App\Exports\ListExports;
 use App\Models\User;
 use App\Navigation\WorkspaceNavigation;
 use App\Navigation\WorkspaceNavItem;
+use App\Tenancy\Moves\BuildingRecordMovers;
 use App\Tenancy\PortalLanding;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Livewire;
@@ -15,6 +16,7 @@ use Modules\Import\Contracts\ImportReportPanels;
 use Modules\Import\Contracts\ImportTargets;
 use Modules\Tenants\Contracts\ImportedTenants;
 use Modules\Tenants\Contracts\TenantDirectory;
+use Modules\Tenants\Handover\TenantsMover;
 use Modules\Tenants\Import\ImportedTenantLookup;
 use Modules\Tenants\Import\TenantsImportTarget;
 use Modules\Tenants\Lists\TenantList;
@@ -81,6 +83,9 @@ final class TenantsServiceProvider extends ModuleServiceProvider
         $this->callAfterResolving(ImportReportPanels::class, static fn (ImportReportPanels $panels) => $panels->register('tenants::import-invitations'));
 
         // Every list of the module exports (P02-07).
+        // A management handover brings the tenants of the moved buildings' live leases along (BILLING_PAYMENTS.md § 7.4).
+        $this->callAfterResolving(BuildingRecordMovers::class, static fn (BuildingRecordMovers $movers) => $movers->register(TenantsMover::class));
+
         $this->callAfterResolving(ListExports::class, static function (ListExports $exports): void {
             $exports->register(TenantList::class);
         });

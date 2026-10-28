@@ -48,6 +48,9 @@ use Modules\Expenses\Enums\ExpenseCategory;
 use Modules\Expenses\Enums\ExpensePaymentMethod;
 use Modules\Expenses\Models\Expense;
 use Modules\Expenses\Models\ExpenseReceipt;
+use Modules\Handovers\Models\HandoverBuilding;
+use Modules\Handovers\Models\HandoverTenant;
+use Modules\Handovers\Models\ManagementHandover;
 use Modules\Import\Enums\ImportFileType;
 use Modules\Import\Models\ImportBatch;
 use Modules\Import\Models\ImportColumnMapping;
@@ -77,7 +80,6 @@ use Modules\Properties\Models\AgentAssignment;
 use Modules\Properties\Models\OwnerProfile;
 use Modules\Properties\Models\Property;
 use Modules\Properties\Models\Unit;
-use Modules\SaasBilling\Models\BillingTransferRequest;
 use Modules\Tenants\Models\TenantProfile;
 
 /**
@@ -294,12 +296,30 @@ final class OrganizationScopedModels
                 'file_sha256' => hash('sha256', Str::random(32)),
             ])->save()),
             // Owned by the offering organization; the receiving one reads it
-            // only through Modules\SaasBilling\Transfers\IncomingTransfers.
-            BillingTransferRequest::class => fn (): Model => tap(new BillingTransferRequest, fn (BillingTransferRequest $transfer): bool => $transfer->forceFill([
-                'to_organization_id' => Organization::factory()->create()->id,
-                'expires_at' => now()->addDays(14),
+            // only through Modules\Handovers\Handovers\IncomingHandovers.
+            ManagementHandover::class => fn (): Model => self::handover(),
+            HandoverBuilding::class => fn (): Model => tap(new HandoverBuilding, fn (HandoverBuilding $building): bool => $building->forceFill([
+                'management_handover_id' => self::handover()->id,
+                'property_id' => Property::factory()->create()->id,
+                'property_name' => 'Probe Court',
+                'unit_count' => 2,
+            ])->save()),
+            HandoverTenant::class => fn (): Model => tap(new HandoverTenant, fn (HandoverTenant $line): bool => $line->forceFill([
+                'management_handover_id' => self::handover()->id,
+                'tenant_profile_id' => TenantProfile::factory()->create()->id,
+                'tenant_name' => 'Probe Tenant',
             ])->save()),
         ];
+    }
+
+    /** A pending handover offered by the current organization. */
+    private static function handover(): ManagementHandover
+    {
+        return tap(new ManagementHandover, fn (ManagementHandover $handover): bool => $handover->forceFill([
+            'to_organization_id' => Organization::factory()->create()->id,
+            'landlord_organization_id' => app(OrganizationContext::class)->id(),
+            'expires_at' => now()->addDays(14),
+        ])->save());
     }
 
     /** An expense of a new building, in the current organization. */

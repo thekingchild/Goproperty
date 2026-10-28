@@ -6,12 +6,14 @@ namespace App\Providers;
 
 use App\Documents\Verification\DocumentVerifiers;
 use App\Exports\ListExports;
+use App\Media\MediaMover;
 use App\Members\InvitationList;
 use App\Members\MemberList;
 use App\Navigation\SettingsTabs;
 use App\Navigation\WorkspaceNavigation;
 use App\Settings\SettingDefinition;
 use App\Settings\SettingsRegistry;
+use App\Tenancy\Moves\BuildingRecordMovers;
 use App\Tenancy\OrganizationContext;
 use App\Tenancy\PortalLanding;
 use App\Theme\ThemeContext;
@@ -59,6 +61,16 @@ class AppServiceProvider extends ServiceProvider
             $exports->register(InvitationList::class);
 
             return $exports;
+        });
+
+        // What a management handover moves (ARCHITECTURE.md § 6.1): the media
+        // library's files here, every module's live records from its provider
+        // (callAfterResolving), like the sidebar.
+        $this->app->singleton(BuildingRecordMovers::class, static function (Application $app): BuildingRecordMovers {
+            $movers = new BuildingRecordMovers($app);
+            $movers->register(MediaMover::class);
+
+            return $movers;
         });
 
         // The organization's own WhatsApp (ARCHITECTURE.md § 6.7): the log

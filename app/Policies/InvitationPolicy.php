@@ -20,8 +20,8 @@ use Spatie\Permission\Exceptions\PermissionDoesNotExist;
  * every role involved (RoleGrants: only an owner invites an owner).
  * Invitations of another organization are never found (organization scope),
  * so they answer 404 before any policy runs. Only member invitations (kind
- * `user`) are handled here: a billing transfer's link (P02-04) changes only
- * through the SaasBilling module's BillingTransferService.
+ * `user`) are handled here: a management handover's link (P03-14) changes
+ * only through the Handovers module's HandoverService.
  *
  * Member changes are always blocked while GoProperty staff impersonate a
  * user (PLATFORM_CONSOLE.md § 6), through `members.manage` and the marks

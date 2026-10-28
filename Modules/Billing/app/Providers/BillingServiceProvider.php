@@ -13,6 +13,7 @@ use App\Settings\SettingDefinition;
 use App\Settings\SettingScope;
 use App\Settings\SettingsRegistry;
 use App\Settings\SettingType;
+use App\Tenancy\Moves\BuildingRecordMovers;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
@@ -31,6 +32,7 @@ use Modules\Billing\Contracts\TenantBills;
 use Modules\Billing\Documents\InvoiceVerifier;
 use Modules\Billing\Events\BillIssued;
 use Modules\Billing\Events\BillVoided;
+use Modules\Billing\Handover\UtilitiesMover;
 use Modules\Billing\Import\BillUsage;
 use Modules\Billing\Import\UtilitiesImportTarget;
 use Modules\Billing\Jobs\FlagOverdueBills;
@@ -143,6 +145,9 @@ final class BillingServiceProvider extends ModuleServiceProvider
         });
 
         // Every list of the module exports (P02-07).
+        // A management handover moves the units' utility settings and meter readings (BILLING_PAYMENTS.md § 7.4).
+        $this->callAfterResolving(BuildingRecordMovers::class, static fn (BuildingRecordMovers $movers) => $movers->register(UtilitiesMover::class));
+
         $this->callAfterResolving(ListExports::class, static function (ListExports $exports): void {
             $exports->register(BillList::class);
             $exports->register(UtilityTypeList::class);

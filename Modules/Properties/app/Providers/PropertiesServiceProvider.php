@@ -9,6 +9,7 @@ use App\Members\MemberRemoved;
 use App\Models\User;
 use App\Navigation\WorkspaceNavigation;
 use App\Navigation\WorkspaceNavItem;
+use App\Tenancy\Moves\BuildingRecordMovers;
 use App\Tenancy\PortalLanding;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
@@ -28,6 +29,7 @@ use Modules\Properties\Contracts\BuildingAccess;
 use Modules\Properties\Contracts\ImportedUnits;
 use Modules\Properties\Contracts\PropertyDirectory;
 use Modules\Properties\Contracts\UnitDirectory;
+use Modules\Properties\Handover\BuildingsMover;
 use Modules\Properties\Import\ImportedUnitLookup;
 use Modules\Properties\Import\OwnersImportTarget;
 use Modules\Properties\Import\PropertiesImportTarget;
@@ -61,6 +63,8 @@ use function Livewire\before;
  * removed member's building assignments (App\Members\MemberRemoved),
  * keeps units' occupied/reserved status in step with the Leasing module's
  * lease events (Units\FollowLeases), and
+ * moves buildings and units in a management handover (Handover\BuildingsMover,
+ * registered into App\Tenancy\Moves\BuildingRecordMovers), and
  * makes owners, buildings and units importable by registering their
  * targets into the Import module's
  * registry (through its contract, AGENT.md § 4; nothing happens when the
@@ -139,6 +143,11 @@ final class PropertiesServiceProvider extends ModuleServiceProvider
             $targets->register(OwnersImportTarget::class);
             $targets->register(PropertiesImportTarget::class);
             $targets->register(UnitsImportTarget::class);
+        });
+
+        // A management handover moves buildings and their units (BILLING_PAYMENTS.md § 7.4).
+        $this->callAfterResolving(BuildingRecordMovers::class, static function (BuildingRecordMovers $movers): void {
+            $movers->register(BuildingsMover::class);
         });
 
         // Every list of the module exports (P02-07).

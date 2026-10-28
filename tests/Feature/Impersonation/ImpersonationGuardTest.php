@@ -176,7 +176,7 @@ it('takes away exactly the always-blocked permissions in write mode, and every w
     app(OrganizationContext::class)->run($this->acme, fn () => expect($this->owner->fresh()->hasPermissionTo(OrganizationPermission::ConfirmPayments->value))->toBeTrue());
 });
 
-it('classes the money, bank, Paystack, billing, compliance, member, delete and import permissions as always blocked', function () {
+it('classes the money, bank, Paystack, billing, compliance, member, delete, import and handover permissions as always blocked', function () {
     $blocked = array_values(array_map(
         fn (OrganizationPermission $permission): string => $permission->value,
         array_filter(OrganizationPermission::cases(), fn (OrganizationPermission $permission): bool => $permission->blockedWhileImpersonating()),
@@ -202,6 +202,8 @@ it('classes the money, bank, Paystack, billing, compliance, member, delete and i
         'statements.match',
         'receipts.approve_void',
         'imports.manage',
+        // Management handovers (P03-14): buildings, tenants and their credit move between organizations.
+        'handovers.manage',
     ]);
 });
 

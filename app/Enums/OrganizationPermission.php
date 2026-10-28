@@ -74,6 +74,7 @@ enum OrganizationPermission: string
     case ViewReports = 'reports.view';
     case ViewImports = 'imports.view';
     case ManageImports = 'imports.manage';
+    case ManageHandovers = 'handovers.manage';
 
     /**
      * Whether members keep this permission while their organization is
@@ -133,7 +134,8 @@ enum OrganizationPermission: string
             self::ManageTickets,
             self::ParticipateInBuildingGroups,
             self::ModerateBuildingGroups,
-            self::ManageImports => false,
+            self::ManageImports,
+            self::ManageHandovers => false,
         };
     }
 
@@ -142,7 +144,9 @@ enum OrganizationPermission: string
      * user, in read-only and write mode alike (PLATFORM_CONSOLE.md § 6,
      * "always blocked"; App\Tenancy\ImpersonationGuard): money actions
      * (confirming or rejecting payments, payment proofs, issuing and voiding
-     * bills, approving receipt voids, the subscription and billing transfers), bank accounts and
+     * bills, approving receipt voids, the subscription), management handovers
+     * (they move buildings and their tenants between organizations and settle
+     * tenants' credit, P03-14), bank accounts and
      * Paystack keys (viewing them too: the Payment collection page needs
      * `payment_settings.view`, also blocked), members and roles (assigning
      * agents to buildings too: it decides what a member sees), tenants'
@@ -181,7 +185,8 @@ enum OrganizationPermission: string
             self::SubmitPaymentProof,
             self::ImportStatements,
             self::MatchStatements,
-            self::ManageImports => true,
+            self::ManageImports,
+            self::ManageHandovers => true,
             self::OpenWorkspace,
             self::UpdateOrganization,
             self::ViewSettings,
@@ -225,7 +230,7 @@ enum OrganizationPermission: string
             self::UpdateOrganization => 'Edit the organization profile and branding',
             self::ViewSettings => 'See the organization profile and branding settings',
             self::DeleteOrganization => 'Close the organization',
-            self::ManageBilling => 'Pay the GoProperty subscription, change plan, offer the bill to another organization or take one over (billing transfers)',
+            self::ManageBilling => 'Pay the GoProperty subscription and change plan',
             self::ManagePaymentSettings => 'Manage bank accounts and the organization\'s Paystack keys',
             self::ViewPaymentSettings => 'See bank accounts (masked) and the Paystack connection',
             self::ManageCompliance => 'Apply for a Transaction Tier and upload compliance documents',
@@ -269,6 +274,7 @@ enum OrganizationPermission: string
             self::ViewReports => 'See financial reports',
             self::ViewImports => 'See imports, their dry-run reports and error files',
             self::ManageImports => 'Import data from spreadsheets: upload, dry run, commit and roll back',
+            self::ManageHandovers => 'Hand buildings to another organization for management or take them over, give or withdraw notice, and settle the moving tenants\' credit (management handovers)',
         };
     }
 }

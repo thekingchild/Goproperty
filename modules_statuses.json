@@ -8,5 +8,6 @@
     "Payments": true,
     "Collections": true,
     "OnlinePayments": true,
-    "Expenses": true
+    "Expenses": true,
+    "Handovers": true
 }

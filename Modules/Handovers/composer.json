@@ -1,0 +1,26 @@
+{
+    "name": "goproperty/handovers",
+    "description": "Management handovers: a landlord's buildings and their live records handed to an agency and back (BILLING_PAYMENTS.md § 7)",
+    "authors": [
+        {
+            "name": "GoProperty",
+            "email": ""
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [],
+            "aliases": {}
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Modules\\Handovers\\": "app/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Modules\\Handovers\\Tests\\": "tests/"
+        }
+    }
+}

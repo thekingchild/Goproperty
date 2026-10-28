@@ -422,10 +422,12 @@ it('offers to empty the database after a failed migration', function () {
     // A table a later migration needs to create already exists, half-made.
     // The newest migration that creates a table (a data-only migration,
     // such as P02-05's branding move, runs again without failing). Module
-    // migrations (Modules/*/database/migrations) run in the same batch.
+    // migrations (Modules/*/database/migrations) run in the same batch. Only
+    // a create in up() counts: a migration that drops a table makes it again
+    // in down() (P03-14's drop of billing_transfer_requests).
     $migrationFile = fn (string $name): string => (glob(database_path("migrations/{$name}.php")) ?: glob(base_path("Modules/*/database/migrations/{$name}.php")) ?: [''])[0];
     $migration = DB::connection($this->database)->table('migrations')->orderByDesc('id')->pluck('migration')
-        ->first(fn (string $name): bool => str_contains((string) file_get_contents($migrationFile($name)), 'Schema::create('));
+        ->first(fn (string $name): bool => str_contains(Str::before((string) file_get_contents($migrationFile($name)), 'function down('), 'Schema::create('));
     DB::connection($this->database)->table('migrations')->where('migration', $migration)->delete();
 
     $this->browser->post('/install/database')->assertRedirect('/install/database');

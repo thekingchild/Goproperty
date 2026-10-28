@@ -10,10 +10,11 @@ use App\Enums\Concerns\HasValues;
  * What an invitation offers (`invitations.kind`, ARCHITECTURE.md § 6.1).
  * `user`: a person joins the organization with roles (members, P01-04);
  * only these are opened at /invitations/{token} and listed under
- * Settings → Members. `org_billing_transfer` (P02-04): the link of an
- * offer to hand the organization's GoProperty bill to
- * `target_organization_id`; written only by the SaasBilling module's
- * BillingTransferService and opened at /billing-transfers/{token}.
+ * Settings → Members. `org_billing_transfer` (P02-04's name, kept; since
+ * P03-14 the link of a management handover, ARCHITECTURE.md § 6.1): an
+ * offer of buildings to `target_organization_id`, pointing at its
+ * `management_handover_id`; written only by the Handovers module's
+ * HandoverService and opened at /handovers/{token}.
  *
  * P03-01b (Tenants module, `tenant_profile_id` set): `tenant` invites a
  * tenant to the portal, valid 14 days, opened at /portal/invitations/{token}
@@ -34,7 +35,7 @@ enum InvitationKind: string
     use HasValues;
 
     case User = 'user';
-    case OrgBillingTransfer = 'org_billing_transfer';
+    case ManagementHandover = 'org_billing_transfer';
     case Tenant = 'tenant';
     case SignInLink = 'sign_in_link';
     case Owner = 'owner';

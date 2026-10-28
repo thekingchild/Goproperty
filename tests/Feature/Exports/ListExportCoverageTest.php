@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Enums\OrganizationRole;
+use App\Enums\OrganizationType;
 use App\Exports\ListExports;
 use App\Exports\Livewire\WithListExports;
 use App\Members\MemberInvitations;
@@ -22,13 +23,13 @@ use Modules\Billing\Jobs\RenderInvoice;
 use Modules\Billing\Livewire\UtilityReadingIndex;
 use Modules\Billing\Livewire\UtilitySettingIndex;
 use Modules\Collections\Livewire\StatementShow;
+use Modules\Handovers\Handovers\HandoverService;
 use Modules\Import\Enums\ImportStatus;
 use Modules\Import\Models\ImportBatch;
 use Modules\Properties\Enums\UnitStatus;
 use Modules\Properties\Livewire\PropertyShow;
 use Modules\Properties\Livewire\UnitIndex;
 use Modules\Properties\Models\Unit;
-use Modules\SaasBilling\Transfers\BillingTransferService;
 use Tests\Fixtures\Livewire\UnexportedListProbe;
 
 require_once __DIR__.'/helpers.php';
@@ -90,9 +91,12 @@ beforeEach(function () {
     inOrganization($this->acme, function (): void {
         ImportBatch::query()->create(['kind' => 'workbook', 'file_type' => 'xlsx', 'file_name' => 'portfolio.xlsx', 'status' => ImportStatus::Uploaded, 'created_by_user_id' => $this->owner->id]);
         app(MemberInvitations::class)->invite($this->owner, 'new.agent@acme.ng', [OrganizationRole::Agent]);
-        app(BillingTransferService::class)->initiate($this->owner, $this->other);
     });
-    inOrganization($this->other, fn () => app(BillingTransferService::class)->initiate($otherOwner, $this->acme));
+    // Handovers (P03-14): Acme (an agency and a landlord) offers a building to Other Realty, and is offered one by a landlord.
+    $this->acme->forceFill(['type' => OrganizationType::Hybrid])->save();
+    $this->other->forceFill(['type' => OrganizationType::Hybrid])->save();
+    inOrganization($this->acme, fn () => app(HandoverService::class)->offer($this->owner, $this->other, [buildingIn($this->acme, ['name' => 'Lagoon View', 'slug' => 'lagoon-view'])->id]));
+    inOrganization($this->other, fn () => app(HandoverService::class)->offer($otherOwner, $this->acme, [buildingIn($this->other, ['name' => 'Harbour Point', 'slug' => 'harbour-point'])->id]));
     // A metered utility on the flat and a reading of its meter (P03-06a).
     readMeter($this->acme, $this->owner, utilityOn($this->acme, $this->owner, $flat, electricityIn($this->acme, $this->owner), ['effectiveFrom' => now()->subMonth()->toDateString()]), now()->toDateString(), '120.5');
 });
@@ -222,7 +226,7 @@ it('gives every workspace list page a working export, in Excel and CSV', functio
     $offered = array_values(array_unique($offered));
     sort($offered);
     expect($offered)->toBe(array_keys($registry->keys()))
-        ->toBe(['bank_statement_lines', 'bank_statements', 'billing_transfers_made', 'billing_transfers_received', 'bills', 'building_agents', 'buildings', 'expenses', 'imports', 'leases', 'member_invitations', 'members', 'owners', 'payments', 'receipts', 'tenants', 'units', 'utility_readings', 'utility_settings', 'utility_types']);
+        ->toBe(['bank_statement_lines', 'bank_statements', 'bills', 'building_agents', 'buildings', 'expenses', 'handovers_made', 'handovers_received', 'imports', 'leases', 'member_invitations', 'members', 'owners', 'payments', 'receipts', 'tenants', 'units', 'utility_readings', 'utility_settings', 'utility_types']);
 });
 
 it('makes every Livewire component that pages through a list use the export', function () {
@@ -256,7 +260,7 @@ it('fails the check for a new list page without an export', function () {
 });
 
 it('shows the Export button only to members who may export the list', function () {
-    // An agent sees buildings, units and owners, but not imports, members or billing transfers.
+    // An agent sees buildings, units and owners, but not imports, members or handovers.
     $html = (string) exportPage($this->agent, '/units')->assertOk()->getContent();
     expect($html)->toContain('data-test="export-units-csv"');
     exportPage($this->agent, '/imports')->assertForbidden();

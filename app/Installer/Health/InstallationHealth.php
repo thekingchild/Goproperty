@@ -118,7 +118,7 @@ final class InstallationHealth
                 count($pending).' pending ('.implode(', ', array_slice($pending, 0, 3)).'). Run php artisan migrate --force.');
 
         if ($pending === []) {
-            $missing = array_values(array_diff($this->ownTables->names(), $existing));
+            $missing = array_values(array_diff($this->ownTables->expected(), $existing));
 
             $checks[] = $missing === []
                 ? new HealthCheck('Database', 'Every GoProperty table exists', CheckStatus::Pass)

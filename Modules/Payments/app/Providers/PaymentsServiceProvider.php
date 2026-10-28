@@ -15,10 +15,12 @@ use Livewire\Livewire;
 use Modules\Billing\Events\BillIssued;
 use Modules\Import\Contracts\ImportTargets;
 use Modules\Import\Contracts\ImportUsages;
+use Modules\Payments\Contracts\HandoverCredits;
 use Modules\Payments\Contracts\PaymentProofs;
 use Modules\Payments\Contracts\PaymentRecorder;
 use Modules\Payments\Contracts\TenantProofs;
 use Modules\Payments\Contracts\TenantReceipts;
+use Modules\Payments\Credit\HandoverCreditRecords;
 use Modules\Payments\Events\PaymentConfirmed;
 use Modules\Payments\Events\PaymentRecorded;
 use Modules\Payments\Events\PaymentRejected;
@@ -90,6 +92,7 @@ final class PaymentsServiceProvider extends ModuleServiceProvider
         $this->app->bind(PaymentProofs::class, ProofSubmissions::class);
         $this->app->bind(TenantReceipts::class, TenantReceiptRecords::class);
         $this->app->bind(TenantProofs::class, TenantProofRecords::class);
+        $this->app->bind(HandoverCredits::class, HandoverCreditRecords::class);
         $this->app->singleton(OpeningBalancesImportTarget::class);
         $this->app->singleton(PaymentHistoryImportTarget::class);
 

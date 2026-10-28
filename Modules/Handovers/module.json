@@ -1,0 +1,11 @@
+{
+    "name": "Handovers",
+    "alias": "handovers",
+    "description": "Management handovers: a landlord's buildings and their live records handed to an agency and back (BILLING_PAYMENTS.md § 7)",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\Handovers\\Providers\\HandoversServiceProvider"
+    ],
+    "files": []
+}

@@ -10,6 +10,7 @@ use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use LogicException;
 use Modules\Billing\Contracts\BillLedger;
+use Modules\Payments\Contracts\CreditChanged;
 use Modules\Payments\Enums\CreditReason;
 use Modules\Payments\Models\Payment;
 use Modules\Payments\Models\TenantCreditBalance;
@@ -33,6 +34,10 @@ use Modules\Payments\Models\TenantCreditEntry;
  *   transaction; reverseOpeningCredit() takes it back for the import's
  *   rollback with a − entry (entries are never deleted), refused once any
  *   of it was used.
+ * - closeForHandover() / addBroughtOver(): a moving tenant's credit at a
+ *   management handover (P03 decision 11): − refunded or passed to the
+ *   agency on the landlord's books, + brought over on the agency's, each
+ *   inside the handover's transaction.
  * - applyToBill(): on BillIssued (Listeners\ApplyCreditToNewBill), as much
  *   credit as the new bill still owes, settled through BillLedger::apply.
  *   Once per bill: the entry's `applied_bill_id` is unique, and the bill's
@@ -124,6 +129,54 @@ final readonly class TenantCredit
     }
 
     /**
+     * Closes all of a moving tenant's credit at a management handover
+     * (P03 decision 11): refunded to the tenant, or handed to the agency
+     * outside GoProperty. Inside the caller's transaction; refused
+     * (CreditChanged) unless the credit is exactly $amount.
+     */
+    public function closeForHandover(int $tenantProfileId, Money $amount, bool $refunded, ?User $by, string $note): TenantCreditEntry
+    {
+        self::requireTransaction();
+
+        $balance = $this->lockBalance($tenantProfileId);
+
+        if (! $amount->isPositive() || ! $balance->balance_kobo->equals($amount)) {
+            throw new CreditChanged(__('The tenant\'s credit is now :amount. Check it and try again.', ['amount' => $balance->balance_kobo->format()]));
+        }
+
+        $reason = $refunded ? CreditReason::Refund : CreditReason::HandedOver;
+        $entry = $this->entry($tenantProfileId, $amount->negate(), $reason, $by, note: $note);
+        $balance->balance_kobo = $balance->balance_kobo->minus($amount);
+        $balance->save();
+
+        $this->auditHandover($refunded ? 'credit.refunded' : 'credit.handed_over', $entry, $by, $refunded ? 'Tenant credit refunded at a management handover' : 'Tenant credit passed to the new manager', $amount, $balance->balance_kobo);
+
+        return $entry;
+    }
+
+    /**
+     * Records credit the previous manager passed on (P03 decision 11), as
+     * the tenant's opening credit; the next bill takes it (applyToBill).
+     */
+    public function addBroughtOver(int $tenantProfileId, Money $amount, ?User $by, string $note): TenantCreditEntry
+    {
+        self::requireTransaction();
+
+        if (! $amount->isPositive()) {
+            throw new LogicException('Credit brought over is a positive amount.');
+        }
+
+        $balance = $this->lockBalance($tenantProfileId);
+        $entry = $this->entry($tenantProfileId, $amount, CreditReason::BroughtOver, $by, note: $note);
+        $balance->balance_kobo = $balance->balance_kobo->plus($amount);
+        $balance->save();
+
+        $this->auditHandover('credit.brought_over', $entry, $by, 'Tenant credit brought over from the previous manager', $amount, $balance->balance_kobo);
+
+        return $entry;
+    }
+
+    /**
      * Apply the tenant's credit to a newly issued bill, once: as much as the
      * bill owes, at most the credit held. Returns what was applied (null
      * when nothing was: no credit, the bill is void or settled, or credit
@@ -209,6 +262,24 @@ final readonly class TenantCredit
         $entry->save();
 
         return $entry;
+    }
+
+    private function auditHandover(string $event, TenantCreditEntry $entry, ?User $by, string $description, Money $amount, Money $left): void
+    {
+        $audit = activity(self::LOG)
+            ->event($event)
+            ->performedOn($entry)
+            ->withProperties([
+                'tenant_profile_id' => $entry->tenant_profile_id,
+                'amount_kobo' => $amount->kobo,
+                'credit_left_kobo' => $left->kobo,
+            ]);
+
+        if ($by !== null) {
+            $audit->causedBy($by);
+        }
+
+        $audit->log($description);
     }
 
     private static function requireTransaction(): void

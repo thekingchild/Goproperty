@@ -159,3 +159,15 @@ it('knows every table the migrations create', function () {
     expect(array_values(array_diff($tables, app(OwnTables::class)->names())))->toBe([])
         ->and(app(OwnTables::class)->names())->toContain('installation_state', 'migrations', 'users');
 });
+
+it('knows which tables a fully migrated database holds: those created and not dropped later', function () {
+    $database = DB::connection()->getDatabaseName();
+    $tables = DB::connection()->getSchemaBuilder()->getTableListing($database, false);
+    sort($tables);
+
+    // P03-14 dropped P02-04's billing_transfer_requests: still one of ours (a part-way install may hold it), no longer expected.
+    expect(app(OwnTables::class)->expected())->toBe(array_values($tables))
+        ->and(app(OwnTables::class)->names())->toContain('billing_transfer_requests', 'management_handovers')
+        ->and(app(OwnTables::class)->expected())->not->toContain('billing_transfer_requests')
+        ->and(app(OwnTables::class)->expected())->toContain('management_handovers');
+});
