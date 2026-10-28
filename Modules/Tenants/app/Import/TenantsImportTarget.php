@@ -5,16 +5,16 @@ declare(strict_types=1);
 namespace Modules\Tenants\Import;
 
 use App\Support\PhoneNumber;
-use Illuminate\Database\Eloquent\Builder;
 use Modules\Import\Contracts\ImportAction;
 use Modules\Import\Contracts\ImportColumn;
 use Modules\Import\Contracts\ImportRow;
 use Modules\Import\Contracts\ImportRun;
 use Modules\Import\Contracts\ImportTarget;
+use Modules\Import\Contracts\ImportUsage;
+use Modules\Import\Contracts\ImportUsages;
 use Modules\Import\Contracts\RowIssue;
 use Modules\Import\Contracts\RowPlan;
 use Modules\Import\Contracts\UpsertResult;
-use Modules\Leasing\Contracts\TenantLeases;
 use Modules\Tenants\Enums\KycStatus;
 use Modules\Tenants\Enums\TenantIdType;
 use Modules\Tenants\Models\TenantProfile;
@@ -35,11 +35,13 @@ use Modules\Tenants\Models\TenantProfile;
  *
  * For later sheets (leases, opening balances, P03-13a) the dry run
  * remembers every valid row under the key `tenants` and the tenant's E.164
- * phone (ImportRun::remember), so they can refer to a tenant the file
- * creates before it exists.
+ * phone, and `ref:` + Your ID (ImportRun::remember), so they can refer to a
+ * tenant the file creates before it exists (Import\ImportedTenantLookup).
  */
 final class TenantsImportTarget implements ImportTarget
 {
+    public function __construct(private readonly ImportUsages $usages) {}
+
     public const string KEY = 'tenants';
 
     /** Rows of this file by phone and by ID, for duplicates within the file (dry run). */
@@ -148,6 +150,11 @@ final class TenantsImportTarget implements ImportTarget
 
         if ($phone !== null && array_filter($issues, static fn (RowIssue $issue): bool => $issue->isError()) === []) {
             $run->remember(self::KEY, $phone, $row->number);
+
+            if ($ref !== null) {
+                // The Leases sheet may name the tenant by Your ID (P03-13a, ImportedTenantLookup).
+                $run->remember(self::KEY, 'ref:'.$ref, $row->number);
+            }
         }
 
         return $issues;
@@ -215,20 +222,18 @@ final class TenantsImportTarget implements ImportTarget
     }
 
     /**
-     * A tenant who has been given portal access since (P03-01b) has been
-     * used. P03-13a adds leases, bills and payments through their modules'
-     * contracts.
+     * A tenant of the batch is used once they have portal access (P03-01b)
+     * or another module's record names them that the batch did not create:
+     * a lease, a bill or a payment (Import's ImportUsages: Leasing, Billing
+     * and Payments answer, P03-13a). The batch's own leases are rolled back
+     * first.
      */
     public function usedSince(int $batchId): bool
     {
-        // Used once a tenant of the batch has portal access or a lease
-        // (P03-03a, through the Leasing module's contract).
-        $leases = app()->bound(TenantLeases::class) ? app(TenantLeases::class) : null;
+        $tenants = TenantProfile::query()->withTrashed()->where('import_batch_id', $batchId);
 
-        return TenantProfile::query()->withTrashed()->where('import_batch_id', $batchId)
-            ->where(fn (Builder $query) => $query->whereNotNull('user_id')
-                ->when($leases instanceof TenantLeases, fn (Builder $query) => $query->orWhereIn('id', $leases->tenantIdsQuery())))
-            ->exists();
+        return (clone $tenants)->whereNotNull('user_id')->exists()
+            || $this->usages->used(ImportUsage::TENANT, (clone $tenants)->select('id'), $batchId);
     }
 
     /**

@@ -359,7 +359,8 @@ it('offers the four sheets in the template with dropdowns, and a filled-in templ
     $file = SpreadsheetFile::open($path, ImportFileType::Xlsx);
     $rows = fn (int $sheet): array => array_values(iterator_to_array($file->rows($sheet), false));
 
-    expect(array_column($file->sheets(), 'name'))->toBe(['Instructions', 'Owners', 'Buildings', 'Units', 'Tenants'])
+    // The Leases sheet (P03-13a) joins them; its example lease lets the example unit to the example tenant.
+    expect(array_column($file->sheets(), 'name'))->toBe(['Instructions', 'Owners', 'Buildings', 'Units', 'Tenants', 'Leases'])
         ->and($rows(1)[0])->toBe(PORTFOLIO_OWNERS)
         ->and($rows(2)[0])->toBe(PORTFOLIO_BUILDINGS)
         ->and($rows(3)[0])->toBe(PORTFOLIO_UNITS)
@@ -372,7 +373,7 @@ it('offers the four sheets in the template with dropdowns, and a filled-in templ
     $zip->open($path);
     $validations = [];
 
-    foreach ([2 => 'Owners', 3 => 'Buildings', 4 => 'Units', 5 => 'Tenants'] as $n => $sheet) {
+    foreach ([2 => 'Owners', 3 => 'Buildings', 4 => 'Units', 5 => 'Tenants', 6 => 'Leases'] as $n => $sheet) {
         preg_match_all('/sqref="([A-Z]+)2:/', (string) $zip->getFromName("xl/worksheets/sheet{$n}.xml"), $found);
         $validations[$sheet] = $found[1];
     }
@@ -384,13 +385,14 @@ it('offers the four sheets in the template with dropdowns, and a filled-in templ
         'Buildings' => ['D', 'F'],        // Type, State
         'Units' => ['D', 'K'],            // Type, Status
         'Tenants' => ['K'],               // ID type
+        'Leases' => ['G', 'L', 'N'],      // Billing cycle, Auto-renew, Status
     ]);
 
     $batch = portfolioDryRun($this->acme, $this->owner, new UploadedFile($path, 'template.xlsx', null, null, true));
 
     expect($batch->status)->toBe(ImportStatus::DryRunPassed)
-        ->and(collect($batch->sheets())->pluck('target')->all())->toBe([null, 'owners', 'properties', 'units', 'tenants'])
-        ->and($batch->dry_run_report['counts'])->toEqual(['create' => 4, 'update' => 0, 'restore' => 0, 'skip' => 0]);
+        ->and(collect($batch->sheets())->pluck('target')->all())->toBe([null, 'owners', 'properties', 'units', 'tenants', 'leases'])
+        ->and($batch->dry_run_report['counts'])->toEqual(['create' => 5, 'update' => 0, 'restore' => 0, 'skip' => 0]);
 
     portfolioCommit($this->acme, $this->owner, $batch);
     $building = buildingsOf($this->acme)->sole();
@@ -399,7 +401,8 @@ it('offers the four sheets in the template with dropdowns, and a filled-in templ
     expect($building->owner_profile_id)->toBe(ownersOf($this->acme)->sole()->id)
         ->and($unit->property_id)->toBe($building->id)
         ->and($unit->base_rent_kobo->kobo)->toBe(150_000_000)
-        ->and(inOrganization($this->acme, fn () => TenantProfile::query()->count()))->toBe(1);
+        ->and(inOrganization($this->acme, fn () => TenantProfile::query()->count()))->toBe(1)
+        ->and($unit->status)->toBe(UnitStatus::Occupied); // the example lease lets it (P03-13a)
 });
 
 it('lets only owners and administrators import, so a narrowed agent never imports into buildings they cannot see', function (OrganizationRole $role, bool $allowed) {

@@ -251,6 +251,10 @@
                 </div>
             @endif
 
+            @foreach ($panels as $panel)
+                @livewire($panel, ['batchId' => $batch->id], key('import-panel-'.$panel.'-'.$batch->id))
+            @endforeach
+
             @if ($canRollback)
                 <div class="flex flex-wrap items-center gap-3 border-t border-zinc-100 pt-4 dark:border-zinc-800">
                     <flux:button variant="danger" icon="arrow-uturn-left" wire:click="rollback" wire:confirm="{{ __('Roll this import back? The records it added are archived. Records it updated keep the changes.') }}" data-test="rollback-import">{{ __('Roll back') }}</flux:button>

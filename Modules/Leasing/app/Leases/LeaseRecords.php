@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\DB;
 use LogicException;
 use Modules\Leasing\Contracts\BillableLease;
 use Modules\Leasing\Contracts\CycleCalculator;
+use Modules\Leasing\Contracts\ImportedLeases;
 use Modules\Leasing\Contracts\LeaseBillingSchedule;
 use Modules\Leasing\Contracts\LeaseSummary;
 use Modules\Leasing\Contracts\TenantLeases;
@@ -20,11 +21,12 @@ use Modules\Leasing\Models\Lease;
 
 /**
  * The Leasing module's answers to Contracts\TenantLeases (for the Tenants
- * module) and Contracts\LeaseBillingSchedule (for Billing), read through
+ * module), Contracts\LeaseBillingSchedule (for Billing) and
+ * Contracts\ImportedLeases (imports, P03-13a), read through
  * the organization scope. The one write, advance(), goes through
  * LeaseService.
  */
-final readonly class LeaseRecords implements LeaseBillingSchedule, TenantLeases
+final readonly class LeaseRecords implements ImportedLeases, LeaseBillingSchedule, TenantLeases
 {
     public function __construct(private CycleCalculator $calculator) {}
 
@@ -41,6 +43,18 @@ final readonly class LeaseRecords implements LeaseBillingSchedule, TenantLeases
         return Lease::query()->select('tenant_profile_id')
             ->when($propertyIds !== null, fn (Builder $query) => $query->whereIn('property_id', $propertyIds ?? []))
             ->toBase();
+    }
+
+    public function heldUnitIdsQuery(int $batchId): QueryBuilder
+    {
+        return Lease::query()->select('unit_id')->where('import_batch_id', $batchId)
+            ->whereIn('status', [LeaseStatus::Draft, LeaseStatus::Active])
+            ->toBase();
+    }
+
+    public function batchTenantIdsQuery(int $batchId): QueryBuilder
+    {
+        return Lease::query()->select('tenant_profile_id')->where('import_batch_id', $batchId)->toBase();
     }
 
     public function holdsUnit(int $tenantProfileId): bool

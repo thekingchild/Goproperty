@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Livewire;
 use Modules\Billing\Events\BillIssued;
+use Modules\Import\Contracts\ImportUsages;
 use Modules\Payments\Contracts\PaymentProofs;
 use Modules\Payments\Contracts\PaymentRecorder;
 use Modules\Payments\Contracts\TenantProofs;
@@ -21,6 +22,7 @@ use Modules\Payments\Events\PaymentConfirmed;
 use Modules\Payments\Events\PaymentRecorded;
 use Modules\Payments\Events\PaymentRejected;
 use Modules\Payments\Events\ReceiptVoided;
+use Modules\Payments\Import\PaymentUsage;
 use Modules\Payments\Listeners\ApplyCreditToNewBill;
 use Modules\Payments\Listeners\IssueReceipt;
 use Modules\Payments\Listeners\TellTenantAboutPayment;
@@ -116,6 +118,9 @@ final class PaymentsServiceProvider extends ModuleServiceProvider
         foreach ([PaymentRecorded::class, PaymentConfirmed::class, PaymentRejected::class, ReceiptVoided::class] as $event) {
             Event::listen($event, TellTenantAboutPayment::class);
         }
+
+        // An imported tenant is used once a payment names them (an import's rollback check, P03-13a).
+        $this->callAfterResolving(ImportUsages::class, static fn (ImportUsages $usages) => $usages->register(PaymentUsage::class));
 
         // Every list of the module exports (P02-07).
         $this->callAfterResolving(ListExports::class, static function (ListExports $exports): void {

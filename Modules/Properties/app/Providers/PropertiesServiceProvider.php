@@ -16,14 +16,18 @@ use Modules\Import\Contracts\ImportTargets;
 use Modules\Leasing\Events\LeaseActivated;
 use Modules\Leasing\Events\LeaseDrafted;
 use Modules\Leasing\Events\LeaseExpired;
+use Modules\Leasing\Events\LeaseImported;
+use Modules\Leasing\Events\LeaseImportRolledBack;
 use Modules\Leasing\Events\LeaseRenewed;
 use Modules\Leasing\Events\LeaseTerminated;
 use Modules\Properties\Assignments\AgentNarrowing;
 use Modules\Properties\Assignments\DropRemovedMemberAssignments;
 use Modules\Properties\Buildings\PropertyDirectoryService;
 use Modules\Properties\Contracts\BuildingAccess;
+use Modules\Properties\Contracts\ImportedUnits;
 use Modules\Properties\Contracts\PropertyDirectory;
 use Modules\Properties\Contracts\UnitDirectory;
+use Modules\Properties\Import\ImportedUnitLookup;
 use Modules\Properties\Import\OwnersImportTarget;
 use Modules\Properties\Import\PropertiesImportTarget;
 use Modules\Properties\Import\UnitsImportTarget;
@@ -48,9 +52,10 @@ use Nwidart\Modules\Support\ModuleServiceProvider;
  * Livewire components (namespace `properties::`, classes in
  * Modules\Properties\Livewire), its workspace sidebar items, the contracts
  * other modules use (Contracts\PropertyDirectory, UnitDirectory,
- * BuildingAccess), drops a removed member's building assignments
- * (App\Members\MemberRemoved), keeps units' occupied/reserved status in
- * step with the Leasing module's lease events (Units\FollowLeases), and
+ * BuildingAccess, ImportedUnits for the Leases import sheet), drops a
+ * removed member's building assignments (App\Members\MemberRemoved),
+ * keeps units' occupied/reserved status in step with the Leasing module's
+ * lease events (Units\FollowLeases), and
  * makes owners, buildings and units importable by registering their
  * targets into the Import module's
  * registry (through its contract, AGENT.md § 4; nothing happens when the
@@ -76,6 +81,8 @@ final class PropertiesServiceProvider extends ModuleServiceProvider
         $this->app->bind(PropertyDirectory::class, PropertyDirectoryService::class);
         $this->app->bind(UnitDirectory::class, UnitDirectoryService::class);
         $this->app->bind(BuildingAccess::class, AgentNarrowing::class);
+        // How other modules' import sheets name a unit (the Leases sheet, P03-13a).
+        $this->app->bind(ImportedUnits::class, ImportedUnitLookup::class);
 
         // One of each, so a dry run's memory of the names a sheet adds is
         // shared with the sheets that refer to them.
@@ -96,7 +103,7 @@ final class PropertiesServiceProvider extends ModuleServiceProvider
 
         // Occupied and reserved follow leases (ARCHITECTURE.md § 6.2): the
         // Leasing module's events carry the status, inside its transaction.
-        foreach ([LeaseDrafted::class, LeaseActivated::class, LeaseRenewed::class, LeaseTerminated::class, LeaseExpired::class] as $event) {
+        foreach ([LeaseDrafted::class, LeaseActivated::class, LeaseRenewed::class, LeaseTerminated::class, LeaseExpired::class, LeaseImported::class, LeaseImportRolledBack::class] as $event) {
             Event::listen($event, FollowLeases::class);
         }
 

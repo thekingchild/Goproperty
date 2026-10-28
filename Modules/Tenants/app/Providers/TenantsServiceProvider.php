@@ -11,8 +11,11 @@ use App\Navigation\WorkspaceNavItem;
 use App\Tenancy\PortalLanding;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Livewire;
+use Modules\Import\Contracts\ImportReportPanels;
 use Modules\Import\Contracts\ImportTargets;
+use Modules\Tenants\Contracts\ImportedTenants;
 use Modules\Tenants\Contracts\TenantDirectory;
+use Modules\Tenants\Import\ImportedTenantLookup;
 use Modules\Tenants\Import\TenantsImportTarget;
 use Modules\Tenants\Lists\TenantList;
 use Modules\Tenants\Models\TenantProfile;
@@ -30,7 +33,9 @@ use Nwidart\Modules\Support\ModuleServiceProvider;
  * "Tenants", the list's export (Lists\TenantList, App\Exports\ListExports)
  * and makes tenants importable by registering TenantsImportTarget into the
  * Import module's registry (through its contract, AGENT.md § 4; nothing
- * happens when the Import module is off). Tenants' portal access
+ * happens when the Import module is off), with Contracts\ImportedTenants
+ * for the Leases sheet and "Invite tenants now" on a committed import's
+ * report (Livewire\ImportInvitations, P03-13a). Tenants' portal access
  * (P03-01b, Portal\*): invitations and one-time sign-in links on Core
  * invitations, their public pages (routes), and the landing: someone
  * with no workspace who is a tenant somewhere lands on /portal
@@ -56,6 +61,8 @@ final class TenantsServiceProvider extends ModuleServiceProvider
 
         // For other modules (ARCHITECTURE.md § 8 rule 3): Leasing first.
         $this->app->bind(TenantDirectory::class, TenantDirectoryService::class);
+        // How other modules' import sheets name a tenant (the Leases sheet, P03-13a).
+        $this->app->bind(ImportedTenants::class, ImportedTenantLookup::class);
     }
 
     public function boot(): void
@@ -69,6 +76,9 @@ final class TenantsServiceProvider extends ModuleServiceProvider
         $this->callAfterResolving(ImportTargets::class, static function (ImportTargets $targets): void {
             $targets->register(TenantsImportTarget::class);
         });
+
+        // "Invite tenants now" on a committed import's report: never automatic (DATA_IMPORT.md § 2.6, P03-13a).
+        $this->callAfterResolving(ImportReportPanels::class, static fn (ImportReportPanels $panels) => $panels->register('tenants::import-invitations'));
 
         // Every list of the module exports (P02-07).
         $this->callAfterResolving(ListExports::class, static function (ListExports $exports): void {

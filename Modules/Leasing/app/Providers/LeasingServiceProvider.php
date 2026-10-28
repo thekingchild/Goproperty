@@ -20,7 +20,10 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Livewire;
+use Modules\Import\Contracts\ImportTargets;
+use Modules\Import\Contracts\ImportUsages;
 use Modules\Leasing\Contracts\CycleCalculator as CycleCalculatorContract;
+use Modules\Leasing\Contracts\ImportedLeases;
 use Modules\Leasing\Contracts\LeaseBillingSchedule;
 use Modules\Leasing\Contracts\TenantLeaseContracts;
 use Modules\Leasing\Contracts\TenantLeases;
@@ -30,6 +33,8 @@ use Modules\Leasing\Documents\LeaseContracts;
 use Modules\Leasing\Documents\LeaseContractVerifier;
 use Modules\Leasing\Documents\TenantContractFiles;
 use Modules\Leasing\Events\LeaseActivated;
+use Modules\Leasing\Import\LeaseImportUsage;
+use Modules\Leasing\Import\LeasesImportTarget;
 use Modules\Leasing\Jobs\ExpireAndFlagLeases;
 use Modules\Leasing\Leases\LeaseRecords;
 use Modules\Leasing\Leases\LeaseService;
@@ -52,6 +57,11 @@ use Nwidart\Modules\Support\ModuleServiceProvider;
  * `leasing.reservation_days` (how long a draft holds its unit, default 14)
  * and `leasing.ending_soon_days` (default 60), and the daily
  * `leases:expire-and-flag` job (Schedule::job, ARCHITECTURE.md § 7).
+ *
+ * Imports (P03-13a): the Leases sheet (Import\LeasesImportTarget, into the
+ * Import module's registry through its contract), Leasing's answer to an
+ * import's rollback check (Import\LeaseImportUsage) and
+ * Contracts\ImportedLeases.
  *
  * Lease contracts (P03-03b): the listener that issues a contract when a
  * lease is activated and queues its PDF (Listeners\IssueLeaseContract),
@@ -79,6 +89,9 @@ final class LeasingServiceProvider extends ModuleServiceProvider
         $this->app->bind(TenantLeases::class, LeaseRecords::class);
         $this->app->bind(LeaseBillingSchedule::class, LeaseRecords::class);
         $this->app->bind(TenantLeaseContracts::class, TenantContractFiles::class);
+        $this->app->bind(ImportedLeases::class, LeaseRecords::class);
+        // One of it, so a dry run's memory of the tenants and units it looked up is kept between rows.
+        $this->app->singleton(LeasesImportTarget::class);
     }
 
     public function boot(): void
@@ -95,6 +108,10 @@ final class LeasingServiceProvider extends ModuleServiceProvider
             // Plain text, never compiled or evaluated (AGENT.md § 3 rule 10).
             $settings->define(new SettingDefinition(ContractClauses::SETTING, SettingType::String, ContractClauses::DEFAULT, ['required', 'string', 'max:'.ContractClauses::MAX_LENGTH], SettingScope::Organization));
         });
+
+        // Ongoing leases are importable (P03-13a); their rows tell imports whether units and tenants are used.
+        $this->callAfterResolving(ImportTargets::class, static fn (ImportTargets $targets) => $targets->register(LeasesImportTarget::class));
+        $this->callAfterResolving(ImportUsages::class, static fn (ImportUsages $usages) => $usages->register(LeaseImportUsage::class));
 
         // Contracts: issued after an activation commits, their PDF queued on `pdf`.
         Event::listen(LeaseActivated::class, IssueLeaseContract::class);

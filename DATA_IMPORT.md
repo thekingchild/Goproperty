@@ -12,7 +12,7 @@ Most agencies run on Excel, notebooks and WhatsApp. They can only switch to GoPr
 | 2 | Properties (the "Buildings" sheet) | Building name, owner, type, address, state, LGA, landmark, amenities (comma separated), year built, description | Owner named by name, phone or Your ID, from sheet 1 or existing data; empty when the agency owns the building. Each building in a file needs its own name |
 | 3 | Units | Building (name or Your ID), unit label, type, bedrooms, bathrooms, size, floor, rent and service charge (yearly), status, description | Status can be left blank (vacant): occupied and reserved come from leases, so the sheet imports them as vacant with a warning and never changes the status of a unit a lease holds |
 | 4 | Tenants | First/last name (a full name under First name is split), phone (required), email, address, occupation, next of kin (name, phone, relationship), ID type and number (NIN, international passport, driver's licence, voter's card) | Phone is the matching key; the ID number is kept encrypted and never shown in reports; imported tenants are unverified (KYC) |
-| 5 | Leases (ongoing rents) | Unit, tenant, start date, end date, billing cycle, rent amount, service charge, **paid until**, deposit held, auto-renew | Creates active leases without back-billing (§ 3) |
+| 5 | Leases (ongoing rents) | Tenant (phone or Your ID), building and unit, start date, end date, billing cycle, rent per period, deposit held, **paid until**, due days after the period start, auto-renew, contract number, status (empty, Active, Expired or Month-to-month), notes | Creates active leases without back-billing, and past leases as history (§ 3). The service charge is not on the lease yet: bills carry the rent only, and the unit's yearly service charge is on the Units sheet |
 | 6 | Opening balances | Tenant, unit, amount owed (or credit), as-of date, description | Creates one "Opening balance" bill or a credit per tenant |
 | 7 | Utility settings | Unit, utility type, amount, cycle, metered?, last meter reading | Utility types created if missing |
 | 8 | Payment history (optional) | Tenant, date, amount, method, reference | For records and statements only; never re-issues receipts unless asked |
@@ -45,7 +45,7 @@ flowchart LR
    An error report can be downloaded as Excel with an "Error" column next to each bad row.
 4. **Commit:** only after a successful dry run. Runs as queued jobs with a progress bar, one sheet after another in dependency order (owners → properties → units → tenants → leases → balances → utilities → history). Shared hosts give a job under a minute, so a sheet is written in chunks of rows, each chunk in its own database transaction together with the import's progress: a stopped import resumes from the last saved chunk and never writes a row twice, and one that cannot finish is marked "stopped part-way" and can be rolled back. Rows are checked again as they are written; one that no longer passes (say, its property was archived after the dry run) is skipped and listed in the report.
 5. **Report:** what was created, what was skipped and why, plus links to review imported records.
-6. **Invitations:** tenants and staff are **not** contacted automatically. After reviewing, the agency chooses "Invite tenants now" (email, the agency's WhatsApp, or a printable sheet of QR invitation links) or later.
+6. **Invitations:** tenants and staff are **not** contacted automatically. After reviewing, the agency chooses "Invite tenants now" (email, the agency's WhatsApp, or a printable sheet of QR invitation links) or later. Built for tenants in P03-13a: the committed import's report offers the three buttons for the import's tenants (those it added or brought back, and the tenants of its leases) who have no portal account and no invitation yet; each invitation is the tenant page's own (14 days, single use, rate limited, audited), at most 30 at a time, refused while GoProperty staff impersonate. The printable sheet's links show once. Staff invitations come with the Staff sheet.
 
 ### Re-running and updates
 
@@ -58,21 +58,23 @@ flowchart LR
 
 An import batch can be **rolled back within 7 days** if none of its records have been used since (no payments recorded, no bills sent). Rollback soft-deletes the batch's records and is audited. After that, records are edited individually.
 
-"Used" so far: a tenant given portal access; a unit a lease holds (occupied or reserved); a building holding a unit that is not the batch's own; an owner named by a building that is not the batch's own (including one the import itself gave that owner). Rolling back never strands a record that is not the batch's. Leases, bills and payments are added with them (P03-13a).
+"Used" so far: a tenant given portal access, or named by a lease, a bill or a payment that is not the batch's own; a unit a lease that is not the batch's holds (occupied or reserved), or named by such a lease or by a bill; a building holding a unit that is not the batch's own; an owner named by a building that is not the batch's own (including one the import itself gave that owner); a lease with a bill (and so with any payment against it), a renewal, an issued contract, a deposit refunded or kept, or ended on its page. Rolling back never strands a record that is not the batch's: the batch's own leases are rolled back first, freeing their units.
 
 ## 3. Ongoing Rents and Balances (the important part)
 
 Importing a lease that started years ago must not bill the tenant for past years or send a flood of reminders.
 
-- **Paid until** is the key column: the date up to which the tenant has already paid. GoProperty sets the lease's next billing date from it, so the first bill it creates is for the period after "paid until". Bills follow the normal lead time (e.g. an annual rent paid until 31/12/2026 is billed ahead of 01/01/2027).
-- **No back-billing:** past periods are never generated as bills.
+- **Paid until** is the key column: the date up to which the tenant has already paid. GoProperty sets the lease's next billing date from it, so the first bill it creates is for the period after "paid until". Bills follow the normal lead time (e.g. an annual rent paid until 31/12/2026 is billed ahead of 01/01/2027). Empty means nothing paid since the start.
+- **No back-billing:** past periods are never generated as bills. As built (P03-13a), billing starts with the period after "paid until" or with the first period starting on or after the import day, whichever is later: a period that started before the import is never billed, so no bill is past due when the import makes it. The dry run warns with the exact days left unbilled, which belong on the Opening Balances sheet.
 - **Arrears** go in the Opening Balances sheet. Each becomes one bill of type `opening_balance` dated on the as-of date, so it appears in the tenant's statement, can be paid and receipted, and counts in arrears reports.
 - **Tenant credit** (overpaid before switching) is imported as a credit entry and applied automatically to the next bill.
-- **Deposits held** (caution fees) are recorded on the lease as a liability for refund at move-out. They don't create a bill.
-- **Reminders** are calculated only from the commit date forwards. Nothing is sent for dates in the past.
-- **Units and occupancy** are set from active leases.
-- **Expired leases** in the file are imported as `expired` (history), unless "Treat as month-to-month" is chosen.
-- **Lease numbers:** existing contract numbers can be kept. Otherwise GoProperty numbers them.
+- **Deposits held** (caution fees) are recorded on the lease as a liability for refund at move-out (a `held` entry of the lease's deposit ledger). They don't create a bill. A re-import does not change a deposit already recorded (the dry run says so).
+- **Reminders** are calculated only from the commit date forwards. Nothing is sent for dates in the past. The import itself sends nothing, issues no contract (the agency prints one from the lease page when it wants: it is issued on first download) and lets the tenant know nothing until "Invite tenants now".
+- **Units and occupancy** are set from active leases: an ongoing lease lets its unit (occupied); one active lease per unit, so a unit already let, under maintenance or unavailable is refused, and so is a second ongoing lease of a unit in the same file.
+- **Expired leases** in the file (end date before the import day, Status empty or Expired) are imported as `expired` (history): not billed, the unit left as it is. Status "Month-to-month" (the lease ended, the tenant stays and pays monthly; Billing cycle must be Monthly) imports it as an active monthly lease, auto-renewing, running twelve monthly periods from the one running now (or the one paid up to, when later), anchored to its start day; the dry run says until when. Status Active on a lease that has ended, or Expired on one still running, is an error.
+- **Lease numbers:** existing contract numbers can be kept (Contract number column, up to 40 characters, unique in the organization; one that looks like GoProperty's own numbering is refused, since GoProperty gives those to new leases). Otherwise GoProperty numbers them from the organization's lease counter.
+- **Re-importing** a lease (matched by Your ID, else by tenant + unit + start date) updates its terms while it has no bills; once billed, the dry run refuses new terms. Its tenant, unit, status, contract number and recorded deposit never change by import.
+- **Restricted organizations** ([ONBOARDING_COMPLIANCE.md § 5.5](ONBOARDING_COMPLIANCE.md)) add no lease by import (each new row is an error); leases already on file can still be updated.
 
 ## 4. Limits & Performance
 

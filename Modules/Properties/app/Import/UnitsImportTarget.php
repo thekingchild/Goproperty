@@ -10,10 +10,13 @@ use Modules\Import\Contracts\ImportColumn;
 use Modules\Import\Contracts\ImportRow;
 use Modules\Import\Contracts\ImportRun;
 use Modules\Import\Contracts\ImportTarget;
+use Modules\Import\Contracts\ImportUsage;
+use Modules\Import\Contracts\ImportUsages;
 use Modules\Import\Contracts\InvalidCellValue;
 use Modules\Import\Contracts\RowIssue;
 use Modules\Import\Contracts\RowPlan;
 use Modules\Import\Contracts\UpsertResult;
+use Modules\Leasing\Contracts\ImportedLeases;
 use Modules\Properties\Contracts\UnitDirectory;
 use Modules\Properties\Enums\UnitStatus;
 use Modules\Properties\Enums\UnitType;
@@ -71,6 +74,7 @@ final class UnitsImportTarget implements ImportTarget
     public function __construct(
         private readonly PropertiesImportTarget $properties,
         private readonly UnitDirectory $directory,
+        private readonly ImportUsages $usages,
     ) {
         $this->buildings = new WeakMap;
     }
@@ -298,15 +302,23 @@ final class UnitsImportTarget implements ImportTarget
     }
 
     /**
-     * A unit of the batch is used once a lease holds it (occupied or
-     * reserved, set by Leasing through UnitDirectory::setStatus). P03-13a
-     * adds leases, bills and payments through their modules' contracts.
+     * A unit of the batch is used once a lease that is not the batch's own
+     * holds it (occupied or reserved, set by Leasing through
+     * UnitDirectory::setStatus; the batch's own leases, P03-13a, are rolled
+     * back first), or once another module's record names it: a lease or a
+     * bill the batch did not create (Import's ImportUsages, P03-13a).
      */
     public function usedSince(int $batchId): bool
     {
-        return Unit::query()->withTrashed()->where('import_batch_id', $batchId)
+        $units = Unit::query()->withTrashed()->where('import_batch_id', $batchId);
+        $ownLeases = app()->bound(ImportedLeases::class) ? app(ImportedLeases::class)->heldUnitIdsQuery($batchId) : null;
+
+        $held = (clone $units)
             ->whereIn('status', [UnitStatus::Occupied->value, UnitStatus::Reserved->value])
+            ->when($ownLeases !== null, static fn ($query) => $query->whereNotIn('id', $ownLeases))
             ->exists();
+
+        return $held || $this->usages->used(ImportUsage::UNIT, (clone $units)->select('id'), $batchId);
     }
 
     /**

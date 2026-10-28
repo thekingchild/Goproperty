@@ -27,6 +27,7 @@ use Modules\Billing\Contracts\TenantBills;
 use Modules\Billing\Documents\InvoiceVerifier;
 use Modules\Billing\Events\BillIssued;
 use Modules\Billing\Events\BillVoided;
+use Modules\Billing\Import\BillUsage;
 use Modules\Billing\Jobs\FlagOverdueBills;
 use Modules\Billing\Jobs\GenerateBills;
 use Modules\Billing\Listeners\QueueInvoicePdf;
@@ -42,6 +43,7 @@ use Modules\Billing\Policies\BillPolicy;
 use Modules\Billing\Policies\UnitUtilitySettingPolicy;
 use Modules\Billing\Policies\UtilityReadingPolicy;
 use Modules\Billing\Policies\UtilityTypePolicy;
+use Modules\Import\Contracts\ImportUsages;
 use Modules\Leasing\Contracts\CycleCalculator;
 use Nwidart\Modules\Support\ModuleServiceProvider;
 
@@ -114,6 +116,9 @@ final class BillingServiceProvider extends ModuleServiceProvider
 
         Event::listen(BillIssued::class, QueueInvoicePdf::class);
         Event::listen(BillVoided::class, QueueInvoicePdf::class);
+
+        // Imported leases, tenants and units are used once a bill names them (an import's rollback check, P03-13a).
+        $this->callAfterResolving(ImportUsages::class, static fn (ImportUsages $usages) => $usages->register(BillUsage::class));
 
         $this->callAfterResolving(DocumentVerifiers::class, static function (DocumentVerifiers $verifiers): void {
             $verifiers->register(BillIssuer::VERIFICATION_KIND, InvoiceVerifier::class);

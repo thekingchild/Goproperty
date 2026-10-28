@@ -11,14 +11,18 @@ use App\Navigation\WorkspaceNavItem;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Livewire;
+use Modules\Import\Contracts\ImportReportPanels;
 use Modules\Import\Contracts\ImportTargets;
+use Modules\Import\Contracts\ImportUsages;
 use Modules\Import\Contracts\SpreadsheetReader;
 use Modules\Import\Jobs\PurgeImportUploads;
 use Modules\Import\Lists\ImportBatchList;
 use Modules\Import\Models\ImportBatch;
 use Modules\Import\Policies\ImportBatchPolicy;
 use Modules\Import\Reading\Spreadsheets;
+use Modules\Import\Targets\ReportPanelRegistry;
 use Modules\Import\Targets\TargetRegistry;
+use Modules\Import\Targets\UsageRegistry;
 use Nwidart\Modules\Support\ModuleServiceProvider;
 
 /**
@@ -27,7 +31,10 @@ use Nwidart\Modules\Support\ModuleServiceProvider;
  * modules add what can be imported by registering targets into
  * ImportTargets (a singleton) from their own providers, and may read their
  * own spreadsheet uploads through Contracts\SpreadsheetReader (Collections'
- * bank statements, P03-07a). This provider adds
+ * bank statements, P03-07a). Modules also say whether records an import
+ * created are used by their own records (ImportUsages, a singleton: the
+ * rollback check) and may offer a step on a committed import's report
+ * (ImportReportPanels: "Invite tenants now", P03-13a). This provider adds
  * the policy, the Livewire namespace `import::` (classes in
  * Modules\Import\Livewire), the workspace sidebar item and the daily purge
  * of uploaded files (Schedule::job, ARCHITECTURE.md § 7; registered when
@@ -49,6 +56,9 @@ final class ImportServiceProvider extends ModuleServiceProvider
         parent::register();
 
         $this->app->singleton(ImportTargets::class, TargetRegistry::class);
+        // What other modules say about records an import created (rollback), and the steps they offer on a report.
+        $this->app->singleton(ImportUsages::class, UsageRegistry::class);
+        $this->app->singleton(ImportReportPanels::class, ReportPanelRegistry::class);
         $this->app->bind(SpreadsheetReader::class, Spreadsheets::class);
     }
 

@@ -6,9 +6,11 @@ namespace Modules\Leasing\Leases;
 
 use App\Documents\DocumentNumberer;
 use App\Documents\DocumentType;
+use App\Enums\OrganizationStatus;
 use App\Models\User;
 use App\Settings\SettingsStore;
 use App\Support\Money;
+use App\Tenancy\OrganizationContext;
 use Carbon\CarbonImmutable;
 use Closure;
 use DateTimeInterface;
@@ -19,6 +21,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 use LogicException;
+use Modules\Import\Contracts\ImportAction;
 use Modules\Leasing\Contracts\CycleCalculator;
 use Modules\Leasing\Enums\DepositEntryType;
 use Modules\Leasing\Enums\LeaseStatus;
@@ -26,8 +29,14 @@ use Modules\Leasing\Events\LeaseActivated;
 use Modules\Leasing\Events\LeaseDrafted;
 use Modules\Leasing\Events\LeaseEndingSoon;
 use Modules\Leasing\Events\LeaseExpired;
+use Modules\Leasing\Events\LeaseImported;
+use Modules\Leasing\Events\LeaseImportRolledBack;
 use Modules\Leasing\Events\LeaseRenewed;
 use Modules\Leasing\Events\LeaseTerminated;
+use Modules\Leasing\Import\ImportedLease;
+use Modules\Leasing\Import\ImportedLeaseResult;
+use Modules\Leasing\Import\ImportedLeaseStatus;
+use Modules\Leasing\Import\OngoingLeaseDates;
 use Modules\Leasing\Models\Lease;
 use Modules\Leasing\Models\LeaseDepositEntry;
 use Modules\Properties\Contracts\BuildingAccess;
@@ -61,6 +70,9 @@ use Modules\Tenants\Contracts\TenantDirectory;
  * - terminate(): ends an active lease early, or cancels a draft, with a
  *   reason. expire(): an active lease after its end date, a draft after its
  *   hold (leases:expire-and-flag).
+ * - importOngoing(): an ongoing (active) or past (expired) lease from an
+ *   import, billed from the period after "paid until", never for the past;
+ *   rollBackImport() archives an import's leases (P03-13a).
  *
  * Unit statuses are the Properties module's: each change sends a
  * Modules\Leasing\Events event inside the transaction, carrying the status
@@ -94,6 +106,8 @@ final readonly class LeaseService
         private DocumentNumberer $numberer,
         private LeaseTerms $terms,
         private SettingsStore $settings,
+        private OngoingLeaseDates $ongoingDates,
+        private OrganizationContext $context,
     ) {}
 
     /**
@@ -480,6 +494,184 @@ final readonly class LeaseService
         });
     }
 
+    /**
+     * An ongoing or past lease from an import (P03-13a, DATA_IMPORT.md § 3;
+     * LeasesImportTarget calls it inside the import's chunk transaction):
+     * creates it, brings back one a rollback archived, or updates the one
+     * the row matched (`$match`, by Your ID or tenant + unit + start).
+     *
+     * An ongoing lease (active, or month-to-month) is active at once, under
+     * the unit's row lock like an activation (refused while another lease
+     * is active on the unit), and lets the unit through LeaseImported. It
+     * is not an activation: no contract is issued (one is issued on its
+     * first download from the lease page), no one is told, no reminder is
+     * set. Billing starts with the period after "paid until" and never with
+     * a past one (OngoingLeaseDates): nothing is ever back-billed. A past
+     * lease is imported as `expired` history and leaves the unit alone.
+     * The deposit held is recorded as a `held` entry (P03 decision 5); the
+     * contract number is the file's, or a new one from DocumentNumberer.
+     *
+     * Updating a matched lease changes its terms only while it stays what it
+     * is (active or expired); its tenant, unit, contract number and deposit
+     * stay. The caller refuses an update once the lease has bills.
+     *
+     * @throws ValidationException (LeaseRefused) and changes nothing
+     */
+    public function importOngoing(int $batchId, ImportedLease $data, ?Lease $match = null): ImportedLeaseResult
+    {
+        try {
+            return $this->transaction(function () use ($batchId, $data, $match): ImportedLeaseResult {
+                $this->tenants->lockActive($data->tenantProfileId)
+                    ?? throw LeaseRefused::because(__('The tenant is archived or no longer on file.'));
+                $unit = $this->units->lock($data->unitId)
+                    ?? throw LeaseRefused::because(__('The unit is archived or no longer on file.'));
+                $lease = $match !== null ? Lease::query()->withTrashed()->whereKey($match->id)->lockForUpdate()->firstOrFail() : new Lease;
+                $action = match (true) {
+                    ! $lease->exists => ImportAction::Create,
+                    $lease->trashed() => ImportAction::Restore,
+                    default => ImportAction::Update,
+                };
+                $ongoing = $data->status->isOngoing();
+                $status = $ongoing ? LeaseStatus::Active : LeaseStatus::Expired;
+
+                if ($unit->propertyArchived) {
+                    throw LeaseRefused::because(__(':building is archived. Restore it before importing its leases.', ['building' => $unit->propertyName]));
+                }
+
+                if ($action !== ImportAction::Update && $this->context->get()->status === OrganizationStatus::Restricted) {
+                    // ONBOARDING_COMPLIANCE.md § 5.5: a restricted organization makes no new leases (LeasePolicy::create).
+                    throw LeaseRefused::because(self::restrictedMessage());
+                }
+
+                if ($lease->exists && ($lease->unit_id !== $unit->id || $lease->tenant_profile_id !== $data->tenantProfileId)) {
+                    throw LeaseRefused::because(__('This lease is of another tenant or unit. A lease cannot move to another tenant or unit.'));
+                }
+
+                if ($action === ImportAction::Update && $lease->status !== $status) {
+                    throw LeaseRefused::because(__('This lease is :status on GoProperty. Change it on its page.', ['status' => mb_strtolower(__($lease->status->label()))]));
+                }
+
+                if ($ongoing) {
+                    if ($action !== ImportAction::Update && ($unit->status === UnitDirectory::UNDER_MAINTENANCE || $unit->status === UnitDirectory::UNAVAILABLE)) {
+                        throw LeaseRefused::because(__(':label is :status. Make it vacant before importing its lease.', ['label' => $unit->label, 'status' => mb_strtolower(__($unit->statusLabel))]));
+                    }
+
+                    $other = Lease::query()->where('unit_id', $unit->id)->where('status', LeaseStatus::Active)
+                        ->when($lease->exists, fn ($query) => $query->whereKeyNot($lease->id))->lockForUpdate()->first();
+
+                    if ($other !== null) {
+                        throw LeaseRefused::because(__(':label is already let (:contract). End that lease first, or import this one as expired.', ['label' => $unit->label, 'contract' => $other->reference()]));
+                    }
+                }
+
+                $today = LeaseDates::today();
+                // A month-to-month lease keeps the end it was given when it came in (it would move with the import day).
+                $end = $action === ImportAction::Update && $data->status === ImportedLeaseStatus::MonthToMonth
+                    ? $lease->end_date
+                    : $this->ongoingDates->endDate($data->status, $data->start, $data->end, $data->paidUntil, $today);
+
+                $lease->property_id = $unit->propertyId;
+                $lease->unit_id = $unit->id;
+                $lease->tenant_profile_id = $data->tenantProfileId;
+                $lease->billing_cycle = $data->cycle;
+                $lease->start_date = $data->start;
+                $lease->end_date = $end;
+                $lease->rent_amount_kobo = $data->rent;
+                $lease->due_day_offset = $data->dueDayOffset;
+                $lease->paid_until = $data->paidUntil;
+                $lease->auto_renew = $data->status === ImportedLeaseStatus::MonthToMonth || $data->autoRenew;
+                $lease->next_billing_date = $ongoing ? $this->ongoingDates->firstBillingDate($data->cycle, $data->start, $data->paidUntil, $today) : null;
+
+                if ($data->notes !== null) {
+                    $lease->notes = $data->notes;
+                }
+
+                if ($data->externalRef !== null) {
+                    $lease->external_ref = $data->externalRef;
+                }
+
+                if ($action !== ImportAction::Update) {
+                    $now = CarbonImmutable::now();
+                    $lease->status = $status;
+                    $lease->activated_at = $now;
+                    $lease->expired_at = $ongoing ? null : $now;
+                    $lease->reserved_until = null;
+                    $lease->import_batch_id = $batchId;
+                    $lease->deleted_at = null;
+                }
+
+                $this->importedContractNumber($lease, $data->contractNumber);
+                $holdsDeposit = $lease->exists && $lease->depositEntries()->exists();
+
+                if (! $holdsDeposit) {
+                    $lease->deposit_kobo = $data->deposit;
+                }
+
+                $changed = array_values(array_intersect([...self::AUDITED, 'next_billing_date', 'contract_number', 'external_ref'], array_keys($lease->getDirty())));
+                $lease->save();
+
+                if (! $holdsDeposit && $data->deposit->isPositive()) {
+                    $this->depositEntry(null, $lease, DepositEntryType::Held, $data->deposit, __('Held when the lease was imported'));
+                }
+
+                if ($action !== ImportAction::Update || $changed !== []) {
+                    $this->audit('lease.imported', $lease, null, match ($action) {
+                        ImportAction::Restore => 'Lease brought back by an import',
+                        ImportAction::Update => 'Lease updated by an import',
+                        default => 'Lease imported',
+                    }, [
+                        'import_batch_id' => $batchId,
+                        'action' => $action->value,
+                        'status' => $lease->status->value,
+                        'paid_until' => $lease->paid_until?->toDateString(),
+                        'next_billing_date' => $lease->next_billing_date?->toDateString(),
+                    ] + ($action === ImportAction::Update ? ['changed' => $changed] : []));
+                }
+
+                if ($action !== ImportAction::Update) {
+                    event(new LeaseImported(...[...$this->eventIds($lease, $ongoing ? $this->unitStatusAfter($unit) : null), 'active' => $ongoing]));
+                }
+
+                return new ImportedLeaseResult($lease, $action);
+            });
+        } catch (UniqueConstraintViolationException) {
+            // Another lease became active on the unit, or took the number, meanwhile (the database's own checks).
+            throw LeaseRefused::because(__('Another lease has just let this unit or taken this contract number. Nothing was changed.'));
+        }
+    }
+
+    /** Why a restricted organization's import adds no lease (ONBOARDING_COMPLIANCE.md § 5.5). */
+    public static function restrictedMessage(): string
+    {
+        return __('Your organization is restricted until its Transaction Tier is upgraded, so it cannot add leases. Leases already on GoProperty can still be updated.');
+    }
+
+    /**
+     * An import's rollback (P03-13a): archives every lease the batch created
+     * or brought back, each under its unit's row lock, and frees the units
+     * no other lease holds (LeaseImportRolledBack). Their deposit entries
+     * stay (a ledger is never rewritten). Inside the caller's transaction.
+     *
+     * @return int the leases archived
+     */
+    public function rollBackImport(int $batchId): int
+    {
+        $leases = Lease::query()->where('import_batch_id', $batchId)->orderBy('unit_id')->orderBy('id')->get(['id', 'unit_id']);
+
+        foreach ($leases as $found) {
+            $this->transaction(function () use ($found, $batchId): void {
+                $unit = $this->units->lock($found->unit_id);
+                $lease = $this->lockLease($found->id);
+                $lease->delete();
+
+                $this->audit('lease.import_rolled_back', $lease, null, 'Imported lease archived by a rollback', ['import_batch_id' => $batchId]);
+                event(new LeaseImportRolledBack(...$this->eventIds($lease, $unit !== null ? $this->unitStatusAfter($unit) : null)));
+            });
+        }
+
+        return $leases->count();
+    }
+
     /** What is held of the lease's deposit now (the sum of its entries). */
     public function depositBalance(Lease $lease): Money
     {
@@ -515,6 +707,32 @@ final readonly class LeaseService
         }
 
         return $this->calculator->nextPeriodStart($lease->start_date, $lease->billing_cycle, $lease->paid_until);
+    }
+
+    /**
+     * The contract number an imported lease keeps or gets: the file's (kept
+     * as the agency wrote it), the one on file, or the next one of the
+     * organization's own numbering (DATA_IMPORT.md § 3 "Lease numbers").
+     *
+     * @throws ValidationException (LeaseRefused)
+     */
+    private function importedContractNumber(Lease $lease, ?string $kept): void
+    {
+        if ($kept !== null && $lease->contract_number !== null && $lease->contract_number !== $kept) {
+            throw LeaseRefused::because(__('This lease\'s contract number is :number on GoProperty. An import does not change it.', ['number' => $lease->contract_number]));
+        }
+
+        if ($kept !== null && $lease->contract_number === null) {
+            if (Lease::query()->withTrashed()->where('contract_number', $kept)->when($lease->exists, fn ($query) => $query->whereKeyNot($lease->id))->exists()) {
+                throw LeaseRefused::because(__('Contract number :number is already another lease\'s.', ['number' => $kept]));
+            }
+
+            $lease->contract_number = $kept;
+        }
+
+        if ($lease->contract_number === null) {
+            $lease->contract_number = $this->numberer->next(DocumentType::LeaseContract, CarbonImmutable::now());
+        }
     }
 
     private function newDraft(User $by, UnitSummary $unit, int $tenantId, Terms $terms, ?Lease $renewing = null): Lease

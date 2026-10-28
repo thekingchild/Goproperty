@@ -16,6 +16,7 @@ use Livewire\Attributes\Title;
 use Livewire\Component;
 use Modules\Import\Batches\ImportBatches;
 use Modules\Import\Batches\ImportRefused;
+use Modules\Import\Contracts\ImportReportPanels;
 use Modules\Import\Contracts\ImportTargets;
 use Modules\Import\Enums\ImportStatus;
 use Modules\Import\Livewire\Concerns\InWorkspace;
@@ -30,7 +31,10 @@ use Modules\Properties\Contracts\UnitDirectory;
  * columns (suggested, saved mappings first) → dry run → review the report
  * (counts, errors with the error workbook, warnings, preview, effect on the
  * subscription) → commit (queued; the progress bar polls) → report and,
- * for 7 days while unused, rollback.
+ * for 7 days while unused, rollback. Once committed, the report shows the
+ * steps other modules offer (ImportReportPanels: "Invite tenants now"),
+ * each a component that checks its own permissions and does nothing until
+ * the agency asks (DATA_IMPORT.md § 2.6).
  *
  * Every action checks ImportBatchPolicy (ImportBatches checks again).
  * Commit and rollback are refused while GoProperty staff impersonate
@@ -138,7 +142,7 @@ final class ImportBatchPage extends Component
         }
     }
 
-    public function render(OrganizationContext $context, ImportTargets $targets, PlanCatalogue $plans): View
+    public function render(OrganizationContext $context, ImportTargets $targets, PlanCatalogue $plans, ImportReportPanels $panels): View
     {
         $batch = $this->batch();
         $user = $this->user();
@@ -156,6 +160,8 @@ final class ImportBatchPage extends Component
             'canCommit' => $batch->status === ImportStatus::DryRunPassed && $user->can('commit', $batch),
             'canRollback' => $batch->status->hasCommitted() && $batch->rollbackEndsAt()?->isFuture() === true && $user->can('rollback', $batch),
             'hasFile' => $batch->media_id !== null,
+            // Other modules' next steps (Invite tenants now): only once committed, never on their own.
+            'panels' => $batch->status->hasCommitted() ? $panels->all() : [],
         ]);
     }
 

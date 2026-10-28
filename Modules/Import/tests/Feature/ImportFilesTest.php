@@ -65,8 +65,8 @@ it('offers a template with instructions, a sheet per target and dropdowns for fi
 
     // The Lists sheet is hidden, so it is not offered for import. Real
     // targets registered by modules (Owners, Buildings, Units: P02-06c;
-    // Tenants: P02-06b) come in commit order with the fixture targets.
-    expect(array_column($file->sheets(), 'name'))->toBe(['Instructions', 'Contacts', 'Owners', 'Notes', 'Buildings', 'Units', 'Tenants'])
+    // Tenants: P02-06b; Leases: P03-13a) come in commit order with the fixture targets.
+    expect(array_column($file->sheets(), 'name'))->toBe(['Instructions', 'Contacts', 'Owners', 'Notes', 'Buildings', 'Units', 'Tenants', 'Leases'])
         ->and(sheetRows($path, 1)[0])->toBe(['Your ID', 'Name', 'Phone', 'Joined on', 'Balance', 'Category'])
         ->and(sheetRows($path, 1)[1])->toBe(['C-001', 'Ada Obi', '08031234567', '31/12/2025', '₦150,000', 'Gold'])
         ->and(sheetRows($path, 3)[0])->toBe(['Contact phone', 'Note'])
@@ -79,11 +79,11 @@ it('offers a template with instructions, a sheet per target and dropdowns for fi
 
     expect($contacts)->toContain('<dataValidation type="list" allowBlank="1" showErrorMessage="1" sqref="F2:F10001"><formula1>Lists!$A$1:$A$3</formula1></dataValidation>')
         // The first list column is padded to the longest list (the 37 states).
-        ->and(array_column(sheetRows($path, 7), 0))->toBe(['Gold', 'Silver', 'Bronze', ...array_fill(0, 34, '')]);
+        ->and(array_column(sheetRows($path, 8), 0))->toBe(['Gold', 'Silver', 'Bronze', ...array_fill(0, 34, '')]);
 
     // A filled-in template maps itself.
     $batch = uploadImport($this->acme, $this->owner, new UploadedFile($path, 'template.xlsx', null, null, true));
-    expect(collect($batch->sheets())->pluck('target')->all())->toBe([null, 'contacts', 'owners', 'notes', 'properties', 'units', 'tenants']);
+    expect(collect($batch->sheets())->pluck('target')->all())->toBe([null, 'contacts', 'owners', 'notes', 'properties', 'units', 'tenants', 'leases']);
 });
 
 it('downloads the problems as a workbook: every row with its problems next to it, and a list of all of them', function () {

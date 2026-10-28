@@ -11,7 +11,8 @@ use Modules\Properties\Enums\UnitStatus;
  * Keeps `units.status` in step with leases (ARCHITECTURE.md § 6.2: an
  * allocation is a lease; occupancy is kept on the unit for fast lists):
  * listens to the Leasing module's lease events (LeaseDrafted,
- * LeaseActivated, LeaseRenewed, LeaseTerminated, LeaseExpired) and sets
+ * LeaseActivated, LeaseRenewed, LeaseTerminated, LeaseExpired, and for
+ * imported leases LeaseImported and LeaseImportRolledBack) and sets
  * the status each one carries through the units writer, audited with the
  * event as the reason. Runs inside the lease's own transaction (the events
  * are sent there), so the unit and the lease change together or not at
