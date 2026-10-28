@@ -56,7 +56,7 @@ it('runs a few migrations per batch until done', function () {
     do {
         $result = $this->migrator->runBatch(max: 2);
         $batches++;
-    } while (! $result->progress->finished() && $batches < 50);
+    } while (! $result->progress->finished() && $batches <= $total); // a guard that grows with the migrations
 
     expect($result->progress->done)->toBe($total)
         ->and($batches)->toBe((int) ceil($total / 2))
@@ -69,8 +69,10 @@ it('resumes where an interrupted run stopped', function () {
     // A new request (new instance) carries on from the migrations table.
     $resumed = app(BatchedMigrator::class)->on($this->database);
 
+    // Everything left in one batch: this tests resuming, not the time budget,
+    // so the budget must not stop it on a slow database server.
     expect($resumed->progress()->done)->toBe(3)
-        ->and($resumed->runBatch(max: 100)->progress->finished())->toBeTrue();
+        ->and($resumed->runBatch(max: $resumed->progress()->total, seconds: 600.0)->progress->finished())->toBeTrue();
 });
 
 it('stops a batch at the time budget, after at least one migration', function () {
