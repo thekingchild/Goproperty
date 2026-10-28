@@ -33,6 +33,11 @@ final class TicketList implements ListExport
     /** The status filter's value for every open ticket. */
     public const string OPEN = 'open';
 
+    /** The assignee filter's values: assigned to the member looking, and assigned to nobody. */
+    public const string MINE = 'me';
+
+    public const string UNASSIGNED = 'none';
+
     public function __construct(
         private readonly BuildingAccess $access,
         private readonly TenantDirectory $tenants,
@@ -54,6 +59,7 @@ final class TicketList implements ListExport
         return ListFilters::set([
             'search' => ListFilters::search($input['search'] ?? null),
             'status' => ListFilters::option($input['status'] ?? null, [self::OPEN, ...array_map(static fn (TicketStatus $status): string => $status->value, TicketStatus::sent())]),
+            'assignee' => ListFilters::option($input['assignee'] ?? null, [self::MINE, self::UNASSIGNED]),
             'building' => ListFilters::id($input['building'] ?? null),
         ]);
     }
@@ -75,6 +81,7 @@ final class TicketList implements ListExport
         $search = is_string($filters['search'] ?? null) ? $filters['search'] : null;
         $status = (string) ($filters['status'] ?? '');
         $building = is_int($filters['building'] ?? null) ? $filters['building'] : null;
+        $assignee = (string) ($filters['assignee'] ?? '');
         $limited = $this->access->limitedTo($user);
 
         return Ticket::query()
@@ -83,6 +90,8 @@ final class TicketList implements ListExport
             ->when($status === self::OPEN, fn (Builder $query) => $query->whereIn('status', TicketStatus::open()))
             ->when(TicketStatus::tryFrom($status) !== null, fn (Builder $query) => $query->where('status', $status))
             ->when($building !== null, fn (Builder $query) => $query->where('property_id', $building))
+            ->when($assignee === self::MINE, fn (Builder $query) => $query->where('assigned_to_user_id', $user->id))
+            ->when($assignee === self::UNASSIGNED, fn (Builder $query) => $query->whereNull('assigned_to_user_id'))
             ->when($search !== null, function (Builder $query) use ($search): void {
                 $tenantIds = $this->tenants->search((string) $search);
 
@@ -93,6 +102,58 @@ final class TicketList implements ListExport
             })
             ->orderByDesc('submitted_at')
             ->orderByDesc('id');
+    }
+
+    /**
+     * The inbox's status tabs: how many tickets each status (and `open`,
+     * and `all`) would list with the other filters as they are.
+     *
+     * @param  array<string, string|int|bool>  $filters  cleaned
+     * @return array<string, int> status value, `open` or `all` => count
+     */
+    public function statusCounts(User $user, array $filters): array
+    {
+        unset($filters['status']);
+
+        $byStatus = $this->query($user, $filters)->reorder()->toBase()
+            ->select('status')->selectRaw('count(*) as aggregate')->groupBy('status')
+            ->pluck('aggregate', 'status')->map(static fn (mixed $count): int => (int) $count)->all();
+
+        $counts = [self::OPEN => 0, 'all' => array_sum($byStatus)];
+
+        foreach (TicketStatus::sent() as $status) {
+            $counts[$status->value] = $byStatus[$status->value] ?? 0;
+
+            if ($status->isOpen()) {
+                $counts[self::OPEN] += $counts[$status->value];
+            }
+        }
+
+        return $counts;
+    }
+
+    /**
+     * The inbox's assignee tabs: how many tickets are anyone's, the
+     * member's own and nobody's, with the other filters as they are.
+     *
+     * @param  array<string, string|int|bool>  $filters  cleaned
+     * @return array{all: int, me: int, none: int}
+     */
+    public function assigneeCounts(User $user, array $filters): array
+    {
+        unset($filters['assignee']);
+
+        $row = $this->query($user, $filters)->reorder()->toBase()
+            ->selectRaw('count(*) as total')
+            ->selectRaw('coalesce(sum(case when assigned_to_user_id = ? then 1 else 0 end), 0) as mine', [$user->id])
+            ->selectRaw('coalesce(sum(case when assigned_to_user_id is null then 1 else 0 end), 0) as unassigned')
+            ->first();
+
+        return [
+            'all' => (int) ($row->total ?? 0),
+            self::MINE => (int) ($row->mine ?? 0),
+            self::UNASSIGNED => (int) ($row->unassigned ?? 0),
+        ];
     }
 
     /** @return iterable<TicketRow> */

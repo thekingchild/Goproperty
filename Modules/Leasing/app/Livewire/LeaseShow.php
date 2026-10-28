@@ -11,6 +11,7 @@ use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
 use Livewire\Component;
+use Modules\Leasing\Contracts\LeasePagePanels;
 use Modules\Leasing\Enums\LeaseStatus;
 use Modules\Leasing\Leases\LeaseService;
 use Modules\Leasing\Lists\LeaseParties;
@@ -23,7 +24,9 @@ use Modules\Leasing\Models\LeaseDepositEntry;
  * that renews it, with the actions its state allows (LeaseStatus):
  * activate or cancel a draft, renew or end an active lease, settle the
  * deposit of an ended one; and, once activated, a link to the contract PDF
- * (Http\Controllers\LeaseContractController, P03-03b). Each action checks LeasePolicy and goes through
+ * (Http\Controllers\LeaseContractController, P03-03b); below it, the
+ * panels other modules add (Contracts\LeasePagePanels: the lease's
+ * maintenance tickets, P04-03). Each action checks LeasePolicy and goes through
  * Leases\LeaseService, which checks it again; a refused move shows its
  * reason and changes nothing.
  *
@@ -101,7 +104,7 @@ final class LeaseShow extends Component
         $this->notice = __('The deposit was recorded.');
     }
 
-    public function render(OrganizationContext $context, LeaseParties $parties, LeaseService $leases): View
+    public function render(OrganizationContext $context, LeaseParties $parties, LeaseService $leases, LeasePagePanels $panels): View
     {
         $lease = $this->lease();
         // Checked on every render, not only when the page opened.
@@ -125,6 +128,8 @@ final class LeaseShow extends Component
             // The contract PDF (P03-03b), once the lease has been activated.
             'canDownloadContract' => $user->can('downloadContract', $lease),
             'flash' => session('lease-status'),
+            // Other modules' panels below the lease (P04-03: its tickets and "Report a repair").
+            'panels' => $panels->all(),
         ]);
     }
 

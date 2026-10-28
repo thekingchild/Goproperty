@@ -19,11 +19,18 @@ use App\Settings\SettingScope;
 use App\Settings\SettingsRegistry;
 use App\Settings\SettingType;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Notifications\Events\NotificationSent;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Livewire;
+use Modules\Leasing\Contracts\LeasePagePanels;
 use Modules\Tickets\Contracts\TicketService as TicketServiceContract;
+use Modules\Tickets\Events\TicketAssignmentChanged;
+use Modules\Tickets\Events\TicketMessagePosted;
+use Modules\Tickets\Events\TicketStatusChanged;
 use Modules\Tickets\Jobs\CloseResolvedTickets;
+use Modules\Tickets\Listeners\MarkTicketNoticeMailed;
+use Modules\Tickets\Listeners\TellTicketParties;
 use Modules\Tickets\Listeners\UnassignRemovedMember;
 use Modules\Tickets\Lists\TicketList;
 use Modules\Tickets\Models\Ticket;
@@ -45,7 +52,9 @@ use Nwidart\Modules\Support\ModuleServiceProvider;
  * (default 14, 1–90) and `tickets.auto_close_days` (default 7, 1–30) with
  * their page under Settings, the daily `tickets-auto-close` job
  * (Schedule::job, ARCHITECTURE.md § 7) and, when a member leaves, the
- * unassignment of the tickets waiting on them (App\Members\MemberRemoved).
+ * unassignment of the tickets waiting on them (App\Members\MemberRemoved),
+ * and the notifications on every move and assignment (P04-03,
+ * Listeners\TellTicketParties, queued on `notifications`).
  *
  * Events for other modules and later tasks: Events\TicketStatusChanged
  * (every move, after the commit) and Events\TicketAssignmentChanged.
@@ -128,8 +137,17 @@ final class TicketsServiceProvider extends ModuleServiceProvider
             $tabs->add(new PortalTab(key: 'repairs', label: 'Repairs', icon: 'wrench-screwdriver', route: 'portal.tickets.index', active: ['portal.tickets.*'], order: 25));
         });
 
+        // A lease's page lists its tickets and offers "Raise a ticket" (P04-03).
+        $this->callAfterResolving(LeasePagePanels::class, static fn (LeasePagePanels $panels) => $panels->register('tickets::lease-tickets'));
+
         // A member who leaves stops holding tickets (inside the removal's transaction).
         Event::listen(MemberRemoved::class, UnassignRemovedMember::class);
+
+        // Notifications on every transition, assignment and thread message, each party once (P04-03).
+        Event::listen(TicketStatusChanged::class, TellTicketParties::class);
+        Event::listen(TicketAssignmentChanged::class, TellTicketParties::class);
+        Event::listen(TicketMessagePosted::class, TellTicketParties::class);
+        Event::listen(NotificationSent::class, MarkTicketNoticeMailed::class);
 
         // Resolved tickets nobody answered close themselves (ARCHITECTURE.md § 7).
         $this->callAfterResolving(Schedule::class, static function (Schedule $schedule): void {

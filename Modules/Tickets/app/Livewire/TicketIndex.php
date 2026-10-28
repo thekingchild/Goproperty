@@ -21,18 +21,21 @@ use Modules\Tickets\Lists\TicketParties;
 use Modules\Tickets\Models\Ticket;
 
 /**
- * Maintenance tickets, /o/{organization}/tickets (P04-01, a basic list:
- * P04-03 builds the inbox by status on it): the sent tickets, paginated on
- * the server (25 a page), newest sent first, with a debounced search over
- * the number, the title and the tenant, and filters by status ("Open":
- * waiting for the organization) and building, all kept in the URL
- * (ARCHITECTURE.md § 13). Names of a page are read in one lookup each
- * (Lists\TicketParties).
+ * Maintenance tickets, /o/{organization}/tickets: the staff inbox (P04-01's
+ * list, made an inbox by status in P04-03). The sent tickets, paginated on
+ * the server (25 a page), newest sent first, with tabs by status (Open —
+ * waiting for the organization —, Submitted, Under review, In progress,
+ * Reopened, Resolved, Closed, All) and by assignee (Anyone, Assigned to
+ * me, Unassigned), each with its count under the other filters, a
+ * debounced search over the number, the title and the tenant, and a
+ * building filter, all kept in the URL (ARCHITECTURE.md § 13). Names of a
+ * page are read in one lookup each (Lists\TicketParties).
  *
  * Members with `tickets.view` see it (TicketPolicy::viewAny); an agent
  * assigned to buildings sees those buildings' tickets only, and only those
- * buildings in the filter. The rows come from Lists\TicketList, which also
- * exports them (P02-07). Runs inside the `organization` middleware,
+ * buildings in the filter and the counts. The rows and the counts come
+ * from Lists\TicketList, which also exports the rows with the same
+ * filters (P02-07). Runs inside the `organization` middleware,
  * replayed for Livewire updates.
  */
 #[Layout('layouts::app')]
@@ -52,6 +55,10 @@ final class TicketIndex extends Component
     /** A status value, `open`, or empty for every sent ticket. */
     #[Url(except: '')]
     public string $status = '';
+
+    /** `me`, `none` (unassigned), or empty for anyone's. */
+    #[Url(except: '')]
+    public string $assignee = '';
 
     /** A building id, or empty for every building. */
     #[Url(except: '')]
@@ -75,14 +82,14 @@ final class TicketIndex extends Component
 
     public function updated(string $property): void
     {
-        if (in_array($property, ['search', 'status', 'building'], true)) {
+        if (in_array($property, ['search', 'status', 'assignee', 'building'], true)) {
             $this->resetPage();
         }
     }
 
     public function clearFilters(): void
     {
-        $this->reset('search', 'status', 'building');
+        $this->reset('search', 'status', 'assignee', 'building');
         $this->resetPage();
     }
 
@@ -97,8 +104,11 @@ final class TicketIndex extends Component
             'tickets' => $tickets,
             'rows' => $parties->rows($tickets->getCollection()),
             'filtered' => $filters !== [],
+            'statusCounts' => $list->statusCounts($user, $filters),
+            'assigneeCounts' => $list->assigneeCounts($user, $filters),
             'canCreate' => $user->can('create', Ticket::class),
-            'statuses' => TicketStatus::sent(),
+            // The tabs in the order work goes: waiting, being handled, done.
+            'statuses' => [TicketStatus::Submitted, TicketStatus::UnderReview, TicketStatus::InProgress, TicketStatus::Reopened, TicketStatus::Resolved, TicketStatus::Closed],
             'buildings' => $buildings->activeOptions($user),
         ]);
     }
@@ -109,6 +119,7 @@ final class TicketIndex extends Component
         return ['tickets' => [
             'search' => $this->search,
             'status' => $this->status,
+            'assignee' => $this->assignee,
             'building' => $this->building,
         ]];
     }

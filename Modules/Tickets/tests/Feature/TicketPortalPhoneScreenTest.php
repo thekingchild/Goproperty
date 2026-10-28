@@ -69,6 +69,7 @@ describe('acceptance: repair pages usable at 360 px width', function () {
 
         $failing = repairPagesFailingOnPhones($gotenberg, [
             'repairs' => repairsPage($this->kemi),
+            'repairs, finished (P04-03 inbox)' => repairsPage($this->kemi, '?show=finished'),
             'report a problem' => repairsPage($this->kemi, '/new'),
             'draft' => repairsPage($this->kemi, "/{$draft->id}/edit"),
             'waiting ticket' => repairsPage($this->kemi, "/{$waiting->id}"),

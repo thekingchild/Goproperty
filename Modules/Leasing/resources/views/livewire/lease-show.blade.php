@@ -160,6 +160,13 @@
             @endif
         </section>
 
+        {{-- Panels of other modules (Contracts\LeasePagePanels; P04-03: the lease's tickets). Each checks its own permissions. --}}
+        @foreach ($panels as $panel)
+            <div class="lg:col-span-3">
+                @livewire($panel, ['leaseId' => $lease->id], key('lease-panel-'.$panel.'-'.$lease->id))
+            </div>
+        @endforeach
+
         @if ($canTerminate)
             <section class="rounded-xl border border-zinc-200 bg-white p-5 lg:col-span-3 dark:border-zinc-700 dark:bg-zinc-900" data-test="lease-end">
                 <flux:heading size="lg" level="2">{{ $lease->status === \Modules\Leasing\Enums\LeaseStatus::Draft ? __('Cancel this draft') : __('End this lease early') }}</flux:heading>

@@ -257,7 +257,9 @@ describe('tenant portal', function () {
         // After the window, no "Reopen".
         $this->travelTo('2027-03-29 10:00:01');
         repairsPage($this->kemi, "/{$ticket->id}")->assertOk()->assertDontSee('data-test="reopen-ticket"', false);
-        repairsPage($this->kemi)->assertOk()->assertSee('Closed');
+        // Since the P04-03 inbox, a closed ticket is under "Finished".
+        repairsPage($this->kemi)->assertOk()->assertSee('data-test="portal-tab-finished" data-count="1"', false);
+        repairsPage($this->kemi, '?show=finished')->assertOk()->assertSee('Closed')->assertSee($ticket->number);
     });
 
     it('reopens a resolved ticket from its page with what is still wrong', function () {

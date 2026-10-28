@@ -6,6 +6,7 @@ namespace Modules\Tickets\Events;
 
 use Illuminate\Contracts\Events\ShouldDispatchAfterCommit;
 use Illuminate\Foundation\Events\Dispatchable;
+use Illuminate\Support\Str;
 
 /**
  * A ticket moved in its state machine (ARCHITECTURE.md § 6.6): sent by
@@ -21,6 +22,10 @@ use Illuminate\Foundation\Events\Dispatchable;
  * `tickets.status` values; `actor` says who moved it — `tenant` (from the
  * portal), `staff` (a member) or `system` (tickets-auto-close, actorUserId
  * null) — so a listener need not tell the person who acted.
+ *
+ * `key` names this one move (a ULID, made when the event is): the
+ * notifications (P04-03, Notices\TicketNotifier) tell each party once per
+ * key, so a retried or replayed listener tells nobody twice.
  */
 final readonly class TicketStatusChanged implements ShouldDispatchAfterCommit
 {
@@ -31,6 +36,8 @@ final readonly class TicketStatusChanged implements ShouldDispatchAfterCommit
     public const string ACTOR_STAFF = 'staff';
 
     public const string ACTOR_SYSTEM = 'system';
+
+    public string $key;
 
     public function __construct(
         public int $organizationId,
@@ -45,5 +52,8 @@ final readonly class TicketStatusChanged implements ShouldDispatchAfterCommit
         public ?int $tenantProfileId,
         public ?int $assignedToUserId,
         public ?string $note,
-    ) {}
+        ?string $key = null,
+    ) {
+        $this->key = $key ?? (string) Str::ulid();
+    }
 }

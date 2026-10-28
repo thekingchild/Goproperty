@@ -90,6 +90,7 @@ use Modules\Tickets\Enums\TicketSource;
 use Modules\Tickets\Enums\TicketStatus;
 use Modules\Tickets\Models\Ticket;
 use Modules\Tickets\Models\TicketMessage;
+use Modules\Tickets\Models\TicketNotice;
 use Modules\Tickets\Models\TicketStatusChange;
 
 /**
@@ -340,6 +341,16 @@ final class OrganizationScopedModels
                 'ticket_id' => self::ticket()->id,
                 'to_status' => TicketStatus::Submitted,
                 'changed_at' => now(),
+            ])->save()),
+            // What a ticket's parties were told (P04-03): TicketNotifier is the writer.
+            TicketNotice::class => fn (): Model => tap(new TicketNotice, fn (TicketNotice $notice): bool => $notice->forceFill([
+                'ticket_id' => self::ticket()->id,
+                'key' => 'status:'.Str::ulid(),
+                'recipient' => 'user:'.User::factory()->create()->id,
+                'side' => 'staff',
+                'event' => 'ticket.raised',
+                'channels' => ['database', 'mail'],
+                'notification_id' => (string) Str::uuid(),
             ])->save()),
             // A ticket's thread (P04-02): Messages\TicketMessages is the writer.
             TicketMessage::class => fn (): Model => tap(new TicketMessage, fn (TicketMessage $message): bool => $message->forceFill([

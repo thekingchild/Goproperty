@@ -34,8 +34,10 @@ use Modules\Tickets\Tickets\TicketService;
  * picker that building's units, the tenant picker the tenants of the
  * unit's live leases (Leasing's UnitLeases), and "Assign to" the members
  * who work on the building (Tickets\Assignees). `?unit=` opens it on a unit
- * (from a unit's or lease's page). The ticket starts `submitted`, with its
- * number; TicketService checks everything again.
+ * (from a unit's page), `?lease=` on a lease's unit and, while the lease is
+ * live, its tenant (from the lease's page, P04-03; through Leasing's
+ * UnitLeases). The ticket starts `submitted`, with its number;
+ * TicketService checks everything again.
  */
 #[Layout('layouts::app')]
 #[Title('Raise a ticket')]
@@ -48,6 +50,10 @@ final class TicketForm extends Component
 
     #[Url(as: 'unit', except: '')]
     public string $unitId = '';
+
+    /** The lease the form was opened from (`?lease=`): its unit and tenant to start with. */
+    #[Url(as: 'lease', except: '')]
+    public string $leaseId = '';
 
     public string $tenantId = '';
 
@@ -76,6 +82,12 @@ final class TicketForm extends Component
         $this->organizationId = $context->id();
         $this->authorize('create', Ticket::class);
 
+        $lease = ctype_digit($this->leaseId) ? app(UnitLeases::class)->lease((int) $this->leaseId) : null;
+
+        if ($lease !== null) {
+            $this->unitId = (string) $lease->unitId;
+        }
+
         $unit = ctype_digit($this->unitId) ? $units->find((int) $this->unitId) : null;
 
         if ($unit === null || $unit->propertyArchived || ! $access->allows($this->user(), $unit->propertyId)) {
@@ -85,7 +97,11 @@ final class TicketForm extends Component
         }
 
         $this->propertyId = (string) $unit->propertyId;
-        $this->tenantId = (string) ($this->liveLeases((int) $this->unitId)[0]->tenantProfileId ?? '');
+        $live = $this->liveLeases((int) $this->unitId);
+        // The lease's own tenant while it holds the unit; else whoever does now.
+        $fromLease = $lease !== null ? array_values(array_filter($live, static fn (LeaseSummary $summary): bool => $summary->id === $lease->id))[0] ?? null : null;
+        $holder = $fromLease ?? $live[0] ?? null;
+        $this->tenantId = $holder !== null ? (string) $holder->tenantProfileId : '';
     }
 
     /** A building chosen: its unit, tenant and assignee are chosen again. */

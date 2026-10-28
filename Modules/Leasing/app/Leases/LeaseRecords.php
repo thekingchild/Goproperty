@@ -83,6 +83,13 @@ final readonly class LeaseRecords implements ImportedLeases, LeaseBillingSchedul
             ->all());
     }
 
+    public function lease(int $leaseId): ?LeaseSummary
+    {
+        $lease = Lease::query()->find($leaseId);
+
+        return $lease instanceof Lease ? self::summary($lease) : null;
+    }
+
     public function due(DateTimeInterface $date, int $leadDays = CycleCalculator::DEFAULT_LEAD_DAYS, int $afterId = 0, int $limit = 500): array
     {
         $cutoff = $this->calculator->daysAfter($date, max(0, $leadDays))->toDateString();

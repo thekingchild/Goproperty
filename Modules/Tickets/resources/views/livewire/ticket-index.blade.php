@@ -1,6 +1,7 @@
 {{--
-    Maintenance tickets (/o/{organization}/tickets; Modules\Tickets\Livewire\TicketIndex).
-    Rows stack into cards on phones (UX_DESIGN.md § 6). Buttons show only
+    The staff tickets inbox (/o/{organization}/tickets; Modules\Tickets\Livewire\TicketIndex):
+    tabs by status and by assignee with their counts (P04-03), search and building.
+    Rows stack into cards on phones (UX_DESIGN.md § 6); the status tabs scroll sideways there. Buttons show only
     for what the member may do; every page and action checks its policy again.
 --}}
 <x-page :heading="__('Tickets')" :description="__('Problems reported in the homes and buildings :organization manages.', ['organization' => $organization->name])">
@@ -12,24 +13,53 @@
     </x-slot:actions>
 
     <div class="flex flex-col gap-3">
-        <div class="w-full sm:max-w-sm">
-            <flux:input wire:model.live.debounce.400ms="search" icon="magnifying-glass" type="search" :placeholder="__('Search by number, title or tenant')" :aria-label="__('Search tickets')" maxlength="100" data-test="ticket-search" />
-        </div>
+        {{-- The inbox by status (P04-03): each tab counts what it would list with the other filters. --}}
+        <nav class="-mx-1 overflow-x-auto" aria-label="{{ __('Tickets by status') }}" data-test="status-tabs">
+            <ul class="flex w-max gap-1 px-1 pb-1">
+                @foreach ([['value' => \Modules\Tickets\Lists\TicketList::OPEN, 'label' => __('Open'), 'count' => $statusCounts[\Modules\Tickets\Lists\TicketList::OPEN]], ...array_map(fn ($option) => ['value' => $option->value, 'label' => __($option->label()), 'count' => $statusCounts[$option->value]], $statuses), ['value' => '', 'label' => __('All'), 'count' => $statusCounts['all']]] as $tab)
+                    <li>
+                        <button type="button" wire:click="$set('status', '{{ $tab['value'] }}')"
+                            @class([
+                                'inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-sm font-medium whitespace-nowrap',
+                                'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900' => $status === $tab['value'],
+                                'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800' => $status !== $tab['value'],
+                            ])
+                            @if ($status === $tab['value']) aria-current="true" @endif
+                            data-test="status-tab-{{ $tab['value'] === '' ? 'all' : $tab['value'] }}" data-count="{{ $tab['count'] }}">
+                            {{ $tab['label'] }}
+                            <span class="rounded-full bg-zinc-200/70 px-2 text-xs tabular-nums text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200">{{ $tab['count'] }}</span>
+                        </button>
+                    </li>
+                @endforeach
+            </ul>
+        </nav>
 
-        <div class="grid gap-3 sm:grid-cols-2">
-            <flux:select wire:model.live="status" :aria-label="__('Status')" size="sm" data-test="status-filter">
-                <option value="">{{ __('All statuses') }}</option>
-                <option value="{{ \Modules\Tickets\Lists\TicketList::OPEN }}">{{ __('Open (waiting for you)') }}</option>
-                @foreach ($statuses as $option)
-                    <option value="{{ $option->value }}">{{ __($option->label()) }}</option>
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex flex-wrap gap-1" role="group" aria-label="{{ __('Assigned to') }}" data-test="assignee-tabs">
+                @foreach ([['value' => '', 'label' => __('Anyone'), 'count' => $assigneeCounts['all']], ['value' => \Modules\Tickets\Lists\TicketList::MINE, 'label' => __('Assigned to me'), 'count' => $assigneeCounts[\Modules\Tickets\Lists\TicketList::MINE]], ['value' => \Modules\Tickets\Lists\TicketList::UNASSIGNED, 'label' => __('Unassigned'), 'count' => $assigneeCounts[\Modules\Tickets\Lists\TicketList::UNASSIGNED]]] as $tab)
+                    <button type="button" wire:click="$set('assignee', '{{ $tab['value'] }}')"
+                        @class([
+                            'inline-flex min-h-10 items-center gap-2 rounded-lg border px-3 text-sm whitespace-nowrap',
+                            'border-zinc-900 bg-zinc-900 text-white dark:border-white dark:bg-white dark:text-zinc-900' => $assignee === $tab['value'],
+                            'border-zinc-200 text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800' => $assignee !== $tab['value'],
+                        ])
+                        aria-pressed="{{ $assignee === $tab['value'] ? 'true' : 'false' }}"
+                        data-test="assignee-tab-{{ $tab['value'] === '' ? 'all' : $tab['value'] }}" data-count="{{ $tab['count'] }}">
+                        {{ $tab['label'] }}
+                        <span class="tabular-nums">{{ $tab['count'] }}</span>
+                    </button>
                 @endforeach
-            </flux:select>
-            <flux:select wire:model.live="building" :aria-label="__('Building')" size="sm" data-test="building-filter">
-                <option value="">{{ __('All buildings') }}</option>
-                @foreach ($buildings as $buildingId => $buildingName)
-                    <option value="{{ $buildingId }}">{{ $buildingName }}</option>
-                @endforeach
-            </flux:select>
+            </div>
+
+            <div class="grid gap-3 sm:w-auto sm:grid-cols-2">
+                <flux:input wire:model.live.debounce.400ms="search" icon="magnifying-glass" type="search" :placeholder="__('Search by number, title or tenant')" :aria-label="__('Search tickets')" maxlength="100" size="sm" data-test="ticket-search" />
+                <flux:select wire:model.live="building" :aria-label="__('Building')" size="sm" data-test="building-filter">
+                    <option value="">{{ __('All buildings') }}</option>
+                    @foreach ($buildings as $buildingId => $buildingName)
+                        <option value="{{ $buildingId }}">{{ $buildingName }}</option>
+                    @endforeach
+                </flux:select>
+            </div>
         </div>
     </div>
 
