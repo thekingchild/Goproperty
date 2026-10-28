@@ -30,7 +30,9 @@ jobs:
   ci:
     name: CI (${{ matrix.name }})
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    # The full suite takes 15-20 minutes on MySQL (2026-10-28); 35 leaves room
+    # to grow while still stopping a hung job.
+    timeout-minutes: 35
 
     strategy:
       fail-fast: false
