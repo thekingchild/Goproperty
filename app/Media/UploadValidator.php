@@ -18,9 +18,12 @@ use ZipArchive;
  * PHP, and an SVG is refused whatever it is called.
  *
  * Per collection (config/media.php): the accepted types and a size cap.
- * Images must also decode, their decoded type must match the sniffed one,
- * and they must stay within `max_side` and `max_megapixels` so GD can
- * convert them within a shared host's memory.
+ * JPEG, PNG and WebP images must also decode, their decoded type must
+ * match the sniffed one, and they must stay within `max_side` and
+ * `max_megapixels` so GD can convert them within a shared host's memory.
+ * HEIC/HEIF photos (iPhones; P04-02's ticket attachments) cannot be
+ * decoded by GD: they must start with a HEIF `ftyp` box and are kept as
+ * uploaded, not converted.
  *
  * Spreadsheets for imports need more than finfo, which reports an .xlsx as
  * a zip and a .csv as plain text: a file only counts as .xlsx when it opens
@@ -66,7 +69,11 @@ final class UploadValidator
             throw new UploadRefused(__('Upload a :types file. This file is not one, whatever its name says.', ['types' => $rules->typesLabel()]));
         }
 
-        [$width, $height] = str_starts_with($mime, 'image/') ? $this->imageSize($path, $mime) : [null, null];
+        if (in_array($mime, [CollectionRules::HEIC, CollectionRules::HEIF], true) && ! $this->isHeif($path)) {
+            throw new UploadRefused(__('The image could not be read. Save it again as JPEG or PNG.'));
+        }
+
+        [$width, $height] = in_array($mime, CollectionRules::DECODABLE_IMAGES, true) ? $this->imageSize($path, $mime) : [null, null];
 
         return new CheckedUpload(
             path: $path,
@@ -221,6 +228,35 @@ final class UploadValidator
         } finally {
             fclose($handle);
         }
+    }
+
+    /**
+     * An iPhone photo (HEIF): an ISO base media file whose first box is
+     * `ftyp` with a HEIF brand. GD cannot decode it, so it is not measured
+     * or converted; it is kept as uploaded, within the size cap.
+     */
+    private function isHeif(string $path): bool
+    {
+        $head = (string) file_get_contents($path, false, null, 0, 64);
+
+        if (strlen($head) < 16 || substr($head, 4, 4) !== 'ftyp') {
+            return false;
+        }
+
+        $size = unpack('N', substr($head, 0, 4));
+        $boxSize = is_array($size) ? (int) $size[1] : 0;
+
+        if ($boxSize < 16 || $boxSize > 4096) {
+            return false;
+        }
+
+        $brands = [substr($head, 8, 4)];
+
+        foreach (str_split(substr($head, 16, max(0, min($boxSize, strlen($head)) - 16)), 4) as $brand) {
+            $brands[] = $brand;
+        }
+
+        return array_intersect($brands, ['heic', 'heix', 'hevc', 'hevx', 'heim', 'heis', 'hevm', 'hevs', 'mif1', 'msf1']) !== [];
     }
 
     private function isSvg(string $mime, string $path): bool

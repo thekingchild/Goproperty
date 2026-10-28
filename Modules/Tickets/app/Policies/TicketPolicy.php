@@ -6,12 +6,14 @@ namespace Modules\Tickets\Policies;
 
 use App\Enums\OrganizationPermission;
 use App\Models\User;
+use App\Tenancy\BlockedWhileImpersonating;
 use App\Tenancy\OrganizationContext;
 use Illuminate\Auth\Access\Response;
 use Modules\Properties\Contracts\BuildingAccess;
 use Modules\Tenants\Contracts\TenantPortalAccess;
 use Modules\Tickets\Enums\TicketStatus;
 use Modules\Tickets\Models\Ticket;
+use Modules\Tickets\Owner\OwnerTickets;
 use Spatie\Permission\Exceptions\PermissionDoesNotExist;
 
 /**
@@ -27,9 +29,9 @@ use Spatie\Permission\Exceptions\PermissionDoesNotExist;
  * - `tickets.manage` (the same three) moves tickets through their states
  *   (review, work, resolve, close on the tenant's word, reopen at any
  *   time), assigns them and changes their category and priority.
- * `tickets.respond` (replies) is P04-02's. A tenant's unsent draft is
+ * `tickets.respond` (replies, internal notes) is P04-02's, below. A tenant's unsent draft is
  * nobody else's: it answers 404 to members. Property owners (`/owner`,
- * P04-03) and tenants hold no workspace role here.
+ * P04-02, below) and tenants hold no workspace role here.
  *
  * Tenants (the portal; they hold no workspace role, P03 decision 4, so
  * their identity is the permission, as for payment proofs): a ticket is
@@ -51,6 +53,21 @@ use Spatie\Permission\Exceptions\PermissionDoesNotExist;
  * Agent narrowing (P02-03): an agent assigned to buildings sees and works
  * on those buildings' tickets only; any other ticket answers 404
  * (Response::denyAsNotFound), checked before the ability's own rule.
+ *
+ * The thread (P04-02, Messages\TicketMessages): members holding
+ * `tickets.respond` reply and add internal notes (`reply`,
+ * `addInternalNote`); whoever sees the ticket in the workspace sees the
+ * notes (`viewInternalNotes`); the tenant replies to their own ticket
+ * (`replyAsTenant`); the building's owner (`/owner`; their identity is
+ * the permission, as on the owner portal's other pages: the ticket's
+ * building is one of the user's owner profiles' here, Owner\OwnerTickets)
+ * sees the ticket (`viewAsOwner`) and replies only while no agent is
+ * assigned (`replyAsOwner`, ARCHITECTURE.md § 5). Tenants and owners never
+ * see internal notes: no ability lets them (Messages\TicketThread leaves
+ * the notes out of their queries). Files: adding them (`attachFiles`) and
+ * opening them (`downloadAttachment…`) are refused while GoProperty staff
+ * impersonate (evidence and people's photos: like every other uploaded
+ * file, PLATFORM_CONSOLE.md § 6); the words are not.
  */
 final class TicketPolicy
 {
@@ -58,6 +75,7 @@ final class TicketPolicy
         private readonly OrganizationContext $context,
         private readonly BuildingAccess $access,
         private readonly TenantPortalAccess $portal,
+        private readonly OwnerTickets $owners,
     ) {}
 
     public function viewAny(User $user): bool
@@ -135,6 +153,86 @@ final class TicketPolicy
         return $this->ownedBy($user, $ticket) ? true : Response::denyAsNotFound();
     }
 
+    /** Reply in the thread: the tenant and the building's owner see it (P04-02). */
+    public function reply(User $user, Ticket $ticket): Response|bool
+    {
+        return $this->reachable($user, $ticket) ?? $this->holds($user, OrganizationPermission::RespondToTickets);
+    }
+
+    /** Add an internal note: only staff ever see it. */
+    public function addInternalNote(User $user, Ticket $ticket): Response|bool
+    {
+        return $this->reachable($user, $ticket) ?? $this->holds($user, OrganizationPermission::RespondToTickets);
+    }
+
+    /** See the internal notes: whoever sees the ticket in the workspace. */
+    public function viewInternalNotes(User $user, Ticket $ticket): Response|bool
+    {
+        return $this->view($user, $ticket);
+    }
+
+    /** Open a file of the thread from the workspace (internal notes' too). */
+    #[BlockedWhileImpersonating]
+    public function downloadAttachment(User $user, Ticket $ticket): Response|bool
+    {
+        return $this->view($user, $ticket);
+    }
+
+    /** The tenant replies to their own ticket from the portal. */
+    public function replyAsTenant(User $user, Ticket $ticket): Response|bool
+    {
+        return $this->ownedBy($user, $ticket) ? true : Response::denyAsNotFound();
+    }
+
+    /** The tenant opens a file of their ticket's thread (never an internal note's: TicketThread). */
+    #[BlockedWhileImpersonating]
+    public function downloadAttachmentAsTenant(User $user, Ticket $ticket): Response|bool
+    {
+        return $this->ownedBy($user, $ticket) ? true : Response::denyAsNotFound();
+    }
+
+    /** The building's owner sees a sent ticket of their building, from /owner. */
+    public function viewAsOwner(User $user, Ticket $ticket): Response|bool
+    {
+        return $this->ownerSees($user, $ticket) ? true : Response::denyAsNotFound();
+    }
+
+    /** The building's owner replies, only while no agent is assigned (ARCHITECTURE.md § 5; the writer checks again on the locked row). */
+    public function replyAsOwner(User $user, Ticket $ticket): Response|bool
+    {
+        if (! $this->ownerSees($user, $ticket)) {
+            return Response::denyAsNotFound();
+        }
+
+        return $ticket->assigned_to_user_id === null
+            ? true
+            : Response::deny(__('An agent of the agency is handling this ticket now, so the conversation is theirs.'));
+    }
+
+    /** The building's owner opens a file of the thread (never an internal note's: TicketThread). */
+    #[BlockedWhileImpersonating]
+    public function downloadAttachmentAsOwner(User $user, Ticket $ticket): Response|bool
+    {
+        return $this->ownerSees($user, $ticket) ? true : Response::denyAsNotFound();
+    }
+
+    /** Add files to a message: whoever may write in the thread, never while staff impersonate (evidence). */
+    #[BlockedWhileImpersonating]
+    public function attachFiles(User $user, Ticket $ticket): Response|bool
+    {
+        if ($this->ownedBy($user, $ticket)) {
+            return true;
+        }
+
+        $staff = $this->reply($user, $ticket);
+
+        if ($staff === true || ($staff instanceof Response && $staff->allowed())) {
+            return true;
+        }
+
+        return $this->replyAsOwner($user, $ticket);
+    }
+
     /**
      * Null when the ticket is this organization's, sent, and in the
      * member's buildings (the ability's own rule decides); false for
@@ -160,6 +258,14 @@ final class TicketPolicy
             && $ticket->organization_id === $this->context->id()
             && $ticket->tenant_profile_id !== null
             && in_array($ticket->tenant_profile_id, $this->portal->profileIdsHere($user), true);
+    }
+
+    private function ownerSees(User $user, Ticket $ticket): bool
+    {
+        return $this->context->has()
+            && $ticket->organization_id === $this->context->id()
+            && $ticket->status !== TicketStatus::Draft
+            && $this->owners->ownerProfileFor($user, $ticket) !== null;
     }
 
     private function holds(User $user, OrganizationPermission $permission): bool

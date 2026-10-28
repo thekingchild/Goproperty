@@ -51,8 +51,6 @@
         @endif
     </section>
 
-    {{-- Conversation slot: the ticket's thread with the agency (ticket_messages, never the internal notes) is P04-02's and goes here, between the ticket and its actions. --}}
-
     @if ($canConfirm || $canReopen)
         <section class="flex flex-col gap-4 rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-test="portal-ticket-actions">
             @if ($canConfirm)
@@ -72,6 +70,9 @@
             @endif
         </section>
     @endif
+
+    {{-- Conversation slot (P04-02): the thread with the agency, never the internal notes; after "Is it fixed?" so that answer stays at the top on a phone. --}}
+    <livewire:tickets::portal.portal-ticket-conversation :ticket-id="$ticket->id" :key="'portal-ticket-conversation-'.$ticket->id" />
 
     @if ($history !== [])
         <section class="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">

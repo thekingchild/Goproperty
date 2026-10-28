@@ -25,6 +25,11 @@ final readonly class CollectionRules
         'image/png' => 'png',
         'image/webp' => 'webp',
         'application/pdf' => 'pdf',
+        // iPhone photos (HEIF with HEVC). Stored as uploaded: GD cannot
+        // decode them, so no conversion is made with the default driver
+        // and pages offer them as files (P04-02, ticket attachments).
+        self::HEIC => 'heic',
+        self::HEIF => 'heif',
         // Only after UploadValidator's content checks (an Excel workbook
         // zip; plain text with no NUL bytes or markup).
         self::XLSX => 'xlsx',
@@ -35,11 +40,20 @@ final readonly class CollectionRules
 
     public const string CSV = 'text/csv';
 
+    public const string HEIC = 'image/heic';
+
+    public const string HEIF = 'image/heif';
+
+    /** Image types GD decodes: checked by decoding them, and the only ones converted with the default driver. */
+    public const array DECODABLE_IMAGES = ['image/jpeg', 'image/png', 'image/webp'];
+
     private const array LABELS = [
         'image/jpeg' => 'JPEG',
         'image/png' => 'PNG',
         'image/webp' => 'WebP',
         'application/pdf' => 'PDF',
+        self::HEIC => 'HEIC',
+        self::HEIF => 'HEIC',
         self::XLSX => 'spreadsheet (.xlsx)',
         self::CSV => 'CSV',
     ];
@@ -142,7 +156,8 @@ final readonly class CollectionRules
     /** "JPEG, PNG or PDF" for messages. */
     public function typesLabel(): string
     {
-        $labels = array_map(static fn (string $mime): string => self::LABELS[$mime], $this->mimes);
+        // HEIC and HEIF are one label.
+        $labels = array_values(array_unique(array_map(static fn (string $mime): string => self::LABELS[$mime], $this->mimes)));
         $last = array_pop($labels);
 
         return $labels === [] ? (string) $last : implode(', ', $labels).' or '.$last;

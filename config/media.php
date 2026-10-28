@@ -61,10 +61,11 @@ return [
         ],
 
         // Signed papers: a photo or a PDF. Conversions apply to the images
-        // only. (Payment proofs, expense receipts and meter photos have their
-        // own evidence collections, `payment_proofs`, `expense_receipts` and
-        // `meter_photos`, added by the Payments, Expenses and Billing modules'
-        // providers: P03-09, P03-12, P03-06a.)
+        // only. (Payment proofs, expense receipts, meter photos and ticket
+        // attachments have their own evidence collections, `payment_proofs`,
+        // `expense_receipts`, `meter_photos` and `ticket_attachments`, added
+        // by the Payments, Expenses, Billing and Tickets modules' providers:
+        // P03-09, P03-12, P03-06a, P04-02.)
         'documents' => [
             'mimes' => ['application/pdf', 'image/jpeg', 'image/png'],
             'max_kb' => 10 * 1024,

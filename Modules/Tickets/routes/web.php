@@ -3,6 +3,9 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Facades\Route;
+use Modules\Tickets\Http\Controllers\TicketFileController;
+use Modules\Tickets\Livewire\Owner\OwnerTicketIndex;
+use Modules\Tickets\Livewire\Owner\OwnerTicketShow;
 use Modules\Tickets\Livewire\Portal\PortalTicketForm;
 use Modules\Tickets\Livewire\Portal\PortalTickets;
 use Modules\Tickets\Livewire\Portal\PortalTicketShow;
@@ -40,4 +43,36 @@ Route::middleware(['auth', 'verified'])->prefix('portal')->name('portal.')->grou
     Route::livewire('tickets/new', PortalTicketForm::class)->middleware('throttle:60,1')->name('tickets.create');
     Route::livewire('tickets/{ticket}', PortalTicketShow::class)->whereNumber('ticket')->name('tickets.show');
     Route::livewire('tickets/{ticket}/edit', PortalTicketForm::class)->whereNumber('ticket')->middleware('throttle:60,1')->name('tickets.edit');
+});
+
+/*
+ * The thread's files (P04-02; evidence): a signed link after the policy
+ * check, one route per surface. The file is found among the messages the
+ * reader may see, so an internal note's file answers 404 in the portals.
+ * Refused while GoProperty staff impersonate (TicketFileController).
+ */
+Route::middleware(['auth', 'verified', 'organization', 'throttle:120,1'])->prefix('o/{organization}')->name('workspace.')->group(function () {
+    Route::get('tickets/{ticket}/files/{media}', [TicketFileController::class, 'workspace'])->whereNumber(['ticket', 'media'])->name('tickets.files.show');
+    Route::get('tickets/{ticket}/files/{media}/thumb', [TicketFileController::class, 'workspaceThumb'])->whereNumber(['ticket', 'media'])->name('tickets.files.thumb');
+});
+
+Route::middleware(['auth', 'verified', 'throttle:120,1'])->group(function () {
+    Route::get('portal/tickets/{ticket}/files/{media}', [TicketFileController::class, 'portal'])->whereNumber(['ticket', 'media'])->name('portal.tickets.files.show');
+    Route::get('portal/tickets/{ticket}/files/{media}/thumb', [TicketFileController::class, 'portalThumb'])->whereNumber(['ticket', 'media'])->name('portal.tickets.files.thumb');
+    Route::get('owner/tickets/{ticket}/files/{media}', [TicketFileController::class, 'owner'])->whereNumber(['ticket', 'media'])->name('owner.tickets.files.show');
+    Route::get('owner/tickets/{ticket}/files/{media}/thumb', [TicketFileController::class, 'ownerThumb'])->whereNumber(['ticket', 'media'])->name('owner.tickets.files.thumb');
+});
+
+/*
+ * The building owner's tickets in the owner portal (P04-02; ARCHITECTURE.md
+ * § 5 "respond to tickets if no agent assigned"): the list and a ticket,
+ * across every organization that manages buildings of the user, through
+ * Owner\OwnerTickets (Properties' OwnerPortalAccess). Both pages are
+ * read-only (Properties' ReadOnlyOwnerPage); the reply form is its own
+ * component (Livewire\Owner\OwnerTicketConversation), whose writer refuses
+ * a reply once an agent is assigned.
+ */
+Route::middleware(['auth', 'verified'])->prefix('owner')->name('owner.')->group(function () {
+    Route::livewire('tickets', OwnerTicketIndex::class)->name('tickets.index');
+    Route::livewire('tickets/{ticket}', OwnerTicketShow::class)->whereNumber('ticket')->name('tickets.show');
 });

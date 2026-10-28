@@ -37,10 +37,11 @@ it('classes every media collection as an attachment or as evidence', function ()
         'imports' => 'attachment',
         'statements' => 'evidence',
         'issued_documents' => 'evidence',
-        // Added by the module providers, in module order: Billing (meter photos, P03-06a), Expenses (P03-12), Payments (P03-09).
+        // Added by the module providers, in module order: Billing (meter photos, P03-06a), Expenses (P03-12), Payments (P03-09), Tickets (P04-02).
         'meter_photos' => 'evidence',
         'expense_receipts' => 'evidence',
         'payment_proofs' => 'evidence',
+        'ticket_attachments' => 'evidence',
     ]);
 });
 

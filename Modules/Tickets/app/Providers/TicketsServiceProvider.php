@@ -27,6 +27,7 @@ use Modules\Tickets\Jobs\CloseResolvedTickets;
 use Modules\Tickets\Listeners\UnassignRemovedMember;
 use Modules\Tickets\Lists\TicketList;
 use Modules\Tickets\Models\Ticket;
+use Modules\Tickets\Models\TicketMessage;
 use Modules\Tickets\Policies\TicketPolicy;
 use Modules\Tickets\Tickets\TicketService;
 use Modules\Tickets\Tickets\TicketSettings;
@@ -48,6 +49,11 @@ use Nwidart\Modules\Support\ModuleServiceProvider;
  *
  * Events for other modules and later tasks: Events\TicketStatusChanged
  * (every move, after the commit) and Events\TicketAssignmentChanged.
+ *
+ * P04-02 adds the thread's media collection `ticket_attachments`
+ * (evidence) and, in routes/web.php, the files' routes and the owner
+ * portal's tickets (`/owner/tickets`); Events\TicketMessagePosted is sent
+ * for every message (Messages\TicketMessages).
  */
 final class TicketsServiceProvider extends ModuleServiceProvider
 {
@@ -65,6 +71,17 @@ final class TicketsServiceProvider extends ModuleServiceProvider
         parent::register();
 
         $this->app->bind(TicketServiceContract::class, TicketService::class);
+
+        // Ticket attachments (P04-02): photos (iPhones' HEIC too) and PDFs
+        // of the problem, 10 MB each; evidence (never deleted; ARCHITECTURE.md § 9).
+        if (! is_array(config('media.collections.'.TicketMessage::COLLECTION))) {
+            config(['media.collections.'.TicketMessage::COLLECTION => [
+                'mimes' => ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf'],
+                'max_kb' => 10 * 1024,
+                'conversions' => ['thumb'],
+                'kind' => 'evidence',
+            ]]);
+        }
     }
 
     public function boot(): void

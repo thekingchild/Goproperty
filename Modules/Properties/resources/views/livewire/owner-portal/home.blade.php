@@ -6,10 +6,16 @@
     Read-only.
 --}}
 <x-page :heading="__('My properties')" :description="__('Your buildings, units, leases and bills, from every agency that manages them for you.')">
-    @if ($agencies !== [] && Route::has('owner.statements.index'))
+    @if ($agencies !== [] && (Route::has('owner.statements.index') || Route::has('owner.tickets.index')))
         <x-slot:actions>
-            {{-- Monthly statements, renewals and settlements (Modules\OwnerStatements, P08-05). --}}
-            <flux:button icon="document-text" :href="route('owner.statements.index')" wire:navigate class="min-h-11" data-test="owner-statements-link">{{ __('Statements') }}</flux:button>
+            @if (Route::has('owner.statements.index'))
+                {{-- Monthly statements, renewals and settlements (Modules\OwnerStatements, P08-05). --}}
+                <flux:button icon="document-text" :href="route('owner.statements.index')" wire:navigate class="min-h-11" data-test="owner-statements-link">{{ __('Statements') }}</flux:button>
+            @endif
+            @if (Route::has('owner.tickets.index'))
+                {{-- Problems reported in the owner's buildings (Modules\Tickets, P04-02). --}}
+                <flux:button icon="wrench-screwdriver" :href="route('owner.tickets.index')" wire:navigate class="min-h-11" data-test="owner-tickets-link">{{ __('Repairs') }}</flux:button>
+            @endif
         </x-slot:actions>
     @endif
     @if (session('status'))

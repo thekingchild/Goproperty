@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Media\CollectionRules;
 use App\Media\Media;
 use App\Media\MediaUploads;
 use App\Media\UploadRefused;
@@ -114,6 +115,23 @@ describe('mime sniffing', function () {
         expect(inOrganization($this->acme, fn () => Media::query()->orderBy('id')->pluck('mime_type')->all()))
             ->toBe(['image/jpeg', 'image/png', 'image/webp', 'application/pdf'])
             ->and($pdf->file_name)->toEndWith('.pdf');
+    });
+
+    it('keeps an iPhone HEIC photo as uploaded where a collection takes HEIC, and refuses a fake one (P04-02)', function () {
+        config(['media.collections.heic_test' => ['mimes' => ['image/jpeg', 'image/heic', 'image/heif'], 'max_kb' => 1024, 'conversions' => ['thumb'], 'kind' => 'evidence']]);
+
+        // An ISO media file of another brand (an MP4 video) is not a photo, and HEIC is refused where a collection does not list it.
+        expectRefused($this->acme, UploadedFile::fake()->createWithContent('clip.heic', "\0\0\0\x18ftypisom\0\0\0\0isomiso2".str_repeat('x', 64)), 'Upload a JPEG or HEIC file', 'heic_test');
+        expectRefused($this->acme, UploadedFile::fake()->createWithContent('IMG_0043.HEIC', heicBytes()), 'Upload a JPEG, PNG or WebP file');
+
+        $bytes = heicBytes();
+        $media = uploadMedia($this->acme, UploadedFile::fake()->createWithContent('IMG_0042.HEIC', $bytes), 'heic_test');
+
+        expect($media->mime_type)->toBe('image/heic')
+            ->and($media->file_name)->toMatch('/^[a-z0-9]{40}\.heic$/')
+            ->and($media->getCustomProperty('width'))->toBeNull()
+            ->and($media->checksum())->toBe(hash('sha256', $bytes))
+            ->and(CollectionRules::for('heic_test')->typesLabel())->toBe('JPEG or HEIC');
     });
 
     it('keeps a collection to its own types', function () {

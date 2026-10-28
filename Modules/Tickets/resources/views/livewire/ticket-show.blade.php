@@ -85,7 +85,8 @@
                 </dl>
             </section>
 
-            {{-- Conversation slot: the ticket's thread (ticket_messages: replies and staff-only internal notes) is P04-02's and goes here, between the problem and the next step. --}}
+            {{-- Conversation slot: the ticket's thread (ticket_messages: replies and staff-only internal notes), P04-02. --}}
+            <livewire:tickets::ticket-conversation :ticket-id="$ticket->id" :key="'ticket-conversation-'.$ticket->id" />
 
             @if ($canResolve || $canClose || $canReopen)
                 <section class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900" data-test="ticket-actions">

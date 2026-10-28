@@ -59,3 +59,9 @@ function mediaCount(Organization $organization): int
 {
     return app(OrganizationContext::class)->run($organization, fn () => Media::query()->count());
 }
+
+/** The start of an iPhone HEIC photo (an ISO media file whose `ftyp` box names HEIF brands), with some bytes after it. */
+function heicBytes(int $seed = 1): string
+{
+    return "\0\0\0\x18ftypheic\0\0\0\0mif1heic".str_repeat(chr(65 + $seed % 26), 512);
+}

@@ -84,10 +84,12 @@ use Modules\Properties\Models\OwnerProfile;
 use Modules\Properties\Models\Property;
 use Modules\Properties\Models\Unit;
 use Modules\Tenants\Models\TenantProfile;
+use Modules\Tickets\Enums\MessageAuthor;
 use Modules\Tickets\Enums\TicketCategory;
 use Modules\Tickets\Enums\TicketSource;
 use Modules\Tickets\Enums\TicketStatus;
 use Modules\Tickets\Models\Ticket;
+use Modules\Tickets\Models\TicketMessage;
 use Modules\Tickets\Models\TicketStatusChange;
 
 /**
@@ -338,6 +340,13 @@ final class OrganizationScopedModels
                 'ticket_id' => self::ticket()->id,
                 'to_status' => TicketStatus::Submitted,
                 'changed_at' => now(),
+            ])->save()),
+            // A ticket's thread (P04-02): Messages\TicketMessages is the writer.
+            TicketMessage::class => fn (): Model => tap(new TicketMessage, fn (TicketMessage $message): bool => $message->forceFill([
+                'ticket_id' => self::ticket()->id,
+                'author_kind' => MessageAuthor::Staff,
+                'body' => 'Probe internal note',
+                'is_internal' => true,
             ])->save()),
         ];
     }

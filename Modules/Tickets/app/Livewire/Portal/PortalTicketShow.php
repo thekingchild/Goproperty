@@ -59,6 +59,7 @@ final class PortalTicketShow extends Component
         $tickets->within($tenancy, fn () => $service->confirmResolution($this->user(), $ticket, $this->note));
         $this->reset('note', 'reason');
         $this->notice = __('Thank you. The ticket is closed.');
+        $this->dispatch('ticket-changed');
     }
 
     public function reopen(TenantTickets $tickets, TicketService $service): void
@@ -67,6 +68,7 @@ final class PortalTicketShow extends Component
         $tickets->within($tenancy, fn () => $service->reopenAsTenant($this->user(), $ticket, $this->reason));
         $this->reset('note', 'reason');
         $this->notice = __('The ticket is open again. The agency has been told what is still wrong.');
+        $this->dispatch('ticket-changed');
     }
 
     public function render(TenantTickets $tickets, TicketParties $parties, TicketHistory $history, TicketService $service): View

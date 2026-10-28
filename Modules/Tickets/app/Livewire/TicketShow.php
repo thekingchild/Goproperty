@@ -163,6 +163,8 @@ final class TicketShow extends Component
         $this->resetValidation();
         $this->fillFrom($this->ticket());
         $this->notice = $notice;
+        // The conversation shows whether it is still open (P04-02).
+        $this->dispatch('ticket-changed');
     }
 
     private function fillFrom(Ticket $ticket): void
