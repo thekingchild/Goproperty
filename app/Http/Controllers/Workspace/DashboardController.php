@@ -12,24 +12,33 @@ use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 /**
- * The organization picker (/dashboard). Someone who belongs to no
- * organization at all is either a tenant (they never get an
- * `organization_user` row, P03 decision 4), who goes to their portal
- * (PortalLanding), or has just signed up and continues signup at the
- * organization step (ONBOARDING_COMPLIANCE.md § 2).
+ * The organization picker (/dashboard). Someone with no workspace is a
+ * tenant (they never get an `organization_user` row, P03 decision 4), a
+ * property owner (a member holding only `property-owner`, P03-15), both,
+ * or has just signed up: they go to their only portal (PortalLanding),
+ * see the portals they belong in when there are several, or continue
+ * signup at the organization step when they belong to no organization at
+ * all (ONBOARDING_COMPLIANCE.md § 2).
  */
 final class DashboardController extends Controller
 {
     public function __invoke(Request $request, PortalLanding $portals): View|RedirectResponse
     {
         $user = $request->user();
+        $belongsIn = [];
 
-        if ($user instanceof User && $user->organizations()->doesntExist()) {
-            $portal = $portals->url($user);
+        if ($user instanceof User && $user->workspaceOrganizationIds() === []) {
+            $belongsIn = $portals->of($user);
 
-            return $portal !== null ? redirect()->to($portal) : redirect()->route('onboarding.organization');
+            if (count($belongsIn) === 1) {
+                return redirect()->to($belongsIn[0]['url']);
+            }
+
+            if ($belongsIn === [] && $user->organizations()->doesntExist()) {
+                return redirect()->route('onboarding.organization');
+            }
         }
 
-        return view('dashboard');
+        return view('dashboard', ['portals' => $belongsIn]);
     }
 }

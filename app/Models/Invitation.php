@@ -23,7 +23,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * InvitationAcceptance (kind `user`), the SaasBilling module's
  * BillingTransferService (kind `org_billing_transfer`, the link of a
  * billing transfer), and the Tenants module's Portal classes (kinds
- * `tenant` and `sign_in_link`, P03-01b); only the token's SHA-256 is
+ * `tenant` and `sign_in_link`, P03-01b) and the Properties module's
+ * OwnerPortal classes (kind `owner`, P03-15); only the token's SHA-256 is
  * stored.
  *
  * @property int $id
@@ -33,6 +34,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string|null $phone
  * @property int|null $user_id the account a `sign_in_link` opens (P03-01b)
  * @property int|null $tenant_profile_id the tenant a `tenant` invitation or `sign_in_link` is for (P03-01b)
+ * @property int|null $owner_profile_id the owner an `owner` invitation is for (P03-15)
  * @property list<string> $roles role names (OrganizationRole values)
  * @property int|null $target_organization_id
  * @property int|null $billing_transfer_id the billing transfer an `org_billing_transfer` invitation carries (P02-04)

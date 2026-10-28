@@ -24,10 +24,14 @@ use Modules\Properties\Enums\OwnerType;
  * Modules\Properties\Owners\OwnerProfiles, which checks the policy and
  * audits every change. Archived owners are soft deleted (AGENT.md § 3
  * rule 7). `import_batch_id` and `external_ref` are import provenance
- * (§ 8A), set only by the importer.
+ * (§ 8A), set only by the importer. `user_id` links the owner to the user
+ * who follows the owner's buildings in the owner portal (P03-15): set and
+ * cleared only through OwnerPortal\OwnerLinks (the invitation's acceptance,
+ * the agency's "Remove access"; one profile per user in an organization).
  *
  * @property int $id
  * @property int $organization_id
+ * @property int|null $user_id the owner's portal account (P03-15)
  * @property OwnerType $type
  * @property string|null $first_name
  * @property string|null $last_name

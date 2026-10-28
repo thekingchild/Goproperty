@@ -86,7 +86,8 @@ final readonly class MemberInvitations
                 throw new MemberChangeRefused('That person is already a member of this organization. Change their roles in the list instead.');
             }
 
-            if (Invitation::query()->where('email', $email)->where('status', InvitationStatus::Pending)->where('expires_at', '>', now())->exists()) {
+            // Member invitations only: an owner's or tenant's portal invitation to the same address is another matter (P03-15).
+            if (Invitation::query()->where('kind', InvitationKind::User)->where('email', $email)->where('status', InvitationStatus::Pending)->where('expires_at', '>', now())->exists()) {
                 throw new MemberChangeRefused('That address already has an invitation waiting. Send it again from the list instead.');
             }
 
@@ -213,7 +214,16 @@ final readonly class MemberInvitations
     {
         $user = User::query()->where('email', $email)->first();
 
-        return $user !== null && Membership::query()->where('user_id', $user->id)->exists();
+        if ($user === null || Membership::query()->where('user_id', $user->id)->doesntExist()) {
+            return false;
+        }
+
+        // A property owner holding only `property-owner` here (P03-15) is
+        // not in the members list (MemberList): they may be invited to work
+        // in the workspace too, and joining adds the roles.
+        $held = $user->roleNamesIn($this->context->get());
+
+        return $held === [] || array_intersect($held, array_map(static fn (OrganizationRole $role): string => $role->value, RoleGrants::memberRoles())) !== [];
     }
 
     /**

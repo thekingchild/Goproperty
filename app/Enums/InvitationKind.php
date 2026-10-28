@@ -20,8 +20,14 @@ use App\Enums\Concerns\HasValues;
  * (the tenant's profile is linked to a user; no roles and never an
  * `organization_user` row); `sign_in_link` is the agency's one-time sign-in
  * link for a tenant's existing account (`user_id`), valid 24 hours, opened
- * at /portal/sign-in/{token} (P03 decision 4). Each kind is opened only by
- * its own page.
+ * at /portal/sign-in/{token} (P03 decision 4).
+ *
+ * P03-15 (Properties module, `owner_profile_id` set): `owner` invites a
+ * property owner to the owner portal, valid 14 days, roles
+ * `[property-owner]`, opened at /owner/invitations/{token} (the owner
+ * profile is linked to a user, who joins the organization with the
+ * `property-owner` role only: never the workspace). Each kind is opened
+ * only by its own page.
  */
 enum InvitationKind: string
 {
@@ -31,4 +37,5 @@ enum InvitationKind: string
     case OrgBillingTransfer = 'org_billing_transfer';
     case Tenant = 'tenant';
     case SignInLink = 'sign_in_link';
+    case Owner = 'owner';
 }

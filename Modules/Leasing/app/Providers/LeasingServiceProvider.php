@@ -25,6 +25,7 @@ use Modules\Import\Contracts\ImportUsages;
 use Modules\Leasing\Contracts\CycleCalculator as CycleCalculatorContract;
 use Modules\Leasing\Contracts\ImportedLeases;
 use Modules\Leasing\Contracts\LeaseBillingSchedule;
+use Modules\Leasing\Contracts\OwnerLeases;
 use Modules\Leasing\Contracts\TenantLeaseContracts;
 use Modules\Leasing\Contracts\TenantLeases;
 use Modules\Leasing\CycleCalculator;
@@ -38,6 +39,7 @@ use Modules\Leasing\Import\LeasesImportTarget;
 use Modules\Leasing\Jobs\ExpireAndFlagLeases;
 use Modules\Leasing\Leases\LeaseRecords;
 use Modules\Leasing\Leases\LeaseService;
+use Modules\Leasing\Leases\OwnerLeaseRecords;
 use Modules\Leasing\Listeners\IssueLeaseContract;
 use Modules\Leasing\Lists\LeaseList;
 use Modules\Leasing\Models\Lease;
@@ -50,7 +52,8 @@ use Nwidart\Modules\Support\ModuleServiceProvider;
  * contracts other modules use (Contracts\CycleCalculator, AGENT.md § 3
  * rule 3; Contracts\TenantLeases for the Tenants module;
  * Contracts\LeaseBillingSchedule for Billing; Contracts\TenantLeaseContracts
- * for the tenant portal's contract download, P03-11b), and adds the lease pages
+ * for the tenant portal's contract download, P03-11b; Contracts\OwnerLeases
+ * for the owner portal, P03-15), and adds the lease pages
  * (routes, Livewire namespace `leasing::`, classes in
  * Modules\Leasing\Livewire), LeasePolicy, the sidebar item "Leases", the
  * list's export (Lists\LeaseList), the organization settings
@@ -90,6 +93,7 @@ final class LeasingServiceProvider extends ModuleServiceProvider
         $this->app->bind(LeaseBillingSchedule::class, LeaseRecords::class);
         $this->app->bind(TenantLeaseContracts::class, TenantContractFiles::class);
         $this->app->bind(ImportedLeases::class, LeaseRecords::class);
+        $this->app->bind(OwnerLeases::class, OwnerLeaseRecords::class);
         // One of it, so a dry run's memory of the tenants and units it looked up is kept between rows.
         $this->app->singleton(LeasesImportTarget::class);
     }

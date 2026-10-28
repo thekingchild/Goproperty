@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace Modules\Properties\Policies;
 
 use App\Enums\OrganizationPermission;
+use App\Enums\OrganizationRole;
 use App\Models\User;
 use App\Tenancy\BlockedWhileImpersonating;
 use App\Tenancy\OrganizationContext;
 use Illuminate\Auth\Access\Response;
 use Modules\Properties\Assignments\AgentNarrowing;
 use Modules\Properties\Models\OwnerProfile;
+use Modules\Properties\OwnerPortal\OwnerPortfolios;
 use Spatie\Permission\Exceptions\PermissionDoesNotExist;
 
 /**
@@ -35,6 +37,7 @@ final class OwnerProfilePolicy
     public function __construct(
         private readonly OrganizationContext $context,
         private readonly AgentNarrowing $narrowing,
+        private readonly OwnerPortfolios $portfolios,
     ) {}
 
     public function viewAny(User $user): bool
@@ -83,6 +86,45 @@ final class OwnerProfilePolicy
     public function delete(User $user, OwnerProfile $owner): bool
     {
         return $this->update($user, $owner);
+    }
+
+    /**
+     * Invite the owner to the owner portal, send the invitation again,
+     * revoke it, or remove the owner's access (P03-15,
+     * OwnerPortal\OwnerInvitations). An active owner of this organization,
+     * for members holding `owners.manage` (org-owner, org-admin). Never
+     * while GoProperty staff impersonate (who may sign in to an account is
+     * a credential matter, AGENT.md § 3 rule 9); the suspended guard refuses
+     * it as a write.
+     */
+    #[BlockedWhileImpersonating]
+    public function managePortalAccess(User $user, OwnerProfile $owner): bool
+    {
+        return $this->belongsHere($owner) && ! $owner->trashed() && $this->holds($user, OrganizationPermission::ManageOwners);
+    }
+
+    /**
+     * The owner portal (P03-15, OwnerPortal\OwnerPortfolios): the user's own
+     * owner record in this organization, proven by the link the owner's
+     * invitation made (`owner_profiles.user_id`), not archived, and the
+     * user holds `property-owner` here (removing the owner's access takes
+     * both away). The portal shows only the buildings of the records this
+     * allows. A read: allowed in a suspended organization and in a support
+     * session, but only for the session's organization
+     * (PLATFORM_CONSOLE.md § 6 "Scope"). Anything else answers 404.
+     */
+    public function viewAsOwner(User $user, OwnerProfile $owner): Response|bool
+    {
+        if (! $this->belongsHere($owner)
+            || $owner->trashed()
+            || $owner->user_id === null
+            || (int) $owner->user_id !== (int) $user->id
+            || ! $this->portfolios->opens($user, $owner->organization_id)
+            || ! $user->hasRole(OrganizationRole::PropertyOwner->value, OrganizationPermission::GUARD)) {
+            return Response::denyAsNotFound();
+        }
+
+        return true;
     }
 
     /** Bring an archived owner back. */

@@ -128,4 +128,9 @@
             <flux:text>{{ __('You can see these details but not change them.') }}</flux:text>
         @endif
     </form>
+
+    @if ($owner)
+        {{-- The owner portal (P03-15): invite, resend, revoke, remove access. --}}
+        <livewire:properties::owner-portal-access :owner="$owner->id" :key="'owner-portal-access-'.$owner->id" />
+    @endif
 </x-page>

@@ -17,8 +17,9 @@ use Laravel\Fortify\Fortify;
  * - several: the one they switched to last (`organization_user.is_default`),
  *   else the organization picker;
  * - none: the portal the user belongs in (PortalLanding: a tenant goes to
- *   /portal, P03-01b), else the dashboard (the organization picker, which
- *   sends someone with no organization at all to signup).
+ *   /portal, P03-01b; an owner to /owner, P03-15), else the dashboard (the
+ *   organization picker, which lists the portals of someone who belongs in
+ *   several and sends someone with no organization at all to signup).
  */
 final class WorkspaceLanding
 {
@@ -44,7 +45,7 @@ final class WorkspaceLanding
         }
 
         if ($user->workspaceOrganizationIds() === []) {
-            $portal = $this->portals->url($user);
+            $portal = $this->portals->landing($user);
 
             if ($portal !== null) {
                 return $portal;

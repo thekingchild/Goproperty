@@ -78,6 +78,8 @@ Filament panels support both `->path()` and `->domain()`. Old URLs redirect perm
 | Owner only | `/owner` |
 | Mixed (e.g. agent who also rents) | Last used, with a switcher listing orgs + "My rentals" + "My properties" |
 
+As built (P01-01, P03-01b, P03-15; `App\Tenancy\WorkspaceLanding`, `PortalLanding`): a workspace member lands in their workspace (the only one, else the last chosen, else the picker), whatever portals they also belong in; someone with no workspace lands in the one portal they belong in, or on the picker (`/dashboard`) listing "My rentals" and "My properties" when they are both a tenant and an owner. Every signed-in page links both portals (sidebar, switcher, phone bottom bar), so a mixed user reaches each place in one tap.
+
 **Later (Scale plan add-on, VPS only):** a branded tenant-portal entry at `{slug}.goproperty.ng` or the agency's own domain (`tenants.adeyemirealty.com`), for white-labelling only. It redirects into the same single app. Deferred until customers ask for it.
 
 ### Staff accounts are separate
@@ -154,6 +156,13 @@ Step details:
 - **One-time sign-in link** (from the same section, `/portal/sign-in/{token}`): for a tenant whose account is phone-only, without two-factor authentication, not working in any organization's workspace and not a tenant of another organization; otherwise the record says why not (they reset their password by email, use a recovery code, or ask the account's owner). It works once within 24 hours, may set a new password, and a new link replaces the last. Shown as link / QR or sent by the agency's WhatsApp (which then verifies the number). Creating, using and revoking it are audited.
 - **Limits.** Invitations: 5 sends per tenant a day, 30 per member and 50 per organization an hour; sign-in links: 5 per tenant a day, 20 per member and 30 per organization an hour; the link pages: 30 openings and 10 uses a minute per IP. None of this while GoProperty staff impersonate, or while the organization is suspended.
 **Property owners** managed by an agency are invited into the owner portal. Owners who manage their own buildings sign up as an organization of type `property_owner`. If such an owner later hands buildings to an agency (management handover, [BILLING_PAYMENTS.md § 7](BILLING_PAYMENTS.md)), the buildings move into the agency's organization and the owner follows them in the owner portal; their own organization stays, so the buildings can come back.
+
+**How owner invitations behave (built in P03-15, [ARCHITECTURE.md § 5, § 6.1](ARCHITECTURE.md)):**
+
+- **Where.** The owner's page in the workspace, section "Owner portal" (owners and administrators: `owners.manage`; agents see the section read-only). Invite by email (needs the owner's address), by the agency's WhatsApp (offered only once WhatsApp can send: until P05-06 a stand-in that sends nothing and is never offered in production) or "Show link and QR code" (shown once); WhatsApp and the link need the owner's phone number. One invitation per owner at a time; "Send again" (any channel) makes a new link and kills the old one; "Revoke" kills it. Never while GoProperty staff impersonate, never in a suspended organization.
+- **The link** (`/owner/invitations/{token}`) shows the agency, who invited and the address or masked number it is for. Someone new chooses a password (name prefilled) and is signed in, then may add a passkey before the owner portal. Used, revoked and expired links all show the same "no longer works" page. The same **no-account-takeover rules** as tenants' links; and an account that already follows another owner's buildings in that organization is refused (one owner per account there).
+- **What the owner gets.** Their record is linked to the account, which becomes a member of the organization holding `property-owner` only: the workspace stays closed to them. They sign in at `/login` and land on `/owner`: every organization that manages buildings of theirs, in its colours and logo, with the buildings, units and occupancy, active leases (the tenant's name only) and bills with their status — read-only. "Remove access" on the owner's page ends it; archiving the owner record hides that organization's buildings too.
+- **Limits.** 5 sends per owner a day, 30 per member and 50 per organization an hour; the link page shares the tenant links' limits per IP.
 
 ## 3. Subscription Phase (GoProperty's own billing)
 

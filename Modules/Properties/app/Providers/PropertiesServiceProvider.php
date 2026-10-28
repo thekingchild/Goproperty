@@ -9,6 +9,7 @@ use App\Members\MemberRemoved;
 use App\Models\User;
 use App\Navigation\WorkspaceNavigation;
 use App\Navigation\WorkspaceNavItem;
+use App\Tenancy\PortalLanding;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Livewire;
@@ -38,12 +39,16 @@ use Modules\Properties\Lists\UnitList;
 use Modules\Properties\Models\OwnerProfile;
 use Modules\Properties\Models\Property;
 use Modules\Properties\Models\Unit;
+use Modules\Properties\OwnerPortal\LinkedOwnerProfiles;
+use Modules\Properties\OwnerPortal\ReadOnlyOwnerPage;
 use Modules\Properties\Policies\OwnerProfilePolicy;
 use Modules\Properties\Policies\PropertyPolicy;
 use Modules\Properties\Policies\UnitPolicy;
 use Modules\Properties\Units\FollowLeases;
 use Modules\Properties\Units\UnitDirectoryService;
 use Nwidart\Modules\Support\ModuleServiceProvider;
+
+use function Livewire\before;
 
 /**
  * The Properties module (ARCHITECTURE.md § 6.2, § 8): owner profiles and
@@ -61,6 +66,14 @@ use Nwidart\Modules\Support\ModuleServiceProvider;
  * registry (through its contract, AGENT.md § 4; nothing happens when the
  * Import module is off), and registers its lists' exports (Lists\*,
  * App\Exports\ListExports).
+ *
+ * The owner portal (P03-15, OwnerPortal\*, routes, Livewire\OwnerPortal\*):
+ * owner invitations on Core invitations and their public page, the owner's
+ * access panel on the owner page (Livewire\OwnerPortalAccess), the
+ * read-only /owner pages across organizations (OwnerPortal\OwnerPortfolios),
+ * the landing (someone with no workspace who is an owner somewhere lands on
+ * /owner, App\Tenancy\PortalLanding), and the refusal of every method call
+ * to the portal's pages (OwnerPortal\ReadOnlyOwnerPage).
  */
 final class PropertiesServiceProvider extends ModuleServiceProvider
 {
@@ -108,6 +121,19 @@ final class PropertiesServiceProvider extends ModuleServiceProvider
         }
 
         Livewire::addNamespace($this->nameLower, classNamespace: 'Modules\\Properties\\Livewire');
+
+        // The owner portal is read-only (P03-15): no method of its pages may be
+        // called, whatever a request sends; refreshing is all there is.
+        before('call', static function (mixed $component, mixed $method): void {
+            if ($component instanceof ReadOnlyOwnerPage && $method !== '$refresh') {
+                abort(403);
+            }
+        });
+
+        // Owners hold only `property-owner` where they are owners: this is how they land on /owner.
+        $this->callAfterResolving(PortalLanding::class, static function (PortalLanding $landing, $app): void {
+            $landing->register('owner.home', static fn (User $user): bool => $app->make(LinkedOwnerProfiles::class)->any($user), 'My properties', 'key');
+        });
 
         $this->callAfterResolving(ImportTargets::class, static function (ImportTargets $targets): void {
             $targets->register(OwnersImportTarget::class);

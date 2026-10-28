@@ -87,7 +87,7 @@ final class TenantsServiceProvider extends ModuleServiceProvider
 
         // Tenants never get an organization_user row (P03 decision 4): this is how they land on /portal.
         $this->callAfterResolving(PortalLanding::class, static function (PortalLanding $landing, $app): void {
-            $landing->register('portal.home', static fn (User $user): bool => $app->make(LinkedTenantProfiles::class)->any($user));
+            $landing->register('portal.home', static fn (User $user): bool => $app->make(LinkedTenantProfiles::class)->any($user), 'My rentals', 'home-modern');
         });
 
         $this->callAfterResolving(WorkspaceNavigation::class, static function (WorkspaceNavigation $navigation): void {

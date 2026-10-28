@@ -81,7 +81,7 @@ final readonly class SignInLinks
             $account->email !== null => 'This tenant\'s account has an email address, so they reset their password themselves with "Forgot password".',
             $account->phone === null => 'This tenant\'s account has no phone number to sign in with.',
             $account->two_factor_confirmed_at !== null => 'This account uses two-factor authentication, which a sign-in link never skips. The tenant can sign in with a recovery code.',
-            $account->organizations()->exists() => 'This account also works in an organization\'s workspace, so only its owner can reset it.',
+            $account->organizations()->exists() => 'This account also works in an organization\'s workspace or follows buildings in the owner portal, so only its owner can reset it.',
             $this->linked->elsewhere($account, (int) $tenant->organization_id) => 'This account is also a tenant of another organization, so a sign-in link would open more than your records. Only its owner can reset it.',
             default => null,
         };

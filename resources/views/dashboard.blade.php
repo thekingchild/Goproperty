@@ -1,7 +1,8 @@
 {{--
     Organization picker (ONBOARDING_COMPLIANCE.md § 1 "After login", UX_DESIGN.md § 3.3):
     where a member of several organizations lands until they pick one, and
-    the start page for users without a workspace.
+    the start page for users without a workspace: the portals of someone who
+    belongs in several (DashboardController, App\Tenancy\PortalLanding).
 --}}
 @php
     $user = auth()->user();
@@ -11,7 +12,19 @@
 
 <x-layouts::app :title="__('Dashboard')">
     <x-page :heading="__('Pick where to start')" :description="$organizations->isEmpty() ? __('Choose a workspace, or open your rentals or properties.') : __('Choose the workspace to open. We\'ll open it straight away next time you sign in.')">
-        @if ($organizations->isEmpty())
+        @if ($organizations->isEmpty() && ($portals ?? []) !== [])
+            {{-- Someone who belongs in several portals (a tenant who also owns buildings, P03-15). --}}
+            <ul class="grid gap-3 sm:grid-cols-2" data-test="portal-picker">
+                @foreach ($portals as $portal)
+                    <li>
+                        <a href="{{ $portal['url'] }}" wire:navigate class="flex min-h-14 w-full items-center gap-3 rounded-xl border border-zinc-200 bg-white p-4 text-start hover:border-primary-500 focus-visible:outline-2 focus-visible:outline-primary-600 dark:border-zinc-700 dark:bg-zinc-900">
+                            <flux:icon :name="$portal['icon']" class="size-6 shrink-0 text-zinc-500" />
+                            <span class="truncate font-medium text-zinc-900 dark:text-white">{{ __($portal['label']) }}</span>
+                        </a>
+                    </li>
+                @endforeach
+            </ul>
+        @elseif ($organizations->isEmpty())
             <x-empty-state icon="squares-2x2" :heading="__('Pick where to start')" :description="__('Your workspaces and portals are in the menu.')">
                 <x-slot:action>
                     <flux:button variant="primary" :href="route('portal.home')" wire:navigate>{{ __('My rentals') }}</flux:button>

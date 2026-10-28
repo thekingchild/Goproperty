@@ -163,8 +163,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Cross-organization portals: they never set an organization context
     // and reach records through the signed-in user's own links (ARCHITECTURE.md § 4).
-    // The tenant portal (/portal, `portal.home`) is the Tenants module's (P03-11a).
-    Route::view('owner', 'surfaces.owner')->name('owner.home');
+    // The tenant portal (/portal, `portal.home`) is the Tenants module's (P03-11a);
+    // the owner portal (/owner, `owner.home`) is the Properties module's (P03-15).
 });
 
 // No sign-in. The pay page (/pay/{reference}, `pay.show`) is the Billing
