@@ -40,3 +40,11 @@ Both changes apply only to owners whose buildings an organization manages for th
 6. **The tenant is not told** and sees no difference.
 7. **Staff list:** a "Shared with owner" badge, a filter, and a column in the list export.
 8. **Permissions:** no new permission; sharing follows `tickets.manage` (dropped while suspended, not blocked while impersonating, as P01 classed it).
+
+## Accepted by the product owner (2026-10-29, after P03-16 and P04-06)
+
+- **Invoices and receipts are on-screen pages for owners, not the issued PDFs** (P03-16 default 2).
+- **A lease contract stays with the organization that issued it:** after a handover, the receiving agency's card offers no contract PDF for a lease that came over (P03-16 ledger, judgement call 2).
+- **An owner who joins after tickets were shared** sees those tickets, with no catch-up notice (P04-06 ledger, judgement call 7).
+
+The other defaults above and the remaining judgement calls in the P03-16 and P04-06 ledger entries are still to be confirmed.
