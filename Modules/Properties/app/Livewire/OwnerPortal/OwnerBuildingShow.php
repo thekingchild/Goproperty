@@ -15,8 +15,8 @@ use Modules\Properties\OwnerPortal\OwnerPortalRecords;
 
 /**
  * One of the owner's buildings, /owner/buildings/{id} (P03-15): its units
- * with their occupancy and active lease (the tenant's name only), and its
- * latest bills with their status. Found among the signed-in owner's own
+ * with their occupancy, active lease and a link to each unit's lease
+ * history (P03-16), and its latest bills with their status. Found among the signed-in owner's own
  * buildings on every render (OwnerPortalRecords::buildingPage), so another
  * owner's or organization's building answers 404, like a missing one.
  * Read-only.

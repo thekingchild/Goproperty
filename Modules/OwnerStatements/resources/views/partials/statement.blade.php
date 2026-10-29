@@ -3,7 +3,8 @@
     portal's: the summary with the net due, the agency's mark, then each
     building's rent and utilities collected per unit, every amount counted,
     the bills issued and the expenses charged. Cards, no tables (UX_DESIGN.md
-    § 1: 360 px first). Tenants by name only.
+    § 1: 360 px first). Tenants by name, with the phone and email the bill
+    was issued with (P03-16; a month settled before then shows what it recorded).
     $month: Modules\OwnerStatements\Statements\MonthStatement.
 --}}
 @php
@@ -88,6 +89,9 @@
                             <span class="font-medium tabular-nums text-zinc-900 dark:text-white">{{ $line->amount->format() }}</span>
                         </span>
                         <span class="break-words text-zinc-600 dark:text-zinc-300">{{ __($line->typeLabel) }} · {{ $line->billNumber }}@if ($line->unit !== '') · {{ $line->unit }}@endif @if ($line->tenantName !== '') · {{ $line->tenantName }}@endif</span>
+                        @if ($line->tenantName !== '' && ($line->tenantPhone || $line->tenantEmail))
+                            <span class="break-words text-zinc-600 dark:text-zinc-300" data-test="statement-tenant-contacts">{{ collect([$line->tenantPhone, $line->tenantEmail])->filter()->implode(' · ') }}</span>
+                        @endif
                     </div>
                 @endforeach
             </div>
@@ -103,6 +107,9 @@
                             <flux:badge size="sm" :color="$bill->statusColor">{{ __($bill->statusLabel) }}</flux:badge>
                         </span>
                         <span class="break-words text-zinc-600 dark:text-zinc-300">{{ __($bill->typeLabel) }}@if ($bill->unit !== '') · {{ $bill->unit }}@endif @if ($bill->tenantName !== '') · {{ $bill->tenantName }}@endif · {{ $bill->amount->format() }}</span>
+                        @if ($bill->tenantName !== '' && ($bill->tenantPhone || $bill->tenantEmail))
+                            <span class="break-words text-zinc-600 dark:text-zinc-300" data-test="statement-tenant-contacts">{{ collect([$bill->tenantPhone, $bill->tenantEmail])->filter()->implode(' · ') }}</span>
+                        @endif
                     </div>
                 @endforeach
             </div>

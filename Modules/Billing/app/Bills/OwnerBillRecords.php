@@ -16,8 +16,9 @@ use Modules\Billing\Models\BillItem;
  * The Billing module's answers to Contracts\OwnerBills (the owner portal,
  * P03-15), read through the organization scope and only among the given
  * buildings' bills, so a guessed id of any other bill is not found. The
- * tenant is named as the invoice was issued (`bills.details`), never with
- * their contact details. Reads only.
+ * tenant is named as the invoice was issued (`bills.details`), with the
+ * phone and email it printed (P03-16); never the payment reference.
+ * Reads only.
  */
 final readonly class OwnerBillRecords implements OwnerBills
 {
@@ -41,6 +42,15 @@ final readonly class OwnerBillRecords implements OwnerBills
     public function countFor(array $propertyIds, ?int $leaseId = null): int
     {
         return $propertyIds === [] ? 0 : self::of($propertyIds, $leaseId)->count();
+    }
+
+    public function idsFor(array $propertyIds, ?int $leaseId = null): array
+    {
+        if ($propertyIds === []) {
+            return [];
+        }
+
+        return array_values(array_map('intval', self::of($propertyIds, $leaseId)->orderBy('id')->pluck('id')->all()));
     }
 
     public function find(int $billId, array $propertyIds): ?OwnerBill
@@ -130,6 +140,8 @@ final readonly class OwnerBillRecords implements OwnerBills
             unit: $parties->unit,
             lines: $lines,
             type: $bill->type->value,
+            tenantPhone: $parties->tenantPhone,
+            tenantEmail: $parties->tenantEmail,
         );
     }
 

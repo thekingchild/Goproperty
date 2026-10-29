@@ -18,8 +18,11 @@ use Modules\Properties\Contracts\OwnerProfileDirectory;
 /**
  * The only writer of owners' statement terms (P08-05; `owner_statement_terms`):
  * the commission (a percentage of rent collected, up to two decimals,
- * 0–100 %, or blank for "not set"), "utilities pass to the owner" and
- * "share tenant contact details". Checks OwnerStatementPolicy::changeTerms
+ * 0–100 %, or blank for "not set") and "utilities pass to the owner".
+ * The per-owner "share tenant contact details" switch was removed in P03-16
+ * (product owner 2026-10-29: owners always see their tenants' details); a
+ * `shareTenantContacts` key still sent by an older caller is ignored.
+ * Checks OwnerStatementPolicy::changeTerms
  * (owners and administrators, `owner_statements.manage`: never while
  * GoProperty staff impersonate, nothing in a suspended organization), and
  * audits every change under log `owner-statements`. Terms apply to the
@@ -41,12 +44,12 @@ final readonly class StatementTermsBook
         $row = OwnerStatementTerms::query()->where('owner_profile_id', $ownerProfileId)->first();
 
         return $row instanceof OwnerStatementTerms
-            ? new StatementTerms($row->commission_bps, $row->utilities_to_owner, $row->share_tenant_contacts)
+            ? new StatementTerms($row->commission_bps, $row->utilities_to_owner)
             : new StatementTerms;
     }
 
     /**
-     * @param  array{commission?: mixed, utilitiesToOwner?: mixed, shareTenantContacts?: mixed}  $input  commission as a percentage ("10", "7.5") or blank
+     * @param  array<string, mixed>  $input  `commission` as a percentage ("10", "7.5") or blank, `utilitiesToOwner`; other keys are ignored
      *
      * @throws ValidationException
      */
@@ -73,16 +76,14 @@ final readonly class StatementTermsBook
         $terms = new StatementTerms(
             commissionBps: $commission === '' ? null : self::basisPoints($commission),
             utilitiesToOwner: filter_var($input['utilitiesToOwner'] ?? false, FILTER_VALIDATE_BOOL),
-            shareTenantContacts: filter_var($input['shareTenantContacts'] ?? false, FILTER_VALIDATE_BOOL),
         );
 
         return DB::transaction(function () use ($by, $ownerProfileId, $terms): StatementTerms {
             $row = $this->locked($ownerProfileId);
-            $before = ['commission_bps' => $row->commission_bps, 'utilities_to_owner' => $row->utilities_to_owner, 'share_tenant_contacts' => $row->share_tenant_contacts];
+            $before = ['commission_bps' => $row->commission_bps, 'utilities_to_owner' => $row->utilities_to_owner];
 
             $row->commission_bps = $terms->commissionBps;
             $row->utilities_to_owner = $terms->utilitiesToOwner;
-            $row->share_tenant_contacts = $terms->shareTenantContacts;
 
             if (! $row->isDirty()) {
                 return $terms;
@@ -98,7 +99,7 @@ final readonly class StatementTermsBook
                 ->withProperties([
                     'owner_profile_id' => $ownerProfileId,
                     'before' => $before,
-                    'after' => ['commission_bps' => $terms->commissionBps, 'utilities_to_owner' => $terms->utilitiesToOwner, 'share_tenant_contacts' => $terms->shareTenantContacts],
+                    'after' => ['commission_bps' => $terms->commissionBps, 'utilities_to_owner' => $terms->utilitiesToOwner],
                 ])
                 ->log('Owner statement terms changed');
 

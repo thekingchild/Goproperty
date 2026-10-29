@@ -14,6 +14,9 @@ use Modules\Properties\Livewire\OwnerPortal\OwnerBillShow;
 use Modules\Properties\Livewire\OwnerPortal\OwnerBuildingShow;
 use Modules\Properties\Livewire\OwnerPortal\OwnerHome;
 use Modules\Properties\Livewire\OwnerPortal\OwnerLeaseShow;
+use Modules\Properties\Livewire\OwnerPortal\OwnerReceiptShow;
+use Modules\Properties\Livewire\OwnerPortal\OwnerTenantShow;
+use Modules\Properties\Livewire\OwnerPortal\OwnerUnitShow;
 use Modules\Properties\Models\OwnerProfile;
 use Tests\Support\LivewireHttp;
 
@@ -46,7 +49,7 @@ describe('acceptance: an owner sees only buildings linked to their owner profile
             ->assertDontSee('Kemi Adebayo');
     });
 
-    it('shows a building with its units, occupancy, active lease (the tenant\'s name only) and bills', function () {
+    it('shows a building with its units, occupancy, active lease, each unit\'s lease history link, and bills', function () {
         $page = ownerPortalPage($this->ngozi, "/buildings/{$this->palm->id}")->assertOk();
 
         expect(ownerPortalIds($page, 'unit'))->toEqual([$this->flat3b->id, $this->flat4c->id])
@@ -56,21 +59,20 @@ describe('acceptance: an owner sees only buildings linked to their owner profile
             ->assertSee('Flat 3B')->assertSee('Occupied')->assertSee('Flat 4C')->assertSee('Vacant')
             ->assertSee('Let to Kemi Adebayo')->assertSee('₦1,500,000')
             ->assertSee($this->bill->number)->assertSee('Unpaid')
-            // Minimal tenant detail: never their phone number or email address.
-            ->assertDontSee('+2348031112222')->assertDontSee('0803 111 2222')->assertDontSee('kemi.adebayo@example.com')
+            ->assertSee(route('owner.units.show', $this->flat3b->id), false)->assertSee(route('owner.units.show', $this->flat4c->id), false)
             ->assertDontSee('Tunde Bakare')->assertDontSee($this->cedarBill->number);
     });
 
-    it('shows a lease and a bill of her building, with the tenant\'s name only and no way to pay or change anything', function () {
+    it('shows a lease and a bill of her building, with the tenant\'s phone and email (P03-16) and no way to pay or change anything', function () {
         ownerPortalPage($this->ngozi, "/leases/{$this->lease->id}")->assertOk()
             ->assertSee('Flat 3B · Palm Court')->assertSee('Kemi Adebayo')->assertSee('Active')
             ->assertSee('01/01/2027 – 31/12/2027')->assertSee('₦1,500,000')->assertSee($this->bill->number)
-            ->assertDontSee('kemi.adebayo@example.com')->assertDontSee('+2348031112222');
+            ->assertSee('kemi.adebayo@example.com')->assertSee('+2348031112222');
 
         $bill = ownerPortalPage($this->ngozi, "/bills/{$this->bill->id}")->assertOk()
             ->assertSee('Bill '.$this->bill->number)->assertSee('Kemi Adebayo')->assertSee('Unpaid')
             ->assertSee('₦1,500,000')->assertSee('Still owed')
-            ->assertDontSee('kemi.adebayo@example.com')->assertDontSee('+2348031112222')
+            ->assertSee('kemi.adebayo@example.com')->assertSee('+2348031112222')
             ->assertDontSee($this->bill->payment_reference)->assertDontSee('0123456789');
         expect((string) $bill->getContent())->not->toContain('/pay/')->not->toContain('invoice')->not->toContain('wire:click');
 
@@ -188,7 +190,7 @@ describe('acceptance: nothing is editable', function () {
             expect($writes === [] || $route->getName() === 'owner.invitations.accept')->toBeTrue($route->uri());
         }
 
-        foreach ([OwnerHome::class, OwnerBuildingShow::class, OwnerLeaseShow::class, OwnerBillShow::class] as $component) {
+        foreach ([OwnerHome::class, OwnerBuildingShow::class, OwnerLeaseShow::class, OwnerBillShow::class, OwnerUnitShow::class, OwnerTenantShow::class, OwnerReceiptShow::class] as $component) {
             $actions = array_values(array_filter(
                 (new ReflectionClass($component))->getMethods(ReflectionMethod::IS_PUBLIC),
                 fn (ReflectionMethod $method): bool => $method->getDeclaringClass()->getName() === $component && ! in_array($method->getName(), ['mount', 'render'], true),

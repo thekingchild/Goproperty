@@ -147,7 +147,7 @@ function statementOf(Organization $organization, OwnerProfile $owner, string $mo
 /** The owner's terms changed through the writer. */
 function setStatementTerms(Organization $organization, User $by, OwnerProfile $owner, array $input): void
 {
-    inOrganization($organization, fn () => app(StatementTermsBook::class)->change($by, $owner->id, $input + ['commission' => '', 'utilitiesToOwner' => false, 'shareTenantContacts' => false]));
+    inOrganization($organization, fn () => app(StatementTermsBook::class)->change($by, $owner->id, $input + ['commission' => '', 'utilitiesToOwner' => false]));
 }
 
 /** The month marked settled through the writer. */

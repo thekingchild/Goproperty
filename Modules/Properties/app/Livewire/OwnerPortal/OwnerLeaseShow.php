@@ -14,8 +14,10 @@ use Modules\Properties\Contracts\ReadOnlyOwnerPage;
 use Modules\Properties\OwnerPortal\OwnerPortalRecords;
 
 /**
- * A lease of one of the owner's units, /owner/leases/{id} (P03-15): the
- * terms, the tenant's name and the lease's bills. Found among the leases
+ * A lease of one of the owner's units, /owner/leases/{id} (P03-15,
+ * P03-16): the terms, the tenant (name, phone, email; the rest on the
+ * tenant's page), the issued contract, the lease's moves, its deposit
+ * ledger, what was paid and its bills. Found among the leases
  * of the signed-in owner's own buildings (drafts never), so anything else
  * answers 404. Read-only.
  */

@@ -162,6 +162,8 @@ final readonly class StatementBuilder
                 tenantName: $bill->tenantName ?? '',
                 receiptNumber: $amount->receiptNumber,
                 amount: $amount->amount,
+                tenantPhone: $bill->tenantPhone,
+                tenantEmail: $bill->tenantEmail,
             );
         }
 
@@ -185,6 +187,8 @@ final readonly class StatementBuilder
                 status: $bill->status,
                 statusLabel: $bill->statusLabel,
                 statusColor: $bill->statusColor,
+                tenantPhone: $bill->tenantPhone,
+                tenantEmail: $bill->tenantEmail,
             ), $issued),
             expenses: array_map(static fn (ChargedExpense $expense): ExpenseLine => new ExpenseLine(
                 spentOn: $expense->spentOn,

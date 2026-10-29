@@ -9,9 +9,11 @@ use Carbon\CarbonImmutable;
 /**
  * How the owner portal (P03-15, the Properties module's /owner pages)
  * reads the bills of an owner's buildings: never the Billing module's
- * models or tables (ARCHITECTURE.md § 8 rule 3). Read-only: no payment
- * details, no invoice (the printed invoice carries the tenant's phone and
- * email, which owners never see).
+ * models or tables (ARCHITECTURE.md § 8 rule 3). Read-only: the bill's
+ * figures, lines and the tenant as issued (owners see the tenant's phone
+ * and email since P03-16), never the payment reference, the pay page or
+ * the issued invoice (it prints the organization's bank account and the
+ * reference, and an issued PDF is never re-rendered without them).
  *
  * Every method takes the building ids the portal proved belong to the
  * signed-in owner in the current organization (Modules\Properties\
@@ -39,6 +41,16 @@ interface OwnerBills
      * @param  list<int>  $propertyIds
      */
     public function countFor(array $propertyIds, ?int $leaseId = null): int;
+
+    /**
+     * The ids of these buildings' bills (of one lease among them when
+     * given), void ones included: what the owner portal asks the Payments
+     * module about (a lease's payment history, P03-16).
+     *
+     * @param  list<int>  $propertyIds
+     * @return list<int>
+     */
+    public function idsFor(array $propertyIds, ?int $leaseId = null): array;
 
     /**
      * One bill of these buildings with its lines, or null.

@@ -6,17 +6,15 @@ namespace Modules\OwnerStatements\Statements;
 
 use Carbon\CarbonImmutable;
 use Modules\OwnerStatements\Contracts\SettledMonths;
-use Modules\OwnerStatements\Contracts\TenantContactSharing;
 use Modules\OwnerStatements\Enums\SettlementStatus;
 use Modules\OwnerStatements\Models\OwnerStatementSettlement;
 use Modules\Properties\Contracts\PropertyDirectory;
 
-/** The module's answers to Contracts\SettledMonths and Contracts\TenantContactSharing (P08-05). Reads only. */
-final readonly class SettledMonthRecords implements SettledMonths, TenantContactSharing
+/** The module's answer to Contracts\SettledMonths (P08-05). Reads only. */
+final readonly class SettledMonthRecords implements SettledMonths
 {
     public function __construct(
         private PropertyDirectory $buildings,
-        private StatementTermsBook $terms,
     ) {}
 
     public function settledMonth(int $propertyId, CarbonImmutable $day): ?string
@@ -34,10 +32,5 @@ final readonly class SettledMonthRecords implements SettledMonths, TenantContact
             ->whereDate('month', $month->firstDay()->toDateString())
             ->where('status', SettlementStatus::Settled)
             ->exists() ? $month->label() : null;
-    }
-
-    public function sharesWith(int $ownerProfileId): bool
-    {
-        return $this->terms->of($ownerProfileId)->shareTenantContacts;
     }
 }

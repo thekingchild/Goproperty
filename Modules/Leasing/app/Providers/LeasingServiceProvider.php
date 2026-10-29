@@ -28,6 +28,7 @@ use Modules\Leasing\Contracts\ImportedLeases;
 use Modules\Leasing\Contracts\LeaseBillingSchedule;
 use Modules\Leasing\Contracts\LeasePagePanels;
 use Modules\Leasing\Contracts\LiveLeases;
+use Modules\Leasing\Contracts\OwnerLeaseContracts;
 use Modules\Leasing\Contracts\OwnerLeases;
 use Modules\Leasing\Contracts\TenantLeaseContracts;
 use Modules\Leasing\Contracts\TenantLeases;
@@ -36,6 +37,7 @@ use Modules\Leasing\CycleCalculator;
 use Modules\Leasing\Documents\ContractClauses;
 use Modules\Leasing\Documents\LeaseContracts;
 use Modules\Leasing\Documents\LeaseContractVerifier;
+use Modules\Leasing\Documents\OwnerContractFiles;
 use Modules\Leasing\Documents\TenantContractFiles;
 use Modules\Leasing\Events\LeaseActivated;
 use Modules\Leasing\Handover\LeasesMover;
@@ -59,7 +61,8 @@ use Nwidart\Modules\Support\ModuleServiceProvider;
  * rule 3; Contracts\TenantLeases for the Tenants module;
  * Contracts\LeaseBillingSchedule for Billing; Contracts\TenantLeaseContracts
  * for the tenant portal's contract download, P03-11b; Contracts\OwnerLeases
- * for the owner portal, P03-15; Contracts\UnitLeases for maintenance
+ * and Contracts\OwnerLeaseContracts for the owner portal, P03-15 and
+ * P03-16; Contracts\UnitLeases for maintenance
  * tickets, P04-01; Contracts\LeasePagePanels, where other modules add
  * panels to a lease's page, P04-03), and adds the lease pages
  * (routes, Livewire namespace `leasing::`, classes in
@@ -104,6 +107,8 @@ final class LeasingServiceProvider extends ModuleServiceProvider
         // Who holds a unit now, for maintenance tickets raised by staff (P04-01).
         $this->app->bind(UnitLeases::class, LeaseRecords::class);
         $this->app->bind(OwnerLeases::class, OwnerLeaseRecords::class);
+        // The owner portal's contract download (P03-16): the issued contract only.
+        $this->app->bind(OwnerLeaseContracts::class, OwnerContractFiles::class);
         $this->app->bind(LiveLeases::class, LeasesMover::class);
         // Panels other modules add to a lease's page (P04-03: the lease's tickets).
         $this->app->singleton(LeasePagePanels::class, LeasePanelRegistry::class);

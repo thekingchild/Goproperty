@@ -8,7 +8,6 @@ use App\Exports\ListExports;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Livewire;
 use Modules\OwnerStatements\Contracts\SettledMonths;
-use Modules\OwnerStatements\Contracts\TenantContactSharing;
 use Modules\OwnerStatements\Lists\OwnerStatementList;
 use Modules\OwnerStatements\Models\OwnerStatementSettlement;
 use Modules\OwnerStatements\Policies\OwnerStatementPolicy;
@@ -38,10 +37,8 @@ final class OwnerStatementsServiceProvider extends ModuleServiceProvider
         parent::register();
 
         // For other modules (ARCHITECTURE.md § 8 rule 3): Expenses refuses
-        // changes to a settled month; the owner portal asks whether to show
-        // tenants' contact details.
+        // changes to a settled month.
         $this->app->bind(SettledMonths::class, SettledMonthRecords::class);
-        $this->app->bind(TenantContactSharing::class, SettledMonthRecords::class);
     }
 
     public function boot(): void

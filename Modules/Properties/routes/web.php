@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 use App\Http\Middleware\SignInPageHeaders;
 use Illuminate\Support\Facades\Route;
+use Modules\Properties\Http\Controllers\OwnerContractController;
 use Modules\Properties\Http\Controllers\OwnerInvitationController;
 use Modules\Properties\Http\Controllers\OwnerWelcomeController;
 use Modules\Properties\Livewire\OwnerPortal\OwnerBillShow;
 use Modules\Properties\Livewire\OwnerPortal\OwnerBuildingShow;
 use Modules\Properties\Livewire\OwnerPortal\OwnerHome;
 use Modules\Properties\Livewire\OwnerPortal\OwnerLeaseShow;
+use Modules\Properties\Livewire\OwnerPortal\OwnerReceiptShow;
+use Modules\Properties\Livewire\OwnerPortal\OwnerTenantShow;
+use Modules\Properties\Livewire\OwnerPortal\OwnerUnitShow;
 use Modules\Properties\Livewire\OwnerProfileForm;
 use Modules\Properties\Livewire\OwnerProfileIndex;
 use Modules\Properties\Livewire\PropertyForm;
@@ -75,8 +79,9 @@ Route::middleware(SignInPageHeaders::class)->prefix('owner')->name('owner.')->gr
  * organization that manages buildings of the user, so no `organization`
  * middleware and no organization in the URL. Every page reads through
  * OwnerPortal\OwnerPortfolios (the "linked to my user" path) and
- * OwnerProfilePolicy::viewAsOwner; a building, lease or bill that is not
- * one of the user's own buildings' answers 404. Read-only: GET pages only,
+ * OwnerProfilePolicy::viewAsOwner; a building, unit, tenant, lease,
+ * contract, bill or receipt that is not one of the user's own buildings'
+ * answers 404. Read-only: GET pages only,
  * and every method call to these Livewire pages is refused
  * (Contracts\ReadOnlyOwnerPage).
  */
@@ -85,4 +90,10 @@ Route::middleware(['auth', 'verified'])->prefix('owner')->name('owner.')->group(
     Route::livewire('buildings/{building}', OwnerBuildingShow::class)->whereNumber('building')->name('buildings.show');
     Route::livewire('leases/{lease}', OwnerLeaseShow::class)->whereNumber('lease')->name('leases.show');
     Route::livewire('bills/{bill}', OwnerBillShow::class)->whereNumber('bill')->name('bills.show');
+
+    // P03-16: tenants in full (ID number masked), each unit's lease history, receipts as pages, issued contracts.
+    Route::livewire('units/{unit}', OwnerUnitShow::class)->whereNumber('unit')->name('units.show');
+    Route::livewire('tenants/{tenant}', OwnerTenantShow::class)->whereNumber('tenant')->name('tenants.show');
+    Route::livewire('receipts/{receipt}', OwnerReceiptShow::class)->whereNumber('receipt')->name('receipts.show');
+    Route::get('leases/{lease}/contract', OwnerContractController::class)->whereNumber('lease')->middleware('throttle:60,1')->name('leases.contract');
 });

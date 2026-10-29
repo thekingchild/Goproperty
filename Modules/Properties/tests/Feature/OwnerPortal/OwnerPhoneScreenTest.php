@@ -5,12 +5,14 @@ declare(strict_types=1);
 use App\Models\User;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Testing\TestResponse;
+use Modules\Tenants\Models\TenantProfile;
 use Tests\Support\NarrowScreen;
 
 require_once __DIR__.'/helpers.php';
+require_once __DIR__.'/../../../../Payments/tests/Feature/receipt-helpers.php';
 
 /*
- * P03-15: the owner portal's pages at 360 px (UX_DESIGN.md § 1: every
+ * P03-15, P03-16: the owner portal's pages at 360 px (UX_DESIGN.md § 1: every
  * screen designed at 360 px first, with 44 px touch targets; P03-11b's
  * check). Each page is opened as the owner's browser gets it, then laid
  * out in real Chrome (Gotenberg's screenshot route) at 360 CSS pixels: the
@@ -56,11 +58,23 @@ describe('owner pages pass the 360 px check', function () {
         $gotenberg = requireGotenberg();
         $nobody = User::factory()->create(['name' => 'Nobody Owns', 'email' => 'nobody.owns@example.com']);
 
+        // P03-16: the tenant's details, a unit's lease history, a receipt, and a lease and bill with a payment.
+        inOrganization($this->acme, fn () => TenantProfile::query()->findOrFail($this->kemi->id)->forceFill([
+            'address' => '5 Admiralty Road, Lekki Phase 1, Lagos', 'occupation' => 'Software engineer',
+            'emergency_contact' => ['name' => 'Tola Adebayo', 'phone' => '+2348039990000', 'relationship' => 'Sister'],
+            'id_type' => 'nin', 'id_value' => '12345678901',
+        ])->save());
+        $receipt = receiptOf($this->acme, confirmedPayment($this->acme, $this->owner, $this->kemi, '1,500,000'));
+
         $failing = ownerPagesFailingOnPhones($gotenberg, [
             'home' => ownerPortalPage($this->ngozi),
             'building' => ownerPortalPage($this->ngozi, "/buildings/{$this->palm->id}"),
             'lease' => ownerPortalPage($this->ngozi, "/leases/{$this->lease->id}"),
             'bill' => ownerPortalPage($this->ngozi, "/bills/{$this->bill->id}"),
+            'unit' => ownerPortalPage($this->ngozi, "/units/{$this->flat3b->id}"),
+            'empty unit' => ownerPortalPage($this->ngozi, "/units/{$this->flat4c->id}"),
+            'tenant' => ownerPortalPage($this->ngozi, "/tenants/{$this->kemi->id}"),
+            'receipt' => ownerPortalPage($this->ngozi, "/receipts/{$receipt->id}"),
             'empty home' => ownerPortalPage($nobody),
         ]);
 

@@ -9,10 +9,11 @@ use Carbon\CarbonImmutable;
 
 /**
  * A bill as the owner of its building sees it in the owner portal
- * (Contracts\OwnerBills, P03-15): plain values, no model. Of the tenant
- * only the name as issued (`tenantName`); never a phone number, an email
- * address or the payment reference. `unit` is the unit as issued ("Flat
- * 3B"). `status` is a `bills.status` value (unpaid, partially_paid, paid,
+ * (Contracts\OwnerBills, P03-15): plain values, no model. The tenant as
+ * issued on the invoice: name, phone and email (`tenantName`,
+ * `tenantPhone`, `tenantEmail`; owners see them since P03-16); never the
+ * payment reference or the organization's bank details. `unit` is the unit
+ * as issued ("Flat 3B"). `status` is a `bills.status` value (unpaid, partially_paid, paid,
  * overdue, void) with its label and Flux badge colour; `outstanding` is
  * what is still owed now (zero on a void bill). `lines` (label, period,
  * amount) are filled by OwnerBills::find() only.
@@ -43,6 +44,8 @@ final readonly class OwnerBill
         public ?string $unit,
         public array $lines = [],
         public string $type = 'rent',
+        public ?string $tenantPhone = null,
+        public ?string $tenantEmail = null,
     ) {}
 
     public function isVoid(): bool

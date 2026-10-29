@@ -23,8 +23,8 @@ use Modules\Properties\Contracts\OwnerProfileDirectory;
 /**
  * An owner's statements in the agency's workspace,
  * /o/{slug}/owners/{owner}/statements (P08-05): the owner's terms
- * (commission, utilities pass to the owner, share tenant contact details;
- * changed by owners and administrators), the last 12 months with their
+ * (commission and utilities pass to the owner; changed by owners and
+ * administrators; owners always see their tenants' details since P03-16), the last 12 months with their
  * figures and Settled / Unsettled (export), and the leases ending in the
  * next 90 days. OwnerStatementPolicy on every render and action.
  */
@@ -44,8 +44,6 @@ final class OwnerStatementIndex extends Component
     public string $commission = '';
 
     public bool $utilitiesToOwner = false;
-
-    public bool $shareTenantContacts = false;
 
     public ?string $notice = null;
 
@@ -75,7 +73,6 @@ final class OwnerStatementIndex extends Component
         $book->change($this->user(), $this->ownerProfileId, [
             'commission' => $this->commission,
             'utilitiesToOwner' => $this->utilitiesToOwner,
-            'shareTenantContacts' => $this->shareTenantContacts,
         ]);
 
         $this->fillTerms($statements);
@@ -106,7 +103,6 @@ final class OwnerStatementIndex extends Component
         $terms = $statements->terms($this->ownerProfileId);
         $this->commission = $terms->commissionBps === null ? '' : rtrim(OwnerStatement::rate($terms->commissionBps), '%');
         $this->utilitiesToOwner = $terms->utilitiesToOwner;
-        $this->shareTenantContacts = $terms->shareTenantContacts;
     }
 
     private function user(): User

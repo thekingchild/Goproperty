@@ -1,7 +1,6 @@
 {{--
     Leases ending in the next 90 days and where their renewal stands
-    (P08-05). The tenant's name; phone and email only when the agency shares
-    tenants' contact details with this owner.
+    (P08-05). The tenant's name, phone and email (always, since P03-16).
     $renewals: list<Modules\OwnerStatements\Statements\RenewalLine>; $leaseLinks: bool (owner portal).
 --}}
 <div class="flex flex-col gap-2" data-test="upcoming-renewals">

@@ -11,9 +11,8 @@ require_once __DIR__.'/statement-world.php';
 /*
  * P08-05 ACs: upcoming renewals list exactly the leases of the owner's
  * buildings ending within 90 days (from today, Lagos), with their renewal
- * state; owners see tenant names only, and the tenant's phone and email
- * only when the agency switches on "share tenant contact details" for that
- * owner. Today is 1 February 2027: 90 days on is 2 May 2027.
+ * state, with the tenant's name, phone and email (P03-16: owners always
+ * see them; the agency's switch is gone). Today is 1 February 2027: 90 days on is 2 May 2027.
  */
 
 beforeEach(function () {
@@ -70,27 +69,14 @@ it('acceptance: lists exactly the leases ending within the next 90 days, with th
     expect(array_map('intval', $listed[1]))->toBe([$this->femiLease->id]);
 });
 
-it('acceptance: hides tenants\' phone and email from the owner unless the agency shares them with that owner', function () {
-    $contacts = ['+2348031230003', 'dayo.ade@example.com', '+2348031112222', 'kemi.adebayo@example.com'];
+it('acceptance: shows the owner tenants\' phone and email in the renewals, with no switch (P03-16), never another owner\'s or agency\'s', function () {
+    // Owners always see their tenants' details: no term to switch on.
+    ownerPortalPage($this->ngozi, '/statements')->assertOk()->assertSee('Dayo Ade')->assertSee('+2348031230003')->assertSee('dayo.ade@example.com');
+    agencyStatementPage($this->owner, $this->ngoziAtAcme)->assertOk()->assertSee('+2348031230003')->assertDontSee('data-test="terms-contacts"', false);
+    ownerPortalPage($this->ngozi, "/leases/{$this->lease->id}")->assertOk()->assertSee('+2348031112222')->assertSee('kemi.adebayo@example.com');
 
-    $statements = ownerPortalPage($this->ngozi, '/statements')->assertOk()->assertSee('Dayo Ade');
-    $lease = ownerPortalPage($this->ngozi, "/leases/{$this->lease->id}")->assertOk()->assertSee('Kemi Adebayo')->assertDontSee('data-test="owner-lease-tenant-contacts"', false);
-    foreach ($contacts as $detail) {
-        $statements->assertDontSee($detail);
-        $lease->assertDontSee($detail);
-    }
-
-    // Switched on for Ngozi at Adeyemi: her renewals and lease pages show them.
-    setStatementTerms($this->acme, $this->owner, $this->ngoziAtAcme, ['shareTenantContacts' => true]);
-    ownerPortalPage($this->ngozi, '/statements')->assertOk()->assertSee('+2348031230003')->assertSee('dayo.ade@example.com');
-    ownerPortalPage($this->ngozi, "/leases/{$this->lease->id}")->assertOk()->assertSee('data-test="owner-lease-tenant-contacts"', false)->assertSee('+2348031112222')->assertSee('kemi.adebayo@example.com');
-
-    // Never on the monthly statement (names only), never to another owner, never at another agency.
-    ownerPortalPage($this->ngozi, "/statements/{$this->ngoziAtAcme->id}/2027-01")->assertOk()->assertDontSee('+2348031112222')->assertDontSee('kemi.adebayo@example.com');
-    ownerPortalPage($this->femi, '/statements')->assertOk()->assertDontSee('+2348031230008')->assertDontSee('ibrahim.musa@example.com');
-    ownerPortalPage($this->ngozi, "/leases/{$this->belloLease->id}")->assertOk()->assertDontSee('+2348036667777')->assertDontSee('musa.danjuma@example.com');
-
-    // Switched off again.
-    setStatementTerms($this->acme, $this->owner, $this->ngoziAtAcme, ['shareTenantContacts' => false]);
-    ownerPortalPage($this->ngozi, "/leases/{$this->lease->id}")->assertOk()->assertDontSee('+2348031112222');
+    // Never another owner's tenants, never at another agency.
+    ownerPortalPage($this->femi, '/statements')->assertOk()->assertSee('+2348031230008')->assertDontSee('+2348031230003')->assertDontSee('dayo.ade@example.com');
+    ownerPortalPage($this->ngozi, '/statements')->assertOk()->assertDontSee('+2348031230008')->assertDontSee('ibrahim.musa@example.com');
+    ownerPortalPage($this->ngozi, "/leases/{$this->harbourLease->id}")->assertNotFound();
 });

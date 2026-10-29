@@ -32,11 +32,41 @@ interface OwnerLeases
     public function activeIn(array $propertyIds): array;
 
     /**
-     * One lease (any status but draft) in these buildings, or null.
+     * One lease (activated: active, expired, terminated or renewed) in these
+     * buildings, or null.
      *
      * @param  list<int>  $propertyIds
      */
     public function find(int $leaseId, array $propertyIds): ?LeaseSummary;
+
+    /**
+     * One activated lease in these buildings with its history: the moves
+     * timeline, the deposit ledger and whether its contract is on file
+     * (P03-16), or null.
+     *
+     * @param  list<int>  $propertyIds
+     */
+    public function history(int $leaseId, array $propertyIds): ?LeaseHistory;
+
+    /**
+     * Every activated lease of the unit, if the unit is in these buildings,
+     * newest first (by start date), each with its history: the unit's lease
+     * timeline (P03-16).
+     *
+     * @param  list<int>  $propertyIds
+     * @return list<LeaseHistory>
+     */
+    public function forUnit(int $unitId, array $propertyIds): array;
+
+    /**
+     * The tenant's activated leases in these buildings, newest first (by
+     * start date): empty when the tenant holds or held none there, which is
+     * how the owner portal knows a tenant is one of the owner's (P03-16).
+     *
+     * @param  list<int>  $propertyIds
+     * @return list<LeaseSummary>
+     */
+    public function forTenant(int $tenantProfileId, array $propertyIds): array;
 
     /**
      * The active leases in these buildings whose end date falls between

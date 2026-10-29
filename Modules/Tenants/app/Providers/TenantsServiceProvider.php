@@ -22,6 +22,7 @@ use Modules\Import\Contracts\ImportReportPanels;
 use Modules\Import\Contracts\ImportTargets;
 use Modules\Payments\Events\PaymentConfirmed;
 use Modules\Tenants\Contracts\ImportedTenants;
+use Modules\Tenants\Contracts\OwnerTenants;
 use Modules\Tenants\Contracts\TenantDirectory;
 use Modules\Tenants\Contracts\TenantPortalAccess;
 use Modules\Tenants\Handover\LeftPortalLinksRevoker;
@@ -35,6 +36,7 @@ use Modules\Tenants\Models\TenantProfile;
 use Modules\Tenants\Policies\TenantProfilePolicy;
 use Modules\Tenants\Portal\LinkedTenantProfiles;
 use Modules\Tenants\Portal\TenantPortalAccessRecords;
+use Modules\Tenants\Profiles\OwnerTenantRecords;
 use Modules\Tenants\Profiles\TenantDirectoryService;
 use Nwidart\Modules\Support\ModuleServiceProvider;
 
@@ -81,6 +83,8 @@ final class TenantsServiceProvider extends ModuleServiceProvider
         $this->app->bind(TenantPortalAccess::class, TenantPortalAccessRecords::class);
         // How other modules' import sheets name a tenant (the Leases sheet, P03-13a).
         $this->app->bind(ImportedTenants::class, ImportedTenantLookup::class);
+        // The owner portal's view of its tenants, ID number masked (P03-16).
+        $this->app->bind(OwnerTenants::class, OwnerTenantRecords::class);
     }
 
     public function boot(): void

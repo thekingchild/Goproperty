@@ -8,6 +8,7 @@ use App\Enums\OrganizationStatus;
 use App\Models\User;
 use App\Platform\Impersonation\ImpersonationMode;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Testing\TestResponse;
 use Illuminate\Validation\ValidationException;
@@ -55,7 +56,9 @@ describe('the owner portal', function () {
 
         $acme = ownerPortalPage($this->ngozi, "/statements/{$this->ngoziAtAcme->id}/2027-01")->assertOk()
             ->assertSee('Marina Heights')->assertSee('Palm Court')->assertSee('Bisi Adeyinka')->assertSee('₦1,553,000')
-            ->assertDontSee('Cedar House')->assertDontSee('Lagoon View')->assertDontSee('+2348031230001')->assertDontSee('bisi.adeyinka@example.com')
+            // P03-16: the tenant's phone and email as the bill was issued, wherever the statement names the tenant.
+            ->assertSee('data-test="statement-tenant-contacts"', false)->assertSee('+2348031230001')->assertSee('bisi.adeyinka@example.com')
+            ->assertDontSee('Cedar House')->assertDontSee('Lagoon View')->assertDontSee('+2348034445555')->assertDontSee('tunde.bakare@example.com')
             ->assertDontSee('wire:click', false);
         expect(statementIds($acme, 'building'))->toBe([$this->palm->id, $this->marina->id])
             ->and((string) $acme->getContent())->toContain('data-net-due="155300000"');
@@ -67,6 +70,30 @@ describe('the owner portal', function () {
 
         // From the owner portal's home.
         ownerPortalPage($this->ngozi)->assertOk()->assertSee('data-test="owner-statements-link"', false);
+    });
+
+    it('keeps what a month settled before P03-16 recorded: no tenant contacts there, contacts on months settled since', function () {
+        $this->travelTo('2027-02-02 10:00:00');
+        $settlement = settleStatement($this->acme, $this->owner, $this->ngoziAtAcme, '2027-01', '2027-02-01');
+        $path = "/statements/{$this->ngoziAtAcme->id}/2027-01";
+
+        // Settled now: the snapshot keeps the contacts the bills were issued with.
+        ownerPortalPage($this->ngozi, $path)->assertOk()->assertSee('Settled')->assertSee('+2348031230001')->assertSee('bisi.adeyinka@example.com');
+
+        // A month settled before P03-16 recorded names only (no contact keys): it shows what it recorded.
+        $strip = function (mixed $value) use (&$strip): mixed {
+            if (! is_array($value)) {
+                return $value;
+            }
+            unset($value['tenant_phone'], $value['tenant_email']);
+
+            return array_map($strip, $value);
+        };
+        $figures = json_decode((string) DB::table('owner_statement_settlements')->where('id', $settlement->id)->value('figures'), true);
+        DB::table('owner_statement_settlements')->where('id', $settlement->id)->update(['figures' => json_encode($strip($figures))]);
+
+        ownerPortalPage($this->ngozi, $path)->assertOk()->assertSee('Settled')->assertSee('Bisi Adeyinka')
+            ->assertDontSee('+2348031230001')->assertDontSee('bisi.adeyinka@example.com')->assertDontSee('data-test="statement-tenant-contacts"', false);
     });
 
     it('acceptance: answers 404 for another owner\'s statements, months and PDFs', function (string $who, string $path) {
@@ -191,14 +218,21 @@ describe('the agency', function () {
     it('lets owners and administrators set the terms, checked and audited; agents never', function () {
         $agent = joinAs(User::factory()->create(), $this->acme, OrganizationRole::Agent);
 
-        agencyStatementPage($this->owner, $this->ngoziAtAcme)->assertOk()->assertSee('data-test="terms-commission"', false)->assertSee('data-test="export-owner_statements-csv"', false);
-        agencyStatementCall($this->owner, $this->ngoziAtAcme, '', 'saveTerms', ['commission' => '12.5', 'utilitiesToOwner' => true, 'shareTenantContacts' => true])->assertOk();
+        // P03-16: the "share tenant contact details" switch is gone from the terms.
+        agencyStatementPage($this->owner, $this->ngoziAtAcme)->assertOk()->assertSee('data-test="terms-commission"', false)->assertSee('data-test="export-owner_statements-csv"', false)
+            ->assertDontSee('data-test="terms-contacts"', false)->assertDontSee('Share tenant contact details')->assertDontSee('Tenant contact details shared');
+        agencyStatementCall($this->owner, $this->ngoziAtAcme, '', 'saveTerms', ['commission' => '12.5', 'utilitiesToOwner' => true])->assertOk();
 
         $terms = inOrganization($this->acme, fn () => OwnerStatementTerms::query()->where('owner_profile_id', $this->ngoziAtAcme->id)->sole());
         expect($terms->commission_bps)->toBe(1250)
             ->and($terms->utilities_to_owner)->toBeTrue()
-            ->and($terms->share_tenant_contacts)->toBeTrue()
-            ->and(AuditEntry::query()->where('event', 'owner_statement.terms_changed')->latest('id')->first()?->getProperty('after'))->toEqual(['commission_bps' => 1250, 'utilities_to_owner' => true, 'share_tenant_contacts' => true]);
+            ->and(array_key_exists('share_tenant_contacts', $terms->getAttributes()))->toBeFalse()
+            ->and(AuditEntry::query()->where('event', 'owner_statement.terms_changed')->latest('id')->first()?->getProperty('after'))->toEqual(['commission_bps' => 1250, 'utilities_to_owner' => true]);
+
+        // A caller still sending the old key is not refused; the key changes nothing (nothing new to audit).
+        $audited = AuditEntry::query()->where('event', 'owner_statement.terms_changed')->count();
+        setStatementTerms($this->acme, $this->owner, $this->ngoziAtAcme, ['commission' => '12.5', 'utilitiesToOwner' => true, 'shareTenantContacts' => false]);
+        expect(AuditEntry::query()->where('event', 'owner_statement.terms_changed')->count())->toBe($audited);
 
         foreach (['101', 'ten', '10.555', '-5'] as $bad) {
             expect(fn () => setStatementTerms($this->acme, $this->owner, $this->ngoziAtAcme, ['commission' => $bad]))->toThrow(ValidationException::class);

@@ -22,7 +22,7 @@ require_once __DIR__.'/statement-world.php';
 beforeEach(function () {
     Notification::fake();
     statementWorld();
-    setStatementTerms($this->acme, $this->owner, $this->ngoziAtAcme, ['commission' => '10', 'shareTenantContacts' => true]);
+    setStatementTerms($this->acme, $this->owner, $this->ngoziAtAcme, ['commission' => '10']);
     $this->travelTo('2027-02-02 10:00:00');
     settleStatement($this->acme, $this->owner, $this->ngoziAtAcme, '2026-12', '2027-01-05', 'TRF-NGOZI-DEC');
 });

@@ -9,8 +9,8 @@ use Carbon\CarbonImmutable;
 
 /**
  * A lease of the owner's buildings ending in the next 90 days, with where
- * its renewal stands (P08-05). The tenant's phone and email only when the
- * agency shares tenants' contact details with this owner.
+ * its renewal stands (P08-05). The tenant's name, phone and email (owners
+ * always see them since P03-16).
  */
 final readonly class RenewalLine
 {

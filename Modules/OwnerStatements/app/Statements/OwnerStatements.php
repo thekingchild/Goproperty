@@ -91,11 +91,10 @@ final readonly class OwnerStatements
             return [];
         }
 
-        $shares = $this->terms->of($ownerProfileId)->shareTenantContacts;
         $units = $this->units->findMany(array_values(array_unique(array_map(static fn (EndingLease $lease): int => $lease->lease->unitId, $ending))));
         $tenants = $this->tenants->findMany(array_values(array_unique(array_map(static fn (EndingLease $lease): int => $lease->lease->tenantProfileId, $ending))));
 
-        return array_map(static function (EndingLease $ending) use ($buildings, $units, $tenants, $shares): RenewalLine {
+        return array_map(static function (EndingLease $ending) use ($buildings, $units, $tenants): RenewalLine {
             $lease = $ending->lease;
             $tenant = $tenants[$lease->tenantProfileId] ?? null;
             $unit = $units[$lease->unitId] ?? null;
@@ -106,8 +105,8 @@ final readonly class OwnerStatements
                 building: $building instanceof PropertySummary ? $building->name : '',
                 unit: $unit instanceof UnitSummary ? $unit->label : '',
                 tenantName: $tenant->name ?? '',
-                tenantPhone: $shares ? $tenant?->phone : null,
-                tenantEmail: $shares ? $tenant?->email : null,
+                tenantPhone: $tenant?->phone,
+                tenantEmail: $tenant?->email,
                 endDate: $lease->endDate,
                 rent: $lease->rent,
                 cycleLabel: $lease->cycle->label(),

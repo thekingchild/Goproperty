@@ -1,7 +1,8 @@
 {{--
     One of the owner's buildings (Modules\Properties\Livewire\OwnerPortal\OwnerBuildingShow,
-    P03-15): the agency, the units with their occupancy and active lease (the
-    tenant's name only), and the building's latest bills. Read-only.
+    P03-15, P03-16): the agency, the units with their occupancy, active lease
+    and a link to each unit's lease history, and the building's latest
+    bills. Read-only.
 --}}
 @php
     /** @var \Modules\Properties\OwnerPortal\OwnerBuildingPage $page */
@@ -53,6 +54,7 @@
                         <span>{{ $unit->lease->lease->startDate->format('d/m/Y') }} – {{ $unit->lease->lease->endDate->format('d/m/Y') }} · {{ __(':amount :cycle', ['amount' => $unit->lease->lease->rent->format(), 'cycle' => strtolower($unit->lease->lease->cycle->label())]) }}</span>
                     </a>
                 @endif
+                <a href="{{ route('owner.units.show', $unit->id) }}" wire:navigate class="inline-flex min-h-11 items-center text-sm font-medium text-zinc-900 underline dark:text-white" data-test="owner-unit-history" data-unit="{{ $unit->id }}">{{ __('Lease history') }}</a>
             </div>
         @empty
             <flux:text>{{ __('No units yet.') }}</flux:text>

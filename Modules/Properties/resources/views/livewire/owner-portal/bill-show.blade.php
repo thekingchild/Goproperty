@@ -1,8 +1,10 @@
 {{--
     A bill of one of the owner's buildings (Modules\Properties\Livewire\OwnerPortal\OwnerBillShow,
-    P03-15): status, amounts, period, lines and the tenant's name as issued.
-    No pay instructions and no invoice: owners follow, the agency collects.
-    Read-only.
+    P03-15, P03-16) as an on-screen page: status, dates, amounts paid and
+    still owed, period, lines, the tenant as issued (name, phone, email) and
+    what was paid on it with the receipts. Never the issued invoice, the pay
+    page, the payment reference or bank details: owners follow, the agency
+    collects. Read-only.
 --}}
 @php
     /** @var \Modules\Properties\OwnerPortal\OwnerBillPage $page */
@@ -29,6 +31,12 @@
                 <div>
                     <dt class="text-sm text-zinc-500 dark:text-zinc-400">{{ __('Tenant') }}</dt>
                     <dd class="font-medium break-words text-zinc-900 dark:text-white" data-test="owner-bill-tenant">{{ $bill->tenantName }}</dd>
+                    @if ($bill->tenantPhone || $bill->tenantEmail)
+                        <dd class="text-sm break-words text-zinc-600 dark:text-zinc-300" data-test="owner-bill-tenant-contacts">{{ collect([$bill->tenantPhone, $bill->tenantEmail])->filter()->implode(' · ') }}</dd>
+                    @endif
+                    @if ($page->tenantId)
+                        <dd><a href="{{ route('owner.tenants.show', $page->tenantId) }}" wire:navigate class="inline-flex min-h-11 items-center text-sm font-medium text-zinc-900 underline dark:text-white" data-test="owner-tenant-link" data-tenant="{{ $page->tenantId }}">{{ __('All the tenant\'s details') }}</a></dd>
+                    @endif
                 </div>
             @endif
             @if ($bill->periodStart && $bill->periodEnd)
@@ -70,6 +78,12 @@
                     </li>
                 @endforeach
             </ul>
+            <p class="flex flex-wrap justify-between gap-2 text-sm font-semibold text-zinc-900 dark:text-white" data-test="owner-bill-total"><span>{{ __('Total') }}</span><span>{{ $bill->amount->format() }}</span></p>
         @endif
+    </section>
+
+    <section class="flex flex-col gap-3" data-test="owner-bill-payments">
+        <flux:heading size="lg" level="2">{{ __('Payments') }}</flux:heading>
+        @include('properties::owner-portal.partials.payments', ['payments' => $page->payments, 'billNumbers' => []])
     </section>
 </x-page>

@@ -14,9 +14,11 @@ use Modules\Properties\Contracts\ReadOnlyOwnerPage;
 use Modules\Properties\OwnerPortal\OwnerPortalRecords;
 
 /**
- * A bill of one of the owner's buildings, /owner/bills/{id} (P03-15): its
- * status, amounts, period, lines and the tenant's name as issued; no pay
- * instructions and no invoice (it carries the tenant's contact details).
+ * A bill of one of the owner's buildings, /owner/bills/{id} (P03-15,
+ * P03-16), as an on-screen page: its status, dates, amounts, period, lines,
+ * the tenant as issued (name, phone, email) and what was paid on it; no
+ * pay instructions and never the issued invoice (it prints the
+ * organization's bank account and the payment reference).
  * Found among the bills of the signed-in owner's own buildings, so
  * anything else answers 404. Read-only.
  */

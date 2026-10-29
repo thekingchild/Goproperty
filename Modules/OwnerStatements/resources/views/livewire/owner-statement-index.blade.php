@@ -19,14 +19,12 @@
             <form wire:submit="saveTerms" class="mt-4 flex flex-col gap-4" novalidate>
                 <flux:input wire:model="commission" inputmode="decimal" :label="__('Commission (% of rent collected)')" :description="__('Leave blank while it is not agreed: statements then say \'Commission not set\' and take none.')" placeholder="10" maxlength="6" data-test="terms-commission" />
                 <flux:checkbox wire:model="utilitiesToOwner" :label="__('Utilities pass to the owner')" :description="__('Utilities collected count toward what the owner is due. Off: they are shown but not counted.')" data-test="terms-utilities" />
-                <flux:checkbox wire:model="shareTenantContacts" :label="__('Share tenant contact details')" :description="__('The owner sees tenants\' phone and email in the owner portal. Off: tenant names only.')" data-test="terms-contacts" />
                 <div><flux:button type="submit" variant="primary" data-test="save-terms">{{ __('Save terms') }}</flux:button></div>
             </form>
         @else
-            <dl class="mt-4 grid gap-3 sm:grid-cols-3 text-sm">
+            <dl class="mt-4 grid gap-3 sm:grid-cols-2 text-sm">
                 <div><dt class="text-zinc-500 dark:text-zinc-400">{{ __('Commission') }}</dt><dd class="text-zinc-900 dark:text-white">{{ $commission !== '' ? $commission.'%' : __('Not set') }}</dd></div>
                 <div><dt class="text-zinc-500 dark:text-zinc-400">{{ __('Utilities pass to the owner') }}</dt><dd class="text-zinc-900 dark:text-white">{{ $utilitiesToOwner ? __('Yes') : __('No') }}</dd></div>
-                <div><dt class="text-zinc-500 dark:text-zinc-400">{{ __('Tenant contact details shared') }}</dt><dd class="text-zinc-900 dark:text-white">{{ $shareTenantContacts ? __('Yes') : __('No') }}</dd></div>
             </dl>
         @endif
     </section>
