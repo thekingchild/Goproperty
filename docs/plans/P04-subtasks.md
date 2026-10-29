@@ -53,3 +53,7 @@ Rules: [ARCHITECTURE.md § 6.6](../../ARCHITECTURE.md) (state machine, thread, n
   5. **Who is told:** the tenant once ("your repair request is now handled by {agency}"), and the receiving organization's owners and administrators once per moved ticket, through P04-03's notifier.
   6. **All or nothing:** the tickets move in the same transaction as the handover's acceptance, or it fails as a whole.
 - **P04-05 accepted as built (2026-10-29):** the six defaults above and the seven further decisions in the P04-05 ledger entry (tickets also move when a management ends; a moved draft is discarded on the old side; nobody on the old side is told; the accepting owner is told; what carries over to the copy; no tenant on the copy when the lease had ended; names and dates as at the move).
+
+## Changed by the product owner (2026-10-29, before P05)
+
+- **The agency chooses which tickets the owner sees** (replaces default 8's "they see the tickets of their buildings"): every ticket, existing ones included, is hidden from the building's owner until a member shares it, and the owner is notified about shared tickets only. Built as **P04-06**; decisions and defaults in [owner-visibility-2026-10-29.md](owner-visibility-2026-10-29.md). Tenant contact details on the owner's ticket pages no longer follow a switch (P03-16).

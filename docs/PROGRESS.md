@@ -6,7 +6,7 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 ## Current state
 
-- **In progress:** nothing. P04 is complete (2026-10-28): all five tasks; P04-05 (open tickets move with the building on a handover) was the product owner's one change to the P04 decisions (`docs/plans/P04-subtasks.md` "Settled by the product owner"); the product owner accepted all P04 decisions, P04-05's included, on 2026-10-29 (ticket lifecycle, thread with internal notes and the owner's repairs, inboxes and notifications, handover follow-ups), built with the defaults in `docs/plans/P04-subtasks.md`; the product owner accepted those decisions on 2026-10-28 except for tickets on a handover. P08-05 (owner statements, brought forward by the product owner on 2026-10-28) and P04-04 (handover follow-ups) are complete; their ledger entries list the decisions for the product owner to confirm. P03 is complete (2026-10-28): all 15 tasks, and the phase-exit RentLoopTest journey passes on all four databases in GitHub CI (`docs/plans/P02-P03-subtasks.md`). P03 was built with default answers to its open questions; each task's ledger entry lists the decisions for the product owner to confirm
+- **In progress:** P03-16 (owners see their tenants, contracts and billing in full) and P04-06 (the agency chooses which tickets the owner sees), added by the product owner on 2026-10-29 before P05 after consulting owners and agents (`docs/plans/owner-visibility-2026-10-29.md`); they reopen P03 and P04 until done. Before that: P04 was complete (2026-10-28): all five tasks; P04-05 (open tickets move with the building on a handover) was the product owner's one change to the P04 decisions (`docs/plans/P04-subtasks.md` "Settled by the product owner"); the product owner accepted all P04 decisions, P04-05's included, on 2026-10-29 (ticket lifecycle, thread with internal notes and the owner's repairs, inboxes and notifications, handover follow-ups), built with the defaults in `docs/plans/P04-subtasks.md`; the product owner accepted those decisions on 2026-10-28 except for tickets on a handover. P08-05 (owner statements, brought forward by the product owner on 2026-10-28) and P04-04 (handover follow-ups) are complete; their ledger entries list the decisions for the product owner to confirm. P03 is complete (2026-10-28): all 15 tasks, and the phase-exit RentLoopTest journey passes on all four databases in GitHub CI (`docs/plans/P02-P03-subtasks.md`). P03 was built with default answers to its open questions; each task's ledger entry lists the decisions for the product owner to confirm
 - **In review:** P00-02 (CI): all four database jobs are green in GitHub Actions; branch protection on `main` is off by the product owner's decision (2026-10-27) while P02 and P03 are built, so tasks keep merging straight to `main`; turn it on afterwards (`docs/runbooks/ci.md` § 3) and mark P00-02 complete. P00-12 (backups): built and drilled locally; needs one real run to an S3-compatible bucket and a Google Shared Drive (PRE-03 accounts)
 - **Next task:** P05 (reminders, notifications, email templates & WhatsApp) once the product owner asks; it also brings ticket notices to phone-only tenants. The product owner settled the P03-14 questions on 2026-10-28 (`docs/plans/P02-P03-subtasks.md`); turn on branch protection and mark P00-02 complete now that P02 and P03 are built; PRE-01 to PRE-04 continue with the product owner
 - **Blocked:** P00-13 (staging): the deploy scripts, the deploy on merge and the deploy drill are built and drilled locally; it needs a staging host (PRE-04). Until then the Deploy workflow fails at "Check deploy settings" on every push to `main`
@@ -19,14 +19,14 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 | P00 | 13 | 10 | In progress |
 | P01 | 9 | 9 | Complete (2026-10-27) |
 | P02 | 7 | 7 | Complete (2026-10-27) |
-| P03 | 15 | 15 | Complete (2026-10-28) |
-| P04 | 5 | 5 | Complete (2026-10-28) |
+| P03 | 16 | 15 | In progress |
+| P04 | 6 | 5 | In progress |
 | P05 | 6 | 0 | Not started |
 | P06 | 11 | 0 | Not started |
 | P07 | 4 | 0 | Not started |
 | P08 | 5 | 1 | In progress |
 | P09 | 8 | 0 | Not started |
-| **Total** | **88** | **48** | |
+| **Total** | **90** | **48** | |
 
 ## Ledger (newest first)
 
