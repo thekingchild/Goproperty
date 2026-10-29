@@ -28,6 +28,10 @@ use Modules\Tickets\Tickets\TicketDates;
  * ticket in the receiving organization (`moved_from_*`); the one left
  * behind is closed there for good (`moved_out_at`).
  *
+ * The building's owner (`/owner`) sees the ticket only while a member has
+ * shared it with them (P04-06, `shared_with_owner_at`; every ticket starts
+ * hidden, docs/plans/owner-visibility-2026-10-29.md).
+ *
  * The unit, its building, the lease and the tenant belong to other
  * modules: the ticket keeps their ids and reads them through their
  * contracts, never their models (ARCHITECTURE.md § 8 rule 3).
@@ -58,6 +62,8 @@ use Modules\Tickets\Tickets\TicketDates;
  * @property string|null $moved_from_number
  * @property string|null $moved_to_organization
  * @property CarbonImmutable|null $moved_out_at
+ * @property CarbonImmutable|null $shared_with_owner_at
+ * @property int|null $shared_with_owner_by_user_id
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  * @property CarbonImmutable|null $deleted_at
@@ -108,6 +114,12 @@ final class Ticket extends Model
         return $this->moved_out_at !== null;
     }
 
+    /** Whether a member shared it with the building's owner (P04-06): only then does the owner see it. */
+    public function sharedWithOwner(): bool
+    {
+        return $this->shared_with_owner_at !== null;
+    }
+
     /**
      * Its status history, oldest first.
      *
@@ -134,6 +146,8 @@ final class Ticket extends Model
             'reopened_at' => 'immutable_datetime',
             'moved_from_ticket_id' => 'integer',
             'moved_out_at' => 'immutable_datetime',
+            'shared_with_owner_at' => 'immutable_datetime',
+            'shared_with_owner_by_user_id' => 'integer',
         ];
     }
 }

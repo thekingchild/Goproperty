@@ -11,6 +11,7 @@ use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
 use Livewire\Component;
+use Modules\Properties\Contracts\PropertyDirectory;
 use Modules\Tickets\Enums\TicketCategory;
 use Modules\Tickets\Enums\TicketPriority;
 use Modules\Tickets\Enums\TicketStatus;
@@ -30,6 +31,12 @@ use Modules\Tickets\Tickets\TicketService;
  * checks TicketPolicy and goes through Tickets\TicketService, which checks
  * it again; a refused move shows its reason and changes nothing. The
  * thread of messages (P04-02) goes in the page's "Conversation" slot.
+ *
+ * The building's owner (P04-06): whether the ticket is shared with them
+ * ("Shared with the owner by {name} on {date}") and, for a member who may
+ * (TicketPolicy::shareWithOwner), "Share with the owner" or "Stop
+ * sharing", through TicketService. A building with no owner on record
+ * says so and offers no sharing.
  *
  * The ticket id is locked and the ticket loaded through the organization
  * scope on every request, so another organization's ticket (a tenant's
@@ -119,7 +126,19 @@ final class TicketShow extends Component
         $this->done(__('The category and priority were saved.'));
     }
 
-    public function render(OrganizationContext $context, TicketParties $parties, TicketHistory $history, TicketService $tickets, Assignees $assignees): View
+    public function shareWithOwner(TicketService $tickets): void
+    {
+        $tickets->shareWithOwner($this->user(), $this->authorized('shareWithOwner'));
+        $this->done(__('The ticket is shared with the building\'s owner. They can follow it in their owner portal.'));
+    }
+
+    public function stopSharingWithOwner(TicketService $tickets): void
+    {
+        $tickets->stopSharingWithOwner($this->user(), $this->authorized('shareWithOwner'));
+        $this->done(__('The building\'s owner no longer sees this ticket.'));
+    }
+
+    public function render(OrganizationContext $context, TicketParties $parties, TicketHistory $history, TicketService $tickets, Assignees $assignees, PropertyDirectory $buildings): View
     {
         $ticket = $this->ticket();
         // Checked on every render, not only when the page opened.
@@ -128,6 +147,9 @@ final class TicketShow extends Component
         [$row] = $parties->rows([$ticket]);
         $manages = $user->can('changeStatus', $ticket);
         $updates = $user->can('update', $ticket) && $ticket->status !== TicketStatus::Closed;
+        $building = $buildings->find($ticket->property_id);
+        $hasOwner = $building?->ownerProfileId !== null;
+        $sharedBy = $ticket->shared_with_owner_by_user_id !== null ? User::query()->find($ticket->shared_with_owner_by_user_id) : null;
 
         return view('tickets::livewire.ticket-show', [
             'organization' => $context->get(),
@@ -144,6 +166,15 @@ final class TicketShow extends Component
             'categories' => TicketCategory::cases(),
             'priorities' => TicketPriority::cases(),
             'reopenableUntil' => $tickets->reopenableUntil($ticket),
+            'buildingOwner' => [
+                'exists' => $hasOwner,
+                'name' => $building?->ownerName,
+                'hasPortal' => $building?->ownerUserId !== null,
+                'sharedBy' => $sharedBy instanceof User ? $sharedBy->name : __('a former member'),
+            ],
+            // Sharing again needs an owner; stopping never does. A ticket left behind by a building move is not shared any more.
+            'canShare' => $hasOwner && ! $ticket->movedOut() && ! $ticket->sharedWithOwner() && $user->can('shareWithOwner', $ticket),
+            'canStopSharing' => $ticket->sharedWithOwner() && $user->can('shareWithOwner', $ticket),
             'flash' => session('ticket-status'),
         ]);
     }

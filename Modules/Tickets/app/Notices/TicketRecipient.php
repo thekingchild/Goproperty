@@ -8,7 +8,8 @@ use App\Models\User;
 
 /**
  * One person to tell about a ticket (Notices\TicketRecipients): their side
- * (`tenant`: the portal's ticket page; `staff`: the workspace's), the key
+ * (`tenant`: the portal's ticket page; `staff`: the workspace's; `owner`:
+ * the building's owner, the owner portal's page, P04-06), the key
  * that makes them one recipient (`user:{id}`, or `tenant:{id}` for a
  * tenant with an email address and no portal account), their name, the
  * account told in the app (`database`) and the address the email goes to
@@ -21,6 +22,9 @@ final readonly class TicketRecipient
     public const string TENANT = 'tenant';
 
     public const string STAFF = 'staff';
+
+    /** The building's owner, told about a ticket shared with them (P04-06). */
+    public const string OWNER = 'owner';
 
     public const string DATABASE = 'database';
 
@@ -39,6 +43,19 @@ final readonly class TicketRecipient
         $email = trim((string) $user->email);
 
         return new self(self::STAFF, 'user:'.$user->id, (string) $user->name, $user, $email !== '' ? $email : null);
+    }
+
+    /** The building owner's portal account (P04-06): in the app, and by email when it has an address. */
+    public static function owner(User $user): self
+    {
+        $email = trim((string) $user->email);
+
+        return new self(self::OWNER, 'user:'.$user->id, (string) $user->name, $user, $email !== '' ? $email : null);
+    }
+
+    public function isOwner(): bool
+    {
+        return $this->side === self::OWNER;
     }
 
     public function isTenant(): bool

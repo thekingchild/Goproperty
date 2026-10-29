@@ -7,9 +7,11 @@ namespace Modules\Tickets\Notices;
 /**
  * What one kind of ticket announcement says, to each side (TicketNotifier
  * sends it): a status move (StatusNoticeText), an assignment
- * (AssignmentNoticeText), a message of the thread (MessageNoticeText).
- * The tenant reads it in the portal's words (the agency by name), staff in
- * the workspace's (who did what).
+ * (AssignmentNoticeText), a message of the thread (MessageNoticeText), a
+ * ticket that moved in (MoveNoticeText), a share with the building's owner
+ * (SharedNoticeText, P04-06). The tenant reads it in the portal's words
+ * (the agency by name), the owner in the agency's name about their
+ * building, staff in the workspace's (who did what).
  */
 interface TicketNoticeText
 {

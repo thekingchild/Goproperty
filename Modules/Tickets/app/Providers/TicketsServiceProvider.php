@@ -29,6 +29,7 @@ use Modules\Tickets\Contracts\TicketService as TicketServiceContract;
 use Modules\Tickets\Events\TicketAssignmentChanged;
 use Modules\Tickets\Events\TicketMessagePosted;
 use Modules\Tickets\Events\TicketMovedIn;
+use Modules\Tickets\Events\TicketSharedWithOwner;
 use Modules\Tickets\Events\TicketStatusChanged;
 use Modules\Tickets\Handover\TicketsMover;
 use Modules\Tickets\Jobs\CloseResolvedTickets;
@@ -160,6 +161,7 @@ final class TicketsServiceProvider extends ModuleServiceProvider
         Event::listen(TicketAssignmentChanged::class, TellTicketParties::class);
         Event::listen(TicketMessagePosted::class, TellTicketParties::class);
         Event::listen(TicketMovedIn::class, TellTicketParties::class);
+        Event::listen(TicketSharedWithOwner::class, TellTicketParties::class);
         Event::listen(NotificationSent::class, MarkTicketNoticeMailed::class);
 
         // Resolved tickets nobody answered close themselves (ARCHITECTURE.md § 7).

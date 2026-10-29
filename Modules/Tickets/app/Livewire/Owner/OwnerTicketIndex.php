@@ -14,9 +14,12 @@ use Modules\Tickets\Owner\OwnerTickets;
 
 /**
  * The owner portal's repairs, /owner/tickets (P04-02;
- * docs/plans/P04-subtasks.md default 8): for every agency that manages
+ * docs/plans/P04-subtasks.md default 8, changed by
+ * docs/plans/owner-visibility-2026-10-29.md): for every agency that manages
  * buildings of the signed-in owner, in its current colours, the sent
- * tickets of those buildings, newest first — number, title, category,
+ * tickets of those buildings that the agency shared with the owner
+ * (P04-06; every ticket is hidden until a member shares it), newest
+ * first — number, title, category,
  * priority, status, unit and dates. Never a tenant's draft, never a
  * contact detail, never an internal note. Read through Owner\OwnerTickets
  * (Properties' OwnerPortalAccess). Read-only (ReadOnlyOwnerPage).

@@ -35,7 +35,8 @@ require_once __DIR__.'/../../../Handovers/tests/Feature/return-world.php';
  * note and keeps its history; numbers stay gap-free in both organizations;
  * the tenant and the receiving owners and administrators are told once;
  * works for a return too (the end of a management, and the one-way
- * return); cross-organization probes. World: ticket-move-world.php.
+ * return); cross-organization probes. P04-06: a moved ticket arrives
+ * unshared with the building's owner. World: ticket-move-world.php.
  */
 
 beforeEach(fn () => ticketMoveWorld());
@@ -475,4 +476,44 @@ it('does not move tickets while the handover is only offered, declined or withdr
 
     expect(rowsByOrganization(['tickets', 'ticket_status_history', 'ticket_messages', 'media']))->toEqual($before)
         ->and(storedTicket($this->landlord, $this->kemiOpen)->status)->toBe(TicketStatus::InProgress);
+});
+
+it('P04-06 acceptance: a moved ticket arrives unshared with the owner, even when it was shared where it came from', function () {
+    // Shared on the giving side (forced: the landlord's own buildings have no owner profile to share with).
+    foreach (movingTickets() as $ticket) {
+        inOrganization($this->landlord, fn () => Ticket::query()->withTrashed()->whereKey($ticket->id)->firstOrFail()
+            ->forceFill(['shared_with_owner_at' => now(), 'shared_with_owner_by_user_id' => $this->ngozi->id])->saveQuietly());
+    }
+
+    acceptTicketHandover();
+
+    $copies = array_map(fn (Ticket $ticket): Ticket => movedCopy($this->agency, $ticket) ?? throw new LogicException('Not moved: '.$ticket->title), movingTickets());
+    expect(array_map(fn (Ticket $copy): array => [$copy->shared_with_owner_at, $copy->shared_with_owner_by_user_id], $copies))
+        ->toBe(array_fill(0, count($copies), [null, null]))
+        ->and(listedTickets(ownerTicketsPage($this->ngozi)->assertOk()))->toBe([]);
+});
+
+it('P04-06 acceptance: a ticket the agency shared with the owner goes back unshared on a one-way return, and its owner is not told of it there', function () {
+    $this->ngoziAtAgency = ownerIn($this->agency, ['type' => 'person', 'first_name' => 'Ngozi', 'last_name' => 'Eze', 'email' => 'ngozi.eze@example.com', 'phone' => '+2348051112222']);
+    linkOwner($this->agency, $this->ngoziAtAgency, $this->ngozi);
+    $harbour = buildingIn($this->agency, ['name' => 'Harbour Point', 'slug' => 'harbour-point', 'address' => '5 Marina Road, Lagos Island', 'owner_profile_id' => $this->ngoziAtAgency->id]);
+    $flatA = unitIn($this->agency, $harbour, ['unit_label' => 'Flat A']);
+    $yemi = tenantIn($this->agency, ['first_name' => 'Yemi', 'last_name' => 'Ola', 'phone' => '+2348038889999', 'email' => 'yemi.ola@example.com']);
+    activeLease($this->agency, $this->ada, $flatA, $yemi, ['rent' => '1,000,000']);
+    $open = shareTicket($this->agency, $this->ada, raiseTicket($this->agency, $this->ada, $flatA, $yemi, ['title' => 'Shower drain slow']));
+
+    // Ngozi follows it as the owner while the agency manages Harbour Point.
+    expect(listedTickets(ownerTicketsPage($this->ngozi)->assertOk()))->toBe([$open->id]);
+
+    $return = offerReturn($this->ada, $this->agency, $this->landlord, [$harbour]);
+    $told = ticketMoveTold(fn () => acceptHandover($this->ngozi, $this->landlord, incomingHandover($this->landlord, $return)));
+
+    $copy = movedCopy($this->landlord, $open);
+    expect($copy)->not->toBeNull()
+        ->and($copy->shared_with_owner_at)->toBeNull()
+        ->and($copy->shared_with_owner_by_user_id)->toBeNull()
+        ->and(AuditEntry::query()->where('event', 'ticket.shared_with_owner')->where('subject_id', $copy->id)->exists())->toBeFalse()
+        ->and(inOrganization($this->landlord, fn () => TicketNotice::query()->where('ticket_id', $copy->id)->where('side', 'owner')->exists()))->toBeFalse()
+        // The landlord's owner hears of the move as staff, as before (P04-05), never as the building's owner.
+        ->and($told['ngozi.eze@example.com'])->toBe(['app', 'mail']);
 });

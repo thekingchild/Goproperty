@@ -18,6 +18,7 @@ use Modules\Leasing\Contracts\LeaseSummary;
 use Modules\Leasing\Contracts\TenantLeases;
 use Modules\Leasing\Contracts\UnitLeases;
 use Modules\Properties\Contracts\BuildingAccess;
+use Modules\Properties\Contracts\PropertyDirectory;
 use Modules\Properties\Contracts\UnitDirectory;
 use Modules\Tenants\Contracts\TenantPortalAccess;
 use Modules\Tickets\Contracts\TicketService as TicketServiceContract;
@@ -28,6 +29,7 @@ use Modules\Tickets\Enums\TicketSource;
 use Modules\Tickets\Enums\TicketStatus;
 use Modules\Tickets\Events\TicketAssignmentChanged;
 use Modules\Tickets\Events\TicketMovedIn;
+use Modules\Tickets\Events\TicketSharedWithOwner;
 use Modules\Tickets\Events\TicketStatusChanged;
 use Modules\Tickets\Models\Ticket;
 use Modules\Tickets\Models\TicketStatusChange;
@@ -53,13 +55,16 @@ use Modules\Tickets\Models\TicketStatusChange;
  *   `submitted`, numbered, for a unit of their buildings and optionally its
  *   tenant), startReview(), startWork(), resolve(), close() (on the
  *   tenant's word), reopen() (any time), assign() (to a member who works on
- *   the building, Assignees), changeDetails() (category, priority).
+ *   the building, Assignees), changeDetails() (category, priority),
+ *   shareWithOwner() and stopSharingWithOwner() (P04-06: whether the
+ *   building's owner sees it in /owner; not a move of the state machine).
  * - The system: autoClose() closes a resolved ticket the tenant has not
  *   answered for `tickets.auto_close_days` (tickets-auto-close, default 7;
  *   default 2), once; unassignMember() when a member leaves.
  * - A building move (P04-05, Handover\TicketsMover, inside the handover's
  *   transaction): receiveMoved() makes the receiving organization's own
- *   ticket for one that was open, and closeMovedOut() closes the one left
+ *   ticket for one that was open (never shared with the owner: the
+ *   receiving organization decides), and closeMovedOut() closes the one left
  *   behind for good (any open state → closed: the one move that skips
  *   `resolved`; a draft is discarded instead). A ticket left behind makes
  *   no more moves.
@@ -83,6 +88,7 @@ final readonly class TicketService implements TicketServiceContract
         private DocumentNumberer $numberer,
         private Assignees $assignees,
         private TicketSettings $settings,
+        private PropertyDirectory $buildings,
     ) {}
 
     /**
@@ -419,7 +425,9 @@ final readonly class TicketService implements TicketServiceContract
      * they did not move). A resolved ticket stays resolved, with its
      * resolution time (the reopen window counts from it); a draft stays a
      * draft; every other open ticket arrives `submitted` for this
-     * organization to review. Nobody is assigned. One history row (from
+     * organization to review. Nobody is assigned, and it is not shared
+     * with the building's owner (P04-06 default 5: the receiving
+     * organization decides; the columns stay null). One history row (from
      * nothing, with the "Moved from" note), one audit entry, and
      * TicketMovedIn after the commit (not for a draft).
      */
@@ -510,6 +518,90 @@ final readonly class TicketService implements TicketServiceContract
 
             return $ticket;
         });
+    }
+
+    /**
+     * Share the ticket with the owner of its building (P04-06;
+     * docs/plans/owner-visibility-2026-10-29.md, "Settled by the product
+     * owner" 4 and P04-06 defaults 1–3): from now on the owner sees it in
+     * /owner (its page, thread and files; a reply while nobody is assigned)
+     * and is told of it once now (TicketSharedWithOwner, after the commit),
+     * then of each status change and public reply while it stays shared.
+     * Any sent state, closed too; not a ticket left behind by a building
+     * move. Refused when the building has no owner on record. A ticket
+     * shared already is left as it is (nothing written, nobody told). Not a
+     * move of the state machine: no history row, the status is untouched,
+     * and the tenant is never told. One audit entry.
+     *
+     * @throws ValidationException
+     */
+    public function shareWithOwner(User $by, Ticket $ticket): Ticket
+    {
+        Gate::forUser($by)->authorize('shareWithOwner', $ticket);
+
+        return $this->transaction(function () use ($by, $ticket): Ticket {
+            $ticket = $this->lock($ticket->id);
+
+            if ($ticket->sharedWithOwner()) {
+                return $ticket;
+            }
+
+            if ($ticket->status === TicketStatus::Draft || $ticket->movedOut()) {
+                throw TicketRefused::because(__('This ticket can no longer be shared with the owner.'));
+            }
+
+            $ownerProfileId = $this->ownerProfileOf($ticket)
+                ?? throw TicketRefused::because(__('This building has no owner on record, so there is nobody to share the ticket with.'));
+
+            $ticket->shared_with_owner_at = CarbonImmutable::now();
+            $ticket->shared_with_owner_by_user_id = $by->id;
+            $ticket->save();
+
+            $this->audit('ticket.shared_with_owner', $ticket, $by, 'Ticket shared with the building\'s owner', ['owner_profile_id' => $ownerProfileId]);
+            event(new TicketSharedWithOwner($ticket->organization_id, $ticket->id, (string) $ticket->number, $by->id));
+
+            return $ticket;
+        });
+    }
+
+    /**
+     * Stop sharing the ticket with the building's owner (P04-06 defaults 1
+     * and 3): it leaves their list, its page and files answer 404 to them,
+     * and they are told nothing more about it — nor that it was hidden. A
+     * ticket not shared is left as it is. One audit entry, with who had
+     * shared it and when.
+     *
+     * @throws ValidationException
+     */
+    public function stopSharingWithOwner(User $by, Ticket $ticket): Ticket
+    {
+        Gate::forUser($by)->authorize('shareWithOwner', $ticket);
+
+        return $this->transaction(function () use ($by, $ticket): Ticket {
+            $ticket = $this->lock($ticket->id);
+
+            if (! $ticket->sharedWithOwner()) {
+                return $ticket;
+            }
+
+            $properties = [
+                'shared_at' => $ticket->shared_with_owner_at?->toIso8601String(),
+                'shared_by_user_id' => $ticket->shared_with_owner_by_user_id,
+            ];
+            $ticket->shared_with_owner_at = null;
+            $ticket->shared_with_owner_by_user_id = null;
+            $ticket->save();
+
+            $this->audit('ticket.unshared_with_owner', $ticket, $by, 'Ticket no longer shared with the building\'s owner', $properties);
+
+            return $ticket;
+        });
+    }
+
+    /** The owner profile of the ticket's building here, or null when the building has none (or is gone). */
+    public function ownerProfileOf(Ticket $ticket): ?int
+    {
+        return $this->buildings->find($ticket->property_id)?->ownerProfileId;
     }
 
     /**

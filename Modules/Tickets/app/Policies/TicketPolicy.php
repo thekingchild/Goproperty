@@ -29,6 +29,9 @@ use Spatie\Permission\Exceptions\PermissionDoesNotExist;
  * - `tickets.manage` (the same three) moves tickets through their states
  *   (review, work, resolve, close on the tenant's word, reopen at any
  *   time), assigns them and changes their category and priority.
+ * - `tickets.manage` also shares a ticket with the owner of its building
+ *   and stops sharing it (`shareWithOwner`, P04-06; no new permission:
+ *   dropped while suspended, not blocked while impersonating).
  * `tickets.respond` (replies, internal notes) is P04-02's, below. A tenant's unsent draft is
  * nobody else's: it answers 404 to members. Property owners (`/owner`,
  * P04-02, below) and tenants hold no workspace role here.
@@ -60,9 +63,11 @@ use Spatie\Permission\Exceptions\PermissionDoesNotExist;
  * notes (`viewInternalNotes`); the tenant replies to their own ticket
  * (`replyAsTenant`); the building's owner (`/owner`; their identity is
  * the permission, as on the owner portal's other pages: the ticket's
- * building is one of the user's owner profiles' here, Owner\OwnerTickets)
- * sees the ticket (`viewAsOwner`) and replies only while no agent is
- * assigned (`replyAsOwner`, ARCHITECTURE.md § 5). Tenants and owners never
+ * building is one of the user's owner profiles' here, Owner\OwnerTickets,
+ * and a member has shared the ticket with the owner, P04-06 — an unshared
+ * ticket answers 404 to every owner ability) sees the ticket
+ * (`viewAsOwner`) and replies only while no agent is assigned
+ * (`replyAsOwner`, ARCHITECTURE.md § 5). Tenants and owners never
  * see internal notes: no ability lets them (Messages\TicketThread leaves
  * the notes out of their queries). Files: adding them (`attachFiles`) and
  * opening them (`downloadAttachment…`) are refused while GoProperty staff
@@ -108,6 +113,18 @@ final class TicketPolicy
 
     /** Assign the ticket, change its category or priority. */
     public function update(User $user, Ticket $ticket): Response|bool
+    {
+        return $this->reachable($user, $ticket) ?? $this->holds($user, OrganizationPermission::ManageTickets);
+    }
+
+    /**
+     * Share the ticket with the owner of its building, or stop sharing it
+     * (P04-06; docs/plans/owner-visibility-2026-10-29.md, P04-06 default 1):
+     * a member who may move it (`tickets.manage`) on its building
+     * (BuildingAccess; another building's agent gets 404). Whether there is
+     * an owner to share with: the service checks.
+     */
+    public function shareWithOwner(User $user, Ticket $ticket): Response|bool
     {
         return $this->reachable($user, $ticket) ?? $this->holds($user, OrganizationPermission::ManageTickets);
     }
@@ -191,13 +208,13 @@ final class TicketPolicy
         return $this->ownedBy($user, $ticket) ? true : Response::denyAsNotFound();
     }
 
-    /** The building's owner sees a sent ticket of their building, from /owner. */
+    /** The building's owner sees a sent ticket of their building that the agency shared with them (P04-06), from /owner. */
     public function viewAsOwner(User $user, Ticket $ticket): Response|bool
     {
         return $this->ownerSees($user, $ticket) ? true : Response::denyAsNotFound();
     }
 
-    /** The building's owner replies, only while no agent is assigned (ARCHITECTURE.md § 5; the writer checks again on the locked row). */
+    /** The building's owner replies to a shared ticket, only while no agent is assigned (ARCHITECTURE.md § 5; the writer checks both again on the locked row). */
     public function replyAsOwner(User $user, Ticket $ticket): Response|bool
     {
         if (! $this->ownerSees($user, $ticket)) {
@@ -265,6 +282,8 @@ final class TicketPolicy
         return $this->context->has()
             && $ticket->organization_id === $this->context->id()
             && $ticket->status !== TicketStatus::Draft
+            // Hidden until a member shares it (P04-06 default 2: hidden means hidden).
+            && $ticket->sharedWithOwner()
             && $this->owners->ownerProfileFor($user, $ticket) !== null;
     }
 

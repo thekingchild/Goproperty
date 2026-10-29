@@ -21,7 +21,8 @@ require_once __DIR__.'/notices.php';
  * owners and administrators); a member's reply tells the tenant and the
  * staff side; a member's internal note tells the staff side only — never
  * the tenant or the owner, and its words are quoted to nobody. Property
- * owners are not told in P04. Phone-only tenants hear nothing until P05.
+ * owners hear only of tickets shared with them (P04-06,
+ * TicketOwnerSharingTest). Phone-only tenants hear nothing until P05.
  *
  * World: ticket-world.php plus message-world.php (Ngozi owns Palm Court
  * and is linked to it in /owner).
@@ -49,6 +50,9 @@ describe('acceptance: each message notifies the right party once', function () {
     });
 
     it('tells the staff side about the building owner\'s reply, never the owner themselves, nor the tenant', function () {
+        // The owner writes only on a ticket the agency shared with them (P04-06).
+        $this->ticket = shareTicket($this->acme, $this->owner, $this->ticket);
+
         expect(ticketToldBy(fn () => ownerReply($this->acme, $this->ngozi, $this->ticket, 'I have asked the agency to send a plumber.')))
             ->toEqual([TN_ADA => ['app:ticket.replied', 'mail'], TN_SEYI => ['app:ticket.replied', 'mail']]);
     });
@@ -70,6 +74,8 @@ describe('acceptance: each message notifies the right party once', function () {
     });
 
     it('acceptance: tells only the staff side about an internal note — never the tenant or the owner — and quotes it to nobody', function () {
+        // Shared with the owner (P04-06), so the owner would hear of a public reply; still never of a note.
+        $this->ticket = shareTicket($this->acme, $this->owner, $this->ticket);
         ticketsDo($this->acme, fn (TicketService $s) => $s->assign($this->owner, $this->ticket, $this->agent->id));
         app('mailer')->getSymfonyTransport()->flush();
 

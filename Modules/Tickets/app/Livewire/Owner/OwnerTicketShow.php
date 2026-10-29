@@ -24,13 +24,14 @@ use Modules\Tickets\Tickets\TicketHistory;
 /**
  * A ticket of one of my buildings, /owner/tickets/{ticket} (P04-02): the
  * agency in its colours, the number, title, status, priority, category,
- * unit, the tenant (the name; phone and email only when the agency shares
- * tenants' contact details with this owner, OwnerStatements'
- * TenantContactSharing, P08-05), who handles it, the dates, the problem as
+ * unit, the tenant (name, phone and email: owners always see their
+ * tenants' details, product owner 2026-10-29,
+ * docs/plans/owner-visibility-2026-10-29.md), who handles it, the dates, the problem as
  * reported, the conversation (Owner\OwnerTicketConversation: never the
  * internal notes; the owner replies only while no agent is assigned) and
- * the status history. Found among the user's buildings on every request
- * (Owner\OwnerTickets), so anyone else's ticket answers 404. Read-only
+ * the status history. Found among the user's buildings and the tickets
+ * shared with them (P04-06) on every request (Owner\OwnerTickets), so
+ * anyone else's ticket, or one not shared, answers 404. Read-only
  * (ReadOnlyOwnerPage): the reply is the conversation component's.
  */
 #[Layout('layouts::app')]
@@ -51,12 +52,10 @@ final class OwnerTicketShow extends Component implements ReadOnlyOwnerPage
         $user = $this->user();
         [$owner, $ticket] = $this->found($tickets);
 
-        $state = $tickets->within($user, $owner, static function () use ($tickets, $owner, $ticket, $parties, $history, $tenants, $context): array {
+        $state = $tickets->within($user, $owner, static function () use ($ticket, $parties, $history, $tenants, $context): array {
             $organization = $context->get();
             $branding = Branding::fromOrganization($organization);
-            $tenant = $ticket->tenant_profile_id !== null && $tickets->sharesTenantContacts($owner->ownerProfileId)
-                ? $tenants->find($ticket->tenant_profile_id)
-                : null;
+            $tenant = $ticket->tenant_profile_id !== null ? $tenants->find($ticket->tenant_profile_id) : null;
 
             return [
                 'row' => $parties->rows([$ticket])[0],

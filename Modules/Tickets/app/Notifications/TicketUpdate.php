@@ -15,7 +15,8 @@ use Modules\Tickets\Notices\TicketNotifier;
  * Something happened on a maintenance ticket (P04-03; ARCHITECTURE.md
  * § 6.6 "Notifications"): a move of its state machine, or an assignment.
  * In the app (`database`, linking to the portal's ticket page for the
- * tenant, the workspace's for staff) and by email in the agency's name
+ * tenant, the workspace's for staff, the owner portal's for the building's
+ * owner, P04-06) and by email in the agency's name
  * (BRANDING_DOCUMENTS.md § 1: the sender name "Adeyemi Realty via
  * GoProperty" or the agency's own, replies to the agency's email). Built
  * from plain strings by Notices\TicketNotifier, which writes the

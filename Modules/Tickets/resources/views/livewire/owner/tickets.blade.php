@@ -1,13 +1,14 @@
 {{--
     The owner portal's repairs (Modules\Tickets\Livewire\Owner\OwnerTicketIndex,
     P04-02): one card per agency that manages buildings of the owner, in its
-    current colours, with the sent tickets of those buildings. Mobile first
+    current colours, with the tickets of those buildings the agency shared
+    with the owner (P04-06: every ticket is hidden until shared). Mobile first
     (360 px, 44 px targets). Read-only.
 --}}
 @php
     use Modules\Tickets\Tickets\TicketDates;
 @endphp
-<x-page :heading="__('Repairs')" :description="__('Problems reported in your buildings, and what each agency is doing about them.')">
+<x-page :heading="__('Repairs')" :description="__('Repairs in your buildings that your agency shares with you, and what it is doing about them.')">
     <x-slot:actions>
         <flux:button icon="arrow-left" :href="route('owner.home')" wire:navigate class="min-h-11" data-test="owner-home-link">{{ __('My properties') }}</flux:button>
     </x-slot:actions>
@@ -41,7 +42,7 @@
                         </span>
                     </a>
                 @empty
-                    <flux:text data-test="owner-no-tickets">{{ __('No problems reported in your buildings here.') }}</flux:text>
+                    <flux:text data-test="owner-no-tickets">{{ __('No repairs shared with you here yet. Your agency chooses which repairs to share.') }}</flux:text>
                 @endforelse
             </section>
         @endforeach

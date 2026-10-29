@@ -10,9 +10,11 @@ use Modules\Tickets\Events\TicketStatusChanged;
 /**
  * What a ticket's move says (Events\TicketStatusChanged): to the tenant in
  * the agency's name ("Adeyemi Realty has started work on…"), to staff with
- * who did it ("Kemi Adebayo reopened…"). The move's note (a resolution
- * note, a reopening reason, why it closed by itself) is passed on: the
- * tenant sees it on the ticket's page already (P04-01).
+ * who did it ("Kemi Adebayo reopened…"), to the building's owner (a ticket
+ * shared with them, P04-06) in the agency's name, about their building.
+ * The move's note (a resolution note, a reopening reason, why it closed by
+ * itself) is passed on: the tenant and the owner see it on the ticket's
+ * page already (its history).
  */
 final readonly class StatusNoticeText implements TicketNoticeText
 {
@@ -36,7 +38,18 @@ final readonly class StatusNoticeText implements TicketNoticeText
 
     public function subject(TicketFacts $facts, TicketRecipient $to): string
     {
-        $values = ['number' => $facts->number, 'title' => $facts->title, 'agency' => $facts->agency, 'tenant' => $facts->tenantName ?? __('The tenant')];
+        $values = ['number' => $facts->number, 'title' => $facts->title, 'agency' => $facts->agency, 'tenant' => $facts->tenantName ?? __('The tenant'), 'building' => $facts->building];
+
+        if ($to->isOwner()) {
+            return match (TicketStatus::from($this->to)) {
+                TicketStatus::UnderReview => __(':number at :building: :agency is looking into it', $values),
+                TicketStatus::InProgress => __(':number at :building: work has started', $values),
+                TicketStatus::Resolved => __(':number at :building is fixed', $values),
+                TicketStatus::Closed => __(':number at :building is closed', $values),
+                TicketStatus::Reopened => __(':number at :building was reopened', $values),
+                TicketStatus::Submitted, TicketStatus::Draft => __(':number at :building was updated', $values),
+            };
+        }
 
         if ($to->isTenant()) {
             return match (TicketStatus::from($this->to)) {
@@ -80,7 +93,11 @@ final readonly class StatusNoticeText implements TicketNoticeText
             'days' => $facts->reopenDays,
         ];
 
-        $lines = $to->isTenant() ? $this->tenantLines($values) : $this->staffLines($facts, $values);
+        $lines = match (true) {
+            $to->isTenant() => $this->tenantLines($values),
+            $to->isOwner() => $this->ownerLines($values),
+            default => $this->staffLines($facts, $values),
+        };
 
         if ($this->note !== null && trim($this->note) !== '') {
             $lines[] = __('Note: :note', ['note' => trim($this->note)]);
@@ -109,6 +126,30 @@ final readonly class StatusNoticeText implements TicketNoticeText
                 : __(':agency closed your repair “:title” (:home).', $values),
             TicketStatus::Reopened => __(':agency reopened your repair “:title” (:home).', $values),
             TicketStatus::Draft => __('Your repair “:title” (:home) was updated.', $values),
+        }];
+    }
+
+    /**
+     * The building's owner hears it from the agency, about their building.
+     *
+     * @param  array<string, string|int>  $values
+     * @return list<string>
+     */
+    private function ownerLines(array $values): array
+    {
+        return [match (TicketStatus::from($this->to)) {
+            TicketStatus::UnderReview => __(':agency is looking into the repair “:title” (:home).', $values),
+            TicketStatus::InProgress => __(':agency has started work on the repair “:title” (:home).', $values),
+            TicketStatus::Resolved => __(':agency says the repair “:title” (:home) is fixed. The tenant is asked to confirm it.', $values),
+            TicketStatus::Closed => match ($this->actor) {
+                TicketStatusChanged::ACTOR_TENANT => __(':tenant confirmed the repair “:title” (:home) is fixed, which closed it.', $values),
+                TicketStatusChanged::ACTOR_SYSTEM => __('The repair “:title” (:home) was closed automatically: it was fixed and the tenant did not answer.', $values),
+                default => __(':agency closed the repair “:title” (:home).', $values),
+            },
+            TicketStatus::Reopened => $this->actor === TicketStatusChanged::ACTOR_TENANT
+                ? __(':tenant says the repair “:title” (:home) is not fixed and reopened it.', $values)
+                : __(':agency reopened the repair “:title” (:home).', $values),
+            TicketStatus::Submitted, TicketStatus::Draft => __('The repair “:title” (:home) was updated.', $values),
         }];
     }
 

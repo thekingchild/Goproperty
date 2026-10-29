@@ -12,8 +12,9 @@ use Modules\Tickets\Enums\MessageAuthor;
  * excerpt of a reply and how many files came with it, and the link. An
  * **internal note is never quoted** (no excerpt, even to staff, who can
  * read it on the page): the email leaves the system, and only staff are
- * ever told about a note (Listeners\TellTicketParties). The tenant reads
- * the agency's name for a member's reply; staff read the author's name.
+ * ever told about a note (Listeners\TellTicketParties). The tenant and the
+ * building's owner (a ticket shared with them, P04-06) read the agency's
+ * name for a member's reply; staff read the author's name.
  */
 final readonly class MessageNoticeText implements TicketNoticeText
 {
@@ -46,15 +47,17 @@ final readonly class MessageNoticeText implements TicketNoticeText
 
     public function subject(TicketFacts $facts, TicketRecipient $to): string
     {
-        $values = ['number' => $facts->number, 'title' => $facts->title, 'author' => $this->authorName($facts, $to)];
+        $values = ['number' => $facts->number, 'title' => $facts->title, 'author' => $this->authorName($facts, $to), 'building' => $facts->building];
 
         if ($this->internal) {
             return __('Internal note on :number: :title', $values);
         }
 
-        return $to->isTenant()
-            ? __(':author replied about your repair :number', $values)
-            : __(':author replied on :number: :title', $values);
+        return match (true) {
+            $to->isTenant() => __(':author replied about your repair :number', $values),
+            $to->isOwner() => __(':author replied about the repair :number at :building', $values),
+            default => __(':author replied on :number: :title', $values),
+        };
     }
 
     public function lines(TicketFacts $facts, TicketRecipient $to): array
@@ -64,6 +67,7 @@ final readonly class MessageNoticeText implements TicketNoticeText
         $lines = [match (true) {
             $this->internal => __(':author added an internal note (staff only) to ticket :number, “:title” (:home). Open the ticket to read it.', $values),
             $to->isTenant() => __(':author wrote about your repair “:title” (:home).', $values),
+            $to->isOwner() => __(':author wrote about the repair “:title” (:home).', $values),
             default => __(':author wrote on ticket :number, “:title” (:home).', $values),
         }];
 
@@ -81,8 +85,8 @@ final readonly class MessageNoticeText implements TicketNoticeText
     private function authorName(TicketFacts $facts, TicketRecipient $to): string
     {
         return match ($this->author) {
-            // The tenant hears from the agency, as on the portal's status notices.
-            MessageAuthor::Staff => $to->isTenant() ? $facts->agency : ($facts->actorName ?? $facts->agency),
+            // The tenant and the owner hear from the agency, as on their status notices.
+            MessageAuthor::Staff => $to->isTenant() || $to->isOwner() ? $facts->agency : ($facts->actorName ?? $facts->agency),
             MessageAuthor::Tenant => $facts->tenantName ?? $facts->actorName ?? (string) __('The tenant'),
             MessageAuthor::Owner => $facts->actorName !== null ? __(':name (the building\'s owner)', ['name' => $facts->actorName]) : (string) __('The building\'s owner'),
         };

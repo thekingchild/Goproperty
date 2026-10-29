@@ -54,16 +54,18 @@ describe('the conversation on phones', function () {
         $gotenberg = requireGotenberg();
 
         $ticket = tenantTicket($this->acme, $this->kemi, $this->lease, ['title' => 'Water heater not heating up in the bathroom since the weekend', 'priority' => 'urgent']);
+        // The owner sees only what the agency shares with them (P04-06).
+        $ticket = shareTicket($this->acme, $this->owner, $ticket);
         tenantReply($this->acme, $this->kemi, $ticket, 'It started on Saturday night: https://example.com/a-very-long-link-without-any-spaces-that-must-wrap-instead-of-scrolling', [ticketPhoto('heater.jpg'), ticketHeic('IMG_20270312_084512_very_long_iphone_name.HEIC'), ticketPdf('electricity-company-letter-about-the-outage.pdf')]);
         staffReply($this->acme, $this->agent, $ticket, 'Thanks. An electrician will come tomorrow between 10 and 12.');
         staffReply($this->acme, $this->agent, $ticket, INTERNAL_NOTE, internal: true);
         ownerReply($this->acme, $this->ngozi, $ticket, 'Please keep me posted.');
 
-        $assigned = tenantTicket($this->acme, $this->kemi, $this->lease, ['title' => 'Blocked kitchen drain']);
+        $assigned = shareTicket($this->acme, $this->owner, tenantTicket($this->acme, $this->kemi, $this->lease, ['title' => 'Blocked kitchen drain']));
         ticketsDo($this->acme, fn (TicketService $s) => $s->assign($this->owner, $assigned, $this->agent->id));
         staffReply($this->acme, $this->agent, $assigned, 'On my way.');
 
-        $resolved = tenantTicket($this->acme, $this->kemi, $this->lease, ['title' => 'Socket sparks in the bedroom', 'category' => 'electrical']);
+        $resolved = shareTicket($this->acme, $this->owner, tenantTicket($this->acme, $this->kemi, $this->lease, ['title' => 'Socket sparks in the bedroom', 'category' => 'electrical']));
         staffReply($this->acme, $this->agent, $resolved, 'Replaced the socket.', [ticketPhoto('socket.png', 'png')]);
         ticketsDo($this->acme, fn (TicketService $s) => $s->resolve($this->agent, $resolved, 'Replaced the socket and checked the circuit breaker.'));
 
@@ -81,7 +83,7 @@ describe('the conversation on phones', function () {
 
     it('lays out the read-only states on a 360 px screen too', function () {
         $gotenberg = requireGotenberg();
-        $ticket = tenantTicket($this->acme, $this->kemi, $this->lease);
+        $ticket = shareTicket($this->acme, $this->owner, tenantTicket($this->acme, $this->kemi, $this->lease));
         staffReply($this->acme, $this->agent, $ticket, 'We will come on Monday.');
         $this->acme->forceFill(['status' => OrganizationStatus::Suspended])->save();
 

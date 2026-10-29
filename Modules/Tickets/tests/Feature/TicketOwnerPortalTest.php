@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use App\Audit\AuditEntry;
 use Illuminate\Auth\Access\AuthorizationException;
-use Modules\OwnerStatements\Statements\StatementTermsBook;
 use Modules\Properties\OwnerPortal\OwnerLinks;
 use Modules\Tickets\Messages\TicketMessages;
 use Modules\Tickets\Tickets\TicketRefused;
@@ -16,10 +15,11 @@ require_once __DIR__.'/message-world.php';
 /*
  * P04-02: the building's owner (landlord) in /owner (ARCHITECTURE.md § 5
  * "respond to tickets if no agent assigned"; docs/plans/P04-subtasks.md
- * default 8): a read-only list of the sent tickets of their buildings
- * (number, title, category, priority, status, dates), a ticket's page with
- * the thread (never internal notes; tenants by name, contacts only when
- * the agency shares them, P08-05) and a reply only while no agent is
+ * default 8; P04-06: only the tickets the agency shared with them): a
+ * read-only list of the shared tickets of their buildings (number, title,
+ * category, priority, status, dates), a ticket's page with the thread
+ * (never internal notes; the tenant's name, phone and email, product owner
+ * 2026-10-29) and a reply only while no agent is
  * assigned — enforced at the writer, on the locked ticket. Another
  * owner's and another organization's tickets answer 404.
  */
@@ -31,6 +31,10 @@ beforeEach(function () {
     $this->oakTicket = raiseTicket($this->acme, $this->owner, $this->oakUnit, $this->femi, ['title' => 'Oak borehole pump down']);
     $this->palmDraft = draftTicket($this->acme, $this->kemi, $this->lease, ['title' => 'Kemi draft about the door']);
     $this->foreignTicket = raiseTicket($this->other, $this->otherOwner, $this->foreignUnit, $this->foreignTenant, ['title' => 'Foreign roof leaking']);
+    // The owner sees only what the agency shares with them (P04-06); TicketOwnerSharingTest covers the unshared ones.
+    $this->palmTicket = shareTicket($this->acme, $this->owner, $this->palmTicket);
+    $this->gateTicket = shareTicket($this->acme, $this->owner, $this->gateTicket);
+    $this->oakTicket = shareTicket($this->acme, $this->owner, $this->oakTicket);
 });
 
 afterEach(fn () => ticketsFreshRequest());
@@ -72,20 +76,21 @@ it('acceptance: answers 404 for another owner\'s ticket, a draft, another organi
     expect(listedTickets(ownerTicketsPage($this->ngozi)->assertOk()))->toBe([]);
 });
 
-it('shows the owner the ticket and its thread without internal notes, the tenant by name, and contacts only when the agency shares them', function () {
+it('shows the owner the ticket and its thread without internal notes, and the tenant\'s name, phone and email', function () {
     staffReply($this->acme, $this->agent, $this->palmTicket, 'A plumber comes tomorrow.');
     staffReply($this->acme, $this->agent, $this->palmTicket, INTERNAL_NOTE, internal: true);
     tenantReply($this->acme, $this->kemi, $this->palmTicket, 'I will be home after 9.');
 
+    // Owners always see their tenants' phone and email (product owner 2026-10-29: the agency's switch is gone).
     $page = ownerTicketsPage($this->ngozi, "/{$this->palmTicket->id}")->assertOk()
         ->assertSee('Kemi Adebayo')->assertSee('A plumber comes tomorrow.')->assertSee('I will be home after 9.')->assertSee('Nobody at the agency yet')
-        ->assertDontSee('+2348031112222')->assertDontSee('kemi.adebayo@example.com')->assertDontSee('STAFF-ONLY')
+        ->assertSee('+2348031112222')->assertSee('kemi.adebayo@example.com')->assertSee('data-test="owner-ticket-contact"', false)
+        ->assertDontSee('STAFF-ONLY')
         ->assertSee('data-test="message-form"', false);
     expect(substr_count((string) $page->getContent(), 'data-test="thread-message"'))->toBe(2);
 
-    // The agency shares tenants' contacts with Ngozi (P08-05's switch): phone and email show.
-    inOrganization($this->acme, fn () => app(StatementTermsBook::class)->change($this->owner, $this->ngoziAtAcme->id, ['commission' => '', 'utilitiesToOwner' => false, 'shareTenantContacts' => true]));
-    ownerTicketsPage($this->ngozi, "/{$this->palmTicket->id}")->assertOk()->assertSee('+2348031112222')->assertSee('kemi.adebayo@example.com');
+    // A ticket with no tenant (a shared area) shows no contact.
+    ownerTicketsPage($this->ngozi, "/{$this->gateTicket->id}")->assertOk()->assertSee('No tenant (a shared area)')->assertDontSee('data-test="owner-ticket-contact"', false);
 });
 
 it('acceptance: lets the owner reply while no agent is assigned; the tenant and staff see it', function () {

@@ -10,7 +10,6 @@ use App\Models\User;
 use App\Tenancy\OrganizationContext;
 use Closure;
 use Illuminate\Support\Facades\Gate;
-use Modules\OwnerStatements\Contracts\TenantContactSharing;
 use Modules\Properties\Contracts\OwnerPortalAccess;
 use Modules\Properties\Contracts\OwnerProfileDirectory;
 use Modules\Properties\Contracts\PortalOwner;
@@ -27,9 +26,11 @@ use Modules\Tickets\Models\Ticket;
  * allowed by OwnerProfilePolicy::viewAsOwner; while GoProperty staff
  * impersonate, only the session's organization) and OwnerProfileDirectory
  * (the profile's buildings). Inside each organization's context with the
- * scope in place: the sent tickets of those buildings (a tenant's draft
- * never). A ticket id that is not of the user's buildings is simply not
- * found (404); TicketPolicy::viewAsOwner checks it again.
+ * scope in place: the sent tickets of those buildings that a member of
+ * the agency shared with the owner (P04-06: every ticket is hidden until
+ * shared; a tenant's draft never). A ticket id that is not of the user's
+ * buildings, or not shared, is simply not found (404);
+ * TicketPolicy::viewAsOwner checks it again.
  */
 final readonly class OwnerTickets
 {
@@ -42,7 +43,6 @@ final readonly class OwnerTickets
         private PropertyDirectory $buildings,
         private OrganizationContext $context,
         private TicketParties $parties,
-        private TenantContactSharing $sharing,
     ) {}
 
     /** @return list<OwnerAgencyTickets> by organization name, one per owner profile */
@@ -56,6 +56,7 @@ final readonly class OwnerTickets
                 $branding = Branding::fromOrganization($organization);
                 $tickets = Ticket::query()->whereIn('property_id', $this->buildingIds($owner->ownerProfileId))
                     ->where('status', '!=', TicketStatus::Draft)
+                    ->whereNotNull('shared_with_owner_at')
                     ->orderByDesc('submitted_at')->orderByDesc('id')
                     ->limit(self::LIMIT)->get();
 
@@ -84,6 +85,7 @@ final readonly class OwnerTickets
         foreach ($this->portal->owners($user) as $owner) {
             $ticket = $this->portal->within($user, $owner->ownerProfileId, function (PortalOwner $owner) use ($user, $ticketId): ?Ticket {
                 $ticket = Ticket::query()->whereKey($ticketId)->where('status', '!=', TicketStatus::Draft)
+                    ->whereNotNull('shared_with_owner_at')
                     ->whereIn('property_id', $this->buildingIds($owner->ownerProfileId))->first();
 
                 return $ticket instanceof Ticket && Gate::forUser($user)->allows('viewAsOwner', $ticket) ? $ticket : null;
@@ -130,12 +132,6 @@ final readonly class OwnerTickets
         }
 
         return null;
-    }
-
-    /** Whether the agency shares tenants' phone and email with this owner (OwnerStatements' switch, P08-05). Inside the organization. */
-    public function sharesTenantContacts(int $ownerProfileId): bool
-    {
-        return $this->sharing->sharesWith($ownerProfileId);
     }
 
     /** @return list<int> */

@@ -40,8 +40,9 @@ use Modules\Tickets\Tickets\TicketSettings;
  * sender name ("Adeyemi Realty via GoProperty" unless the agency chose its
  * own), replies to the agency's email when it set one, its name as the
  * signature. Links: the portal's ticket page for a tenant with an account,
- * the workspace's ticket page for staff, none for a tenant told by email
- * only (no account). Runs in the ticket's organization.
+ * the workspace's ticket page for staff, the owner portal's ticket page for
+ * the building's owner (P04-06), none for a tenant told by email only (no
+ * account). Runs in the ticket's organization.
  */
 final readonly class TicketNotifier
 {
@@ -176,7 +177,11 @@ final readonly class TicketNotifier
             subject: $text->subject($facts, $to),
             lines: $text->lines($facts, $to),
             url: $this->url($organization, $ticket, $to),
-            actionLabel: $to->isTenant() ? (string) __('Open your repair') : (string) __('Open the ticket'),
+            actionLabel: match (true) {
+                $to->isTenant() => (string) __('Open your repair'),
+                $to->isOwner() => (string) __('Open the repair'),
+                default => (string) __('Open the ticket'),
+            },
             agency: $facts->agency,
             greetingName: $to->name,
             senderName: $branding->senderName($this->theme->current()->name()),
@@ -190,6 +195,11 @@ final readonly class TicketNotifier
 
     private function url(Organization $organization, Ticket $ticket, TicketRecipient $to): ?string
     {
+        if ($to->isOwner()) {
+            // The owner portal, never the workspace: the owner holds no workspace role.
+            return route('owner.tickets.show', ['ticket' => $ticket->id]);
+        }
+
         if (! $to->isTenant()) {
             return route('workspace.tickets.show', ['organization' => $organization->slug, 'ticket' => $ticket->id]);
         }

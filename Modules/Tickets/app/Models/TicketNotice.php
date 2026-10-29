@@ -13,7 +13,8 @@ use LogicException;
  * One thing one person was told about a ticket (DATABASE_SCHEMA.md § 5
  * `ticket_notices`; P04-03): the announcement's key (a status move, an
  * assignment), the recipient (`user:{id}`, or `tenant:{id}` for a tenant
- * told by email only), their side (`tenant`, `staff`), the event, the
+ * told by email only), their side (`tenant`, `staff`, `owner`: the
+ * building's owner about a ticket shared with them, P04-06), the event, the
  * channels and the in-app notification's id. Unique per ticket, key and
  * recipient, written before the notification is queued, so each party is
  * told once. Written only by Modules\Tickets\Notices\TicketNotifier; only

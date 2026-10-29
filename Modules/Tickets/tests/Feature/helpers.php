@@ -54,6 +54,18 @@ function tenantTicket(Organization $organization, User $tenant, Lease $lease, ar
     return inOrganization($organization, fn (): Ticket => app(TicketService::class)->submit($tenant, $draft));
 }
 
+/** Shares the ticket with the owner of its building (P04-06), as $by, through TicketService. */
+function shareTicket(Organization $organization, User $by, Ticket $ticket): Ticket
+{
+    return inOrganization($organization, fn (): Ticket => app(TicketService::class)->shareWithOwner($by, $ticket));
+}
+
+/** Stops sharing the ticket with the owner of its building (P04-06), as $by, through TicketService. */
+function unshareTicket(Organization $organization, User $by, Ticket $ticket): Ticket
+{
+    return inOrganization($organization, fn (): Ticket => app(TicketService::class)->stopSharingWithOwner($by, $ticket));
+}
+
 /** Runs a TicketService method as $by in the organization. */
 function ticketsDo(Organization $organization, Closure $callback): mixed
 {

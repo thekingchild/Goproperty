@@ -40,8 +40,9 @@ use Throwable;
  * checked before anything is written. Then, in DB::transaction(…, 3) with
  * the ticket's row locked and re-read: a draft has no thread and "closed
  * ends the thread" (TicketRefused, nothing written); the owner may reply
- * only while no agent is assigned (ARCHITECTURE.md § 5, checked again on
- * the locked row, so an assignment made meanwhile wins). The message, its
+ * only to a ticket shared with them (P04-06) and while no agent is
+ * assigned (ARCHITECTURE.md § 5, both checked again on the locked row, so
+ * an assignment or an unsharing made meanwhile wins). The message, its
  * files (App\Media\MediaUploads into the message's `ticket_attachments`
  * collection: JPEG, PNG, WebP, HEIC or PDF, 10 MB each, at most 5 a
  * message, every file checked from its bytes before anything is stored),
@@ -187,8 +188,8 @@ final readonly class TicketMessages
     }
 
     /**
-     * The building's owner replies from /owner, only while no agent is
-     * assigned. Never internal.
+     * The building's owner replies from /owner to a ticket shared with them
+     * (P04-06), only while no agent is assigned. Never internal.
      *
      * @param  list<UploadedFile>  $files
      *
@@ -241,6 +242,11 @@ final readonly class TicketMessages
 
             if ($ticket->status === TicketStatus::Closed) {
                 throw TicketRefused::because(__('This ticket is closed, so its conversation has ended. Reopen it to write again.'));
+            }
+
+            if ($author === MessageAuthor::Owner && ! $ticket->sharedWithOwner()) {
+                // Stopped sharing meanwhile (P04-06): the owner may no longer write here.
+                throw TicketRefused::because(__('The agency no longer shares this repair with you.'));
             }
 
             if ($author === MessageAuthor::Owner && $ticket->assigned_to_user_id !== null) {

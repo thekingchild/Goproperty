@@ -9,6 +9,8 @@ use App\Enums\OrganizationRole;
 use App\Members\Members;
 use App\Models\User;
 use Illuminate\Support\Facades\Gate;
+use Modules\Properties\Contracts\OwnerProfileDirectory;
+use Modules\Properties\Contracts\PropertyDirectory;
 use Modules\Tenants\Contracts\TenantDirectory;
 use Modules\Tickets\Models\Ticket;
 
@@ -29,16 +31,27 @@ use Modules\Tickets\Models\Ticket;
  *   administrators who may see it. An assignee who is the actor means
  *   nobody on the staff side (it is their own move).
  *
- * Property owners (landlords) are not told in P04. Runs in the ticket's
- * organization (the current context). Used by Listeners\TellTicketParties
- * for status moves, assignments and the thread's messages (an internal
- * note: the staff side only, never tenant()).
+ * - the building's **owner** (P04-06; docs/plans/owner-visibility-2026-10-29.md,
+ *   P04-06 defaults 3–4), only while the ticket is shared with them: the
+ *   portal account linked to the owner profile of the ticket's building
+ *   here (Properties' PropertyDirectory and OwnerProfileDirectory), when
+ *   the owner portal may still open the ticket for it
+ *   (TicketPolicy::viewAsOwner: linked, not archived, `property-owner`,
+ *   shared). An owner with no portal account is told nothing (they see
+ *   the shared tickets once they join); never the actor.
+ *
+ * Runs in the ticket's organization (the current context). Used by
+ * Listeners\TellTicketParties for status moves, assignments, the thread's
+ * messages (an internal note: the staff side only, never tenant() or
+ * owner()) and a share with the owner.
  */
 final readonly class TicketRecipients
 {
     public function __construct(
         private Members $members,
         private TenantDirectory $tenants,
+        private PropertyDirectory $buildings,
+        private OwnerProfileDirectory $owners,
     ) {}
 
     /**
@@ -115,6 +128,28 @@ final readonly class TicketRecipients
             ->filter(fn (User $user): bool => $user->hasAnyRole(OrganizationRole::Owner->value, OrganizationRole::Admin->value) && $this->maySee($user, $ticket))
             ->map(static fn (User $user): TicketRecipient => TicketRecipient::staff($user))
             ->all());
+    }
+
+    /**
+     * The building's owner, while the ticket is shared with them and their
+     * portal account may open it; never the actor (their own reply).
+     */
+    public function owner(Ticket $ticket, ?int $actorUserId): ?TicketRecipient
+    {
+        if (! $ticket->sharedWithOwner()) {
+            return null;
+        }
+
+        $ownerProfileId = $this->buildings->find($ticket->property_id)?->ownerProfileId;
+        $owner = $ownerProfileId !== null ? $this->owners->find($ownerProfileId) : null;
+
+        if ($owner === null || $owner->archived || $owner->portalUserId === null || $owner->portalUserId === $actorUserId) {
+            return null;
+        }
+
+        $user = User::query()->find($owner->portalUserId);
+
+        return $user instanceof User && Gate::forUser($user)->allows('viewAsOwner', $ticket) ? TicketRecipient::owner($user) : null;
     }
 
     /** One member — a new assignee — when they may see the ticket and are not the actor. */

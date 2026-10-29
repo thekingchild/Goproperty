@@ -27,8 +27,10 @@ use Modules\Tickets\Models\Ticket;
  * waiting for the organization —, Submitted, Under review, In progress,
  * Reopened, Resolved, Closed, All) and by assignee (Anyone, Assigned to
  * me, Unassigned), each with its count under the other filters, a
- * debounced search over the number, the title and the tenant, and a
- * building filter, all kept in the URL (ARCHITECTURE.md § 13). Names of a
+ * debounced search over the number, the title and the tenant, a
+ * building filter and an owner filter (shared with the building's owner
+ * or not, P04-06; each shared row carries a "Shared with owner" badge),
+ * all kept in the URL (ARCHITECTURE.md § 13). Names of a
  * page are read in one lookup each (Lists\TicketParties).
  *
  * Members with `tickets.view` see it (TicketPolicy::viewAny); an agent
@@ -64,6 +66,10 @@ final class TicketIndex extends Component
     #[Url(except: '')]
     public string $building = '';
 
+    /** `shared` (with the building's owner), `hidden`, or empty for both (P04-06). */
+    #[Url(except: '')]
+    public string $owner = '';
+
     public function boot(OrganizationContext $context): void
     {
         abort_unless($context->has(), 404);
@@ -82,14 +88,14 @@ final class TicketIndex extends Component
 
     public function updated(string $property): void
     {
-        if (in_array($property, ['search', 'status', 'assignee', 'building'], true)) {
+        if (in_array($property, ['search', 'status', 'assignee', 'building', 'owner'], true)) {
             $this->resetPage();
         }
     }
 
     public function clearFilters(): void
     {
-        $this->reset('search', 'status', 'assignee', 'building');
+        $this->reset('search', 'status', 'assignee', 'building', 'owner');
         $this->resetPage();
     }
 
@@ -121,6 +127,7 @@ final class TicketIndex extends Component
             'status' => $this->status,
             'assignee' => $this->assignee,
             'building' => $this->building,
+            'owner' => $this->owner,
         ]];
     }
 

@@ -33,6 +33,8 @@ require_once __DIR__.'/message-world.php';
 beforeEach(function () {
     messageWorld();
     $this->ticket = tenantTicket($this->acme, $this->kemi, $this->lease, ['title' => 'Kemi sink leaking']);
+    // The owner sees only what the agency shares with them (P04-06).
+    $this->ticket = shareTicket($this->acme, $this->owner, $this->ticket);
 });
 
 afterEach(fn () => ticketsFreshRequest());

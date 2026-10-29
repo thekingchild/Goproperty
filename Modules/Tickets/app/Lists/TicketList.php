@@ -20,7 +20,8 @@ use Modules\Tickets\Models\Ticket;
  * export (P02-07, AGENT.md § 5): the organization's sent tickets (never a
  * tenant's draft) in the member's buildings (an assigned agent: theirs
  * only, through Modules\Properties\Contracts\BuildingAccess), filtered by
- * status ("open": waiting for the organization) and building, with a
+ * status ("open": waiting for the organization), building and whether
+ * the ticket is shared with the building's owner (P04-06), with a
  * search over the number, the title and the tenant's name, phone or email
  * (Modules\Tenants\Contracts\TenantDirectory); newest sent first. The
  * inbox by status is P04-03's. Rows carry names only (TicketParties), no
@@ -37,6 +38,11 @@ final class TicketList implements ListExport
     public const string MINE = 'me';
 
     public const string UNASSIGNED = 'none';
+
+    /** The owner filter's values (P04-06): shared with the building's owner, and not shared. */
+    public const string SHARED = 'shared';
+
+    public const string NOT_SHARED = 'hidden';
 
     public function __construct(
         private readonly BuildingAccess $access,
@@ -61,6 +67,7 @@ final class TicketList implements ListExport
             'status' => ListFilters::option($input['status'] ?? null, [self::OPEN, ...array_map(static fn (TicketStatus $status): string => $status->value, TicketStatus::sent())]),
             'assignee' => ListFilters::option($input['assignee'] ?? null, [self::MINE, self::UNASSIGNED]),
             'building' => ListFilters::id($input['building'] ?? null),
+            'owner' => ListFilters::option($input['owner'] ?? null, [self::SHARED, self::NOT_SHARED]),
         ]);
     }
 
@@ -82,6 +89,7 @@ final class TicketList implements ListExport
         $status = (string) ($filters['status'] ?? '');
         $building = is_int($filters['building'] ?? null) ? $filters['building'] : null;
         $assignee = (string) ($filters['assignee'] ?? '');
+        $owner = (string) ($filters['owner'] ?? '');
         $limited = $this->access->limitedTo($user);
 
         return Ticket::query()
@@ -92,6 +100,8 @@ final class TicketList implements ListExport
             ->when($building !== null, fn (Builder $query) => $query->where('property_id', $building))
             ->when($assignee === self::MINE, fn (Builder $query) => $query->where('assigned_to_user_id', $user->id))
             ->when($assignee === self::UNASSIGNED, fn (Builder $query) => $query->whereNull('assigned_to_user_id'))
+            ->when($owner === self::SHARED, fn (Builder $query) => $query->whereNotNull('shared_with_owner_at'))
+            ->when($owner === self::NOT_SHARED, fn (Builder $query) => $query->whereNull('shared_with_owner_at'))
             ->when($search !== null, function (Builder $query) use ($search): void {
                 $tenantIds = $this->tenants->search((string) $search);
 
@@ -186,6 +196,8 @@ final class TicketList implements ListExport
             ExportColumn::make('Resolved on', fn (TicketRow $row) => $row->ticket->resolved_at),
             ExportColumn::make('Closed on', fn (TicketRow $row) => $row->ticket->closed_at),
             ExportColumn::make('Times reopened', fn (TicketRow $row) => $row->ticket->reopen_count),
+            // P04-06: empty when the building's owner does not see it.
+            ExportColumn::make('Shared with owner on', fn (TicketRow $row) => $row->ticket->shared_with_owner_at),
         ];
     }
 }

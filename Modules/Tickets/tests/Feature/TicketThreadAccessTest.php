@@ -29,6 +29,8 @@ require_once __DIR__.'/message-world.php';
 beforeEach(function () {
     messageWorld();
     $this->ticket = tenantTicket($this->acme, $this->kemi, $this->lease, ['title' => 'Kemi sink leaking']);
+    // The owner sees only what the agency shares with them (P04-06).
+    $this->ticket = shareTicket($this->acme, $this->owner, $this->ticket);
     $this->shared = staffReply($this->acme, $this->agent, $this->ticket, 'A plumber comes tomorrow at 10.', [ticketPhoto('plumber-visit.jpg')]);
     $this->note = staffReply($this->acme, $this->agent, $this->ticket, INTERNAL_NOTE, internal: true);
     $this->file = messageFiles($this->acme, $this->shared)[0];

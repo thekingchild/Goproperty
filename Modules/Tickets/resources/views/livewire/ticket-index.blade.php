@@ -51,13 +51,19 @@
                 @endforeach
             </div>
 
-            <div class="grid gap-3 sm:w-auto sm:grid-cols-2">
+            <div class="grid gap-3 sm:w-auto sm:grid-cols-3">
                 <flux:input wire:model.live.debounce.400ms="search" icon="magnifying-glass" type="search" :placeholder="__('Search by number, title or tenant')" :aria-label="__('Search tickets')" maxlength="100" size="sm" data-test="ticket-search" />
                 <flux:select wire:model.live="building" :aria-label="__('Building')" size="sm" data-test="building-filter">
                     <option value="">{{ __('All buildings') }}</option>
                     @foreach ($buildings as $buildingId => $buildingName)
                         <option value="{{ $buildingId }}">{{ $buildingName }}</option>
                     @endforeach
+                </flux:select>
+                {{-- P04-06: which tickets the building's owner sees in /owner. --}}
+                <flux:select wire:model.live="owner" :aria-label="__('Shared with owner')" size="sm" data-test="owner-filter">
+                    <option value="">{{ __('Shared or not') }}</option>
+                    <option value="{{ \Modules\Tickets\Lists\TicketList::SHARED }}">{{ __('Shared with owner') }}</option>
+                    <option value="{{ \Modules\Tickets\Lists\TicketList::NOT_SHARED }}">{{ __('Not shared with owner') }}</option>
                 </flux:select>
             </div>
         </div>
@@ -95,6 +101,9 @@
                     <div class="flex flex-wrap items-center gap-2">
                         @if ($ticket->priority !== \Modules\Tickets\Enums\TicketPriority::Medium)
                             <flux:badge size="sm" :color="$ticket->priority->color()" data-test="priority-{{ $ticket->id }}">{{ __($ticket->priority->label()) }}</flux:badge>
+                        @endif
+                        @if ($ticket->sharedWithOwner())
+                            <flux:badge size="sm" color="sky" icon="eye" data-test="shared-{{ $ticket->id }}">{{ __('Shared with owner') }}</flux:badge>
                         @endif
                         <flux:badge size="sm" :color="$ticket->status->color()" data-test="status-{{ $ticket->id }}">{{ __($ticket->status->label()) }}</flux:badge>
                     </div>

@@ -12,12 +12,14 @@ use Modules\Tickets\Enums\TicketStatus;
 use Modules\Tickets\Events\TicketAssignmentChanged;
 use Modules\Tickets\Events\TicketMessagePosted;
 use Modules\Tickets\Events\TicketMovedIn;
+use Modules\Tickets\Events\TicketSharedWithOwner;
 use Modules\Tickets\Events\TicketStatusChanged;
 use Modules\Tickets\Models\Ticket;
 use Modules\Tickets\Models\TicketMessage;
 use Modules\Tickets\Notices\AssignmentNoticeText;
 use Modules\Tickets\Notices\MessageNoticeText;
 use Modules\Tickets\Notices\MoveNoticeText;
+use Modules\Tickets\Notices\SharedNoticeText;
 use Modules\Tickets\Notices\StatusNoticeText;
 use Modules\Tickets\Notices\TicketNotifier;
 use Modules\Tickets\Notices\TicketRecipients;
@@ -42,14 +44,24 @@ use Modules\Tickets\Notices\TicketRecipients;
  *   the time, else owners and administrators); a member's reply tells the
  *   tenant and the staff side; a member's **internal note tells the staff
  *   side only** — never the tenant (nor the owner), and its words are
- *   never quoted. Never the author. Property owners are not told in P04.
- *   Keyed by the message's id (`message:{id}`).
+ *   never quoted. Never the author. Keyed by the message's id
+ *   (`message:{id}`).
  *
  * - A ticket that arrived with its building on a handover (TicketMovedIn,
  *   P04-05): its tenant ("your repair request is now handled by …") and
  *   the receiving organization's owners and administrators, once each per
  *   ticket (nobody is assigned yet). The ticket left behind closes with
  *   the actor `move` and tells nobody there, so the tenant hears once.
+ *
+ * - The building's owner (P04-06; docs/plans/owner-visibility-2026-10-29.md,
+ *   P04-06 defaults 3–4), only about a ticket shared with them when the
+ *   listener runs (Notices\TicketRecipients::owner: the portal account of
+ *   the building's owner profile): once when it is shared
+ *   (TicketSharedWithOwner, key `shared:{ULID}`), then each status move
+ *   and each public reply by staff or the tenant while it stays shared.
+ *   Never an internal note, an assignment or a move-in (it arrives
+ *   unshared), never their own reply; stopping the share sends nothing,
+ *   and nothing more is sent after it.
  *
  * Drafts send no events, so nobody hears of them. Queued on
  * `notifications` (the events fire after the commit); a retried job tells
@@ -74,7 +86,7 @@ final class TellTicketParties implements ShouldQueue
         return [10, 60, 300];
     }
 
-    public function handle(TicketStatusChanged|TicketAssignmentChanged|TicketMessagePosted|TicketMovedIn $event): void
+    public function handle(TicketStatusChanged|TicketAssignmentChanged|TicketMessagePosted|TicketMovedIn|TicketSharedWithOwner $event): void
     {
         $organization = Organization::query()->find($event->organizationId);
 
@@ -94,6 +106,7 @@ final class TellTicketParties implements ShouldQueue
                 $event instanceof TicketAssignmentChanged => $this->assigned($ticket, $event),
                 $event instanceof TicketMessagePosted => $this->posted($ticket, $event),
                 $event instanceof TicketMovedIn => $this->movedIn($ticket, $event),
+                $event instanceof TicketSharedWithOwner => $this->shared($ticket, $event),
             };
         });
     }
@@ -110,8 +123,18 @@ final class TellTicketParties implements ShouldQueue
         $staff = $event->from === null && $event->assignedToUserId !== null
             ? []
             : $this->recipients->staff($ticket, $event->assignedToUserId, $event->actorUserId);
+        $owner = $this->recipients->owner($ticket, $event->actorUserId);
 
-        $this->notifier->tell($ticket, 'status:'.$event->key, [...($tenant !== null ? [$tenant] : []), ...$staff], StatusNoticeText::of($event), $event->actorUserId);
+        $this->notifier->tell($ticket, 'status:'.$event->key, [...($tenant !== null ? [$tenant] : []), ...$staff, ...($owner !== null ? [$owner] : [])], StatusNoticeText::of($event), $event->actorUserId);
+    }
+
+    private function shared(Ticket $ticket, TicketSharedWithOwner $event): void
+    {
+        $owner = $this->recipients->owner($ticket, $event->sharedByUserId);
+
+        if ($owner !== null) {
+            $this->notifier->tell($ticket, 'shared:'.$event->key, [$owner], new SharedNoticeText, $event->sharedByUserId);
+        }
     }
 
     private function movedIn(Ticket $ticket, TicketMovedIn $event): void
@@ -141,12 +164,14 @@ final class TellTicketParties implements ShouldQueue
         // Only a member's public reply goes to the tenant: never a note, never their own words back.
         $tenant = ! $event->internal && $author === MessageAuthor::Staff ? $this->recipients->tenant($ticket, $event->authorUserId) : null;
         $staff = $this->recipients->staff($ticket, $event->assignedToUserId, $event->authorUserId);
+        // The building's owner hears of public replies by staff and the tenant, never of a note or their own words.
+        $owner = ! $event->internal && $author !== MessageAuthor::Owner ? $this->recipients->owner($ticket, $event->authorUserId) : null;
         $message = $event->internal ? null : TicketMessage::query()->find($event->messageId);
 
         $this->notifier->tell(
             $ticket,
             'message:'.$event->messageId,
-            [...($tenant !== null ? [$tenant] : []), ...$staff],
+            [...($tenant !== null ? [$tenant] : []), ...$staff, ...($owner !== null ? [$owner] : [])],
             new MessageNoticeText($author, $event->internal, MessageNoticeText::excerptOf($message?->body, $event->internal), $event->attachmentCount),
             $event->authorUserId,
         );

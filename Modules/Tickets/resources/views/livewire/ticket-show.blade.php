@@ -144,6 +144,31 @@
                 @endif
             </section>
 
+            {{-- P04-06: the agency chooses which tickets the building's owner sees in /owner. The tenant is never told. --}}
+            <section class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900" data-test="ticket-owner-sharing">
+                <flux:heading size="lg" level="2">{{ __('Building owner') }}</flux:heading>
+                @if ($ticket->sharedWithOwner())
+                    <flux:text class="mt-2" data-test="ticket-shared-with-owner">{{ __('Shared with the owner by :name on :date.', ['name' => $buildingOwner['sharedBy'], 'date' => TicketDates::day($ticket->shared_with_owner_at)]) }}</flux:text>
+                    @if ($buildingOwner['exists'] && ! $buildingOwner['hasPortal'])
+                        <flux:text class="mt-2 text-sm" data-test="ticket-owner-no-portal">{{ __(':owner has no owner portal account yet, so nobody is told. They will see it once they join.', ['owner' => $buildingOwner['name']]) }}</flux:text>
+                    @endif
+                    @if ($canStopSharing)
+                        <div class="mt-3">
+                            <flux:button size="sm" wire:click="stopSharingWithOwner" wire:confirm="{{ __('Stop sharing this ticket? The owner will no longer see it or hear about it. They are not told.') }}" data-test="stop-sharing-with-owner">{{ __('Stop sharing') }}</flux:button>
+                        </div>
+                    @endif
+                @elseif (! $buildingOwner['exists'])
+                    <flux:text class="mt-2" data-test="ticket-no-owner">{{ __('This building has no owner on record, so there is nobody to share the ticket with.') }}</flux:text>
+                @else
+                    <flux:text class="mt-2" data-test="ticket-not-shared">{{ __(':owner does not see this ticket. Share it if they should follow it: they are told now, then when its status changes or someone replies (never internal notes).', ['owner' => $buildingOwner['name']]) }}</flux:text>
+                    @if ($canShare)
+                        <div class="mt-3">
+                            <flux:button size="sm" wire:click="shareWithOwner" data-test="share-with-owner">{{ __('Share with the owner') }}</flux:button>
+                        </div>
+                    @endif
+                @endif
+            </section>
+
             @if ($canUpdate)
                 <section class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900" data-test="ticket-details-form">
                     <flux:heading size="lg" level="2">{{ __('Category and priority') }}</flux:heading>
