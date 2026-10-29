@@ -250,7 +250,7 @@ it('never sends an SMS: only email and the agency\'s WhatsApp, and nothing leave
     // No SMS channel or driver anywhere in the code that sends these links.
     foreach ([base_path('app/WhatsApp'), dirname(__DIR__, 3).'/app/Portal', dirname(__DIR__, 3).'/app/Notifications', dirname(__DIR__, 3).'/app/Livewire'] as $directory) {
         foreach (File::allFiles($directory) as $file) {
-            expect(preg_match('/\b(sms|termii|vonage|nexmo|twilio)\b/i', preg_replace('#^\s*(\*|//).*$#m', '', (string) file_get_contents($file->getPathname())) ?? ''))
+            expect(preg_match('/\b(sms|gotext|termii|vonage|nexmo|twilio)\b/i', preg_replace('#^\s*(\*|//).*$#m', '', (string) file_get_contents($file->getPathname())) ?? ''))
                 ->toBe(0, $file->getRelativePathname());
         }
     }

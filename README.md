@@ -16,7 +16,7 @@ GoProperty is a multi-tenant SaaS platform for property management in Nigeria. A
 | Domains | One domain: `goproperty.ng/login` (one login for agencies, owners, tenants) · `/o/{org-slug}` (agency workspace) · `/portal` · `/owner` · staff console on a configurable secret path. No subdomain per agency; can move to subdomains by config |
 | Branding | Agencies use their own name, logo, colours and letterhead on invoices, receipts, emails and the tenant portal |
 | Data import | Excel/CSV with dry run: owners, properties, units, tenants, ongoing leases, opening balances, utilities, payment history |
-| Communications | Email (transactional provider) + SMS (Termii) + optional WhatsApp via the agency's own WhatsApp Business API (templates fetched and mapped) |
+| Communications | Email (transactional provider) + SMS (GoText) + optional WhatsApp via the agency's own WhatsApp Business API (templates fetched and mapped) |
 | Realtime | Polling on shared hosting; Laravel Reverb on VPS (Building Group) |
 | Extensibility | Modular monolith — features are self-contained modules (see [ARCHITECTURE.md § 8](ARCHITECTURE.md)) |
 

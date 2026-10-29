@@ -46,9 +46,9 @@ From § 8. These are product-owner tasks, not code.
 
 | ID | Deliverable | Acceptance |
 | --- | --- | --- |
-| PRE-01 — **Not started** | Confirm the open decisions in [BILLING_PAYMENTS.md § 10](BILLING_PAYMENTS.md) and the handoff follow-ups (pricing bands, SMS provider, hosting budget) | Each decision written into the relevant doc |
+| PRE-01 — **Not started** | Confirm the open decisions in [BILLING_PAYMENTS.md § 10](BILLING_PAYMENTS.md) and the handoff follow-ups (pricing bands, SMS provider, hosting budget). SMS provider settled 2026-10-29: GoText ([docs/plans/sms-provider-2026-10-29.md](docs/plans/sms-provider-2026-10-29.md)) | Each decision written into the relevant doc |
 | PRE-02 — **Not started** | Written legal opinion on the no-funds-flow model; agency-owned Paystack setup confirmed with Paystack | Opinion and Paystack confirmation on file |
-| PRE-03 — **Not started** | Provision test/dev accounts: Paystack (test), Termii (test), object storage (live media + separate backup provider), Google Workspace Shared Drive, Cloudflare Turnstile, Sentry | Credentials stored in the team's secret store, never in the repo |
+| PRE-03 — **Not started** | Provision test/dev accounts: Paystack (test), GoText (test), object storage (live media + separate backup provider), Google Workspace Shared Drive, Cloudflare Turnstile, Sentry | Credentials stored in the team's secret store, never in the repo |
 | PRE-04 — **Not started** | Register `goproperty.ng`; buy cPanel or Plesk shared hosting checked against [docs/runbooks/shared-hosting.md § 1](docs/runbooks/shared-hosting.md) | Host passes every § 1 check; staging and production accounts exist |
 | PRE-05 — **Complete (2026-10-25)** | Design checkpoint: SocietyFlow reference captured, GoProperty designs approved ([UX_DESIGN.md § 5](UX_DESIGN.md)) | `docs/design/templates/landing.html`, `login.html`, `login-2fa.html` committed |
 
@@ -155,7 +155,7 @@ Depends on: P03.
 | ID | Deliverable | Acceptance |
 | --- | --- | --- |
 | P05-01 — **Not started** | Reminder engine (`reminders:dispatch`) with dedupe keys; rent/utilities/lease-renewal ladders; overdue ladder | Time-travel tests (`Carbon::setTestNow`) prove exact send days and zero duplicates across reruns |
-| P05-02 — **Not started** | SMS via Termii (bill reminders only, to verified/agency-confirmed numbers — no OTP); per-user channel preferences; `notification_deliveries` log with provider refs and cost | SMS template stays under 160 chars; failed sends retry with backoff then surface in the health dashboard; unverified numbers never texted |
+| P05-02 — **Not started** | SMS via GoText (bill reminders only; GoProperty-owned, non-promotional templates, [docs/plans/sms-provider-2026-10-29.md](docs/plans/sms-provider-2026-10-29.md)), to verified/agency-confirmed numbers — no OTP); per-user channel preferences; `notification_deliveries` log with provider refs and cost | SMS template stays under 160 chars; failed sends retry with backoff then surface in the health dashboard; unverified numbers never texted |
 | P05-03 — **Not started** | SMS credits per plan (monthly allowance, in-app top-up, ledger) | Sending stops at zero credit; ledger balances to allowance + top-ups − sends |
 | P05-04 — **Not started** | Email template system ([PLATFORM_CONSOLE.md § 5](PLATFORM_CONSOLE.md)): database templates with whitelisted placeholders (never Blade), versions + rollback, live preview, test send, categories, org branding, bounce/complaint suppression | Blade/PHP in a template renders as plain text; rollback restores the previous version; suppressed addresses are skipped |
 | P05-05 — **Not started** | Platform console: delivery health dashboard (failure rates, SMS spend) | Dashboard figures match the `notification_deliveries` log for a fixture |
@@ -232,7 +232,7 @@ Depends on: P00–P08.
 - [ ] Production installed from the signed release zip through the installer; checksum verified; `/install` returns 404; installation record (with `APP_KEY`) stored offline in two places
 - [ ] Production env vars audited (no test keys, mail/SMS senders verified)
 - [ ] Paystack live keys + webhook live-verified; test charge + refund executed live with a small amount
-- [ ] Termii live sender ID approved; DND-template path verified
+- [ ] GoText live sender ID approved; DND (transactional) route verified
 - [ ] Scheduled jobs and queue worker running in production (cron on shared hosting / Horizon on VPS) with scheduler heartbeat alert
 - [ ] Sentry environment tags correct; alerts routed
 - [ ] Backups running 3 consecutive nights + one restore verified
@@ -294,8 +294,8 @@ Ordered by expected demand in the Nigerian market:
 
 Items 1, 3 and 4 are tracked as tasks PRE-01 to PRE-04 in § 3.
 
-1. Confirm the open decisions in [BILLING_PAYMENTS.md § 10](BILLING_PAYMENTS.md) and the follow-up questions raised in the handoff notes (pricing bands, SMS provider choice, hosting budget).
+1. Confirm the open decisions in [BILLING_PAYMENTS.md § 10](BILLING_PAYMENTS.md) and the follow-up questions raised in the handoff notes (pricing bands, SMS provider choice — settled 2026-10-29: GoText —, hosting budget).
 2. Brand is a setting, not a blocker: start with the default theme and change it in the console later ([PLATFORM_CONSOLE.md § 9](PLATFORM_CONSOLE.md)). The SocietyFlow-style design reference is requested from the product owner at the Phase 0 design checkpoint.
 3. Get a written legal opinion on the no-funds-flow model and confirm the agency-owned-Paystack setup with Paystack. (Tier limits are set and editable — [ONBOARDING_COMPLIANCE.md § 5.2](ONBOARDING_COMPLIANCE.md).)
-4. Provision accounts: Paystack (test), Termii (test), object storage (live media + separate backup provider), Google Workspace Shared Drive for backups, Cloudflare (Turnstile), Sentry; register `goproperty.ng` and choose hosting: a shared host meeting the requirements in [ARCHITECTURE.md § 12.1](ARCHITECTURE.md) (PHP 8.4, MySQL 8 or MariaDB 10.6+, cron every minute; SSH helpful but not required — [INSTALLER.md](INSTALLER.md)), or a small VPS with Forge/Ploi. Hosting decision: **cPanel or Plesk shared hosting** — check the host against [docs/runbooks/shared-hosting.md § 1](docs/runbooks/shared-hosting.md) before buying. (`ADMIN_PATH` is generated by the installer — [INSTALLER.md § 5](INSTALLER.md).)
+4. Provision accounts: Paystack (test), GoText (test), object storage (live media + separate backup provider), Google Workspace Shared Drive for backups, Cloudflare (Turnstile), Sentry; register `goproperty.ng` and choose hosting: a shared host meeting the requirements in [ARCHITECTURE.md § 12.1](ARCHITECTURE.md) (PHP 8.4, MySQL 8 or MariaDB 10.6+, cron every minute; SSH helpful but not required — [INSTALLER.md](INSTALLER.md)), or a small VPS with Forge/Ploi. Hosting decision: **cPanel or Plesk shared hosting** — check the host against [docs/runbooks/shared-hosting.md § 1](docs/runbooks/shared-hosting.md) before buying. (`ADMIN_PATH` is generated by the installer — [INSTALLER.md § 5](INSTALLER.md).)
 5. Kick off Phase 0; use [AGENT.md](AGENT.md) as the working contract for anyone (human or AI) writing code.

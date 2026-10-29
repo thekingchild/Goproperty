@@ -332,7 +332,7 @@ Added in P04-03 (migration `2026_11_24_100301`; `Modules\Tickets\Models\TicketNo
 Laravel's database notifications: what a user is told in the app besides the email (first used by billing transfers, P02-04). `id` (uuid), `type` (the notification class), `notifiable_type` / `notifiable_id` (the user), `data` (json: event, record id, names, a link to the workspace page; never a link token), `read_at`, timestamps. Belongs to the user, not to an organization.
 
 ### notification_deliveries
-`reminders` send outcomes + ad-hoc notifications. `notification_type`, `channel`, `recipient_user_id` (nullable), `recipient_contact`, `subject`, `status` (`queued`, `sent`, `delivered`, `failed`, `bounced`), `provider` (`termii`, `mailgun`, …), `provider_message_id`, `error`, `cost_kobo` (SMS), `sent_at`.
+`reminders` send outcomes + ad-hoc notifications. `notification_type`, `channel`, `recipient_user_id` (nullable), `recipient_contact`, `subject`, `status` (`queued`, `sent`, `delivered`, `failed`, `bounced`), `provider` (`gotext`, `mailgun`, …), `provider_message_id` (GoText: the message `uid`), `error`, `cost_kobo` (SMS), `sent_at`.
 
 ### organization_whatsapp_connections
 The organization's **own** WhatsApp Business Platform account (optional). `organization_id` (unique), `waba_id`, `phone_number_id`, `display_phone_number`, `access_token` (encrypted), `app_secret` (encrypted), `webhook_verify_token`, `status` (`pending_test`, `active`, `failing`, `disconnected`), `templates_synced_at`, `connected_by_user_id`.

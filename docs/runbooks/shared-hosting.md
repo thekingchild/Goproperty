@@ -15,7 +15,7 @@ Applies to hosting Profile A ([ARCHITECTURE.md § 12.1](../../ARCHITECTURE.md)).
 | Cron **every minute** | cPanel: *Cron Jobs*. Plesk: *Scheduled Tasks* | Scheduler + queue worker. Hosts that allow only every 5 or 15 minutes are **not suitable** |
 | Document root can point to `/public` | cPanel: *Domains → Document Root*. Plesk: *Hosting Settings → Document root* | Security: only `public/` is web-visible |
 | Free SSL (AutoSSL / Let's Encrypt) | cPanel *SSL/TLS Status*; Plesk *SSL It!* | HTTPS everywhere |
-| Outbound HTTPS allowed (Paystack, Termii, Meta, mail API, S3, Google) | `curl -I https://api.paystack.co` over SSH | Integrations |
+| Outbound HTTPS allowed (Paystack, GoText `app.gotext.ng`, Meta, mail API, S3, Google) | `curl -I https://api.paystack.co` over SSH | Integrations |
 | Inbound webhooks not blocked by host firewall / ModSecurity | Send a test webhook from Paystack test mode | Payments, WhatsApp |
 | Resources: ≥ 2 GB RAM, ≥ 2 CPU cores per account, ≥ 20 GB SSD | Hosting plan sheet | Queue + PDFs |
 

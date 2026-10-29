@@ -36,7 +36,7 @@ flowchart LR
 
     subgraph External
         PAY[Paystack]
-        SMS[SMS gateway - Termii]
+        SMS[SMS gateway - GoText]
         WA[Agency's own WhatsApp Business API]
         APS[Agency's own Paystack]
         MAIL[Transactional email]
@@ -66,7 +66,7 @@ flowchart LR
 | PDF | Driver-based (`App\Pdf\PdfRenderer`, `PDF_DRIVER`): `dompdf` (pure PHP, shared hosting) or headless Chrome through a Gotenberg service over HTTP (VPS; no Node or `proc_open` on the PHP server) | Same table-based Blade templates for both; see [BRANDING_DOCUMENTS.md § 5](BRANDING_DOCUMENTS.md) |
 | Spreadsheets | OpenSpout / spatie/simple-excel (streaming) | Low-memory import/export ([DATA_IMPORT.md](DATA_IMPORT.md)) |
 | WhatsApp | Meta WhatsApp Cloud API, **agency's own account** (optional) | Templates fetched from the agency's account (§ 6.7) |
-| SMS | Termii (or Africa's Talking) | Nigerian routes, DND-aware |
+| SMS | GoText (`app.gotext.ng`, one GoProperty account; [docs/plans/sms-provider-2026-10-29.md](docs/plans/sms-provider-2026-10-29.md)) | Nigerian routes, DND (transactional) route |
 | Email | Mailgun / Postmark / SES | Suppression list handling required |
 | Monitoring | Laravel Pulse, Telescope (non-prod), Sentry | Queue depth, slow queries, webhook health |
 | Backups | spatie/laravel-backup + managed DB snapshots | Nightly full + hourly binlog to object storage |
@@ -391,7 +391,7 @@ State machine: `draft → submitted → under_review → in_progress → resolve
 
 - One scheduled entry point (`php artisan reminders:dispatch`) computes due reminders for rent, utilities, lease renewals and overdue bills across all orgs, writes rows into `reminders`, and queues sends. Idempotency: unique key `(remindable, type, channel, due_offset_days)` prevents duplicates on rerun.
 - Ladder defaults: rent due at T-30, T-14, T-7, T-3, T-1, T-0 and overdue at +1, +7, +14; lease renewal alerts to agent/owner at T-60, T-30, T-7; utility due at T-3, T-0.
-- Channels: email (queued mailables, per-user preference toggles) and SMS (Termii) for tenants — SMS templates kept under 160 chars. SMS reminders are enabled for a tenant only once their phone is **verified** (they opened an invitation or reset link sent to that number by WhatsApp) or **confirmed by the agency** in person; no OTP codes are ever sent. The first SMS to a number names the agency, and repeated delivery failures flag the number on the tenant record. SMS usage counts against the plan's monthly credits ([BILLING_PAYMENTS.md § 1.2](BILLING_PAYMENTS.md)). GoProperty sends **no SMS for signup, sign-in, 2FA, invitations or password reset**.
+- Channels: email (queued mailables, per-user preference toggles) and SMS (GoText) for tenants — SMS templates kept under 160 chars. GoProperty sends all SMS from its own GoText account and pays GoText; agencies pay through their SMS credits. **SMS templates are GoProperty's:** only the console's `content-manager` edits them (PLATFORM_CONSOLE.md § 5), agencies cannot change the wording, and only transactional and reminder messages have an SMS version — never promotional (keeps the DND route and the shared sender ID safe). SMS reminders are enabled for a tenant only once their phone is **verified** (they opened an invitation or reset link sent to that number by WhatsApp) or **confirmed by the agency** in person; no OTP codes are ever sent. The first SMS to a number names the agency, and repeated delivery failures flag the number on the tenant record. SMS usage counts against the plan's monthly credits ([BILLING_PAYMENTS.md § 1.2](BILLING_PAYMENTS.md)). GoProperty sends **no SMS for signup, sign-in, 2FA, invitations or password reset**.
 - **WhatsApp (optional, Growth plan and above):** the agency connects **its own** WhatsApp Business Platform account (Meta Cloud API): WhatsApp Business Account ID, phone number ID, permanent access token and app secret, all stored encrypted and editable only by the org-owner.
   - **The contract (P03-01b):** everything sends through `App\WhatsApp\WhatsAppSender` (`available($organization)`, `send($organization, WhatsAppMessage)`; the message names its event, e.g. `tenant_invitation`, and the placeholder values P05-06 maps to the agency's template), queued by `App\WhatsApp\SendWhatsAppMessage` on `notifications` (encrypted payload). Until P05-06 the driver is `log` (`services.whatsapp.driver`, `WHATSAPP_DRIVER`): it sends nothing, records the message in memory and logs the event and masked number only, and is never "available" in production; `none` switches WhatsApp off (P03 decision 3).
   - GoProperty **fetches the agency's approved message templates** from Meta (`GET /{waba-id}/message_templates`), daily and on demand, and shows each with its variables and approval status.

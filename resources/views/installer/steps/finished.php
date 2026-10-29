@@ -27,7 +27,7 @@ if ($services['storage'] !== 'tested') {
 }
 
 $next[] = ['Paystack keys for your own subscription income (Console → Settings, with billing).', $console];
-$next[] = ['Termii sender ID for WhatsApp and SMS notifications (Console → Settings, with notifications).', $console];
+$next[] = ['GoText API token and sender ID for SMS notifications (Console → Settings, with notifications).', $console];
 $next[] = ['Turnstile keys for bot protection on sign-in pages (Console → Settings → Sign-in security).', $console.'/settings/sign-in-security'];
 $next[] = ['Backup destinations: an S3 bucket and a Google Shared Drive (php artisan goproperty:backup-destination:add, see docs/runbooks/restore.md).', null];
 $next[] = ['Platform theme: logo, colours and sign-in image (Console → Settings → Brand & appearance).', $console.'/settings/brand'];

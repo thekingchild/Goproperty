@@ -289,3 +289,4 @@ How it is built: [ARCHITECTURE.md § 5 "Owner statements (P08-05)"](ARCHITECTURE
 6. ~~Which plans get automation~~ — statement matching on all plans; own Paystack and WhatsApp from Growth (§ 1.2).
 7. ~~Free tier~~ — no free plan at launch; 14-day trial (§ 1.1). Revisit after 6 months.
 8. Corporate customers deducting withholding tax: accept payment net of WHT on upload of the WHT credit note.
+9. ~~SMS provider~~ — GoText, one GoProperty account; GoProperty pays GoText and agencies pay through SMS credits (§ 1.2); SMS templates are GoProperty's and never promotional ([docs/plans/sms-provider-2026-10-29.md](docs/plans/sms-provider-2026-10-29.md), 2026-10-29).

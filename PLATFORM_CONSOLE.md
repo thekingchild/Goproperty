@@ -176,6 +176,7 @@ Monthly automatic restore test to staging; a quarterly manual drill is recorded 
 - Bounce and complaint webhooks add addresses to a suppression list. Suppressed users get an in-app notice to fix their email.
 - Every send is logged in `notification_deliveries` (status, provider message ID, opened where available).
 - The same template engine later serves SMS and WhatsApp templates.
+- **SMS templates are GoProperty's** (P05-02/P05-04, [docs/plans/sms-provider-2026-10-29.md](docs/plans/sms-provider-2026-10-29.md)): written and versioned by `content-manager` here, never by agencies. An agency changes only what the placeholders fill in (its name, the tenant's first name, amount, due date, payment reference, pay link). Only **Transactional** and **Reminders** templates may have an SMS version, kept under 160 characters; **Product / marketing is never sent by SMS**. All SMS goes through GoProperty's one GoText account on the DND (transactional) route, so a promotional message would put the shared sender ID at risk for every agency.
 
 ## 6. Impersonation (support & monitoring)
 

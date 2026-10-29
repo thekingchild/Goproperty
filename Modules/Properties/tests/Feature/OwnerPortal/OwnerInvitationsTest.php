@@ -370,7 +370,7 @@ describe('removing access, limits, and what stays apart', function () {
 
         $code = collect([...File::allFiles(module_path('Properties', 'app/OwnerPortal')), ...File::allFiles(module_path('Properties', 'app/Notifications'))])
             ->map(fn ($file): string => strtolower($file->getContents()))->implode("\n");
-        expect($code)->not->toContain('termii')->not->toContain('vonage')->not->toContain('twilio')->not->toContain("'sms'");
+        expect($code)->not->toContain('gotext')->not->toContain('termii')->not->toContain('vonage')->not->toContain('twilio')->not->toContain("'sms'");
     });
 
     it('keeps owner invitations out of Settings → Members and the member invitation page', function () {
