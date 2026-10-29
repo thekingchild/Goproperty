@@ -19,7 +19,7 @@ Both changes apply only to owners whose buildings an organization manages for th
 4. **The agency chooses which tickets the owner sees.** A ticket is hidden from the building's owner until a member of the agency shares it. The owner is notified about shared tickets only.
 5. **Every ticket starts hidden, existing ones included.** Tickets that exist when this ships are not shared; the agency shares the ones that matter.
 
-## Defaults for the details (orchestrator, 2026-10-29; for the product owner to confirm)
+## Defaults for the details (orchestrator, 2026-10-29; accepted by the product owner the same day)
 
 ### P03-16 — the owner's view of tenants, contracts and billing
 
@@ -47,4 +47,4 @@ Both changes apply only to owners whose buildings an organization manages for th
 - **A lease contract stays with the organization that issued it:** after a handover, the receiving agency's card offers no contract PDF for a lease that came over (P03-16 ledger, judgement call 2).
 - **An owner who joins after tickets were shared** sees those tickets, with no catch-up notice (P04-06 ledger, judgement call 7).
 
-The other defaults above and the remaining judgement calls in the P03-16 and P04-06 ledger entries are still to be confirmed.
+- **Everything else accepted as built (2026-10-29):** the P03-16 defaults 1–6 and P04-06 defaults 1–8 above, and every judgement call in the P03-16 and P04-06 ledger entries (`docs/PROGRESS.md`).
