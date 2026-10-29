@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Modules\Leasing\Contracts\DepositLine;
 use Modules\Leasing\Contracts\EndingLease;
+use Modules\Leasing\Contracts\EndingLeases;
 use Modules\Leasing\Contracts\LeaseEvent;
 use Modules\Leasing\Contracts\LeaseHistory;
 use Modules\Leasing\Contracts\LeaseSummary;
@@ -28,8 +29,11 @@ use Modules\Leasing\Models\LeaseDepositEntry;
  * start and end, the lease it renews (and that lease's rent), its
  * termination, the renewal that followed it — and its deposit ledger. Reads
  * only.
+ *
+ * Also Contracts\EndingLeases (the reminder engine's renewal alerts,
+ * P05-01): active leases of every building ending on given days.
  */
-final readonly class OwnerLeaseRecords implements OwnerLeases
+final readonly class OwnerLeaseRecords implements EndingLeases, OwnerLeases
 {
     public function activeIn(array $propertyIds): array
     {
@@ -86,13 +90,42 @@ final readonly class OwnerLeaseRecords implements OwnerLeases
             return [];
         }
 
-        $ending = Lease::query()->whereIn('property_id', $propertyIds)
+        return self::ending(Lease::query()->whereIn('property_id', $propertyIds)
             ->where('status', LeaseStatus::Active)
             ->whereDate('end_date', '>=', $from->toDateString())
             ->whereDate('end_date', '<=', $to->toDateString())
             ->orderBy('end_date')->orderBy('property_id')->orderBy('unit_id')->orderBy('id')
-            ->get();
+            ->get());
+    }
 
+    public function endingOn(array $dates, int $afterId = 0, int $limit = 500): array
+    {
+        if ($dates === []) {
+            return [];
+        }
+
+        return self::ending(Lease::query()
+            ->where('status', LeaseStatus::Active)
+            ->whereIn('end_date', array_values(array_unique($dates)))
+            ->where('id', '>', $afterId)
+            ->orderBy('id')
+            ->limit($limit)
+            ->get());
+    }
+
+    public function findActive(int $leaseId): ?EndingLease
+    {
+        return self::ending(Lease::query()->whereKey($leaseId)->where('status', LeaseStatus::Active)->get())[0] ?? null;
+    }
+
+    /**
+     * The leases with their draft renewal (LeaseService::renew), if one was made.
+     *
+     * @param  Collection<int, Lease>  $ending
+     * @return list<EndingLease>
+     */
+    private static function ending(Collection $ending): array
+    {
         $renewals = $ending->isEmpty() ? collect() : Lease::query()
             ->whereIn('renewal_of_lease_id', $ending->pluck('id')->all())
             ->where('status', LeaseStatus::Draft)
