@@ -154,7 +154,7 @@ Depends on: P03. Waves and the defaults for its open questions: [docs/plans/P05-
 
 | ID | Deliverable | Acceptance |
 | --- | --- | --- |
-| P05-01 — **In progress** | Reminder engine (`reminders:dispatch`) with dedupe keys; rent/utilities/lease-renewal ladders; overdue ladder | Time-travel tests (`Carbon::setTestNow`) prove exact send days and zero duplicates across reruns |
+| P05-01 — **Complete (2026-10-29)** | Reminder engine (`reminders:dispatch`) with dedupe keys; rent/utilities/lease-renewal ladders; overdue ladder | Time-travel tests (`Carbon::setTestNow`) prove exact send days and zero duplicates across reruns |
 | P05-02 — **Not started** | SMS via GoText (bill reminders only; GoProperty-owned, non-promotional templates, [docs/plans/sms-provider-2026-10-29.md](docs/plans/sms-provider-2026-10-29.md)), to verified/agency-confirmed numbers — no OTP); per-user channel preferences; `notification_deliveries` log with provider refs and cost | SMS template stays under 160 chars; failed sends retry with backoff then surface in the health dashboard; unverified numbers never texted |
 | P05-03 — **Not started** | SMS credits per plan (monthly allowance, in-app top-up, ledger) | Sending stops at zero credit; ledger balances to allowance + top-ups − sends |
 | P05-04 — **Not started** | Email template system ([PLATFORM_CONSOLE.md § 5](PLATFORM_CONSOLE.md)): database templates with whitelisted placeholders (never Blade), versions + rollback, live preview, test send, categories, org branding, bounce/complaint suppression | Blade/PHP in a template renders as plain text; rollback restores the previous version; suppressed addresses are skipped |
