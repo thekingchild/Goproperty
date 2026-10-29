@@ -24,7 +24,7 @@ Each phase below is split into numbered tasks (`P00-01`, `P00-02`, …). Each ta
 | P02 | Properties, units, owners & import (part 1) | 6–8 | M2 | Complete (2026-10-27) |
 | P03 | Leasing, branded documents & the customer money loop + import (part 2) | 9–12 | M3 | Complete (2026-10-29) |
 | P04 | Maintenance tickets | 13 | M4 | Complete (2026-10-29) |
-| P05 | Reminders, notifications, email templates & WhatsApp | 14–15 | M5 | Not started |
+| P05 | Reminders, notifications, email templates & WhatsApp | 14–15 | M5 | In progress |
 | P06 | SaaS billing, compliance monitoring & full platform console | 16–18 | M6 | Not started |
 | P07 | Building Group | 19 | M7 | Not started |
 | P08 | Reports, operations & analytics dashboards | 20 | M8 | Not started |
@@ -148,13 +148,13 @@ Depends on: P03-01 (tenants) and P03-03 (leases).
 
 **Phase exit:** all P04 tasks complete.
 
-### P05 — Reminders, notifications, email templates & WhatsApp (Weeks 14–15) — Not started
+### P05 — Reminders, notifications, email templates & WhatsApp (Weeks 14–15) — In progress
 
-Depends on: P03.
+Depends on: P03. Waves and the defaults for its open questions: [docs/plans/P05-subtasks.md](docs/plans/P05-subtasks.md).
 
 | ID | Deliverable | Acceptance |
 | --- | --- | --- |
-| P05-01 — **Not started** | Reminder engine (`reminders:dispatch`) with dedupe keys; rent/utilities/lease-renewal ladders; overdue ladder | Time-travel tests (`Carbon::setTestNow`) prove exact send days and zero duplicates across reruns |
+| P05-01 — **In progress** | Reminder engine (`reminders:dispatch`) with dedupe keys; rent/utilities/lease-renewal ladders; overdue ladder | Time-travel tests (`Carbon::setTestNow`) prove exact send days and zero duplicates across reruns |
 | P05-02 — **Not started** | SMS via GoText (bill reminders only; GoProperty-owned, non-promotional templates, [docs/plans/sms-provider-2026-10-29.md](docs/plans/sms-provider-2026-10-29.md)), to verified/agency-confirmed numbers — no OTP); per-user channel preferences; `notification_deliveries` log with provider refs and cost | SMS template stays under 160 chars; failed sends retry with backoff then surface in the health dashboard; unverified numbers never texted |
 | P05-03 — **Not started** | SMS credits per plan (monthly allowance, in-app top-up, ledger) | Sending stops at zero credit; ledger balances to allowance + top-ups − sends |
 | P05-04 — **Not started** | Email template system ([PLATFORM_CONSOLE.md § 5](PLATFORM_CONSOLE.md)): database templates with whitelisted placeholders (never Blade), versions + rollback, live preview, test send, categories, org branding, bounce/complaint suppression | Blade/PHP in a template renders as plain text; rollback restores the previous version; suppressed addresses are skipped |
