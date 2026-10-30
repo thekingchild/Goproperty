@@ -121,6 +121,10 @@ final class ConsolePanelProvider extends PanelProvider
             ->discoverResources(in: app_path('Platform/Filament/Resources'), for: 'App\\Platform\\Filament\\Resources')
             ->discoverPages(in: app_path('Platform/Filament/Pages'), for: 'App\\Platform\\Filament\\Pages')
             ->pages([Dashboard::class])
+            // Operations widgets (PLATFORM_CONSOLE.md § 2) are registered for
+            // Livewire but not discovered onto the home page: the System
+            // operations page lists them (OperationsWidget::$isDiscovered).
+            ->discoverWidgets(in: app_path('Platform/Filament/Widgets'), for: 'App\\Platform\\Filament\\Widgets')
             ->widgets([])
             ->middleware([
                 EncryptCookies::class,
