@@ -13,6 +13,7 @@ use App\Plans\Features;
 use App\Subscriptions\SubscriptionChangeRefused;
 use App\Subscriptions\SubscriptionOverview;
 use App\Subscriptions\SubscriptionService;
+use App\Tenancy\AllowedWhileSuspended;
 use App\Tenancy\BlockedWhileImpersonating;
 use App\Tenancy\OrganizationContext;
 use Illuminate\Contracts\View\View;
@@ -20,7 +21,9 @@ use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
 use Livewire\Component;
+use Modules\SaasBilling\Contracts\CheckoutRefused;
 use Modules\SaasBilling\Contracts\SubscriptionInvoices;
+use Modules\SaasBilling\Contracts\SubscriptionPayments;
 
 /**
  * Settings → Subscription, /o/{organization}/settings/subscription
@@ -29,7 +32,10 @@ use Modules\SaasBilling\Contracts\SubscriptionInvoices;
  * the plan's terms (the 30 days' notice), what the plan includes with the
  * staff users used, the other plans at the organization's units, and
  * GoProperty's latest invoices with their lines (P06-02, through
- * SaasBilling's Contracts\SubscriptionInvoices).
+ * SaasBilling's Contracts\SubscriptionInvoices), each open one with a Pay
+ * button (P06-03: owners, through GoProperty's Paystack checkout,
+ * Contracts\SubscriptionPayments; also while the organization is
+ * suspended, never while staff impersonate).
  *
  * Seeing it: SubscriptionPolicy::viewAny (owners, administrators). Moving
  * to another plan: owners (`organization.billing`), never while GoProperty
@@ -87,6 +93,31 @@ final class SubscriptionPage extends Component
         $this->notice = __('You are now on :plan.', ['plan' => $plan->name]);
     }
 
+    #[AllowedWhileSuspended]
+    #[BlockedWhileImpersonating]
+    public function pay(string $number, OrganizationContext $context): void
+    {
+        $this->authorize('pay', Subscription::class);
+        $this->resetErrorBag('pay');
+        $payments = $this->payments();
+
+        if ($payments === null || ! $payments->available()) {
+            $this->addError('pay', __('Paying online is not available yet. Contact GoProperty to pay by bank transfer.'));
+
+            return;
+        }
+
+        try {
+            $url = $payments->start($this->user(), $number, route('workspace.settings.subscription.paid', ['organization' => $context->get()->slug]));
+        } catch (CheckoutRefused $refused) {
+            $this->addError('pay', $refused->getMessage());
+
+            return;
+        }
+
+        $this->redirect($url);
+    }
+
     public function render(SubscriptionOverview $overview, PlanCatalogue $plans, Features $features): View
     {
         $plan = $overview->plan();
@@ -109,7 +140,14 @@ final class SubscriptionPage extends Component
             'choices' => array_values(array_filter($plans->plans(), static fn (Plan $choice): bool => ! $choice->custom)),
             'canChange' => $this->user()->can('changePlan', Subscription::class),
             'invoices' => app()->bound(SubscriptionInvoices::class) ? app(SubscriptionInvoices::class)->recent() : [],
+            'canPay' => $this->user()->can('pay', Subscription::class) && ($this->payments()?->available() ?? false),
+            'status' => is_array($status = session('subscription_status')) && count($status) === 2 ? $status : null,
         ]);
+    }
+
+    private function payments(): ?SubscriptionPayments
+    {
+        return app()->bound(SubscriptionPayments::class) ? app(SubscriptionPayments::class) : null;
     }
 
     private function user(): User

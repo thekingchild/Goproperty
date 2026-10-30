@@ -12,6 +12,14 @@
         <flux:callout variant="success" icon="check-circle" :heading="$notice" data-test="notice" />
     @endif
 
+    @if ($status)
+        <flux:callout :variant="$status[0] === 'success' ? 'success' : 'warning'" :icon="$status[0] === 'success' ? 'check-circle' : 'exclamation-triangle'" :heading="$status[1]" data-test="payment-status" />
+    @endif
+
+    @error('pay')
+        <flux:callout variant="danger" icon="x-circle" :heading="$message" data-test="pay-refused" />
+    @enderror
+
     @error('plan')
         <flux:callout variant="danger" icon="x-circle" :heading="$message" data-test="plan-refused" />
     @enderror
@@ -114,6 +122,9 @@
                                 <flux:badge size="sm" class="ms-2" data-test="invoice-status">{{ $invoice->statusLabel }}</flux:badge>
                                 @if ($invoice->status === 'open' && $invoice->dueDate)
                                     <span class="block text-sm text-zinc-500 dark:text-zinc-400">{{ __('Due :date', ['date' => $invoice->dueDate->format('j F Y')]) }}</span>
+                                @endif
+                                @if ($invoice->status === 'open' && $canPay)
+                                    <flux:button size="sm" variant="primary" class="mt-2" wire:click="pay('{{ $invoice->number }}')" data-test="pay-{{ $invoice->number }}">{{ __('Pay :amount', ['amount' => $invoice->total->format()]) }}</flux:button>
                                 @endif
                             </span>
                         </summary>

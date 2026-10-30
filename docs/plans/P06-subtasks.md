@@ -45,3 +45,23 @@ Started 2026-10-30 at the product owner's request ("start P06-02"). Built in `Mo
 20. **The metering ledger** (`subscription_unit_events`) has one row per billed period: the units counted, the included units and the units paid for, and why it differs from the row before (`initial`, `plan_change`, `unit_added`, `unit_removed`, `unchanged`); `platform_invoice_id` replaces the first schema's `source_bill_id`. Units added and removed between billing days are in the Properties audit log, not this ledger.
 21. **No invoice PDF yet.** The invoice email and Settings → Subscription show every line (base, extra units, subtotal, VAT, total). A PDF in GoProperty's branding (with `theme.legal_name` and `theme.address`, and § 10.3's registration lines once decided) is a follow-up, with paying it (P06-03, P06-04).
 22. **`subscriptions.payer_organization_id`** is added (null = the organization pays) and read by metering; nothing sets it yet (staff, P06-07).
+
+## P06-03 — paying subscription invoices through GoProperty's Paystack
+
+Started 2026-10-30 at the product owner's request ("start P06-03"). Built in `Modules\SaasBilling\Payments` on P05-03's Paystack client and webhook.
+
+### Decided by the product owner (2026-10-30)
+
+- **No stored cards and no auto-charge yet.** Owners pay each invoice through Paystack's checkout; GoProperty keeps no card authorization. The plan row's "stored authorization, auto-charge" (BILLING_PAYMENTS.md § 3 step 5, § 4.1) is set aside until the product owner asks for it.
+- **The sandbox acceptance is proven with Paystack simulated** by its documented test-mode answers in automated tests (no test key here, and a checkout needs a person); a real test-mode payment is done once GoProperty's test key is set (PRE-01).
+
+### Defaults taken in P06-03 (for the product owner to confirm)
+
+23. **One settlement for every GoProperty payment.** `Payments\PlatformPaymentSettlement` settles SMS bundles (P05-03) and subscription invoices alike, from the return, the webhook, a replay and the reconciliation: verify by fetch, exactly the total in naira in the account's mode for an open invoice, else held for staff; once per payment under its lock.
+24. **Each Pay is its own attempt** (`PINV-{number}-a1`, `-a2`, …). Before a new one, the invoice's pending attempts are asked about, so an owner who paid and never came back is not charged twice; an invoice already paid refuses a new attempt. A second payment that still arrives for a paid invoice is held for staff (refunds: P06-07).
+25. **A failed charge** (Paystack's `charge.failed`, verified) fails that attempt and leaves the subscription invoice **open**, to be paid again (an SMS bundle's invoice is voided as before). Retries and failure emails are the dunning ladder's (P06-05).
+26. **Reactivation (§ 6):** a confirmed payment makes a `past_due`, `grace` or `suspended` subscription active again (restoring a suspended organization) once no other subscription invoice is overdue. A cancelled subscription is reactivated by staff (P06-07).
+27. **Receipt:** the owners are told in the app and by email (template `billing.payment_received`: amount, date, invoice, period, Paystack reference). No receipt PDF yet (with the invoice PDF, default 21).
+28. **Reconciliation:** `saas-paystack-reconcile`, hourly at :50 on `billing`, asks Paystack about every payment still pending after 15 minutes, up to 72 hours old (§ 4.2 said "open invoices older than 1h"); an abandoned checkout older than that stays pending and is no longer asked about.
+29. **Who pays:** owners (`organization.billing`), from Settings → Subscription; also while the organization is suspended (paying is how it becomes active again, § 2); never GoProperty staff while impersonating. Checkout offers card, bank, USSD and bank transfer.
+30. **Console → Operations → Paystack webhooks** shows the calls to GoProperty's own account only (agencies' own accounts stay in their organizations); seen with `operations.view`, `invoices.manage` or `webhooks.replay`; **Replay** with `webhooks.replay` (technical-admin), only a signed call, audited (log `webhooks`). A replay asks Paystack again and never settles a payment twice.

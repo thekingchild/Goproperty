@@ -17,8 +17,9 @@ use Modules\SaasBilling\Enums\PlatformPaymentStatus;
  * A payment of a platform invoice through GoProperty's own Paystack account
  * (DATABASE_SCHEMA.md § 3 `platform_payments`; BILLING_PAYMENTS.md § 4).
  * Organization-scoped; one row per Paystack reference (unique); written
- * only by SmsCredits\SmsCreditPurchases; never deleted, and a settled one
- * never changes.
+ * only by SmsCredits\SmsCreditPurchases and Payments\SubscriptionCheckout
+ * (started) and Payments\PlatformPaymentSettlement (settled); never
+ * deleted, and a settled one never changes.
  *
  * @property int $id
  * @property int $organization_id
@@ -33,6 +34,7 @@ use Modules\SaasBilling\Enums\PlatformPaymentStatus;
  * @property Money|null $paid_amount_kobo
  * @property CarbonImmutable|null $verified_at
  * @property CarbonImmutable|null $confirmed_at
+ * @property int|null $initiated_by_user_id
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  * @property-read PlatformInvoice $invoice

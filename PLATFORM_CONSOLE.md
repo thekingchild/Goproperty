@@ -107,6 +107,8 @@ Health at a glance, refreshed every 60 s:
 | Storage | Object storage usage, database size, largest tables growth |
 | Security | Failed logins (24h), locked accounts, active impersonation sessions, new staff sessions |
 
+**Built so far (P06-03):** Operations → **Paystack webhooks** (`App\Platform\Filament\Resources\PaystackWebhooks`, `PaystackWebhookDeliveryPolicy`): every call to GoProperty's own `/webhooks/paystack`, newest first, with event, reference, signature, outcome, error and when it was processed (never the body); filters for signature, outcome, not processed and errors. Seen with `operations.view`, `invoices.manage` or `webhooks.replay`; **Replay** (`webhooks.replay`, technical-admin) queues a signed call's processing again through SaasBilling's `Contracts\PlatformWebhookReplays` (`App\Platform\Webhooks\WebhookReplay`, audited, log `webhooks`); processing asks Paystack and settles a payment at most once. Agencies' own accounts and the dashboard figures are not on it yet.
+
 Built with Filament widgets + embedded Laravel Pulse cards. Alerts (Slack/email) fire on: failed backup, scheduler missed, queue wait > 5 min, webhook failure rate > 5%, error spike.
 
 ### How the Messaging area is built (P05-05)

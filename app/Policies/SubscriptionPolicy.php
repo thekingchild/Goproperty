@@ -6,6 +6,7 @@ namespace App\Policies;
 
 use App\Enums\OrganizationPermission;
 use App\Models\User;
+use App\Tenancy\AllowedWhileSuspended;
 use App\Tenancy\BlockedWhileImpersonating;
 use App\Tenancy\OrganizationContext;
 use Spatie\Permission\Exceptions\PermissionDoesNotExist;
@@ -30,6 +31,19 @@ final class SubscriptionPolicy
 
     #[BlockedWhileImpersonating]
     public function changePlan(User $user): bool
+    {
+        return $this->holds($user, OrganizationPermission::ManageBilling);
+    }
+
+    /**
+     * Paying a subscription invoice (P06-03): `organization.billing`
+     * (owners), a money action never taken while GoProperty staff
+     * impersonate. Allowed while the organization is read-only: paying is
+     * how it becomes active again (BILLING_PAYMENTS.md § 2).
+     */
+    #[AllowedWhileSuspended]
+    #[BlockedWhileImpersonating]
+    public function pay(User $user): bool
     {
         return $this->holds($user, OrganizationPermission::ManageBilling);
     }

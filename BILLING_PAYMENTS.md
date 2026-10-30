@@ -109,7 +109,7 @@ Monthly job (`saas:meter-units`, 1st of month 03:00):
 2. Append a row to `subscription_unit_events` (ledger — every change of counted units is preserved for dispute resolution and analytics).
 3. Create `platform_invoices` row: `subtotal = base + counted_units × unit_price`, `vat = 7.5%`, `total`. Number from the platform sequence (`PR-2026-000123`).
 4. Email the invoice to all `org-owner`s of the payer organization (and CC payer-org owners when different).
-5. If a card authorization exists → attempt Paystack charge (§ 4). Else → bank transfer instructions (§ 5).
+5. If a card authorization exists → attempt Paystack charge (§ 4). Else → bank transfer instructions (§ 5). *(Stored cards and the automatic charge are set aside by the product owner, 2026-10-30: owners pay each invoice at checkout, § 4.2 "How paying subscription invoices is built".)*
 
 Charge failure → invoice stays `open`, subscription → `past_due` after `due_date` (net 7).
 
@@ -138,7 +138,8 @@ Used for SaaS subscription collection. Scope: **transaction charges with saved a
 - `charge.success` → verify by fetching the transaction server-side (`GET /transaction/verify/:reference` — never trust the payload amount alone) → mark `platform_payment` confirmed → mark invoice paid → subscription → `active` → receipt + notifications.
 - `charge.failed` → log, increment attempt counter, schedule retry ladder (see § 6).
 - Hourly reconciliation job re-verifies all `open` invoices older than 1h against Paystack (catches missed webhooks).
-- **Built so far (P05-03):** GoProperty's webhook `/webhooks/paystack` (`Modules\SaasBilling`), the HMAC check with GoProperty's key, `webhook_log` before processing, verify-by-fetch and one `platform_payments` row per reference, for SMS credit bundles. Subscription invoices are issued since P06-02 (§ 3); paying them, the hourly reconciliation and stored authorizations come with P06-03.
+- **Built so far (P05-03):** GoProperty's webhook `/webhooks/paystack` (`Modules\SaasBilling`), the HMAC check with GoProperty's key, `webhook_log` before processing, verify-by-fetch and one `platform_payments` row per reference, for SMS credit bundles. Subscription invoices are issued since P06-02 (§ 3).
+- **How paying subscription invoices is built (P06-03; docs/plans/P06-subtasks.md "P06-03", defaults 23–30).** **No card is stored and nothing is charged automatically** (the product owner's decision of 2026-10-30): an owner pays each open invoice from Settings → Subscription (`organization.billing`, also while suspended, never while staff impersonate) through Paystack's checkout (`Payments\SubscriptionCheckout`; each attempt its own reference `PINV-{number}-a{n}`, earlier pending attempts asked about first). Every GoProperty payment, SMS bundle or subscription, is settled by `Payments\PlatformPaymentSettlement`: on the return (`/o/{slug}/settings/subscription/paid`), on `charge.success` and `charge.failed` webhooks, on a staff replay, and by the hourly reconciliation `saas-paystack-reconcile` (pending payments 15 minutes to 72 hours old). It verifies by fetch; exactly the total in naira, in the account's mode, for an open invoice confirms the payment, marks the invoice paid and, when no other invoice is overdue, makes a `past_due`, `grace` or `suspended` subscription active again (one transaction; § 6 "Reactivation"); anything else that took money is held for staff; a failed charge leaves the invoice open. Owners get a receipt in the app and by email (`billing.payment_received`). Console → Operations → **Paystack webhooks** lists the calls to GoProperty's account and replays a signed one (`webhooks.replay`, audited).
 
 ### 4.3 Idempotency & safety rules
 

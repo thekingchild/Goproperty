@@ -10,14 +10,17 @@ use App\Mail\Templates\TemplateContent;
 use App\Mail\Templates\TemplateDefinition;
 
 /**
- * GoProperty's invoice email (P06-02; BILLING_PAYMENTS.md § 3 step 4): to
- * the owners of the organization (and of its payer, when another), in
+ * GoProperty's invoice email (P06-02; BILLING_PAYMENTS.md § 3 step 4) and
+ * its payment receipt (P06-03, § 4.2 "receipt + notifications"): to the
+ * owners of the organization (and of its payer, when another), in
  * GoProperty's branding, edited by `content-manager` like every template.
  * Transactional: always sent. The in-app notice shows the subject.
  */
 final class InvoiceTemplates
 {
     public const string INVOICE_ISSUED = 'billing.invoice_issued';
+
+    public const string PAYMENT_RECEIVED = 'billing.payment_received';
 
     /** @return list<TemplateDefinition> */
     public static function definitions(): array
@@ -45,7 +48,29 @@ final class InvoiceTemplates
                         ."Here is GoProperty's invoice {{ invoice.number }} to {{ organization.name }} for the {{ plan.name }} plan, {{ invoice.period }}, counting {{ invoice.units }} units.\n\n"
                         ."{{ invoice.lines }}\n\n"
                         ."Total: {{ invoice.total }}, due by {{ invoice.due_date }}.\n\n"
-                        .'You can see your invoices in Settings → Subscription.',
+                        .'An owner can pay it by card from Settings → Subscription.',
+                    actionLabel: 'See your invoices',
+                ),
+            ),
+            new TemplateDefinition(
+                key: self::PAYMENT_RECEIVED,
+                name: 'GoProperty payment received',
+                description: "To an organization's owners when GoProperty's Paystack account confirms a payment of its subscription invoice.",
+                category: TemplateCategory::Transactional,
+                placeholders: [
+                    new Placeholder('recipient.name', "The owner's name", 'Ada Okafor'),
+                    new Placeholder('organization.name', "The organization's name", 'Adeyemi Realty Ltd'),
+                    new Placeholder('invoice.number', 'The invoice paid', 'PR-2026-000123'),
+                    new Placeholder('invoice.period', 'Its billing period', '1–31 December 2026'),
+                    new Placeholder('payment.amount', 'The amount paid', '₦43,000'),
+                    new Placeholder('payment.date', 'When Paystack confirmed it, e.g. "3 December 2026"', '3 December 2026'),
+                    new Placeholder('payment.reference', "Paystack's reference", 'PINV-PR-2026-000123-a1'),
+                ],
+                content: new TemplateContent(
+                    subject: 'Payment received for GoProperty invoice {{ invoice.number }}',
+                    body: "Hello {{ recipient.name }},\n\n"
+                        ."Thank you: GoProperty received {{ payment.amount }} on {{ payment.date }} for invoice {{ invoice.number }} ({{ invoice.period }}), paid by {{ organization.name }}.\n\n"
+                        .'Paystack reference: {{ payment.reference }}.',
                     actionLabel: 'See your invoices',
                 ),
             ),

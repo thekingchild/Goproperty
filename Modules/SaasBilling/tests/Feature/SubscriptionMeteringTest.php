@@ -10,18 +10,13 @@ use App\Models\Organization;
 use App\Models\Subscription;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
-use App\Subscriptions\Jobs\EndTrials;
 use App\Subscriptions\SubscriptionService;
-use App\Tenancy\OrganizationContext;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Scheduling\CallbackEvent;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
-use Modules\Properties\Models\Property;
-use Modules\Properties\Models\Unit;
-use Modules\SaasBilling\Enums\InvoiceKind;
 use Modules\SaasBilling\Enums\InvoiceStatus;
 use Modules\SaasBilling\Enums\UnitEventReason;
 use Modules\SaasBilling\Jobs\MeterUnits;
@@ -32,6 +27,7 @@ use Modules\SaasBilling\Notifications\PlatformInvoiceIssued;
 
 require_once __DIR__.'/../../../../tests/Support/plans.php';
 require_once __DIR__.'/../../../../tests/Feature/Exports/helpers.php';
+require_once __DIR__.'/metering-helpers.php';
 
 /*
  * P06-02: monthly metering, platform invoices and the VAT line
@@ -52,38 +48,6 @@ beforeEach(function () {
 });
 
 afterEach(fn () => exportsFreshRequest());
-
-/** Adds units to a building of the organization; archived ones are made too, and never counted (§ 1.4). */
-function withUnits(Organization $organization, int $count): void
-{
-    inOrganization($organization, function () use ($count): void {
-        $building = Property::query()->first() ?? Property::factory()->create();
-        Unit::factory()->in($building)->count($count)->create();
-        Unit::factory()->in($building)->create()->delete();
-    });
-}
-
-function meterUnits(): void
-{
-    app()->call([new MeterUnits, 'handle']);
-}
-
-function endTrials(): void
-{
-    (new EndTrials)->handle(app(OrganizationContext::class), app(SubscriptionService::class));
-}
-
-/** @return list<PlatformInvoice> the organization's subscription invoices, oldest first */
-function subscriptionInvoices(Organization $organization): array
-{
-    return inOrganization($organization, fn (): array => array_values(PlatformInvoice::query()->where('kind', InvoiceKind::Subscription)->orderBy('period_start')->get()->all()));
-}
-
-/** 7.5 % of the subtotal, rounded to the nearest kobo, halves up: worked out here independently of Money. */
-function expectedVat(int $subtotalKobo): int
-{
-    return intdiv($subtotalKobo * 750 + 5_000, 10_000);
-}
 
 it('acceptance: rerunning metering creates one invoice per organization per period', function () {
     startTrial($this->acme, 'starter', 14);                          // ends 16 November 10:00

@@ -7,7 +7,6 @@ namespace Modules\SaasBilling\SmsCredits;
 use App\Marketing\PlanCatalogue;
 use App\Models\User;
 use App\Settings\SettingsStore;
-use App\Sms\Credits\SmsCredits;
 use App\Support\Money;
 use App\Tenancy\OrganizationContext;
 use Carbon\CarbonImmutable;
@@ -23,9 +22,9 @@ use Modules\SaasBilling\Enums\PlatformPaymentStatus;
 use Modules\SaasBilling\Invoices\PlatformInvoiceNumbers;
 use Modules\SaasBilling\Models\PlatformInvoice;
 use Modules\SaasBilling\Models\PlatformPayment;
+use Modules\SaasBilling\Payments\PlatformPaymentSettlement;
 use Modules\SaasBilling\Paystack\PaystackUnavailable;
 use Modules\SaasBilling\Paystack\PlatformPaystack;
-use Modules\SaasBilling\Paystack\VerifiedCharge;
 
 /**
  * SMS credit bundles bought in the app (P05-03; BILLING_PAYMENTS.md § 1.2,
@@ -34,8 +33,8 @@ use Modules\SaasBilling\Paystack\VerifiedCharge;
  * console's price per credit, plus 7.5 % VAT) paid through GoProperty's own
  * Paystack checkout (reference `PINV-{number}-a1`).
  *
- * settle() runs on the return from checkout and on Paystack's webhook. It
- * never trusts either: it asks Paystack (verify by fetch, § 4.2) and only a
+ * settle() runs on the return from checkout and on Paystack's webhook
+ * (Payments\PlatformPaymentSettlement since P06-03). It never trusts either: it asks Paystack (verify by fetch, § 4.2) and only a
  * successful charge for exactly the invoice's total, in naira, in the
  * account's mode, confirms the payment, marks the invoice paid and adds the
  * credits (App\Sms\Credits\SmsCredits::purchase), all in one transaction
@@ -55,7 +54,7 @@ final readonly class SmsCreditPurchases implements SmsCreditCheckout
         private PlanCatalogue $plans,
         private PlatformPaystack $paystack,
         private PlatformInvoiceNumbers $numbers,
-        private SmsCredits $credits,
+        private PlatformPaymentSettlement $settlement,
     ) {}
 
     public function available(): bool
@@ -142,7 +141,7 @@ final readonly class SmsCreditPurchases implements SmsCreditCheckout
                 ],
             ]);
         } catch (PaystackUnavailable $problem) {
-            $this->close($payment->id, PlatformPaymentStatus::Failed, 'Paystack did not start the checkout: '.$problem->getMessage());
+            $this->settlement->fail($payment->id, 'Paystack did not start the checkout: '.$problem->getMessage());
 
             throw new CheckoutRefused(__('Paystack could not start the payment just now. Try again in a few minutes.'));
         }
@@ -179,123 +178,13 @@ final readonly class SmsCreditPurchases implements SmsCreditCheckout
 
     /**
      * Settles the current organization's payment with this reference from
-     * what Paystack says about it now (see the class comment).
+     * what Paystack says about it now (Payments\PlatformPaymentSettlement,
+     * shared with subscription invoices since P06-03).
      *
      * @throws PaystackUnavailable when Paystack cannot be asked now (nothing was recorded)
      */
     public function settle(string $reference): PaymentOutcome
     {
-        $payment = PlatformPayment::query()->where('paystack_reference', $reference)->first();
-
-        if (! $payment instanceof PlatformPayment) {
-            return PaymentOutcome::Ignored;
-        }
-
-        if ($payment->status->isSettled()) {
-            return PaymentOutcome::Duplicate;
-        }
-
-        if (! $this->paystack->available()) {
-            throw new PaystackUnavailable('GoProperty\'s Paystack key is not set.');
-        }
-
-        // Verify by fetch, outside any lock (an HTTP call): only Paystack's answer counts.
-        $verified = $this->paystack->verify($reference);
-
-        if ($verified === null || $verified->reference !== $reference || ! $verified->succeeded()) {
-            if ($verified !== null && $verified->reference === $reference && $verified->failed() && $payment->status === PlatformPaymentStatus::Pending) {
-                $this->close($payment->id, PlatformPaymentStatus::Failed, 'Paystack reports the payment '.$verified->status.'.');
-            }
-
-            return PaymentOutcome::NotPaid;
-        }
-
-        // Outside the transaction: the balance row is created before it is locked.
-        $this->credits->ensureBalance();
-
-        return DB::transaction(fn (): PaymentOutcome => $this->confirm($payment->id, $verified), 3);
-    }
-
-    private function confirm(int $paymentId, VerifiedCharge $verified): PaymentOutcome
-    {
-        $payment = PlatformPayment::query()->lockForUpdate()->findOrFail($paymentId);
-
-        if ($payment->status->isSettled()) {
-            return PaymentOutcome::Duplicate;
-        }
-
-        $invoice = PlatformInvoice::query()->lockForUpdate()->findOrFail($payment->platform_invoice_id);
-        $paid = Money::kobo(max(0, $verified->amount));
-        $now = CarbonImmutable::now();
-        $reason = match (true) {
-            $verified->currency !== 'NGN' => sprintf('Paid in %s, not naira.', $verified->currency),
-            $verified->domain !== $this->paystack->mode() => sprintf('Paystack reports it in %s mode, not %s.', $verified->domain, $this->paystack->mode()),
-            ! $paid->equals($payment->amount_kobo) => sprintf('%s was paid, but %s was asked for invoice %s.', $paid->format(), $payment->amount_kobo->format(), $invoice->number),
-            $invoice->status !== InvoiceStatus::Open => sprintf('Invoice %s is %s.', $invoice->number, $invoice->status->value),
-            default => null,
-        };
-
-        $payment->paystack_channel = $verified->channel;
-        $payment->paid_amount_kobo = $paid;
-        $payment->verified_at = $now;
-
-        if ($reason !== null) {
-            $payment->status = PlatformPaymentStatus::Held;
-            $payment->hold_reason = mb_substr($reason.' Held for GoProperty staff to review; no credits were added.', 0, 300);
-            $payment->save();
-
-            activity(self::AUDIT_LOG)
-                ->event('sms_credits.payment_held')
-                ->performedOn($payment)
-                ->causedByAnonymous()
-                ->withProperties(['invoice' => $invoice->number, 'reference' => $payment->paystack_reference, 'asked_kobo' => $payment->amount_kobo->kobo, 'paid_kobo' => $paid->kobo, 'currency' => $verified->currency, 'reason' => $reason])
-                ->log('SMS credit payment held for review');
-
-            return PaymentOutcome::Held;
-        }
-
-        $payment->status = PlatformPaymentStatus::Confirmed;
-        $payment->confirmed_at = $now;
-        $payment->save();
-
-        $invoice->status = InvoiceStatus::Paid;
-        $invoice->paid_at = $now;
-        $invoice->save();
-
-        $entry = $this->credits->purchase((int) $invoice->sms_credits, $invoice->id, 'Invoice '.$invoice->number);
-
-        activity(self::AUDIT_LOG)
-            ->event('sms_credits.purchased')
-            ->performedOn($invoice)
-            ->causedByAnonymous()
-            ->withProperties(['invoice' => $invoice->number, 'reference' => $payment->paystack_reference, 'credits' => $invoice->sms_credits, 'total_kobo' => $invoice->total_kobo->kobo, 'balance_after' => $entry->balance_after])
-            ->log('SMS credits bought');
-
-        return PaymentOutcome::Confirmed;
-    }
-
-    /** A checkout that did not happen: the payment failed, its invoice void. */
-    private function close(int $paymentId, PlatformPaymentStatus $status, string $reason): void
-    {
-        DB::transaction(function () use ($paymentId, $status, $reason): void {
-            $payment = PlatformPayment::query()->lockForUpdate()->findOrFail($paymentId);
-
-            if ($payment->status !== PlatformPaymentStatus::Pending) {
-                return;
-            }
-
-            $payment->status = $status;
-            $payment->hold_reason = mb_substr($reason, 0, 300);
-            $payment->verified_at = CarbonImmutable::now();
-            $payment->save();
-
-            $invoice = PlatformInvoice::query()->lockForUpdate()->findOrFail($payment->platform_invoice_id);
-
-            if ($invoice->status === InvoiceStatus::Open) {
-                $invoice->status = InvoiceStatus::Void;
-                $invoice->voided_at = CarbonImmutable::now();
-                $invoice->save();
-            }
-        }, 3);
+        return $this->settlement->settle($reference);
     }
 }
