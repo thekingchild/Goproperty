@@ -8,7 +8,7 @@ use App\Models\Organization;
 use Illuminate\Support\Facades\Log;
 
 /**
- * The stand-in WhatsApp driver until P05-06 (P03 decision 3): it sends
+ * The stand-in WhatsApp driver (`log`, P03 decision 3): it sends
  * nothing. Each message is kept in memory for the current process (tests
  * read sent()) and one line goes to the log with the organization, the
  * event and the masked number, never the text (it may hold a one-time
@@ -20,7 +20,7 @@ final class LogWhatsAppSender implements WhatsAppSender
     /** @var list<array{organization_id: int, message: WhatsAppMessage}> */
     private array $sent = [];
 
-    public function available(Organization $organization): bool
+    public function available(Organization $organization, ?string $event = null): bool
     {
         return ! app()->isProduction();
     }
@@ -38,11 +38,20 @@ final class LogWhatsAppSender implements WhatsAppSender
             'event' => $message->event,
             'to' => $message->maskedTo(),
         ]);
+
+        if ($message->sourceType !== null) {
+            WhatsAppSent::dispatch((int) $organization->getKey(), null, $message->sourceType, $message->sourceId);
+        }
     }
 
     /** @return list<array{organization_id: int, message: WhatsAppMessage}> */
     public function sent(): array
     {
         return $this->sent;
+    }
+
+    public function gaveUp(Organization $organization, WhatsAppMessage $message): ?int
+    {
+        return null;
     }
 }

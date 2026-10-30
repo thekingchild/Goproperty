@@ -95,7 +95,7 @@ final readonly class SignInLinks
     public function channels(): array
     {
         return array_values(array_filter([
-            $this->whatsapp->available($this->context->get()) ? InvitationChannel::WhatsApp : null,
+            $this->whatsapp->available($this->context->get(), 'tenant_sign_in_link') ? InvitationChannel::WhatsApp : null,
             InvitationChannel::Link,
         ]));
     }

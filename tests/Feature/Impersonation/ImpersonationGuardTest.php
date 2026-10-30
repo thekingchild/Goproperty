@@ -206,6 +206,8 @@ it('classes the money, bank, Paystack, billing, compliance, member, delete, impo
         'handovers.manage',
         // Owner statements (P08-05): the agency's commission, what an owner sees and marking a month paid to the owner.
         'owner_statements.manage',
+        // The organization's own WhatsApp credentials (P05-06): access token and app secret.
+        'whatsapp.connection',
     ]);
 });
 

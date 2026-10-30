@@ -211,6 +211,8 @@ final readonly class ReminderMessages
             ReminderChannel::InApp => $recipient->userId !== null && $recipient->userId === $reminder->recipient_user_id,
             // Still verified, and still the number planned (a changed number is not texted).
             ReminderChannel::Sms => $recipient->phone !== null && $recipient->phone === $reminder->recipient_phone,
+            // Still opted in, at the number planned (P05-06): an opt-out counts at once.
+            ReminderChannel::WhatsApp => $recipient->whatsapp !== null && $recipient->whatsapp === $reminder->recipient_phone,
         };
     }
 

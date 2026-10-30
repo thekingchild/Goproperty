@@ -73,7 +73,7 @@ final readonly class TenantInvitations
     {
         return array_values(array_filter([
             $tenant->email !== null ? InvitationChannel::Email : null,
-            $this->whatsapp->available($this->context->get()) ? InvitationChannel::WhatsApp : null,
+            $this->whatsapp->available($this->context->get(), 'tenant_invitation') ? InvitationChannel::WhatsApp : null,
             InvitationChannel::Link,
         ]));
     }

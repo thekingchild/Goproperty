@@ -81,7 +81,7 @@ final readonly class OwnerInvitations
 
         return array_values(array_filter([
             $owner->email !== null && $owner->email !== '' ? InvitationChannel::Email : null,
-            $phone && $this->whatsapp->available($this->context->get()) ? InvitationChannel::WhatsApp : null,
+            $phone && $this->whatsapp->available($this->context->get(), 'owner_invitation') ? InvitationChannel::WhatsApp : null,
             $phone ? InvitationChannel::Link : null,
         ]));
     }

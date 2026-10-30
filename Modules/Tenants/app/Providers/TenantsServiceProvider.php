@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace Modules\Tenants\Providers;
 
 use App\Exports\ListExports;
+use App\Mail\Templates\Placeholder;
 use App\Models\User;
 use App\Navigation\PortalTab;
 use App\Navigation\PortalTabs;
 use App\Navigation\WorkspaceNavigation;
 use App\Navigation\WorkspaceNavItem;
+use App\Notifications\Channels\WhatsAppEvent;
+use App\Notifications\Channels\WhatsAppEvents;
 use App\Tenancy\Moves\BuildingRecordMovers;
 use App\Tenancy\Moves\MovedTenantsChanged;
 use App\Tenancy\PortalLanding;
@@ -24,6 +27,7 @@ use Modules\Payments\Events\PaymentConfirmed;
 use Modules\Tenants\Contracts\ImportedTenants;
 use Modules\Tenants\Contracts\OwnerTenants;
 use Modules\Tenants\Contracts\TenantDirectory;
+use Modules\Tenants\Contracts\TenantPagePanels;
 use Modules\Tenants\Contracts\TenantPortalAccess;
 use Modules\Tenants\Contracts\TenantReach;
 use Modules\Tenants\Handover\LeftPortalLinksRevoker;
@@ -39,6 +43,7 @@ use Modules\Tenants\Portal\LinkedTenantProfiles;
 use Modules\Tenants\Portal\TenantPortalAccessRecords;
 use Modules\Tenants\Profiles\OwnerTenantRecords;
 use Modules\Tenants\Profiles\TenantDirectoryService;
+use Modules\Tenants\Profiles\TenantPanelRegistry;
 use Modules\Tenants\Profiles\TenantReachRecords;
 use Nwidart\Modules\Support\ModuleServiceProvider;
 
@@ -89,11 +94,23 @@ final class TenantsServiceProvider extends ModuleServiceProvider
         $this->app->bind(OwnerTenants::class, OwnerTenantRecords::class);
         // Who the reminder engine may contact (imported tenants only once invited, P05-01).
         $this->app->bind(TenantReach::class, TenantReachRecords::class);
+        // Where other modules add panels to a tenant's record (P05-06: WhatsApp consent).
+        $this->app->singleton(TenantPagePanels::class, TenantPanelRegistry::class);
     }
 
     public function boot(): void
     {
         parent::boot();
+
+        // Portal invitations and sign-in links by the agency's WhatsApp (P03-01b; P05-06 maps them to templates).
+        $this->callAfterResolving(WhatsAppEvents::class, static function (WhatsAppEvents $events): void {
+            $name = new Placeholder('tenant.first_name', "The tenant's first name", 'Kemi');
+            $agency = new Placeholder('organization.name', "The agency's name", 'Adeyemi Realty Ltd');
+            $events->add(
+                new WhatsAppEvent('tenant_invitation', 'Portal access', 'Tenant portal invitation', [$name, $agency, new Placeholder('invitation_link', 'The invitation link (works once, for 14 days)', 'https://goproperty.ng/portal/invitations/…')], order: 20),
+                new WhatsAppEvent('tenant_sign_in_link', 'Portal access', 'One-time sign-in link', [$name, $agency, new Placeholder('sign_in_link', 'The sign-in link (works once, for 24 hours)', 'https://goproperty.ng/portal/sign-in/…')], order: 20),
+            );
+        });
 
         Gate::policy(TenantProfile::class, TenantProfilePolicy::class);
 

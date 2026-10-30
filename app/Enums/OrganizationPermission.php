@@ -79,6 +79,21 @@ enum OrganizationPermission: string
     case ManageOwnerStatements = 'owner_statements.manage';
 
     /**
+     * The organization's own WhatsApp Business account (P05-06,
+     * ARCHITECTURE.md § 6.7): its IDs, access token and app secret, the
+     * status webhook's verify token, disconnecting. Org-owners only: the
+     * docs keep the credentials "editable only by the org-owner".
+     */
+    case ManageWhatsAppConnection = 'whatsapp.connection';
+
+    /**
+     * Which of the agency's approved WhatsApp templates each message uses,
+     * how its variables are filled, each message's channel order, and
+     * syncing the templates from Meta (P05-06). Owners and administrators.
+     */
+    case ManageWhatsAppMessages = 'whatsapp.messages';
+
+    /**
      * Whether members keep this permission while their organization is
      * suspended or cancelled (OrganizationWriteGuard): reading, exporting,
      * paying the GoProperty subscription (a confirmed payment reactivates,
@@ -139,7 +154,9 @@ enum OrganizationPermission: string
             self::ModerateBuildingGroups,
             self::ManageImports,
             self::ManageHandovers,
-            self::ManageOwnerStatements => false,
+            self::ManageOwnerStatements,
+            self::ManageWhatsAppConnection,
+            self::ManageWhatsAppMessages => false,
         };
     }
 
@@ -167,7 +184,9 @@ enum OrganizationPermission: string
      * applications and compliance documents (`organization.compliance`: they
      * change the organization's compliance standing, so staff never apply,
      * upload or submit for a customer; seeing them, `compliance.view`, stays
-     * allowed). Expenses (P03-12) are the organization's own
+     * allowed), and the organization's own WhatsApp credentials
+     * (`whatsapp.connection`, P05-06: access token and app secret; choosing
+     * templates for messages, `whatsapp.messages`, stays allowed). Expenses (P03-12) are the organization's own
      * bookkeeping, not tenant money: none of their permissions is blocked;
      * archiving one (a `delete` ability), adding or archiving a receipt and
      * opening a receipt file are refused by ExpensePolicy instead. Read-only
@@ -194,7 +213,8 @@ enum OrganizationPermission: string
             self::MatchStatements,
             self::ManageImports,
             self::ManageHandovers,
-            self::ManageOwnerStatements => true,
+            self::ManageOwnerStatements,
+            self::ManageWhatsAppConnection => true,
             self::OpenWorkspace,
             self::UpdateOrganization,
             self::ViewSettings,
@@ -228,7 +248,8 @@ enum OrganizationPermission: string
             self::ModerateBuildingGroups,
             self::ViewReports,
             self::ViewImports,
-            self::ViewOwnerStatements => false,
+            self::ViewOwnerStatements,
+            self::ManageWhatsAppMessages => false,
         };
     }
 
@@ -255,7 +276,7 @@ enum OrganizationPermission: string
             self::AssignAgents => 'Choose which agents work on a building (an assigned agent sees only their buildings)',
             self::ViewTenants => 'See tenants\' details (ID numbers masked)',
             self::ManageTenants => 'Add, edit, archive and restore tenants',
-            self::ManageTenantPortalAccess => 'Invite tenants to the portal, send or revoke their invitations, create one-time sign-in links and confirm their phone numbers in person',
+            self::ManageTenantPortalAccess => 'Invite tenants to the portal, send or revoke their invitations, create one-time sign-in links, confirm their phone numbers in person and record their consent to WhatsApp messages',
             self::ViewLeases => 'See leases',
             self::ManageLeases => 'Create, renew and end leases',
             self::ViewBills => 'See bills',
@@ -285,6 +306,8 @@ enum OrganizationPermission: string
             self::ManageImports => 'Import data from spreadsheets: upload, dry run, commit and roll back',
             self::ViewOwnerStatements => 'See property owners\' monthly statements: rent and utilities collected, commission, charged expenses, the net due to the owner and whether each month is settled',
             self::ManageOwnerStatements => 'Set an owner\'s commission, whether utilities pass to them and whether they see tenants\' contact details, and mark a month settled (paid to the owner, with the date and a reference) or unsettled again',
+            self::ManageWhatsAppConnection => 'Connect the organization\'s own WhatsApp Business account (its IDs, access token and app secret), set up its status webhook and disconnect it',
+            self::ManageWhatsAppMessages => 'Sync the organization\'s WhatsApp templates from Meta, choose which template each message uses and what fills its variables, and set each message\'s channel order (WhatsApp, then SMS)',
             self::ManageHandovers => 'Hand buildings to another organization for management or take them over, give or withdraw notice, and settle the moving tenants\' credit (management handovers)',
         };
     }

@@ -18,6 +18,7 @@ use Modules\Payments\Contracts\PaymentSource;
 use Modules\Payments\Credit\TenantCredit;
 use Modules\Payments\Models\Payment;
 use Modules\Payments\Models\PaymentAllocation;
+use Modules\Payments\Notices\PaymentNoticeEvent;
 use Modules\Payments\Notices\TenantNotices;
 use Modules\Properties\Contracts\PropertyDirectory;
 use Modules\Properties\Contracts\UnitDirectory;
@@ -86,7 +87,7 @@ final readonly class ReceiptDetails
             'confirmed_by' => self::confirmedBy($payment),
             'confirmed_at' => ($payment->confirmed_at ?? CarbonImmutable::now())->toIso8601String(),
             // Imported history is never sent to the tenant (P03-13b).
-            'sent_via' => $tenant !== null && $payment->source !== PaymentSource::Import ? $this->notices->channelsFor($tenant, $organization)->printed() : [],
+            'sent_via' => $tenant !== null && $payment->source !== PaymentSource::Import ? $this->notices->channelsFor($tenant, $organization, PaymentNoticeEvent::Confirmed)->printed() : [],
         ];
     }
 

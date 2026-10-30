@@ -1,0 +1,28 @@
+{
+    "name": "goproperty/whatsapp",
+    "description": "WhatsApp messages from the organization's own WhatsApp Business account through Meta's Cloud API (ARCHITECTURE.md § 6.7)",
+    "authors": [
+        {
+            "name": "GoProperty",
+            "email": ""
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [],
+            "aliases": {
+
+            }
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Modules\\WhatsApp\\": "app/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Modules\\WhatsApp\\Tests\\": "tests/"
+        }
+    }
+}

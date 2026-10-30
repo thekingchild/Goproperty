@@ -9,6 +9,7 @@ use App\Exports\ListExports;
 use App\Models\User;
 use App\Navigation\WorkspaceNavigation;
 use App\Navigation\WorkspaceNavItem;
+use App\Notifications\Channels\WhatsAppEvents;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Livewire;
@@ -38,6 +39,7 @@ use Modules\Payments\Lists\ReceiptList;
 use Modules\Payments\Models\Payment;
 use Modules\Payments\Models\PaymentProof;
 use Modules\Payments\Models\Receipt;
+use Modules\Payments\Notices\PaymentNoticeEvent;
 use Modules\Payments\Payments\OwnerCollectionRecords;
 use Modules\Payments\Payments\Recorder;
 use Modules\Payments\Policies\PaymentPolicy;
@@ -119,6 +121,11 @@ final class PaymentsServiceProvider extends ModuleServiceProvider
     public function boot(): void
     {
         parent::boot();
+
+        // The payment notices a phone-only tenant gets by the agency's WhatsApp (P05-06 maps them to templates).
+        $this->callAfterResolving(WhatsAppEvents::class, static function (WhatsAppEvents $events): void {
+            $events->add(...array_map(static fn (PaymentNoticeEvent $event) => $event->whatsAppDefinition(), PaymentNoticeEvent::cases()));
+        });
 
         Gate::policy(Payment::class, PaymentPolicy::class);
         Gate::policy(Receipt::class, ReceiptPolicy::class);

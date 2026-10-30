@@ -48,12 +48,12 @@ final readonly class TenantNotices
         private WhatsAppSender $whatsapp,
     ) {}
 
-    /** Where this tenant hears from the organization now. */
-    public function channelsFor(TenantSummary $tenant, Organization $organization): NoticeChannels
+    /** Where this tenant hears from the organization now (about $event, by WhatsApp: the cloud driver needs a template for it). */
+    public function channelsFor(TenantSummary $tenant, Organization $organization, ?PaymentNoticeEvent $event = null): NoticeChannels
     {
         $user = $tenant->userId !== null ? User::query()->find($tenant->userId) : null;
         $mailTo = self::address($user?->email) ?? self::address($tenant->email);
-        $phone = $mailTo === null && trim($tenant->phone) !== '' && $this->whatsapp->available($organization) ? $tenant->phone : null;
+        $phone = $mailTo === null && trim($tenant->phone) !== '' && $this->whatsapp->available($organization, $event?->whatsAppEvent()) ? $tenant->phone : null;
 
         return new NoticeChannels($user, $mailTo, $phone);
     }
@@ -74,7 +74,7 @@ final readonly class TenantNotices
             return null;
         }
 
-        $channels = $this->channelsFor($tenant, $organization);
+        $channels = $this->channelsFor($tenant, $organization, $event);
 
         try {
             $notice = DB::transaction(function () use ($payment, $event, $channels): PaymentNotice {

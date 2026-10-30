@@ -18,6 +18,7 @@ use Modules\Leasing\Contracts\TenantLeases;
 use Modules\Properties\Contracts\BuildingAccess;
 use Modules\Properties\Contracts\PropertyDirectory;
 use Modules\Properties\Contracts\UnitDirectory;
+use Modules\Tenants\Contracts\TenantPagePanels;
 use Modules\Tenants\Models\TenantProfile;
 use Modules\Tenants\Profiles\MovedTenantArchive;
 use Modules\Tenants\Profiles\TenantProfiles;
@@ -83,7 +84,7 @@ final class TenantShow extends Component
         $this->notice = __(':name was restored.', ['name' => $tenant->fullName()]);
     }
 
-    public function render(OrganizationContext $context, UnitDirectory $unitDirectory, PropertyDirectory $propertyDirectory, BuildingAccess $access): View
+    public function render(OrganizationContext $context, UnitDirectory $unitDirectory, PropertyDirectory $propertyDirectory, BuildingAccess $access, TenantPagePanels $panels): View
     {
         $tenant = $this->tenant();
         // Checked on every render, not only when the page opened.
@@ -103,6 +104,8 @@ final class TenantShow extends Component
             'organization' => $context->get(),
             'tenant' => $tenant,
             'leases' => $leases,
+            // Other modules' panels (Contracts\TenantPagePanels; P05-06: WhatsApp consent).
+            'panels' => $panels->all(),
             'units' => $unitIds === [] ? [] : $unitDirectory->findMany($unitIds),
             'buildings' => $buildingIds === [] ? [] : $propertyDirectory->findMany($buildingIds),
             'canAddLease' => ! $tenant->trashed() && Route::has('workspace.leases.create')

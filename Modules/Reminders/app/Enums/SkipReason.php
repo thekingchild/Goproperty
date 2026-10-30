@@ -35,6 +35,13 @@ enum SkipReason: string
     /** The person turned this channel off for reminders (Settings → Notifications, P05-02). */
     case OptedOut = 'opted_out';
 
+    /**
+     * WhatsApp could not be used when it was time to send (the template was
+     * paused, the connection stopped working, the tenant opted out), so the
+     * event's next channel was used instead (P05-06).
+     */
+    case FellBack = 'fell_back';
+
     /** The organization was suspended or cancelled. */
     case OrganizationInactive = 'organization_inactive';
 }

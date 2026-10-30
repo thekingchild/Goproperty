@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Modules\Payments\Notices;
 
+use App\Mail\Templates\Placeholder;
+use App\Notifications\Channels\WhatsAppEvent;
+
 /**
  * The payment transitions the tenant is told about (P03-10b;
  * ARCHITECTURE.md § 6.4 "notifications on every transition"), each once
@@ -31,6 +34,36 @@ enum PaymentNoticeEvent: string
             self::Rejected => 'payment_rejected',
             self::ReceiptVoided => 'receipt_voided',
         };
+    }
+
+    /**
+     * What the agency's WhatsApp settings offer for this notice (P05-06):
+     * the values TenantNotices fills in. Never SMS (P03 decision 3).
+     */
+    public function whatsAppDefinition(): WhatsAppEvent
+    {
+        $agency = new Placeholder('agency.name', "The agency's name", 'Adeyemi Realty');
+        $amount = new Placeholder('payment.amount', 'The amount paid', '₦1,500,000');
+        $receipt = new Placeholder('receipt.number', "The receipt's number", 'RCT-AR-000123');
+        $reason = new Placeholder('reason', 'Why (the rejection or void reason)', 'The transfer was not found on the bank statement');
+
+        return new WhatsAppEvent(
+            key: $this->whatsAppEvent(),
+            group: 'Payments',
+            label: match ($this) {
+                self::Recorded => 'Payment recorded (waiting for confirmation)',
+                self::Confirmed => 'Payment confirmed: receipt issued',
+                self::Rejected => 'Payment could not be confirmed',
+                self::ReceiptVoided => 'Receipt voided',
+            },
+            placeholders: match ($this) {
+                self::Recorded => [$agency, $amount],
+                self::Confirmed => [$agency, $amount, $receipt],
+                self::Rejected => [$agency, $amount, $reason],
+                self::ReceiptVoided => [$agency, $amount, $receipt, $reason],
+            },
+            order: 30,
+        );
     }
 
     /** @param  array<string, string>  $values */

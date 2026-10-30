@@ -98,6 +98,14 @@ use Modules\Tickets\Models\Ticket;
 use Modules\Tickets\Models\TicketMessage;
 use Modules\Tickets\Models\TicketNotice;
 use Modules\Tickets\Models\TicketStatusChange;
+use Modules\WhatsApp\Enums\ConnectionStatus as WhatsAppConnectionStatus;
+use Modules\WhatsApp\Enums\OptInSource;
+use Modules\WhatsApp\Enums\TemplateCategory;
+use Modules\WhatsApp\Enums\TemplateStatus;
+use Modules\WhatsApp\Models\ChannelMapping;
+use Modules\WhatsApp\Models\WhatsAppConnection;
+use Modules\WhatsApp\Models\WhatsAppOptIn;
+use Modules\WhatsApp\Models\WhatsAppTemplate;
 
 /**
  * Every organization-owned model (BelongsToOrganization) and how to make one
@@ -390,7 +398,51 @@ final class OrganizationScopedModels
                 'provider' => 'log',
                 'dedupe_key' => 'probe:'.Str::ulid(),
             ])->save()),
+            // The organization's own WhatsApp (P05-06): WhatsAppConnections, TemplateSync, ChannelMappings and WhatsAppOptIns are the writers.
+            WhatsAppConnection::class => fn (): Model => self::whatsappConnection(),
+            WhatsAppTemplate::class => fn (): Model => self::whatsappTemplate(),
+            ChannelMapping::class => fn (): Model => tap(new ChannelMapping, fn (ChannelMapping $mapping): bool => $mapping->forceFill([
+                'event_key' => 'probe.'.Str::lower(Str::random(12)),
+                'channel_order' => ['whatsapp', 'sms'],
+                'whatsapp_template_id' => self::whatsappTemplate()->id,
+                'variable_map' => ['body.1' => 'recipient.name'],
+                'active' => true,
+            ])->save()),
+            WhatsAppOptIn::class => fn (): Model => tap(new WhatsAppOptIn, fn (WhatsAppOptIn $optIn): bool => $optIn->forceFill([
+                'tenant_profile_id' => TenantProfile::factory()->create()->id,
+                'phone' => '+2348031112222',
+                'opted_in_at' => now(),
+                'source' => OptInSource::AgentRecorded,
+            ])->save()),
         ];
+    }
+
+    /** The current organization's WhatsApp connection (one per organization), made if missing. */
+    private static function whatsappConnection(): WhatsAppConnection
+    {
+        return WhatsAppConnection::query()->first() ?? tap(new WhatsAppConnection, fn (WhatsAppConnection $connection): bool => $connection->forceFill([
+            'waba_id' => '1000000001',
+            'phone_number_id' => '1100000001',
+            'access_token' => 'EAAGprobe'.Str::random(30),
+            'access_token_last4' => 'robe',
+            'app_secret' => Str::random(32),
+            'webhook_ulid' => strtolower((string) Str::ulid()),
+            'webhook_verify_token' => Str::random(40),
+            'status' => WhatsAppConnectionStatus::Active,
+        ])->save());
+    }
+
+    private static function whatsappTemplate(): WhatsAppTemplate
+    {
+        return tap(new WhatsAppTemplate, fn (WhatsAppTemplate $template): bool => $template->forceFill([
+            'organization_whatsapp_connection_id' => self::whatsappConnection()->id,
+            'name' => 'probe_'.Str::lower(Str::random(10)),
+            'language' => 'en_US',
+            'category' => TemplateCategory::Utility,
+            'status' => TemplateStatus::Approved,
+            'components' => [['type' => 'BODY', 'text' => 'Hello {{1}}']],
+            'variable_count' => 1,
+        ])->save());
     }
 
     /** A sent ticket for a new unit, in the current organization. */

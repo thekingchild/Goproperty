@@ -8,6 +8,7 @@ use App\Enums\OrganizationPermission;
 use App\Enums\OrganizationRole;
 use App\Members\Members;
 use App\Models\User;
+use App\Notifications\Channels\WhatsAppRouting;
 use App\Notifications\Preferences\NotificationPreferences;
 use Modules\Properties\Contracts\BuildingAccess;
 use Modules\Reminders\Enums\ReminderChannel;
@@ -26,7 +27,10 @@ use Modules\Tenants\Contracts\TenantReach;
  *   a link sent to it by WhatsApp, or confirmed by the agency in person;
  *   ARCHITECTURE.md § 6.7: unverified numbers are never texted). A tenant
  *   with no account is never texted. Channels the account turned off for
- *   reminders (App\Notifications\Preferences) are left out.
+ *   reminders (App\Notifications\Preferences) are left out. By the
+ *   agency's WhatsApp (P05-06) at the number the tenant agreed to (Core's
+ *   WhatsAppRouting: an open opt-in at a number still theirs), portal
+ *   account or not; whether a rung uses it is the planner's choice.
  * - **Staff** (renewal alerts): the agents assigned to the lease's building
  *   who hold `leases.manage`; when it has none, the organization's owners
  *   and administrators who hold it. In the app and by email.
@@ -39,6 +43,7 @@ final readonly class ReminderRecipients
         private Members $members,
         private BuildingAccess $access,
         private NotificationPreferences $preferences,
+        private WhatsAppRouting $whatsapp,
     ) {}
 
     /**
@@ -58,6 +63,7 @@ final readonly class ReminderRecipients
         $summaries = $this->tenants->findMany($contactable);
         $userIds = array_values(array_filter(array_map(static fn ($tenant): ?int => $tenant->userId, $summaries)));
         $users = $userIds === [] ? collect() : User::query()->whereKey($userIds)->get()->keyBy('id');
+        $whatsapp = $this->whatsapp->optedIn(array_keys($summaries));
         $recipients = [];
 
         foreach ($summaries as $id => $tenant) {
@@ -75,6 +81,7 @@ final readonly class ReminderRecipients
                 email: self::address($user?->email) ?? self::address($tenant->email),
                 phone: $user !== null && $user->hasVerifiedPhone() ? $user->phone : null,
                 off: $this->off($user),
+                whatsapp: $whatsapp[$id] ?? null,
             );
 
             if ($recipient->channels() !== []) {

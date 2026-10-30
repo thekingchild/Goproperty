@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace Modules\Properties\Providers;
 
 use App\Exports\ListExports;
+use App\Mail\Templates\Placeholder;
 use App\Members\MemberRemoved;
 use App\Models\User;
 use App\Navigation\WorkspaceNavigation;
 use App\Navigation\WorkspaceNavItem;
+use App\Notifications\Channels\WhatsAppEvent;
+use App\Notifications\Channels\WhatsAppEvents;
 use App\Tenancy\Moves\BuildingRecordMovers;
 use App\Tenancy\PortalLanding;
 use Illuminate\Support\Facades\Event;
@@ -118,6 +121,15 @@ final class PropertiesServiceProvider extends ModuleServiceProvider
     public function boot(): void
     {
         parent::boot();
+
+        // Owner portal invitations by the agency's WhatsApp (P03-15; P05-06 maps them to a template).
+        $this->callAfterResolving(WhatsAppEvents::class, static function (WhatsAppEvents $events): void {
+            $events->add(new WhatsAppEvent('owner_invitation', 'Portal access', 'Owner portal invitation', [
+                new Placeholder('owner.first_name', "The owner's first name", 'Tunde'),
+                new Placeholder('organization.name', "The agency's name", 'Adeyemi Realty Ltd'),
+                new Placeholder('invitation_link', 'The invitation link', 'https://goproperty.ng/owner/invitations/…'),
+            ], order: 20));
+        });
 
         Gate::policy(OwnerProfile::class, OwnerProfilePolicy::class);
         Gate::policy(Property::class, PropertyPolicy::class);

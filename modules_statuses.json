@@ -12,5 +12,6 @@
     "Handovers": true,
     "OwnerStatements": true,
     "Tickets": true,
-    "Reminders": true
+    "Reminders": true,
+    "WhatsApp": true
 }

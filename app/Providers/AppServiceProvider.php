@@ -12,6 +12,10 @@ use App\Members\MemberList;
 use App\Navigation\PortalTabs;
 use App\Navigation\SettingsTabs;
 use App\Navigation\WorkspaceNavigation;
+use App\Notifications\Channels\NoWhatsAppRouting;
+use App\Notifications\Channels\WhatsAppEvents;
+use App\Notifications\Channels\WhatsAppRouting;
+use App\Notifications\Preferences\NotificationSettingsPanels;
 use App\Settings\SettingDefinition;
 use App\Settings\SettingsRegistry;
 use App\Sms\GoTextSmsSender;
@@ -79,11 +83,16 @@ class AppServiceProvider extends ServiceProvider
         });
 
         // The organization's own WhatsApp (ARCHITECTURE.md § 6.7): the log
-        // stand-in until P05-06 adds the Cloud API driver (P03 decision 3).
+        // stand-in (P03 decision 3) or off here; the WhatsApp module puts
+        // its Cloud API driver in place for `cloud` (P05-06), and binds its
+        // routing for reminders and the events catalogue's readers.
         $this->app->singleton(WhatsAppSender::class, static fn (): WhatsAppSender => match (config('services.whatsapp.driver')) {
             'log' => new LogWhatsAppSender,
             default => new NoWhatsAppSender,
         });
+        $this->app->singleton(WhatsAppEvents::class);
+        $this->app->singleton(NotificationSettingsPanels::class);
+        $this->app->bindIf(WhatsAppRouting::class, NoWhatsAppRouting::class);
 
         // GoProperty's one SMS account (P05-02, docs/plans/sms-provider-2026-10-29.md):
         // GoText only in production, so no other environment sends a real

@@ -63,8 +63,15 @@ return [
         'base_url' => env('GOTEXT_BASE_URL', 'https://app.gotext.ng'),
     ],
 
+    // The organization's own WhatsApp (ARCHITECTURE.md § 6.7). `cloud`: Meta's
+    // Cloud API through each organization's connection (Modules\WhatsApp),
+    // Meta called only in production; `log`: the stand-in; `none`: off.
     'whatsapp' => [
         'driver' => env('WHATSAPP_DRIVER', 'log'),
+        'graph_url' => env('WHATSAPP_GRAPH_URL', 'https://graph.facebook.com'),
+        'graph_version' => env('WHATSAPP_GRAPH_VERSION', 'v21.0'),
+        // The plans with WhatsApp messages (BILLING_PAYMENTS.md § 1.2: Growth and above).
+        'plans' => ['growth', 'scale', 'enterprise'],
     ],
 
     'slack' => [

@@ -14,6 +14,8 @@ use Livewire\Component;
  * are always sent. SMS is offered only once the phone number is verified
  * (ARCHITECTURE.md § 6.7: unverified numbers are never texted). The
  * account's own choice: never changed during a GoProperty support session.
+ * Below the form, panels other modules add (NotificationSettingsPanels;
+ * P05-06: WhatsApp messages from each agency the account rents from).
  */
 new #[Title('Notification settings')] class extends Component {
     public bool $remindersByEmail = true;
@@ -58,5 +60,11 @@ new #[Title('Notification settings')] class extends Component {
 
             <flux:button variant="primary" type="submit" data-test="save-notifications">{{ __('Save') }}</flux:button>
         </form>
+
+        @foreach (app(\App\Notifications\Preferences\NotificationSettingsPanels::class)->all() as $panel)
+            <div class="mt-8">
+                @livewire($panel, key('notification-panel-'.$panel))
+            </div>
+        @endforeach
     </x-pages::settings.layout>
 </section>

@@ -1,0 +1,11 @@
+{
+    "name": "WhatsApp",
+    "alias": "whatsapp",
+    "description": "WhatsApp messages from the organization's own WhatsApp Business account through Meta's Cloud API: templates, event mapping, status webhooks, tenant opt-in (ARCHITECTURE.md § 6.7)",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\WhatsApp\\Providers\\WhatsAppServiceProvider"
+    ],
+    "files": []
+}

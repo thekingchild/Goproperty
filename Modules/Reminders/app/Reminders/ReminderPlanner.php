@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Reminders\Reminders;
 
 use App\Enums\OrganizationStatus;
+use App\Notifications\Channels\WhatsAppRouting;
 use App\Tenancy\OrganizationContext;
 use Carbon\CarbonImmutable;
 use Closure;
@@ -47,6 +48,13 @@ use Modules\Reminders\Models\Reminder;
  * (weekly: T−3 and closer; monthly: T−14 and closer); a bill whose period
  * is shorter than a week gets no reminders at all (default 2).
  *
+ * Phone channels (P05-06): at most one of SMS and WhatsApp per rung and
+ * tenant, the first in the event's channel order (Core's WhatsAppRouting;
+ * `["sms"]` unless the agency set WhatsApp up) that can carry it now —
+ * WhatsApp when the tenant opted in and the event's template can be sent,
+ * SMS on an SMS rung to a verified number. fallBack() plans the next one
+ * when WhatsApp turns out not to work for a reminder.
+ *
  * Safe to run again (AGENT.md § 3 rule 6): each row's `dedupe_key` is
  * unique per organization; keys already planned are read first and a
  * concurrent run's row is caught by the unique index.
@@ -65,6 +73,7 @@ final readonly class ReminderPlanner
         private EndingLeases $ending,
         private CycleCalculator $calendar,
         private ReminderRecipients $recipients,
+        private WhatsAppRouting $whatsapp,
     ) {}
 
     /**
@@ -281,22 +290,30 @@ final readonly class ReminderPlanner
     }
 
     /**
-     * One pending row per recipient and channel, unless planned already.
+     * One pending row per recipient and channel, unless planned already: email
+     * and in-app as the recipient has them, and at most one phone channel.
      *
      * @param  list<Recipient>  $recipients
      */
     private function write(CarbonImmutable $today, Rung $rung, array $recipients): void
     {
         $rows = [];
+        $phoneKeys = [];
 
         foreach ($recipients as $recipient) {
             foreach ($recipient->channels() as $channel) {
-                // SMS only on its own rungs (default 14).
-                if ($channel === ReminderChannel::Sms && ! in_array($rung->days, $rung->type->smsRungs(), true)) {
-                    continue;
+                if (! $channel->isPhone()) {
+                    $rows[$rung->dedupeKey($channel->value, $recipient->key)] = [$recipient, $channel];
                 }
+            }
 
-                $rows[$rung->dedupeKey($channel->value, $recipient->key)] = [$recipient, $channel];
+            $phone = $this->phoneChannel($rung, $recipient);
+
+            if ($phone !== null) {
+                $key = $rung->dedupeKey($phone->value, $recipient->key);
+                $rows[$key] = [$recipient, $phone];
+                // Planned by an earlier run on another phone channel (before a template was approved, say): still once.
+                $phoneKeys[$key] = [$rung->dedupeKey(ReminderChannel::Sms->value, $recipient->key), $rung->dedupeKey(ReminderChannel::WhatsApp->value, $recipient->key)];
             }
         }
 
@@ -304,7 +321,13 @@ final readonly class ReminderPlanner
             return;
         }
 
-        $planned = Reminder::query()->whereIn('dedupe_key', array_keys($rows))->pluck('dedupe_key')->all();
+        $planned = Reminder::query()->whereIn('dedupe_key', array_values(array_unique([...array_keys($rows), ...array_merge([], ...array_values($phoneKeys))])))->pluck('dedupe_key')->all();
+
+        foreach ($phoneKeys as $key => $either) {
+            if (array_intersect($either, $planned) !== []) {
+                unset($rows[$key]);
+            }
+        }
 
         foreach (array_diff_key($rows, array_flip($planned)) as $key => [$recipient, $channel]) {
             $reminder = new Reminder;
@@ -322,7 +345,11 @@ final readonly class ReminderPlanner
                 'recipient_user_id' => $recipient->userId,
                 'recipient_tenant_profile_id' => $recipient->tenantProfileId,
                 'recipient_email' => $recipient->email,
-                'recipient_phone' => $channel === ReminderChannel::Sms ? $recipient->phone : null,
+                'recipient_phone' => match ($channel) {
+                    ReminderChannel::Sms => $recipient->phone,
+                    ReminderChannel::WhatsApp => $recipient->whatsapp,
+                    default => null,
+                },
                 'send_at' => ReminderClock::sendAt($today),
                 'status' => ReminderStatus::Pending,
                 'dedupe_key' => (string) $key,
@@ -336,6 +363,93 @@ final readonly class ReminderPlanner
                 continue;
             }
         }
+    }
+
+    /**
+     * The phone channel this rung goes by for the recipient: the first of
+     * the event's channel order that can carry it now (P05-06), or none.
+     * SMS only on its own rungs (default 14), to a verified number not
+     * turned off; WhatsApp only to a tenant who opted in, when the event's
+     * template can be sent.
+     */
+    private function phoneChannel(Rung $rung, Recipient $recipient): ?ReminderChannel
+    {
+        $channels = $recipient->channels();
+
+        if (! in_array(ReminderChannel::Sms, $channels, true) && ! in_array(ReminderChannel::WhatsApp, $channels, true)) {
+            return null;
+        }
+
+        $event = ReminderEvents::key($rung->type, $rung->days, $rung->remindableType === Reminder::LEASE);
+
+        foreach ($this->whatsapp->order($event) as $name) {
+            if ($name === ReminderChannel::Sms->value && in_array(ReminderChannel::Sms, $channels, true) && in_array($rung->days, $rung->type->smsRungs(), true)) {
+                return ReminderChannel::Sms;
+            }
+
+            if ($name === ReminderChannel::WhatsApp->value && in_array(ReminderChannel::WhatsApp, $channels, true) && $this->whatsapp->usable($event)) {
+                return ReminderChannel::WhatsApp;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * After a WhatsApp reminder that could not reach the tenant (P05-06):
+     * the next channel of its event's order, planned to go now, once per
+     * rung — SMS on an SMS rung to a verified number not turned off. Null
+     * when there is none, or it was planned already. Email and in-app
+     * reminders went on their own.
+     */
+    public function fallBack(Reminder $from, CarbonImmutable $now): ?Reminder
+    {
+        $tenantId = $from->recipient_tenant_profile_id;
+
+        if ($from->channel !== ReminderChannel::WhatsApp || $tenantId === null) {
+            return null;
+        }
+
+        $days = abs($from->offset_days);
+        $order = $this->whatsapp->order(ReminderEvents::key($from->type, $days, $from->remindable_type === Reminder::LEASE));
+        $position = array_search(ReminderChannel::WhatsApp->value, $order, true);
+        $next = $position === false ? [] : array_slice($order, $position + 1);
+
+        if (! in_array(ReminderChannel::Sms->value, $next, true) || ! in_array($days, $from->type->smsRungs(), true)) {
+            return null;
+        }
+
+        $recipient = $this->recipients->tenants([$tenantId])[$tenantId] ?? null;
+
+        if ($recipient === null || $recipient->key !== $from->recipient || ! in_array(ReminderChannel::Sms, $recipient->channels(), true)) {
+            return null;
+        }
+
+        $parts = explode('|', $from->dedupe_key);
+        $parts[2] = ReminderChannel::Sms->value;
+        $key = implode('|', $parts);
+
+        if (Reminder::query()->where('dedupe_key', $key)->exists()) {
+            return null;
+        }
+
+        $reminder = $from->replicate(['id', 'status', 'skip_reason', 'sent_at', 'delivered_at', 'notification_id', 'dedupe_key', 'created_at', 'updated_at']);
+        $reminder->forceFill([
+            'channel' => ReminderChannel::Sms,
+            'recipient_phone' => $recipient->phone,
+            'send_at' => $now,
+            'status' => ReminderStatus::Pending,
+            'dedupe_key' => $key,
+            'notification_id' => (string) Str::uuid(),
+        ]);
+
+        try {
+            $reminder->save();
+        } catch (UniqueConstraintViolationException) {
+            return null;
+        }
+
+        return $reminder;
     }
 
     /**
