@@ -147,7 +147,8 @@ it('makes the organization read-only when suspended or cancelled and restores it
         ->and(acmeSubscription($this->acme)->organization_suspended)->toBeFalse();
 
     $entry = AuditEntry::query()->where('event', 'subscription.suspended')->sole();
-    expect($entry->properties['organization_status'])->toBe(['from' => 'active', 'to' => 'suspended'])
+    // toEqual: MySQL's JSON column may reorder the keys.
+    expect($entry->properties['organization_status'])->toEqual(['from' => 'active', 'to' => 'suspended'])
         ->and(AuditEntry::query()->where('log_name', 'customers')->count())->toBe(0);
 
     // Cancelled: closed, data kept; reactivated and paid: open again.
