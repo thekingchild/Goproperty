@@ -10,6 +10,9 @@ use App\Enums\InvitationStatus;
 use App\Models\Invitation;
 use App\Models\Organization;
 use App\Models\User;
+use App\Plans\Feature;
+use App\Plans\PlanGate;
+use App\Plans\PlanUsage;
 use App\Rules\NigerianMobile;
 use App\Support\PhoneNumber;
 use App\Tenancy\OrganizationContext;
@@ -53,6 +56,8 @@ final readonly class InvitationAcceptance
         private AccessLog $accessLog,
         private MemberAudit $audit,
         private WorkspaceLanding $landing,
+        private PlanGate $plans,
+        private PlanUsage $usage,
     ) {}
 
     /**
@@ -194,6 +199,10 @@ final readonly class InvitationAcceptance
                 }
 
                 $organization = $this->context->get();
+
+                // Members only: this invitation was counted when it was sent; a smaller plan since may have no room left (P06-01b).
+                $this->plans->ensureRoomFor(Feature::StaffUsers, $organization, $this->usage->members());
+
                 $user = $account($invitation);
 
                 $user->joinOrganization($organization, ...$invitation->roleEnums());

@@ -13,6 +13,9 @@ use App\Models\Membership;
 use App\Models\Organization;
 use App\Models\User;
 use App\Notifications\MemberInvitation;
+use App\Plans\Feature;
+use App\Plans\PlanGate;
+use App\Plans\PlanLimitReached;
 use App\Tenancy\OrganizationContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -57,6 +60,7 @@ final readonly class MemberInvitations
     public function __construct(
         private OrganizationContext $context,
         private MemberAudit $audit,
+        private PlanGate $plans,
     ) {}
 
     /**
@@ -90,6 +94,9 @@ final readonly class MemberInvitations
             if (Invitation::query()->where('kind', InvitationKind::User)->where('email', $email)->where('status', InvitationStatus::Pending)->where('expires_at', '>', now())->exists()) {
                 throw new MemberChangeRefused('That address already has an invitation waiting. Send it again from the list instead.');
             }
+
+            // The plan's staff users, under the organization's lock (P06-01b; PlanGate also refuses the call).
+            $this->ensureStaffRoom($organization);
 
             $this->throttle($actor, $email);
 
@@ -137,6 +144,11 @@ final readonly class MemberInvitations
 
             if (! in_array($locked->status, [InvitationStatus::Pending, InvitationStatus::Expired], true) || $locked->email === null) {
                 throw new MemberChangeRefused('This invitation was already used or revoked. Invite the person again instead.');
+            }
+
+            // An expired invitation counts again once sent again (P06-01b).
+            if ($locked->status === InvitationStatus::Expired || ($locked->expires_at !== null && $locked->expires_at->isPast())) {
+                $this->ensureStaffRoom($organization);
             }
 
             if ($this->isMember($locked->email)) {
@@ -198,6 +210,16 @@ final readonly class MemberInvitations
 
             return $locked;
         });
+    }
+
+    /** @throws MemberChangeRefused */
+    private function ensureStaffRoom(Organization $organization): void
+    {
+        try {
+            $this->plans->ensureRoomFor(Feature::StaffUsers, $organization);
+        } catch (PlanLimitReached $refused) {
+            throw new MemberChangeRefused($refused->getMessage());
+        }
     }
 
     public static function hash(#[SensitiveParameter] string $token): string

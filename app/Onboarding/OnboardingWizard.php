@@ -9,13 +9,14 @@ use App\Enums\OnboardingStep;
 use App\Enums\OrganizationStatus;
 use App\Enums\TransactionTier;
 use App\Marketing\Plan;
-use App\Marketing\PlanCatalogue;
 use App\Models\Organization;
 use App\Models\OrganizationOnboarding;
 use App\Models\User;
 use App\Sms\Credits\SmsCredits;
+use App\Subscriptions\SubscriptionService;
 use App\Support\Money;
 use App\Tenancy\OrganizationContext;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -29,8 +30,10 @@ use Illuminate\Support\Facades\DB;
  * Boundaries with later tasks:
  * - Tier 2/3 is recorded as requested; the organization keeps its approved
  *   tier (Tier 1) until compliance approves documents (P01-03).
- * - The plan is stored as `organizations.signup_plan_key` with a 14-day
- *   trial until SaaS billing creates the subscription (P06-01).
+ * - The plan step starts the `trialing` subscription (P06-01b, through
+ *   SubscriptionService) on the chosen plan, for the plan's trial days from
+ *   the first choice; `organizations.signup_plan_key` / `trial_ends_at`
+ *   keep the signup record.
  * - Collections and data can only be put off for now; their checklist
  *   items stay pending until those features mark them done.
  */
@@ -39,8 +42,8 @@ final readonly class OnboardingWizard
     public function __construct(
         private OrganizationContext $context,
         private OnboardingChecklist $checklist,
-        private PlanCatalogue $plans,
         private SmsCredits $smsCredits,
+        private SubscriptionService $subscriptions,
     ) {}
 
     /** The wizard state of the current organization, or null for one made outside signup. */
@@ -96,8 +99,10 @@ final readonly class OnboardingWizard
         $this->save(OnboardingStep::Plan, function () use ($by, $plan): void {
             $organization = $this->organization();
             $organization->signup_plan_key = $plan->key;
-            $organization->trial_ends_at ??= now()->addDays($this->plans->trialDays());
+            $organization->trial_ends_at ??= now()->addDays($plan->trialDays);
             $organization->save();
+
+            $this->subscriptions->start($by, $plan, CarbonImmutable::instance($organization->trial_ends_at));
 
             $this->checklist->complete(ChecklistItem::Plan, $by, ['plan' => $plan->key]);
         });

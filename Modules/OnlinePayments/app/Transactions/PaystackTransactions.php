@@ -71,7 +71,7 @@ final readonly class PaystackTransactions
     {
         $connection = $this->connections->current();
 
-        if (! $connection instanceof PaystackConnection || ! $connection->active()) {
+        if (! $connection instanceof PaystackConnection || ! $connection->active() || ! $this->connections->planAllows()) {
             return false;
         }
 

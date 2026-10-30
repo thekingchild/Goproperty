@@ -61,7 +61,7 @@ Invite by email → set password + 2FA on first login → active. Deactivation i
 
 | Setting | Who edits | Who approves | Spec |
 | --- | --- | --- | --- |
-| Plans, prices, included units, features, SMS credits | `finance-admin` | — (audited; customers notified 30 days ahead) | [BILLING_PAYMENTS.md § 1](BILLING_PAYMENTS.md); SMS credits built in P05-03: Settings → **SMS credit prices** (price per credit, bundles) and, on a customer's page, **Adjust SMS credits** and **SMS allowance** (§ 1B), all `plans.manage`. Plan allowances are in `config/plans.php` until P06-01's plan editor |
+| Plans, prices, included units, features, SMS credits | `finance-admin` | — (audited; customers notified 30 days ahead) | [BILLING_PAYMENTS.md § 1](BILLING_PAYMENTS.md); SMS credits built in P05-03: Settings → **SMS credit prices** (price per credit, bundles) and, on a customer's page, **Adjust SMS credits** and **SMS allowance** (§ 1B), all `plans.manage`. Plans themselves: Billing → **Plans & prices** (P06-01a): details at once, new terms as a version at least 30 days away when customers are on the plan, customers told by email and banner, versions with cancel (BILLING_PAYMENTS.md § 1.3 "How it is built") |
 | Transaction Tier limits and required documents | `compliance-officer` | `super-admin` | [ONBOARDING_COMPLIANCE.md § 5.2](ONBOARDING_COMPLIANCE.md); in `config/tiers.php` until the Tier settings screen (P06-08) |
 | Per-organization tier override | `compliance-officer` | — (reason + expiry required) | same |
 | Email templates | `content-manager` | — (versioned) | § 5 |

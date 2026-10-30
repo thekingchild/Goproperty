@@ -11,6 +11,7 @@ use App\Documents\Verification\VerificationCodes;
 use App\Enums\ChecklistItem;
 use App\Enums\ComplianceDocumentType;
 use App\Enums\OnboardingStep;
+use App\Enums\SubscriptionStatus;
 use App\Enums\TransactionTier;
 use App\Media\Media;
 use App\Models\ComplianceDocument;
@@ -20,9 +21,12 @@ use App\Models\NotificationDelivery;
 use App\Models\OnboardingChecklistItem;
 use App\Models\Organization;
 use App\Models\OrganizationBankAccount;
+use App\Models\OrganizationFeatureOverride;
 use App\Models\OrganizationOnboarding;
+use App\Models\PlanChangeNotice;
 use App\Models\SmsCreditBalance;
 use App\Models\SmsCreditEntry;
+use App\Models\Subscription;
 use App\Models\TierApplication;
 use App\Models\User;
 use App\Sms\Credits\CreditPool;
@@ -32,6 +36,7 @@ use App\Support\Money;
 use App\Tenancy\OrganizationContext;
 use Closure;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use LogicException;
 use Modules\Billing\Enums\BillableType;
@@ -416,6 +421,21 @@ final class OrganizationScopedModels
                 'balance_after' => 10,
                 'month' => '2026-12',
                 'idempotency_key' => 'probe:'.Str::ulid(),
+            ])->save()),
+            // Rows on their own (P06-01: SubscriptionService, PlanEditor's notices and the overrides are the writers).
+            Subscription::class => fn (): Model => tap(new Subscription, fn (Subscription $subscription): bool => $subscription->forceFill([
+                'plan_id' => (int) DB::table('plans')->where('key', 'starter')->value('id'),
+                'status' => SubscriptionStatus::Trialing,
+                'trial_ends_at' => now()->addDays(14),
+            ])->save()),
+            PlanChangeNotice::class => fn (): Model => tap(new PlanChangeNotice, fn (PlanChangeNotice $notice): bool => $notice->forceFill([
+                'plan_version_id' => (int) DB::table('plan_versions')->orderBy('id')->value('id'),
+                'recipients' => 1,
+            ])->save()),
+            OrganizationFeatureOverride::class => fn (): Model => tap(new OrganizationFeatureOverride, fn (OrganizationFeatureOverride $override): bool => $override->forceFill([
+                'feature_key' => 'whatsapp',
+                'enabled' => true,
+                'reason' => 'Probe',
             ])->save()),
             // Rows on their own (Modules\SaasBilling\SmsCredits\SmsCreditPurchases is the writer, P05-03).
             PlatformInvoice::class => fn (): Model => self::platformInvoice(),

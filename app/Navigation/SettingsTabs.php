@@ -7,6 +7,7 @@ namespace App\Navigation;
 use App\Models\Membership;
 use App\Models\Organization;
 use App\Models\SmsCreditEntry;
+use App\Models\Subscription;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
 use LogicException;
@@ -40,6 +41,7 @@ final class SettingsTabs
         $tabs->add(new SettingsTab('profile', 'Profile', 'workspace.settings.profile', static fn (User $user, Organization $organization): bool => $user->can('viewSettings', $organization), 10));
         $tabs->add(new SettingsTab('collections', 'Payment collection', 'workspace.settings.collections', static fn (User $user, Organization $organization): bool => $user->can('viewPaymentSettings', $organization), 20));
         $tabs->add(new SettingsTab('branding', 'Branding', 'workspace.settings.branding', static fn (User $user, Organization $organization): bool => $user->can('viewSettings', $organization), 30));
+        $tabs->add(new SettingsTab('subscription', 'Subscription', 'workspace.settings.subscription', static fn (User $user): bool => $user->can('viewAny', Subscription::class), 33));
         $tabs->add(new SettingsTab('sms-credits', 'SMS credits', 'workspace.settings.sms-credits', static fn (User $user): bool => $user->can('viewAny', SmsCreditEntry::class), 35));
         $tabs->add(new SettingsTab('members', 'Members', 'workspace.settings.members', static fn (User $user): bool => $user->can('viewAny', Membership::class), 90));
 

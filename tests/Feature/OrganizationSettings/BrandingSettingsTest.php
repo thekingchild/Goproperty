@@ -222,7 +222,9 @@ describe('saving branding', function () {
     ]);
 
     it('lets only the Scale plan hide the "Generated with" line', function () {
-        expect(brandingErrors($this->acme, $this->owner, ['hidePoweredBy' => true])['hidePoweredBy'][0] ?? '')->toContain('Scale plan');
+        // The plan is the subscription's since P06-01b (an organization with no plan at all is not gated).
+        $this->acme->forceFill(['signup_plan_key' => 'growth'])->save();
+        expect(brandingErrors($this->acme->fresh(), $this->owner, ['hidePoweredBy' => true])['hidePoweredBy'][0] ?? '')->toContain('Scale plan');
 
         $this->acme->forceFill(['signup_plan_key' => 'scale'])->save();
         expect(brandingErrors($this->acme->fresh(), $this->owner, ['hidePoweredBy' => true]))->toBe([]);

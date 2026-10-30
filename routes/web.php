@@ -26,6 +26,7 @@ use App\Livewire\Settings\BrandingPage;
 use App\Livewire\Settings\OrganizationProfilePage;
 use App\Livewire\Settings\PaymentCollectionPage;
 use App\Livewire\Settings\SmsCreditsPage;
+use App\Livewire\Settings\SubscriptionPage;
 use App\Livewire\Workspace\Members;
 use App\Media\CollectionRules;
 use App\Theme\BrandAssets;
@@ -148,6 +149,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::livewire('settings/branding', BrandingPage::class)->name('settings.branding');
         // Settings → SMS credits (P05-03; owners and administrators see it, owners buy).
         Route::livewire('settings/sms-credits', SmsCreditsPage::class)->name('settings.sms-credits');
+        Route::livewire('settings/subscription', SubscriptionPage::class)->name('settings.subscription');
         Route::get('settings/branding/files/{role}/{file}', BrandingFileController::class)
             ->whereIn('role', array_keys(BrandingFiles::ROLES))
             ->whereUuid('file')

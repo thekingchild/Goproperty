@@ -11,6 +11,8 @@ use App\Models\PlatformStaff;
 use App\Models\SmsCreditBalance;
 use App\Models\SmsCreditEntry;
 use App\Notifications\SmsCreditsRunningLow;
+use App\Plans\Feature;
+use App\Plans\Features;
 use App\Settings\SettingsStore;
 use App\Tenancy\OrganizationContext;
 use App\Tenancy\OrganizationOwners;
@@ -59,6 +61,7 @@ final readonly class SmsCredits
     public function __construct(
         private OrganizationContext $context,
         private PlanCatalogue $plans,
+        private Features $features,
         private SettingsStore $settings,
         private OrganizationOwners $owners,
     ) {}
@@ -85,17 +88,17 @@ final readonly class SmsCredits
             return max(0, $custom);
         }
 
-        $plans = $this->plans->plans();
         // Read now: the context's copy of the organization may predate a plan just chosen.
-        $planKey = Organization::query()->whereKey($organization->id)->value('signup_plan_key');
+        $fresh = Organization::query()->findOrFail($organization->id);
 
-        foreach ($plans as $plan) {
-            if ($plan->key === $planKey) {
-                return $plan->smsCredits;
-            }
+        // The plan's `sms_credits` limit, or an override (P06-01b); before any plan, the first offered plan's.
+        if ($this->features->planFor($fresh) === null) {
+            $plans = $this->plans->plans();
+
+            return $plans === [] ? 0 : $plans[0]->smsCredits;
         }
 
-        return $plans === [] ? 0 : $plans[0]->smsCredits;
+        return max(0, $this->features->limit(Feature::SmsCredits, $fresh) ?? 0);
     }
 
     /** The current organization's credits now, as the settings page shows them (nothing is written). */

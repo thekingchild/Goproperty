@@ -6,6 +6,9 @@ namespace Modules\OnlinePayments\Livewire;
 
 use App\Enums\OrganizationStatus;
 use App\Models\User;
+use App\Plans\Feature;
+use App\Plans\PlanGate;
+use App\Plans\RequiresFeature;
 use App\Support\Money;
 use App\Tenancy\BlockedWhileImpersonating;
 use App\Tenancy\OrganizationContext;
@@ -75,6 +78,7 @@ final class PaystackSettingsPage extends Component
         $this->cap = $organization->online_payment_cap_kobo !== null ? self::naira($organization->online_payment_cap_kobo) : '';
     }
 
+    #[RequiresFeature(Feature::OwnPaystack)]
     public function connect(PaystackConnections $connections): void
     {
         $this->authorize('manage', PaystackConnection::class);
@@ -167,6 +171,8 @@ final class PaystackSettingsPage extends Component
             'defaultCap' => Money::naira(PaystackConnections::DEFAULT_CAP_NAIRA),
             'held' => PaystackTransaction::query()->where('status', TransactionStatus::Held)->latest('id')->limit(10)->get(),
             'canManage' => $this->user()->can('manage', PaystackConnection::class),
+            // Growth and above (P06-01b): otherwise the page says so and nothing is offered to tenants.
+            'planMessage' => $connections->planAllows() ? null : app(PlanGate::class)->featureMessage(Feature::OwnPaystack, $context->get()),
             'brand' => app(ThemeContext::class)->current()->name(),
             // Opened from the signup wizard's collections step: the way back to it.
             'setupUrl' => $context->get()->status === OrganizationStatus::Onboarding ? route('workspace.setup', $context->get()) : null,

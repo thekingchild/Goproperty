@@ -6,6 +6,7 @@ namespace App\Providers;
 
 use App\Documents\Verification\DocumentVerifiers;
 use App\Exports\ListExports;
+use App\Marketing\PlanCatalogue;
 use App\Media\MediaMover;
 use App\Members\InvitationList;
 use App\Members\MemberList;
@@ -48,6 +49,8 @@ class AppServiceProvider extends ServiceProvider
 
         // The published theme unless the console preview switches to the draft.
         $this->app->scoped(ThemeContext::class);
+        // The plan tables are read once per request or job (P06-01a).
+        $this->app->scoped(PlanCatalogue::class);
 
         // The workspace sidebar: Core's pages, then whatever modules add
         // from their providers (callAfterResolving).

@@ -70,8 +70,6 @@ return [
         'driver' => env('WHATSAPP_DRIVER', 'log'),
         'graph_url' => env('WHATSAPP_GRAPH_URL', 'https://graph.facebook.com'),
         'graph_version' => env('WHATSAPP_GRAPH_VERSION', 'v21.0'),
-        // The plans with WhatsApp messages (BILLING_PAYMENTS.md § 1.2: Growth and above).
-        'plans' => ['growth', 'scale', 'enterprise'],
     ],
 
     'slack' => [

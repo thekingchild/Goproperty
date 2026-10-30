@@ -2,6 +2,7 @@
     {{-- Room for the bottom navigation on phones. --}}
     <flux:main class="pb-24 lg:pb-8">
         <x-organization-status-notice />
+        <x-subscription-notice />
         {{ $slot }}
     </flux:main>
 </x-layouts::app.sidebar>

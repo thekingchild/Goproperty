@@ -6,6 +6,7 @@ namespace Modules\Import\Livewire;
 
 use App\Marketing\PlanCatalogue;
 use App\Models\Organization;
+use App\Plans\Features;
 use App\Support\Money;
 use App\Tenancy\BlockedWhileImpersonating;
 use App\Tenancy\OrganizationContext;
@@ -179,7 +180,7 @@ final class ImportBatchPage extends Component
     private function subscription(Organization $organization, PlanCatalogue $plans, int $units, ?int $now): array
     {
         $total = $units + ($now ?? 0);
-        $plan = collect($plans->plans())->first(fn ($plan): bool => $plan->key === $organization->signup_plan_key) ?? $plans->bestFor($total);
+        $plan = app(Features::class)->planFor($organization) ?? $plans->bestFor($total);
 
         return [
             'units' => $units,

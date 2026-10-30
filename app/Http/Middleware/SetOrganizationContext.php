@@ -6,8 +6,10 @@ namespace App\Http\Middleware;
 
 use App\Models\Organization;
 use App\Models\User;
+use App\Plans\PlanGate;
 use App\Tenancy\OrganizationContext;
 use App\Tenancy\OrganizationWriteGuard;
+use App\Tenancy\RouteAction;
 use Closure;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -32,12 +34,17 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
  * (persistent middleware, with the page's method), so components know their
  * organization; their method calls are judged by
  * RefuseLivewireWritesWhileSuspended.
+ *
+ * A controller action marked #[RequiresFeature] or #[CountsAgainstLimit] is
+ * refused here when the organization's plan does not allow it (PlanGate,
+ * P06-01b); Livewire methods by RefuseLivewireCallsOutsidePlan.
  */
 final class SetOrganizationContext
 {
     public function __construct(
         private readonly OrganizationContext $context,
         private readonly OrganizationWriteGuard $writes,
+        private readonly PlanGate $plans,
     ) {}
 
     public function handle(Request $request, Closure $next): Response
@@ -71,6 +78,13 @@ final class SetOrganizationContext
         URL::defaults(['organization' => $organization->slug]);
 
         $this->writes->ensureRequestAllowed($request);
+
+        // What the plan does not include (P06-01b): #[RequiresFeature] / #[CountsAgainstLimit] on the action.
+        $controller = $route->getControllerClass();
+
+        if ($controller !== null) {
+            $this->plans->ensureCallAllowed($controller, RouteAction::method($route));
+        }
 
         return $next($request);
     }

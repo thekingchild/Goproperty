@@ -12,6 +12,7 @@ use App\Platform\Approvals\ApprovalService;
 use App\Platform\Compliance\DocumentExpiryCheck;
 use App\Platform\Impersonation\Impersonations;
 use App\Sms\Credits\GrantSmsAllowances;
+use App\Subscriptions\Jobs\EndTrials;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
@@ -90,6 +91,10 @@ Schedule::call(fn (DocumentExpiryCheck $check) => $check->run())
 // not cancelled, last month's unused one expired; once a month each, made up
 // within the hour after a missed run.
 Schedule::job(new GrantSmsAllowances, 'billing')->name('sms-credits-allowance')->hourlyAt(5);
+
+// Subscriptions (P06-01b): trials whose end has passed become active (the
+// first billing period starts); hourly, so a missed run is made up.
+Schedule::job(new EndTrials, 'billing')->name('subscriptions-trials')->hourlyAt(15);
 
 // Keep this last: it can use most of the minute, and events run in order.
 Schedule::call(fn (QueueTick $tick) => $tick->run())

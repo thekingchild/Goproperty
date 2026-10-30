@@ -12,9 +12,9 @@ use Carbon\CarbonImmutable;
  * units (BILLING_PAYMENTS.md § 1.4, § 7.3): for the management handover's
  * accept screen, which shows the receiving organization's bill before and
  * after the handed-over units and refuses an acceptance when the amount
- * changed while the screen was open. Until P06-01 brings subscriptions,
- * the plan is the one chosen at signup (else the cheapest for the units)
- * from App\Marketing\PlanCatalogue. Bound in SaasBillingServiceProvider.
+ * changed while the screen was open. The plan is the organization's
+ * subscription's at its current terms (P06-01b), else the cheapest for the
+ * units. Bound in SaasBillingServiceProvider.
  */
 interface SubscriptionQuotes
 {

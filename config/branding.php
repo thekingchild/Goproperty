@@ -29,7 +29,4 @@ return [
     'disk' => env('BRANDING_DISK', 'local'),
     'folder' => 'organization-branding',
 
-    // Plans whose organizations may hide the "Generated with …" line (§ 1, Plan differences).
-    'remove_footer_plans' => ['scale', 'enterprise'],
-
 ];

@@ -7,6 +7,7 @@ namespace Modules\SaasBilling\Quotes;
 use App\Marketing\Plan;
 use App\Marketing\PlanCatalogue;
 use App\Models\Organization;
+use App\Plans\Features;
 use App\Tenancy\OrganizationContext;
 use Carbon\CarbonImmutable;
 use Modules\Properties\Contracts\UnitDirectory;
@@ -14,13 +15,13 @@ use Modules\SaasBilling\Contracts\MonthlyBill;
 use Modules\SaasBilling\Contracts\SubscriptionQuotes;
 
 /**
- * Works out an organization's monthly GoProperty bill from the plan
- * catalogue (config/plans.php until P06-01 brings the plans table) and the
+ * Works out an organization's monthly GoProperty bill from its plan's
+ * current terms (the plan tables, P06-01a) and the
  * units the bill counts, read through the Properties module's contract
  * inside that organization's context (ARCHITECTURE.md § 8 rule 3).
  *
- * The plan is the one chosen at signup (`organizations.signup_plan_key`,
- * interim until the subscription exists); an organization that chose none
+ * The plan is its subscription's (App\Plans\Features::planFor(), P06-01b;
+ * the signup choice before one exists); an organization that chose none
  * is shown the cheapest plan for its units, as the pricing calculator
  * picks it.
  */
@@ -30,6 +31,7 @@ final readonly class MonthlyBills implements SubscriptionQuotes
         private PlanCatalogue $plans,
         private UnitDirectory $units,
         private OrganizationContext $context,
+        private Features $features,
     ) {}
 
     public function for(Organization $organization, int $extraUnits = 0): MonthlyBill
@@ -59,14 +61,9 @@ final readonly class MonthlyBills implements SubscriptionQuotes
         return CarbonImmutable::now('Africa/Lagos')->startOfMonth()->addMonthNoOverflow()->startOfDay();
     }
 
+    /** The subscription's plan at its current terms (P06-01b), else the signup choice. */
     private function chosenPlan(Organization $organization): ?Plan
     {
-        foreach ($this->plans->plans() as $plan) {
-            if ($organization->signup_plan_key !== null && $plan->key === $organization->signup_plan_key) {
-                return $plan;
-            }
-        }
-
-        return null;
+        return $this->features->planFor($organization);
     }
 }

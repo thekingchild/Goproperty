@@ -8,6 +8,9 @@ use App\Enums\ChecklistItem;
 use App\Models\Organization;
 use App\Models\User;
 use App\Onboarding\OnboardingChecklist;
+use App\Plans\Feature;
+use App\Plans\Features;
+use App\Plans\PlanGate;
 use App\Support\Money;
 use App\Tenancy\OrganizationContext;
 use Illuminate\Support\Facades\DB;
@@ -81,6 +84,12 @@ final readonly class PaystackConnections
     public function connect(User $by, string $publicKey, string $secretKey): PaystackConnection
     {
         Gate::forUser($by)->authorize('manage', PaystackConnection::class);
+
+        // Growth and above (BILLING_PAYMENTS.md § 1.2; P06-01b): PlanGate refuses the page's call too.
+        if (! $this->planAllows()) {
+            throw new ConnectionRefused('secretKey', app(PlanGate::class)->featureMessage(Feature::OwnPaystack, $this->context()->get()));
+        }
+
         $publicKey = trim($publicKey);
         $secretKey = trim($secretKey);
         $mode = $this->checkKeys($publicKey, $secretKey);
@@ -232,6 +241,16 @@ final readonly class PaystackConnections
     }
 
     /** 48 random letters and digits: the organization's part of /webhooks/paystack/{token}. */
+    /**
+     * Does the organization's plan (or an override) include its own Paystack?
+     * Without it a saved connection is kept but neither connected again nor
+     * offered to tenants (docs/plans/P06-subtasks.md default 7).
+     */
+    public function planAllows(): bool
+    {
+        return app(Features::class)->enabled(Feature::OwnPaystack, $this->context()->get());
+    }
+
     public static function newWebhookToken(): string
     {
         return strtolower(Str::random(48));

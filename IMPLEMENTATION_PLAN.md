@@ -25,7 +25,7 @@ Each phase below is split into numbered tasks (`P00-01`, `P00-02`, …). Each ta
 | P03 | Leasing, branded documents & the customer money loop + import (part 2) | 9–12 | M3 | Complete (2026-10-29) |
 | P04 | Maintenance tickets | 13 | M4 | Complete (2026-10-29) |
 | P05 | Reminders, notifications, email templates & WhatsApp | 14–15 | M5 | Complete (2026-10-30) |
-| P06 | SaaS billing, compliance monitoring & full platform console | 16–18 | M6 | Not started |
+| P06 | SaaS billing, compliance monitoring & full platform console | 16–18 | M6 | In progress |
 | P07 | Building Group | 19 | M7 | Not started |
 | P08 | Reports, operations & analytics dashboards | 20 | M8 | Not started |
 | P09 | Hardening, NDPA & launch | 21–23 | M9 (Launch) | Not started |
@@ -163,13 +163,13 @@ Depends on: P03. Waves and the defaults for its open questions: [docs/plans/P05-
 
 **Phase exit:** all P05 tasks complete.
 
-### P06 — SaaS billing, compliance monitoring & full platform console (Weeks 16–18) — Not started
+### P06 — SaaS billing, compliance monitoring & full platform console (Weeks 16–18) — In progress
 
 Depends on: P05 (dunning notifications) and P01 (console core).
 
 | ID | Deliverable | Acceptance |
 | --- | --- | --- |
-| P06-01 — **Not started** | Plans with launch prices and feature matrix ([BILLING_PAYMENTS.md § 1](BILLING_PAYMENTS.md)), editable in the console with versioning and 30-day customer notice; features + limits, trial, subscription lifecycle states via `SubscriptionService`, gating middleware | Price change cannot take effect before 30 days' notice; over-limit actions blocked by middleware |
+| P06-01 — **Complete (2026-10-30)** | Plans with launch prices and feature matrix ([BILLING_PAYMENTS.md § 1](BILLING_PAYMENTS.md)), editable in the console with versioning and 30-day customer notice; features + limits, trial, subscription lifecycle states via `SubscriptionService`, gating middleware | Price change cannot take effect before 30 days' notice; over-limit actions blocked by middleware |
 | P06-02 — **Not started** | Monthly metering + platform invoice generation + VAT line | Rerunning metering creates one invoice per org per period; VAT matches [BILLING_PAYMENTS.md § 10](BILLING_PAYMENTS.md) |
 | P06-03 — **Not started** | Platform Paystack: checkout, stored authorization, auto-charge, webhooks with verify-by-fetch, webhook log + replay | Sandbox end-to-end: invoice → charge → webhook → paid → active. Same event twice produces one payment; forged-signature webhook is dropped and logged |
 | P06-04 — **Not started** | Bank transfer proof upload + platform-staff confirmation flow | Proof alone never marks an invoice paid; confirmation is audited |

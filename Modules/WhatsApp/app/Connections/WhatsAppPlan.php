@@ -5,20 +5,22 @@ declare(strict_types=1);
 namespace Modules\WhatsApp\Connections;
 
 use App\Models\Organization;
+use App\Plans\Feature;
+use App\Plans\Features;
 
 /**
- * WhatsApp is on the Growth plan and above (BILLING_PAYMENTS.md § 1.2):
- * the organization's plan (`organizations.signup_plan_key` until SaaS
- * billing's subscription replaces it, P06) must be one of
- * `services.whatsapp.plans`. On other plans nothing goes by WhatsApp and
- * the settings page says which plan has it; a saved connection is kept.
+ * WhatsApp is on the Growth plan and above (BILLING_PAYMENTS.md § 1.2): the
+ * organization's plan, or an override, must include the `whatsapp` feature
+ * (App\Plans\Features, P06-01b; before that `services.whatsapp.plans`
+ * against the signup plan). On other plans nothing goes by WhatsApp and the
+ * settings page says which plan has it; a saved connection is kept.
  */
-final class WhatsAppPlan
+final readonly class WhatsAppPlan
 {
+    public function __construct(private Features $features) {}
+
     public function allows(Organization $organization): bool
     {
-        $plans = config('services.whatsapp.plans', []);
-
-        return is_array($plans) && $organization->signup_plan_key !== null && in_array($organization->signup_plan_key, $plans, true);
+        return $this->features->enabled(Feature::WhatsApp, $organization);
     }
 }

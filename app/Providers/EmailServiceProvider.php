@@ -6,6 +6,7 @@ namespace App\Providers;
 
 use App\Mail\Suppression\DropSuppressedRecipients;
 use App\Mail\Templates\TemplateCatalog;
+use App\Plans\PlanTemplates;
 use App\Sms\Credits\SmsCreditTemplates;
 use Illuminate\Mail\Events\MessageSending;
 use Illuminate\Notifications\Events\NotificationSending;
@@ -23,9 +24,10 @@ final class EmailServiceProvider extends ServiceProvider
     {
         $this->app->singleton(TemplateCatalog::class);
 
-        // Core's own templates: the SMS credit notices (P05-03).
+        // Core's own templates: the SMS credit notices (P05-03) and the plan change notice (P06-01a).
         $this->callAfterResolving(TemplateCatalog::class, static function (TemplateCatalog $catalog): void {
             $catalog->add(...SmsCreditTemplates::definitions());
+            $catalog->add(...PlanTemplates::definitions());
         });
     }
 

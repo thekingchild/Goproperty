@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Middleware\AwaitApplicationKey;
+use App\Http\Middleware\EnsurePlanAllows;
 use App\Http\Middleware\EnsureSiteInstalled;
 use App\Http\Middleware\ResumeImpersonation;
 use App\Http\Middleware\SetOrganizationContext;
@@ -48,7 +49,7 @@ $app = Application::configure(basePath: dirname(__DIR__))
 
         // /o/{organization} routes: the context must exist before route
         // model binding resolves organization-owned models (ARCHITECTURE.md § 4).
-        $middleware->alias(['organization' => SetOrganizationContext::class]);
+        $middleware->alias(['organization' => SetOrganizationContext::class, 'plan' => EnsurePlanAllows::class]);
         $middleware->prependToPriorityList(SubstituteBindings::class, SetOrganizationContext::class);
 
         // A deactivated staff member's session ends before the console's

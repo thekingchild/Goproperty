@@ -16,6 +16,8 @@ use App\Members\RoleGrants;
 use App\Models\Invitation;
 use App\Models\Membership;
 use App\Models\User;
+use App\Plans\CountsAgainstLimit;
+use App\Plans\Feature;
 use App\Tenancy\BlockedWhileImpersonating;
 use App\Tenancy\OrganizationContext;
 use Illuminate\Contracts\View\View;
@@ -86,6 +88,7 @@ final class Members extends Component
     }
 
     #[BlockedWhileImpersonating]
+    #[CountsAgainstLimit(Feature::StaffUsers)]
     public function invite(MemberInvitations $invitations): void
     {
         $this->validate([

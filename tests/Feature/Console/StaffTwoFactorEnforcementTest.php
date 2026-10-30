@@ -9,6 +9,7 @@ use App\Models\Organization;
 use App\Models\PlatformStaff;
 use App\Models\StaffRole;
 use App\Models\StaffStatus;
+use App\Models\SubscriptionPlan;
 use App\Models\TierApplication;
 use App\Models\User;
 use App\Notifications\StaffInvitation;
@@ -91,6 +92,8 @@ function consolePageUrls(PlatformStaff $someone): array
                     str_contains($route->uri(), 'staff-roles') => $role->id,
                     // An email template (P05-04): seeded from the code's catalog.
                     str_contains($route->uri(), 'email-templates') => $emailTemplate()->id,
+                    // A plan (P06-01a): the launch plans are seeded by a migration.
+                    str_contains($route->uri(), 'plans') => SubscriptionPlan::query()->orderBy('id')->firstOrFail()->id,
                     str_contains($route->uri(), 'customer-users') => ($customerUser ??= User::factory()->create())->id,
                     str_contains($route->uri(), 'customers') => ($organization ??= Organization::factory()->create())->id,
                     str_contains($route->uri(), 'impersonation-log') => ($supportSession ??= ImpersonationSession::query()->forceCreate([

@@ -9,6 +9,8 @@ use App\Enums\ChecklistItem;
 use App\Models\Organization;
 use App\Models\User;
 use App\Onboarding\OnboardingChecklist;
+use App\Plans\Feature;
+use App\Plans\Features;
 use App\Theme\Color;
 use Closure;
 use Illuminate\Http\UploadedFile;
@@ -181,12 +183,10 @@ final readonly class BrandingSettings
         return $values;
     }
 
-    /** Whether the organization's plan lets it hide the "Generated with …" line (§ 1, Plan differences). */
+    /** Whether the organization's plan (or an override) lets it hide the "Generated with …" line (§ 1, Plan differences; P06-01b). */
     public function mayHidePoweredBy(Organization $organization): bool
     {
-        $plans = config('branding.remove_footer_plans', []);
-
-        return is_array($plans) && $organization->signup_plan_key !== null && in_array($organization->signup_plan_key, $plans, true);
+        return app(Features::class)->enabled(Feature::RemovePoweredBy, $organization);
     }
 
     /** @return array<string, list<mixed>> */

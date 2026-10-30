@@ -12,6 +12,10 @@
         </flux:callout>
     @endif
 
+    @if ($planMessage)
+        <flux:callout variant="warning" icon="sparkles" :heading="__('Not on your plan')" :text="$planMessage.' '.__('Tenants are not offered online payment meanwhile; bank details still show on their bills.')" data-test="plan-gate" />
+    @endif
+
     @if ($status)
         <flux:callout variant="success" icon="check-circle" :heading="$status" data-test="status" />
     @endif
@@ -70,7 +74,7 @@
         @endif
     </section>
 
-    @if ($canManage)
+    @if ($canManage && ! $planMessage)
         <section class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900" data-test="keys-form">
             <flux:heading size="lg" level="2">{{ $connection ? __('Replace your keys') : __('Connect Paystack') }}</flux:heading>
             <flux:text class="mt-1">{{ __('Copy both keys from your Paystack dashboard (Settings → API Keys & Webhooks). We try the secret key with Paystack before saving it, store it encrypted and never show it again.') }}</flux:text>
