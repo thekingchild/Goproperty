@@ -5,20 +5,18 @@ declare(strict_types=1);
 namespace Modules\Reminders\Reminders;
 
 /**
- * What a reminder says (ReminderMessages): plain strings built from plain
- * values, never a template an agency edits (AGENT.md § 3 rule 10; P05-04
- * moves the wording into GoProperty's email templates). `url` is where
- * the button goes (none for a tenant without a portal account before the
- * bill exists).
+ * What a reminder says (ReminderMessages): which of GoProperty's email
+ * templates (ReminderTemplates, P05-04) and the plain values for its
+ * placeholders; the template is filled in only with whitelisted values,
+ * never through Blade (AGENT.md § 3 rule 10). `url` is where the button
+ * goes (none for a tenant without a portal account before the bill exists).
  */
 final readonly class ReminderMessage
 {
-    /** @param  list<string>  $lines */
+    /** @param  array<string, string>  $values */
     public function __construct(
-        public string $subject,
-        public array $lines,
+        public string $template,
+        public array $values,
         public ?string $url,
-        public string $actionLabel,
-        public string $greetingName,
     ) {}
 }

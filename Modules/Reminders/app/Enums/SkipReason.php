@@ -29,6 +29,9 @@ enum SkipReason: string
     /** The tenant or member can no longer be reached on this channel. */
     case Unreachable = 'unreachable';
 
+    /** The email address is on the suppression list: it bounced or complained (P05-04). */
+    case Suppressed = 'suppressed';
+
     /** The organization was suspended or cancelled. */
     case OrganizationInactive = 'organization_inactive';
 }

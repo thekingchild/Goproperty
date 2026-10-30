@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Mail\Templates\EmailTemplates;
+use App\Models\EmailTemplate;
 use App\Models\ImpersonationSession;
 use App\Models\Organization;
 use App\Models\PlatformStaff;
@@ -65,6 +67,11 @@ function consolePageUrls(PlatformStaff $someone): array
 
         return tierApplication($organization, joinAs(User::factory()->create(), $organization));
     };
+    $emailTemplate = function (): EmailTemplate {
+        app(EmailTemplates::class)->seed();
+
+        return EmailTemplate::query()->orderBy('id')->firstOrFail();
+    };
     $urls = [];
 
     foreach (Router::getRoutes()->getRoutes() as $route) {
@@ -82,6 +89,8 @@ function consolePageUrls(PlatformStaff $someone): array
                 'record' => match (true) {
                     str_contains($route->uri(), 'tier-applications') => ($application ??= $tierApplication())->id,
                     str_contains($route->uri(), 'staff-roles') => $role->id,
+                    // An email template (P05-04): seeded from the code's catalog.
+                    str_contains($route->uri(), 'email-templates') => $emailTemplate()->id,
                     str_contains($route->uri(), 'customer-users') => ($customerUser ??= User::factory()->create())->id,
                     str_contains($route->uri(), 'customers') => ($organization ??= Organization::factory()->create())->id,
                     str_contains($route->uri(), 'impersonation-log') => ($supportSession ??= ImpersonationSession::query()->forceCreate([

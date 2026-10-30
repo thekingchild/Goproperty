@@ -6,6 +6,7 @@ namespace Modules\Reminders\Reminders;
 
 use App\Branding\Branding;
 use App\Enums\OrganizationStatus;
+use App\Mail\Suppression\Suppressions;
 use App\Models\Organization;
 use Carbon\CarbonImmutable;
 use Modules\Billing\Contracts\RemindableBill;
@@ -27,7 +28,9 @@ use Modules\Tenants\Contracts\TenantDirectory;
  * default 7): the bill was paid in full or voided, the lease ended or was
  * terminated (or, for a renewal alert, a renewal was drafted), the
  * recipient can no longer be reached, the organization was suspended
- * (renewal alerts). Runs in the reminder's organization.
+ * (renewal alerts), the email address is on the suppression list (P05-04).
+ * Runs in the reminder's organization. The words are GoProperty's email
+ * templates (ReminderTemplates); this class gives their values.
  *
  * A rent reminder planned from the lease before its bill existed uses the
  * bill once it is issued (number, amount still owed, payment reference,
@@ -45,6 +48,7 @@ final readonly class ReminderMessages
         private UnitDirectory $units,
         private TenantDirectory $tenants,
         private ReminderRecipients $recipients,
+        private Suppressions $suppressions,
     ) {}
 
     public function compose(Reminder $reminder, Organization $organization): ReminderMessage|SkipReason
@@ -59,6 +63,10 @@ final readonly class ReminderMessages
 
         if ($tenant === null) {
             return SkipReason::Unreachable;
+        }
+
+        if ($reminder->channel === ReminderChannel::Email && $this->suppressions->isSuppressed((string) $reminder->recipient_email)) {
+            return SkipReason::Suppressed;
         }
 
         if ($reminder->remindable_type === Reminder::LEASE) {
@@ -81,42 +89,30 @@ final readonly class ReminderMessages
 
     private function bill(Reminder $reminder, RemindableBill $bill, string $agency, string $name): ReminderMessage
     {
-        $place = self::place($bill->unit, $bill->building);
-        $owed = $bill->owed->format();
-        $what = match ($reminder->type) {
-            ReminderType::RentDue => 'Your rent'.($place !== '' ? ' for '.$place : '').self::period($bill->periodStart, $bill->periodEnd),
-            default => 'Your bill '.$bill->number.' ('.$bill->description.')',
+        $template = match ($reminder->type) {
+            ReminderType::BillOverdue => ReminderTemplates::BILL_OVERDUE,
+            ReminderType::RentDue => ReminderTemplates::RENT_DUE,
+            default => ReminderTemplates::BILL_DUE,
         };
-        $reference = 'Put the payment reference '.$bill->paymentReference.' in your transfer narration so '.$agency.' can match your payment.';
-        $paid = 'If you have paid already, you can ignore this message.';
-
-        if ($reminder->type === ReminderType::BillOverdue) {
-            return new ReminderMessage(
-                subject: 'Overdue: '.$owed.' still owed on bill '.$bill->number,
-                lines: [
-                    $what.' was due '.self::since($reminder->offset_days, $bill->dueDate).', and '.$owed.' is still owed.',
-                    $reference,
-                    'Contact '.$agency.' if you need to talk about it. '.$paid,
-                ],
-                url: $this->tenantUrl($reminder, $bill),
-                actionLabel: 'Pay or send your proof',
-                greetingName: $name,
-            );
-        }
-
-        $label = $reminder->type === ReminderType::RentDue ? 'Rent' : $bill->typeLabel;
 
         return new ReminderMessage(
-            subject: $label.' of '.$owed.' due '.self::dueWhen($reminder->offset_days, $bill->dueDate).($place !== '' ? ': '.$place : ''),
-            lines: [
-                $what.' is due '.self::dueWhen($reminder->offset_days, $bill->dueDate).'.',
-                'Amount '.($bill->owed->equals($bill->amount) ? 'due' : 'still owed').': '.$owed.' (invoice '.$bill->number.').',
-                $reference,
-                $paid,
+            template: $template,
+            values: [
+                'recipient.name' => $name,
+                'agency.name' => $agency,
+                'unit.place' => self::place($bill->unit, $bill->building),
+                'bill.number' => $bill->number,
+                'bill.description' => $bill->description,
+                'bill.type' => $bill->typeLabel,
+                'bill.owed' => $bill->owed->format(),
+                'bill.owed_label' => $bill->owed->equals($bill->amount) ? 'Amount due' : 'Amount still owed',
+                'bill.period' => self::period($bill->periodStart, $bill->periodEnd),
+                'bill.due_date' => self::day($bill->dueDate),
+                'bill.due_when' => self::dueWhen($reminder->offset_days, $bill->dueDate),
+                'bill.due_since' => self::since($reminder->offset_days, $bill->dueDate),
+                'bill.payment_reference' => $bill->paymentReference,
             ],
             url: $this->tenantUrl($reminder, $bill),
-            actionLabel: 'Pay or send your proof',
-            greetingName: $name,
         );
     }
 
@@ -133,18 +129,19 @@ final readonly class ReminderMessages
 
         $unit = $this->units->find($lease->unitId);
         $period = $this->calendar->periodContaining($lease->startDate, $lease->cycle, $lease->nextBillingDate);
-        $place = self::place($unit?->label, $unit?->propertyName);
-        $when = self::dueWhen($reminder->offset_days, $reminder->due_date);
 
         return new ReminderMessage(
-            subject: 'Rent of '.$lease->rent->format().' due '.$when.($place !== '' ? ': '.$place : ''),
-            lines: [
-                'Your next rent'.($place !== '' ? ' for '.$place : '').self::period($period->start, $period->end).' of '.$lease->rent->format().' is due '.$when.'.',
-                $agency.' will send you the invoice with the payment details before then.',
+            template: ReminderTemplates::RENT_UPCOMING,
+            values: [
+                'recipient.name' => $name,
+                'agency.name' => $agency,
+                'unit.place' => self::place($unit?->label, $unit?->propertyName),
+                'rent.amount' => $lease->rent->format(),
+                'rent.period' => self::period($period->start, $period->end),
+                'rent.due_date' => self::day($reminder->due_date),
+                'rent.due_when' => self::dueWhen($reminder->offset_days, $reminder->due_date),
             ],
             url: $reminder->recipient_user_id !== null ? route('portal.leases.show', ['lease' => $lease->id]) : null,
-            actionLabel: 'Open your lease',
-            greetingName: $name,
         );
     }
 
@@ -170,24 +167,25 @@ final readonly class ReminderMessages
             return SkipReason::Unreachable;
         }
 
+        if ($reminder->channel === ReminderChannel::Email && $reminder->recipient_email !== null && $this->suppressions->isSuppressed($reminder->recipient_email)) {
+            return SkipReason::Suppressed;
+        }
+
         $lease = $ending->lease;
         $unit = $this->units->find($lease->unitId);
-        $place = self::place($unit?->label, $unit?->propertyName);
-        $tenant = $this->tenants->find($lease->tenantProfileId)->name ?? 'the tenant';
-        $contract = $lease->contractNumber !== null ? ' ('.$lease->contractNumber.')' : '';
-        $when = self::dueWhen($reminder->offset_days, $lease->endDate);
 
         return new ReminderMessage(
-            subject: 'Lease ends '.$when.($place !== '' ? ': '.$place : ''),
-            lines: [
-                'The lease of '.$tenant.($place !== '' ? ' for '.$place : '').$contract.' ends '.$when.'.',
-                $ending->autoRenew
-                    ? 'It is set to renew automatically, so it rolls on by itself unless you change it.'
-                    : 'No renewal has been drafted yet. Draft one from the lease page, or let the tenant know the lease will end.',
+            template: $ending->autoRenew ? ReminderTemplates::LEASE_ENDING_AUTO_RENEW : ReminderTemplates::LEASE_ENDING,
+            values: [
+                'recipient.name' => $member->name,
+                'agency.name' => Branding::fromOrganization($organization)->displayName(),
+                'tenant.name' => $this->tenants->find($lease->tenantProfileId)->name ?? 'the tenant',
+                'unit.place' => self::place($unit?->label, $unit?->propertyName),
+                'lease.contract_number' => (string) $lease->contractNumber,
+                'lease.end_date' => self::day($lease->endDate),
+                'lease.ends_when' => self::dueWhen($reminder->offset_days, $lease->endDate),
             ],
             url: route('workspace.leases.show', ['organization' => $organization->slug, 'lease' => $lease->id]),
-            actionLabel: 'Open the lease',
-            greetingName: $member->name,
         );
     }
 
@@ -229,7 +227,7 @@ final readonly class ReminderMessages
 
     private static function period(?CarbonImmutable $start, ?CarbonImmutable $end): string
     {
-        return $start !== null && $end !== null ? ' ('.self::day($start).' to '.self::day($end).')' : '';
+        return $start !== null && $end !== null ? self::day($start).' to '.self::day($end) : '';
     }
 
     private static function place(?string $unit, ?string $building): string

@@ -25,6 +25,7 @@ $app = Application::configure(basePath: dirname(__DIR__))
         health: '/up',
         then: function (): void {
             Route::group([], __DIR__.'/../routes/install.php');
+            Route::group([], __DIR__.'/../routes/webhooks.php');
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {
@@ -41,7 +42,9 @@ $app = Application::configure(basePath: dirname(__DIR__))
         // Paystack's server-to-server calls (OnlinePayments, P03-08): the
         // route is outside the `web` group (no session), and never asks
         // for a CSRF token; the HMAC signature proves the caller.
-        $middleware->validateCsrfTokens(except: ['webhooks/paystack/*']);
+        // The email provider's bounce and complaint calls (P05-04) likewise:
+        // the secret token in the URL proves the caller.
+        $middleware->validateCsrfTokens(except: ['webhooks/paystack/*', 'webhooks/email/*']);
 
         // /o/{organization} routes: the context must exist before route
         // model binding resolves organization-owned models (ARCHITECTURE.md § 4).

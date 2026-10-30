@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace Modules\Reminders\Reminders;
 
-use App\Branding\Branding;
+use App\Mail\Templates\EmailBrand;
+use App\Mail\Templates\EmailTemplates;
 use App\Models\Organization;
 use App\Models\User;
 use App\Tenancy\OrganizationContext;
@@ -40,6 +41,7 @@ final readonly class ReminderSender
         private OrganizationContext $context,
         private ReminderMessages $messages,
         private ThemeContext $theme,
+        private EmailTemplates $templates,
     ) {}
 
     /**
@@ -105,21 +107,15 @@ final readonly class ReminderSender
 
     private function deliver(Organization $organization, Reminder $reminder, ReminderMessage $message): void
     {
-        $branding = Branding::fromOrganization($organization);
         $user = $reminder->recipient_user_id !== null ? User::query()->find($reminder->recipient_user_id) : null;
 
         $notification = new ReminderNotice(
             reminderId: $reminder->id,
             type: $reminder->type->value,
             organizationId: $organization->id,
-            subject: $message->subject,
-            lines: $message->lines,
+            email: $this->templates->render($message->template, $message->values),
+            brand: EmailBrand::forOrganization($organization, $this->theme->current()),
             url: $message->url,
-            actionLabel: $message->actionLabel,
-            agency: $branding->displayName(),
-            greetingName: $message->greetingName,
-            senderName: $branding->senderName($this->theme->current()->name()),
-            replyTo: $branding->email,
             channel: $reminder->channel->via(),
         );
         $notification->id = $reminder->notification_id;

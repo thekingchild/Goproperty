@@ -24,6 +24,12 @@ return [
         'key' => env('RESEND_API_KEY'),
     ],
 
+    // Mailgun's webhook signing key: its bounce and complaint calls must be
+    // signed with it when set (P05-04, App\Mail\Suppression\EmailWebhooks).
+    'mailgun' => [
+        'webhook_signing_key' => env('MAILGUN_WEBHOOK_SIGNING_KEY'),
+    ],
+
     'ses' => [
         'key' => env('AWS_ACCESS_KEY_ID'),
         'secret' => env('AWS_SECRET_ACCESS_KEY'),

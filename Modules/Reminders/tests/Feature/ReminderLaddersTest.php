@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Mail\Templates\EmailBrand;
+use App\Mail\Templates\RenderedEmail;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
@@ -85,12 +87,14 @@ describe('acceptance: exact send days and zero duplicates across reruns', functi
 
         // A notification job retried after it went sends nothing more.
         $reminder = remindersOf($this->acme)->firstWhere('channel', ReminderChannel::Email);
-        $notice = new ReminderNotice($reminder->id, 'rent_due', $this->acme->id, 'Again', ['Again'], null, 'Open', 'Adeyemi Realty Ltd', 'Kemi', 'Adeyemi Realty Ltd via GoProperty', null, 'mail');
+        $again = new RenderedEmail('Again', '<p>Again</p>', 'Again', 'Open');
+        $brand = new EmailBrand('Adeyemi Realty Ltd', 'Adeyemi Realty Ltd via GoProperty', '#0E6B5C', 'GoProperty');
+        $notice = new ReminderNotice($reminder->id, 'rent_due', $this->acme->id, $again, $brand, null, 'mail');
         $notice->id = $reminder->notification_id;
         Notification::route('mail', RM_KEMI)->notify($notice);
 
         $inApp = remindersOf($this->acme)->firstWhere('channel', ReminderChannel::InApp);
-        $retried = new ReminderNotice($inApp->id, 'rent_due', $this->acme->id, 'Again', ['Again'], null, 'Open', 'Adeyemi Realty Ltd', 'Kemi', 'Adeyemi Realty Ltd via GoProperty', null, 'database');
+        $retried = new ReminderNotice($inApp->id, 'rent_due', $this->acme->id, $again, $brand, null, 'database');
         $retried->id = $inApp->notification_id;
         $this->kemi->notify($retried);
 

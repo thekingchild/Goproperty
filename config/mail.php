@@ -117,4 +117,13 @@ return [
         'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'Laravel')),
     ],
 
+    /*
+    | The email provider's bounce and complaint webhook (P05-04,
+    | PLATFORM_CONSOLE.md § 5 "Delivery"): /webhooks/email/{postmark|mailgun}/{token}.
+    | A long random token (24+ characters); unset, the webhook answers 404.
+    */
+    'webhooks' => [
+        'token' => env('MAIL_WEBHOOK_TOKEN'),
+    ],
+
 ];

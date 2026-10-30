@@ -41,4 +41,4 @@ Rules: [ARCHITECTURE.md § 6.7](../../ARCHITECTURE.md) (reminder engine, ladders
 
 14. **SMS rungs (P05-02):** to save credits, SMS goes only on rent T−7 and T−1, utility T−0 and overdue +1 and +7. Email and in-app go on every rung.
 15. **SMS delivery status (P05-02):** if GoText has no delivery-report webhook, a queued job polls `GET /sms/{uid}` until a final status.
-16. **Email templates (P05-04):** seeded from P05-01's wording (one template per reminder type and rung kind). The console's `content-manager` role edits them; agencies do not edit wording, only their branding.
+16. **Email templates (P05-04):** seeded from P05-01's wording (one template per reminder type and rung kind). The console's `content-manager` role edits them; agencies do not edit wording, only their branding. *As built (2026-10-30):* six reminder templates (`reminder.rent_due`, `rent_upcoming`, `bill_due`, `bill_overdue`, `lease_ending`, `lease_ending_auto_renew`) with P05-01's wording unchanged; rent and other bills share the overdue template, as P05-01's wording did. Bounce and complaint webhooks for Postmark and Mailgun; SES (through SNS) is a follow-up.

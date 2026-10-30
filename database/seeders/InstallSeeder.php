@@ -17,7 +17,7 @@ use Illuminate\Database\Seeder;
  * runs the list twice and compares every table.
  *
  * Added by later tasks: default plans and prices, Transaction Tiers,
- * default theme, email templates.
+ * default theme. Email templates since P05-04.
  */
 final class InstallSeeder extends Seeder
 {
@@ -25,6 +25,7 @@ final class InstallSeeder extends Seeder
     public const array SEEDERS = [
         OrganizationRolesSeeder::class,
         StaffRolesSeeder::class,
+        EmailTemplatesSeeder::class,
     ];
 
     public function run(): void
