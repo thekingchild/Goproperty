@@ -24,6 +24,7 @@ use Livewire\Livewire;
 use Modules\Import\Contracts\ImportTargets;
 use Modules\Import\Contracts\ImportUsages;
 use Modules\Leasing\Contracts\CycleCalculator as CycleCalculatorContract;
+use Modules\Leasing\Contracts\EndingLeases;
 use Modules\Leasing\Contracts\ImportedLeases;
 use Modules\Leasing\Contracts\LeaseBillingSchedule;
 use Modules\Leasing\Contracts\LeasePagePanels;
@@ -107,6 +108,8 @@ final class LeasingServiceProvider extends ModuleServiceProvider
         // Who holds a unit now, for maintenance tickets raised by staff (P04-01).
         $this->app->bind(UnitLeases::class, LeaseRecords::class);
         $this->app->bind(OwnerLeases::class, OwnerLeaseRecords::class);
+        // Leases ending soon, for the reminder engine's renewal alerts (P05-01).
+        $this->app->bind(EndingLeases::class, OwnerLeaseRecords::class);
         // The owner portal's contract download (P03-16): the issued contract only.
         $this->app->bind(OwnerLeaseContracts::class, OwnerContractFiles::class);
         $this->app->bind(LiveLeases::class, LeasesMover::class);

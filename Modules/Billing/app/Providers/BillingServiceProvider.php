@@ -23,11 +23,13 @@ use Modules\Billing\Bills\BillService;
 use Modules\Billing\Bills\Ledger;
 use Modules\Billing\Bills\OpeningBalanceBillRecords;
 use Modules\Billing\Bills\OwnerBillRecords;
+use Modules\Billing\Bills\RemindableBillRecords;
 use Modules\Billing\Bills\TenantBillRecords;
 use Modules\Billing\Contracts\BillLedger;
 use Modules\Billing\Contracts\OpeningBalanceBills;
 use Modules\Billing\Contracts\OwnerBills;
 use Modules\Billing\Contracts\PaymentOptions;
+use Modules\Billing\Contracts\RemindableBills;
 use Modules\Billing\Contracts\TenantBills;
 use Modules\Billing\Documents\InvoiceVerifier;
 use Modules\Billing\Events\BillIssued;
@@ -103,6 +105,8 @@ final class BillingServiceProvider extends ModuleServiceProvider
         $this->app->bind(TenantBills::class, TenantBillRecords::class);
         // The owner portal's read-only view of an owner's buildings' bills (P03-15).
         $this->app->bind(OwnerBills::class, OwnerBillRecords::class);
+        // The bills the reminder engine reminds tenants about (P05-01).
+        $this->app->bind(RemindableBills::class, RemindableBillRecords::class);
         $this->app->singleton(PaymentOptions::class);
 
         // Meter photos (P03-06a): a phone photo of the meter, at most 10 MB;

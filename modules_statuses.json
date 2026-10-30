@@ -11,5 +11,6 @@
     "Expenses": true,
     "Handovers": true,
     "OwnerStatements": true,
-    "Tickets": true
+    "Tickets": true,
+    "Reminders": true
 }

@@ -83,6 +83,10 @@ use Modules\Properties\Models\AgentAssignment;
 use Modules\Properties\Models\OwnerProfile;
 use Modules\Properties\Models\Property;
 use Modules\Properties\Models\Unit;
+use Modules\Reminders\Enums\ReminderChannel;
+use Modules\Reminders\Enums\ReminderStatus;
+use Modules\Reminders\Enums\ReminderType;
+use Modules\Reminders\Models\Reminder;
 use Modules\Tenants\Models\TenantProfile;
 use Modules\Tickets\Enums\MessageAuthor;
 use Modules\Tickets\Enums\TicketCategory;
@@ -358,6 +362,22 @@ final class OrganizationScopedModels
                 'author_kind' => MessageAuthor::Staff,
                 'body' => 'Probe internal note',
                 'is_internal' => true,
+            ])->save()),
+            // A planned reminder (P05-01): Reminders\ReminderPlanner is the writer.
+            Reminder::class => fn (): Model => tap(new Reminder, fn (Reminder $reminder): bool => $reminder->forceFill([
+                'type' => ReminderType::BillOverdue,
+                'remindable_type' => Reminder::BILL,
+                'remindable_id' => self::bill()->id,
+                'due_date' => '2027-01-01',
+                'offset_days' => 1,
+                'send_on' => '2027-01-02',
+                'channel' => ReminderChannel::Email,
+                'recipient' => 'tenant:'.random_int(1, 999_999),
+                'recipient_email' => 'probe@example.com',
+                'send_at' => '2027-01-02 07:00:00',
+                'status' => ReminderStatus::Pending,
+                'dedupe_key' => 'probe|'.Str::ulid(),
+                'notification_id' => (string) Str::uuid(),
             ])->save()),
         ];
     }

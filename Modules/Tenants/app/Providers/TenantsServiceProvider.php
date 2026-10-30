@@ -25,6 +25,7 @@ use Modules\Tenants\Contracts\ImportedTenants;
 use Modules\Tenants\Contracts\OwnerTenants;
 use Modules\Tenants\Contracts\TenantDirectory;
 use Modules\Tenants\Contracts\TenantPortalAccess;
+use Modules\Tenants\Contracts\TenantReach;
 use Modules\Tenants\Handover\LeftPortalLinksRevoker;
 use Modules\Tenants\Handover\TenantsMover;
 use Modules\Tenants\Import\ImportedTenantLookup;
@@ -38,6 +39,7 @@ use Modules\Tenants\Portal\LinkedTenantProfiles;
 use Modules\Tenants\Portal\TenantPortalAccessRecords;
 use Modules\Tenants\Profiles\OwnerTenantRecords;
 use Modules\Tenants\Profiles\TenantDirectoryService;
+use Modules\Tenants\Profiles\TenantReachRecords;
 use Nwidart\Modules\Support\ModuleServiceProvider;
 
 /**
@@ -85,6 +87,8 @@ final class TenantsServiceProvider extends ModuleServiceProvider
         $this->app->bind(ImportedTenants::class, ImportedTenantLookup::class);
         // The owner portal's view of its tenants, ID number masked (P03-16).
         $this->app->bind(OwnerTenants::class, OwnerTenantRecords::class);
+        // Who the reminder engine may contact (imported tenants only once invited, P05-01).
+        $this->app->bind(TenantReach::class, TenantReachRecords::class);
     }
 
     public function boot(): void

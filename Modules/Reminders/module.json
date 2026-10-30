@@ -1,0 +1,11 @@
+{
+    "name": "Reminders",
+    "alias": "reminders",
+    "description": "The reminder engine: rent, utility, overdue and lease renewal ladders, worked out daily and sent once each (ARCHITECTURE.md § 6.7)",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\Reminders\\Providers\\RemindersServiceProvider"
+    ],
+    "files": []
+}
