@@ -180,6 +180,23 @@ return [
         // Who must use 2FA: owners of Tier 2/3 organizations, all owners, or all agency staff.
         'auth.require_2fa_for' => ['type' => 'string', 'default' => 'tier_owners', 'rules' => ['required', 'in:tier_owners,all_owners,all_staff'], 'permission' => 'settings.security'],
 
+        // ---------------------------------------------------------------
+        // SMS credits (BILLING_PAYMENTS.md § 1.2; P05-03): finance-admin
+        // ---------------------------------------------------------------
+
+        // The price of one credit (one SMS page) in a bundle, in kobo, before VAT.
+        'sms_credits.price_kobo' => ['type' => 'integer', 'default' => 600, 'rules' => ['required', 'integer', 'between:1,100000'], 'permission' => 'plans.manage'],
+        // The bundles offered in the app, in credits.
+        'sms_credits.bundles' => [
+            'type' => 'json',
+            'default' => [500, 1000, 2500, 5000],
+            'rules' => ['required', 'array', 'list', 'min:1', 'max:6'],
+            'item_rules' => ['*' => ['required', 'integer', 'distinct', 'between:10,100000']],
+            'permission' => 'plans.manage',
+        ],
+        // One organization's monthly allowance instead of its plan's (Enterprise: custom); null = the plan's.
+        'sms_credits.monthly_allowance' => ['type' => 'integer', 'scope' => 'organization', 'rules' => ['nullable', 'integer', 'between:0,1000000'], 'permission' => 'plans.manage'],
+
     ],
 
 ];

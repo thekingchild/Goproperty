@@ -89,7 +89,8 @@ final readonly class GoTextSmsSender implements SmsSender
         try {
             $response = $request(Http::acceptJson()->asJson()->timeout(15)->connectTimeout(5));
         } catch (ConnectionException) {
-            throw new SmsFailed('GoText could not be reached.');
+            // A timeout too: GoText may have taken the message (P05-03 keeps its credit).
+            throw SmsFailed::unreachable('GoText could not be reached.');
         }
 
         if (! $response->successful() || $response->json('status') !== 'success') {

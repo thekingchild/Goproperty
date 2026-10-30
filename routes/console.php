@@ -11,6 +11,7 @@ use App\Hosting\Queue\QueueTick;
 use App\Platform\Approvals\ApprovalService;
 use App\Platform\Compliance\DocumentExpiryCheck;
 use App\Platform\Impersonation\Impersonations;
+use App\Sms\Credits\GrantSmsAllowances;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
@@ -84,6 +85,11 @@ Schedule::call(fn (Impersonations $impersonations) => $impersonations->endExpire
 Schedule::call(fn (DocumentExpiryCheck $check) => $check->run())
     ->name('compliance-document-expiry')
     ->dailyAt('03:15');
+
+// SMS credits (P05-03): this Lagos month's allowance for every organization
+// not cancelled, last month's unused one expired; once a month each, made up
+// within the hour after a missed run.
+Schedule::job(new GrantSmsAllowances, 'billing')->name('sms-credits-allowance')->hourlyAt(5);
 
 // Keep this last: it can use most of the minute, and events run in order.
 Schedule::call(fn (QueueTick $tick) => $tick->run())

@@ -13,6 +13,7 @@ use App\Marketing\PlanCatalogue;
 use App\Models\Organization;
 use App\Models\OrganizationOnboarding;
 use App\Models\User;
+use App\Sms\Credits\SmsCredits;
 use App\Support\Money;
 use App\Tenancy\OrganizationContext;
 use Illuminate\Support\Facades\DB;
@@ -39,6 +40,7 @@ final readonly class OnboardingWizard
         private OrganizationContext $context,
         private OnboardingChecklist $checklist,
         private PlanCatalogue $plans,
+        private SmsCredits $smsCredits,
     ) {}
 
     /** The wizard state of the current organization, or null for one made outside signup. */
@@ -99,6 +101,9 @@ final readonly class OnboardingWizard
 
             $this->checklist->complete(ChecklistItem::Plan, $by, ['plan' => $plan->key]);
         });
+
+        // A bigger plan's SMS allowance from now (the difference this month; P05-03).
+        $this->smsCredits->refreshAllowance();
     }
 
     /** Collections step, "Set up later": the checklist item stays pending. */

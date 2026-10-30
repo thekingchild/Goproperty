@@ -35,6 +35,7 @@ final class PlanCatalogue
                 (bool) ($plan['featured'] ?? false),
                 (bool) ($plan['custom'] ?? false),
                 array_values(array_filter((array) ($plan['features'] ?? []), 'is_string')),
+                max(0, (int) ($plan['sms_credits'] ?? 0)),
             );
         }
 

@@ -282,6 +282,8 @@ it('keeps exactly the reading, exporting and paying permissions while suspended'
         'imports.view',
         // Owner statements (P08-05): seeing them.
         'owner_statements.view',
+        // SMS credits (P05-03): seeing them (buying is organization.billing).
+        'sms_credits.view',
     ]);
 });
 

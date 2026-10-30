@@ -8,10 +8,12 @@ use App\Enums\OrganizationStatus;
 use App\Enums\OrganizationType;
 use App\Enums\TransactionTier;
 use App\Platform\Customers\Customer;
+use App\Platform\Customers\CustomerSmsCredits;
 use App\Platform\Filament\Resources\Customers\Pages\ListCustomers;
 use App\Platform\Filament\Resources\Customers\Pages\ViewCustomer;
 use App\Platform\Filament\Resources\Customers\RelationManagers\HistoryRelationManager;
 use App\Platform\Filament\Resources\Customers\RelationManagers\MembersRelationManager;
+use App\Sms\Credits\SmsCreditSummary;
 use BackedEnum;
 use Filament\Actions\ViewAction;
 use Filament\Infolists\Components\IconEntry;
@@ -31,7 +33,8 @@ use UnitEnum;
  * § 6.9): every organization with its type, status, Transaction Tier,
  * members, owner and dates; search, filters and server-side pagination. Its
  * page lists the members and their roles there, the history, and Suspend /
- * Reactivate. Reads across organizations through the Customer read model;
+ * Reactivate, and its SMS credits (P05-03: Adjust SMS credits, SMS
+ * allowance). Reads across organizations through the Customer read model;
  * every page and action is checked by CustomerPolicy.
  */
 final class CustomerResource extends Resource
@@ -143,7 +146,26 @@ final class CustomerResource extends Resource
                     TextEntry::make('created_at')->label('Created')->dateTime(),
                     TextEntry::make('trial_ends_at')->label('Trial ends')->dateTime()->placeholder('—'),
                 ]),
+            // P05-03: the customer's SMS credits; finance-admin adjusts them and sets a custom allowance (page actions).
+            Section::make('SMS credits')
+                ->columns(4)
+                ->schema([
+                    TextEntry::make('sms_balance')->label('Balance')
+                        ->state(fn (Customer $record): string => number_format(self::smsCredits($record)->balance)),
+                    TextEntry::make('sms_allowance_left')->label('This month\'s allowance left')
+                        ->state(fn (Customer $record): string => number_format(self::smsCredits($record)->allowanceLeft).' of '.number_format(self::smsCredits($record)->allowanceGranted)),
+                    TextEntry::make('sms_purchased')->label('Purchased (never expire)')
+                        ->state(fn (Customer $record): string => number_format(self::smsCredits($record)->purchased)),
+                    TextEntry::make('sms_monthly_allowance')->label('Monthly allowance')
+                        ->state(fn (Customer $record): string => number_format(self::smsCredits($record)->monthlyAllowance)
+                            .(app(CustomerSmsCredits::class)->customAllowance($record->organization()) !== null ? ' (custom)' : ' (plan)')),
+                ]),
         ]);
+    }
+
+    private static function smsCredits(Customer $record): SmsCreditSummary
+    {
+        return app(CustomerSmsCredits::class)->summary($record->organization());
     }
 
     public static function getRelations(): array

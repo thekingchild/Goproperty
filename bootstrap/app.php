@@ -44,7 +44,7 @@ $app = Application::configure(basePath: dirname(__DIR__))
         // for a CSRF token; the HMAC signature proves the caller.
         // The email provider's bounce and complaint calls (P05-04) likewise:
         // the secret token in the URL proves the caller.
-        $middleware->validateCsrfTokens(except: ['webhooks/paystack/*', 'webhooks/email/*', 'webhooks/whatsapp/*']);
+        $middleware->validateCsrfTokens(except: ['webhooks/paystack', 'webhooks/paystack/*', 'webhooks/email/*', 'webhooks/whatsapp/*']);
 
         // /o/{organization} routes: the context must exist before route
         // model binding resolves organization-owned models (ARCHITECTURE.md § 4).

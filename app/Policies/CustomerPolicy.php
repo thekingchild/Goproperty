@@ -14,7 +14,9 @@ use App\Platform\Staff\StaffPermission as P;
  * customers needs `customers.view` (support-agent, operations-manager,
  * compliance-officer, finance-admin, super-admin; never analyst);
  * suspending and reactivating need `customers.suspend` (operations-manager,
- * super-admin). Organizations are never created, edited or deleted here.
+ * super-admin); SMS credit adjustments and allowances need `plans.manage`
+ * (finance-admin, super-admin; P05-03). Organizations are never created,
+ * edited or deleted here.
  * OrganizationSuspension re-checks.
  */
 final class CustomerPolicy
@@ -41,6 +43,12 @@ final class CustomerPolicy
         return $actor->holdsStaffPermission(P::CustomersView)
             && $actor->holdsStaffPermission(P::CustomersSuspend)
             && $customer->status === OrganizationStatus::Suspended;
+    }
+
+    /** SMS credits (P05-03): a manual adjustment and a custom monthly allowance, `plans.manage` (finance-admin). */
+    public function manageSmsCredits(PlatformStaff $actor, Customer $customer): bool
+    {
+        return $actor->holdsStaffPermission(P::CustomersView) && $actor->holdsStaffPermission(P::PlansManage);
     }
 
     public function create(PlatformStaff $actor): bool

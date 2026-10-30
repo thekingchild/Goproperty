@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Facades\Route;
+use Modules\SaasBilling\Http\Controllers\SmsCreditReturnController;
 
 /*
  * P02-04's billing transfers became the management handover (P03-14,
@@ -14,4 +15,13 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['auth', 'verified', 'organization'])->prefix('o/{organization}')->group(function () {
     Route::permanentRedirect('billing-transfers', '/o/{organization}/handovers');
     Route::permanentRedirect('billing-transfers/{transfer}', '/o/{organization}/handovers')->whereNumber('transfer');
+});
+
+/*
+ * The return from Paystack's checkout of an SMS credit bundle (P05-03):
+ * settles the payment (verified with Paystack) and goes back to Settings →
+ * SMS credits. Rate-limited per member.
+ */
+Route::middleware(['auth', 'verified', 'organization', 'throttle:30,1'])->prefix('o/{organization}')->name('workspace.')->group(function () {
+    Route::get('settings/sms-credits/paid', SmsCreditReturnController::class)->name('settings.sms-credits.paid');
 });

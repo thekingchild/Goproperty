@@ -26,6 +26,8 @@ return [
     'plans' => [
         [
             'key' => 'starter',
+            // SMS credits included each month (§ 1.2; P05-03).
+            'sms_credits' => 100,
             'name' => 'Starter',
             'audience' => 'Independent agents and small landlords',
             'base_kobo' => 1_000_000,
@@ -35,6 +37,8 @@ return [
         ],
         [
             'key' => 'growth',
+            // SMS credits included each month (§ 1.2; P05-03).
+            'sms_credits' => 500,
             'name' => 'Growth',
             'audience' => 'Growing agencies with online payments',
             'base_kobo' => 3_500_000,
@@ -45,6 +49,8 @@ return [
         ],
         [
             'key' => 'scale',
+            // SMS credits included each month (§ 1.2; P05-03).
+            'sms_credits' => 2_000,
             'name' => 'Scale',
             'audience' => 'Large portfolios and multi-team agencies',
             'base_kobo' => 8_500_000,
@@ -54,6 +60,9 @@ return [
         ],
         [
             'key' => 'enterprise',
+            // SMS credits included each month (§ 1.2; P05-03). Enterprise is custom: finance-admin sets
+            // each customer's allowance in the console; this is the default.
+            'sms_credits' => 2_000,
             'name' => 'Enterprise',
             'audience' => 'Estates and portfolios of 1,000+ units',
             'base_kobo' => 25_000_000,

@@ -22,9 +22,30 @@ final class OrganizationOwners
     /** @return Collection<int, User> */
     public function withEmail(Organization $organization): Collection
     {
-        $owners = DB::table('model_has_roles')
+        return $this->holding($organization, [OrganizationRole::Owner])->whereNotNull('email')->values();
+    }
+
+    /**
+     * Its owners and administrators, with or without an email address (an
+     * in-app notice reaches a phone-only account too): who is told the SMS
+     * credits are running out (P05-03).
+     *
+     * @return Collection<int, User>
+     */
+    public function ownersAndAdministrators(Organization $organization): Collection
+    {
+        return $this->holding($organization, [OrganizationRole::Owner, OrganizationRole::Admin]);
+    }
+
+    /**
+     * @param  list<OrganizationRole>  $roles
+     * @return Collection<int, User>
+     */
+    private function holding(Organization $organization, array $roles): Collection
+    {
+        $holders = DB::table('model_has_roles')
             ->join('roles', 'roles.id', '=', 'model_has_roles.role_id')
-            ->where('roles.name', OrganizationRole::Owner->value)
+            ->whereIn('roles.name', array_map(static fn (OrganizationRole $role): string => $role->value, $roles))
             ->whereNull('roles.organization_id')
             ->where('model_has_roles.organization_id', $organization->getKey())
             ->where('model_has_roles.model_type', (new User)->getMorphClass())
@@ -35,9 +56,8 @@ final class OrganizationOwners
             ->select('user_id');
 
         return User::query()
-            ->whereIn('id', $owners)
+            ->whereIn('id', $holders)
             ->whereIn('id', $members)
-            ->whereNotNull('email')
             ->orderBy('id')
             ->get();
     }

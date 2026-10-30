@@ -77,6 +77,7 @@ enum OrganizationPermission: string
     case ManageHandovers = 'handovers.manage';
     case ViewOwnerStatements = 'owner_statements.view';
     case ManageOwnerStatements = 'owner_statements.manage';
+    case ViewSmsCredits = 'sms_credits.view';
 
     /**
      * The organization's own WhatsApp Business account (P05-06,
@@ -124,6 +125,7 @@ enum OrganizationPermission: string
             self::ViewReports,
             self::ViewImports,
             self::ViewOwnerStatements,
+            self::ViewSmsCredits,
             self::ManageBilling,
             self::SubmitPaymentProof => true,
             self::UpdateOrganization,
@@ -249,6 +251,7 @@ enum OrganizationPermission: string
             self::ViewReports,
             self::ViewImports,
             self::ViewOwnerStatements,
+            self::ViewSmsCredits => false,
             self::ManageWhatsAppMessages => false,
         };
     }
@@ -309,6 +312,7 @@ enum OrganizationPermission: string
             self::ManageWhatsAppConnection => 'Connect the organization\'s own WhatsApp Business account (its IDs, access token and app secret), set up its status webhook and disconnect it',
             self::ManageWhatsAppMessages => 'Sync the organization\'s WhatsApp templates from Meta, choose which template each message uses and what fills its variables, and set each message\'s channel order (WhatsApp, then SMS)',
             self::ManageHandovers => 'Hand buildings to another organization for management or take them over, give or withdraw notice, and settle the moving tenants\' credit (management handovers)',
+            self::ViewSmsCredits => 'See the SMS credits: the balance, this month\'s allowance, purchases and the credit ledger (buying credits needs organization.billing)',
         };
     }
 }

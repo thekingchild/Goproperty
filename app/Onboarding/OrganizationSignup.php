@@ -11,6 +11,7 @@ use App\Enums\TransactionTier;
 use App\Models\Organization;
 use App\Models\OrganizationOnboarding;
 use App\Models\User;
+use App\Sms\Credits\SmsCredits;
 use App\Tenancy\OrganizationContext;
 use App\Tenancy\WorkspaceLanding;
 use Illuminate\Support\Facades\DB;
@@ -28,6 +29,7 @@ final readonly class OrganizationSignup
         private OrganizationContext $context,
         private OnboardingChecklist $checklist,
         private WorkspaceLanding $landing,
+        private SmsCredits $smsCredits,
     ) {}
 
     public function start(User $user, OrganizationDetails $details, string $slug, ?string $phone = null): Organization
@@ -68,6 +70,9 @@ final readonly class OrganizationSignup
                     'step' => OnboardingStep::Tier,
                 ]);
                 $this->checklist->start();
+                // The first month's SMS allowance, at once (P05-03): Starter's
+                // until a plan is chosen, then that plan's.
+                $this->smsCredits->refreshAllowance();
             });
 
             return $organization;

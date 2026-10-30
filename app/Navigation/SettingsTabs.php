@@ -6,6 +6,7 @@ namespace App\Navigation;
 
 use App\Models\Membership;
 use App\Models\Organization;
+use App\Models\SmsCreditEntry;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
 use LogicException;
@@ -19,7 +20,7 @@ use LogicException;
  *     $this->callAfterResolving(SettingsTabs::class, fn (SettingsTabs $tabs) => $tabs->add(new SettingsTab(…)));
  *
  * Shown in `order` (Core: Profile 10, Payment collection 20, Branding 30,
- * Members 90; modules' pages in between: online payments 25, P03-08;
+ * SMS credits 35, Members 90; modules' pages in between: online payments 25, P03-08;
  * document settings 40, P03-03b), only to members whose `visible` check
  * passes and only while the route exists. A module's settings page is
  * named `workspace.settings.documents.*` (its address
@@ -39,6 +40,7 @@ final class SettingsTabs
         $tabs->add(new SettingsTab('profile', 'Profile', 'workspace.settings.profile', static fn (User $user, Organization $organization): bool => $user->can('viewSettings', $organization), 10));
         $tabs->add(new SettingsTab('collections', 'Payment collection', 'workspace.settings.collections', static fn (User $user, Organization $organization): bool => $user->can('viewPaymentSettings', $organization), 20));
         $tabs->add(new SettingsTab('branding', 'Branding', 'workspace.settings.branding', static fn (User $user, Organization $organization): bool => $user->can('viewSettings', $organization), 30));
+        $tabs->add(new SettingsTab('sms-credits', 'SMS credits', 'workspace.settings.sms-credits', static fn (User $user): bool => $user->can('viewAny', SmsCreditEntry::class), 35));
         $tabs->add(new SettingsTab('members', 'Members', 'workspace.settings.members', static fn (User $user): bool => $user->can('viewAny', Membership::class), 90));
 
         return $tabs;

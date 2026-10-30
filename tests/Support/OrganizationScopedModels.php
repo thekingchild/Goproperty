@@ -21,8 +21,12 @@ use App\Models\OnboardingChecklistItem;
 use App\Models\Organization;
 use App\Models\OrganizationBankAccount;
 use App\Models\OrganizationOnboarding;
+use App\Models\SmsCreditBalance;
+use App\Models\SmsCreditEntry;
 use App\Models\TierApplication;
 use App\Models\User;
+use App\Sms\Credits\CreditPool;
+use App\Sms\Credits\CreditReason as SmsCreditReason;
 use App\Sms\DeliveryStatus;
 use App\Support\Money;
 use App\Tenancy\OrganizationContext;
@@ -89,6 +93,11 @@ use Modules\Reminders\Enums\ReminderChannel;
 use Modules\Reminders\Enums\ReminderStatus;
 use Modules\Reminders\Enums\ReminderType;
 use Modules\Reminders\Models\Reminder;
+use Modules\SaasBilling\Enums\InvoiceKind;
+use Modules\SaasBilling\Enums\InvoiceStatus;
+use Modules\SaasBilling\Enums\PlatformPaymentStatus;
+use Modules\SaasBilling\Models\PlatformInvoice;
+use Modules\SaasBilling\Models\PlatformPayment;
 use Modules\Tenants\Models\TenantProfile;
 use Modules\Tickets\Enums\MessageAuthor;
 use Modules\Tickets\Enums\TicketCategory;
@@ -398,6 +407,26 @@ final class OrganizationScopedModels
                 'provider' => 'log',
                 'dedupe_key' => 'probe:'.Str::ulid(),
             ])->save()),
+            // Rows on their own (App\Sms\Credits\SmsCredits is the writer, P05-03; the probes are about the rows).
+            SmsCreditBalance::class => fn (): Model => tap(new SmsCreditBalance, fn (SmsCreditBalance $balance): bool => $balance->forceFill(['purchased_credits' => 10])->save()),
+            SmsCreditEntry::class => fn (): Model => tap(new SmsCreditEntry, fn (SmsCreditEntry $entry): bool => $entry->forceFill([
+                'reason' => SmsCreditReason::Purchase,
+                'pool' => CreditPool::Purchased,
+                'credits' => 10,
+                'balance_after' => 10,
+                'month' => '2026-12',
+                'idempotency_key' => 'probe:'.Str::ulid(),
+            ])->save()),
+            // Rows on their own (Modules\SaasBilling\SmsCredits\SmsCreditPurchases is the writer, P05-03).
+            PlatformInvoice::class => fn (): Model => self::platformInvoice(),
+            PlatformPayment::class => fn (): Model => tap(new PlatformPayment, fn (PlatformPayment $payment): bool => $payment->forceFill([
+                'platform_invoice_id' => self::platformInvoice()->id,
+                'method' => PlatformPayment::PAYSTACK,
+                'amount_kobo' => Money::naira(3_225),
+                'currency' => 'NGN',
+                'paystack_reference' => 'PINV-PROBE-'.Str::upper(Str::random(12)),
+                'status' => PlatformPaymentStatus::Pending,
+            ])->save()),
             // The organization's own WhatsApp (P05-06): WhatsAppConnections, TemplateSync, ChannelMappings and WhatsAppOptIns are the writers.
             WhatsAppConnection::class => fn (): Model => self::whatsappConnection(),
             WhatsAppTemplate::class => fn (): Model => self::whatsappTemplate(),
@@ -415,6 +444,20 @@ final class OrganizationScopedModels
                 'source' => OptInSource::AgentRecorded,
             ])->save()),
         ];
+    }
+
+    /** An SMS credit bundle's invoice, in the current organization. */
+    private static function platformInvoice(): PlatformInvoice
+    {
+        return tap(new PlatformInvoice, fn (PlatformInvoice $invoice): bool => $invoice->forceFill([
+            'number' => 'PR-2026-'.random_int(100_000, 999_999),
+            'kind' => InvoiceKind::SmsCredits,
+            'sms_credits' => 500,
+            'subtotal_kobo' => Money::naira(3_000),
+            'vat_kobo' => Money::naira(225),
+            'total_kobo' => Money::naira(3_225),
+            'status' => InvoiceStatus::Open,
+        ])->save());
     }
 
     /** The current organization's WhatsApp connection (one per organization), made if missing. */

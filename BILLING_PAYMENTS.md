@@ -56,6 +56,7 @@ Examples (before 7.5% VAT):
 | Support | Email | Email + chat | Priority + onboarding call | Dedicated manager |
 
 - **SMS:** included credits reset monthly. Extra SMS bundles are bought in-app (priced in the console, e.g. ₦6 per SMS page). WhatsApp messages are billed by Meta directly to the agency's own WhatsApp Business account, so GoProperty doesn't resell them.
+- **How SMS credits work (P05-03; ARCHITECTURE.md § 6.7 "How SMS credits are built"):** one credit is one SMS page. The month's allowance arrives on the 1st (Lagos) and what is left of last month's expires; credits bought never expire; sending uses allowance credits first. A credit is taken just before each SMS is handed to GoText; at zero, SMS stop (email and in-app reminders carry on) and nothing is charged. An SMS GoText refuses outright gives its credit back. Owners and administrators are told at 20 % of the month's allowance and at zero, once a month each. Bundles (default 500, 1,000, 2,500, 5,000 credits at ₦6 each, plus VAT, set by `finance-admin`) are bought by an owner from Settings → SMS credits: each is a platform invoice (`PR-…`) paid through GoProperty's own Paystack checkout, and the credits are added once Paystack confirms the payment (§ 4.2–4.3 apply: verified by fetch, once per reference, a mismatch held for staff). Not while the organization is suspended (it is read-only; only the subscription is paid then).
 - **Transaction Tier is separate from plan.** Any plan can be on any tier.
 
 ### 1.3 Changing prices
@@ -134,6 +135,7 @@ Used for SaaS subscription collection. Scope: **transaction charges with saved a
 - `charge.success` → verify by fetching the transaction server-side (`GET /transaction/verify/:reference` — never trust the payload amount alone) → mark `platform_payment` confirmed → mark invoice paid → subscription → `active` → receipt + notifications.
 - `charge.failed` → log, increment attempt counter, schedule retry ladder (see § 6).
 - Hourly reconciliation job re-verifies all `open` invoices older than 1h against Paystack (catches missed webhooks).
+- **Built so far (P05-03):** GoProperty's webhook `/webhooks/paystack` (`Modules\SaasBilling`), the HMAC check with GoProperty's key, `webhook_log` before processing, verify-by-fetch and one `platform_payments` row per reference, for SMS credit bundles. The hourly reconciliation, stored authorizations and subscription invoices come with P06-02/P06-03.
 
 ### 4.3 Idempotency & safety rules
 

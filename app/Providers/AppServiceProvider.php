@@ -18,6 +18,7 @@ use App\Notifications\Channels\WhatsAppRouting;
 use App\Notifications\Preferences\NotificationSettingsPanels;
 use App\Settings\SettingDefinition;
 use App\Settings\SettingsRegistry;
+use App\Sms\Credits\SmsCreditLedger;
 use App\Sms\GoTextSmsSender;
 use App\Sms\LogSmsSender;
 use App\Sms\SmsSender;
@@ -68,6 +69,7 @@ class AppServiceProvider extends ServiceProvider
             $exports = new ListExports($app);
             $exports->register(MemberList::class);
             $exports->register(InvitationList::class);
+            $exports->register(SmsCreditLedger::class);
 
             return $exports;
         });

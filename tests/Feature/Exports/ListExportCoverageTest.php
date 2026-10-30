@@ -6,11 +6,13 @@ use App\Enums\OrganizationRole;
 use App\Enums\OrganizationType;
 use App\Exports\ListExports;
 use App\Exports\Livewire\WithListExports;
+use App\Livewire\Settings\SmsCreditsPage;
 use App\Members\MemberInvitations;
 use App\Models\Organization;
 use App\Models\User;
 use App\Navigation\WorkspaceNavigation;
 use App\Navigation\WorkspaceNavItem;
+use App\Sms\Credits\SmsCredits;
 use App\Support\Money;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Notification;
@@ -102,6 +104,8 @@ beforeEach(function () {
     $this->other->forceFill(['type' => OrganizationType::Hybrid])->save();
     inOrganization($this->acme, fn () => app(HandoverService::class)->offer($this->owner, $this->other, [buildingIn($this->acme, ['name' => 'Lagoon View', 'slug' => 'lagoon-view'])->id]));
     inOrganization($this->other, fn () => app(HandoverService::class)->offer($otherOwner, $this->acme, [buildingIn($this->other, ['name' => 'Harbour Point', 'slug' => 'harbour-point'])->id]));
+    // This month's SMS allowance in the credit ledger (P05-03).
+    inOrganization($this->acme, fn () => app(SmsCredits::class)->refreshAllowance());
     // A metered utility on the flat and a reading of its meter (P03-06a).
     readMeter($this->acme, $this->owner, utilityOn($this->acme, $this->owner, $flat, electricityIn($this->acme, $this->owner), ['effectiveFrom' => now()->subMonth()->toDateString()]), now()->toDateString(), '120.5');
 });
@@ -140,6 +144,8 @@ function workspaceListPages(User $user, Organization $organization, string $buil
     // An owner's monthly statements (P08-05), from the owner's page.
     $owner = inOrganization($organization, fn () => OwnerProfile::query()->orderBy('id')->value('id'));
     $pages["/o/{$organization->slug}/owners/{$owner}/statements"] = OwnerStatementIndex::class;
+    // The SMS credit ledger (P05-03), a settings page.
+    $pages["/o/{$organization->slug}/settings/sms-credits"] = SmsCreditsPage::class;
 
     return array_map(static fn (mixed $component): string => (string) $component, $pages);
 }
@@ -234,7 +240,7 @@ it('gives every workspace list page a working export, in Excel and CSV', functio
     $offered = array_values(array_unique($offered));
     sort($offered);
     expect($offered)->toBe(array_keys($registry->keys()))
-        ->toBe(['bank_statement_lines', 'bank_statements', 'bills', 'building_agents', 'buildings', 'expenses', 'handovers_made', 'handovers_received', 'imports', 'leases', 'member_invitations', 'members', 'owner_statements', 'owners', 'payments', 'receipts', 'tenants', 'tickets', 'units', 'utility_readings', 'utility_settings', 'utility_types']);
+        ->toBe(['bank_statement_lines', 'bank_statements', 'bills', 'building_agents', 'buildings', 'expenses', 'handovers_made', 'handovers_received', 'imports', 'leases', 'member_invitations', 'members', 'owner_statements', 'owners', 'payments', 'receipts', 'sms_credit_entries', 'tenants', 'tickets', 'units', 'utility_readings', 'utility_settings', 'utility_types']);
 });
 
 it('makes every Livewire component that pages through a list use the export', function () {

@@ -6,6 +6,7 @@ namespace App\Sms;
 
 use App\Models\NotificationDelivery;
 use App\Models\Organization;
+use App\Sms\Credits\SmsCredits;
 use App\Tenancy\OrganizationContext;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -24,6 +25,14 @@ use Throwable;
  * attempt died mid-call, so whether GoText took it is unknown: it is
  * marked failed rather than sent again (a duplicate costs the agency a
  * credit and confuses the tenant).
+ *
+ * SMS credits (P05-03): one credit per page is taken in the same
+ * transaction as the claim, under the organization's balance lock
+ * (Credits\SmsCredits::take), so parallel sends never take the balance
+ * below zero. With no credit left the delivery ends `no_credit` and GoText
+ * is never called. A retry takes nothing again. When the last attempt
+ * ends with GoText refusing the message outright, and no attempt's outcome
+ * was unknown, the credit is given back.
  */
 final class SendSms implements ShouldQueue
 {
@@ -46,7 +55,7 @@ final class SendSms implements ShouldQueue
         return [60, 300, 1800];
     }
 
-    public function handle(OrganizationContext $context, SmsSender $sender): void
+    public function handle(OrganizationContext $context, SmsSender $sender, SmsCredits $credits): void
     {
         $organization = Organization::query()->find($this->organizationId);
 
@@ -54,8 +63,8 @@ final class SendSms implements ShouldQueue
             return;
         }
 
-        $context->run($organization, function () use ($sender): void {
-            $delivery = $this->claim();
+        $context->run($organization, function () use ($sender, $credits): void {
+            $delivery = $this->claim($credits);
 
             if ($delivery === null) {
                 return;
@@ -64,7 +73,11 @@ final class SendSms implements ShouldQueue
             try {
                 $receipt = $sender->send($delivery->recipient_contact, $delivery->body);
             } catch (SmsFailed $failed) {
-                $delivery->forceFill(['status' => DeliveryStatus::Queued, 'error' => $failed->getMessage()])->save();
+                $delivery->forceFill([
+                    'status' => DeliveryStatus::Queued,
+                    'error' => $failed->getMessage(),
+                    'outcome_unknown' => $delivery->outcome_unknown || $failed->outcomeUnknown,
+                ])->save();
 
                 throw $failed;
             }
@@ -97,7 +110,10 @@ final class SendSms implements ShouldQueue
         }
 
         app(OrganizationContext::class)->run($organization, function () use ($exception): void {
-            DB::transaction(function () use ($exception): void {
+            $credits = app(SmsCredits::class);
+            $credits->ensureBalance();
+
+            DB::transaction(function () use ($exception, $credits): void {
                 $delivery = NotificationDelivery::query()->whereKey($this->deliveryId)->lockForUpdate()->first();
 
                 if ($delivery !== null && in_array($delivery->status, [DeliveryStatus::Queued, DeliveryStatus::Sending], true)) {
@@ -106,15 +122,24 @@ final class SendSms implements ShouldQueue
                         'failed_at' => now(),
                         'error' => $delivery->error ?? ($exception instanceof SmsFailed ? $exception->getMessage() : 'The message could not be sent.'),
                     ])->save();
+
+                    // GoText refused it outright (it answered, and never without
+                    // an answer before): it was not sent, so its credit comes back.
+                    if ($exception instanceof SmsFailed && ! $exception->outcomeUnknown && ! $delivery->outcome_unknown) {
+                        $credits->giveBack($delivery);
+                    }
                 }
             });
         });
     }
 
-    /** The delivery, claimed for this attempt, or null when there is nothing to send. */
-    private function claim(): ?NotificationDelivery
+    /** The delivery, claimed for this attempt with its credit taken, or null when there is nothing to send. */
+    private function claim(SmsCredits $credits): ?NotificationDelivery
     {
-        return DB::transaction(function (): ?NotificationDelivery {
+        // Outside the transaction: creating the balance row inside it could deadlock two senders.
+        $credits->ensureBalance();
+
+        return DB::transaction(function () use ($credits): ?NotificationDelivery {
             $delivery = NotificationDelivery::query()->whereKey($this->deliveryId)->lockForUpdate()->first();
 
             if ($delivery === null) {
@@ -132,6 +157,17 @@ final class SendSms implements ShouldQueue
             }
 
             if ($delivery->status !== DeliveryStatus::Queued) {
+                return null;
+            }
+
+            // One credit per page (every SMS is one GSM page, SmsText); taken
+            // once, on the first attempt, under the balance lock.
+            if (! $credits->take($delivery)) {
+                $delivery->forceFill([
+                    'status' => DeliveryStatus::NoCredit,
+                    'error' => 'No SMS credit left: not sent. The organization can buy more in Settings → SMS credits.',
+                ])->save();
+
                 return null;
             }
 

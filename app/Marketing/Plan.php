@@ -21,6 +21,8 @@ final readonly class Plan
         public bool $featured,
         public bool $custom,
         public array $features,
+        /** SMS credits included each month (BILLING_PAYMENTS.md § 1.2; P05-03). */
+        public int $smsCredits = 0,
     ) {}
 
     /** Monthly price for a number of units. */

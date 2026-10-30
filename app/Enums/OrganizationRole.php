@@ -80,7 +80,9 @@ enum OrganizationRole: string
             // owes each owner, and marking a month paid, are the business's
             // own accounts with its landlords: owners and administrators
             // (as the plan row says); agents never see them.
-            self::Admin => [P::OpenWorkspace, P::UpdateOrganization, P::ViewSettings, P::ViewMembers, P::ManageMembers, P::ViewOwners, P::ManageOwners, P::ManagePropertyPortfolio, P::AssignAgents, ...$operations, P::ManageUtilities, P::ViewStatements, P::ImportStatements, P::MatchStatements, P::ApproveReceiptVoids, P::ViewOrganizationExpenses, P::ManageExpenses, P::ViewReports, P::ViewImports, P::ManageImports, P::ViewOwnerStatements, P::ManageOwnerStatements, P::ManageWhatsAppMessages],
+            // SMS credits (P05-03): administrators see the balance and are told
+            // when it runs low; buying more is billing (owner only).
+            self::Admin => [P::OpenWorkspace, P::UpdateOrganization, P::ViewSettings, P::ViewMembers, P::ManageMembers, P::ViewOwners, P::ManageOwners, P::ManagePropertyPortfolio, P::AssignAgents, ...$operations, P::ManageUtilities, P::ViewStatements, P::ImportStatements, P::MatchStatements, P::ApproveReceiptVoids, P::ViewOrganizationExpenses, P::ManageExpenses, P::ViewReports, P::ViewImports, P::ManageImports, P::ViewOwnerStatements, P::ManageOwnerStatements, P::ViewSmsCredits, P::ManageWhatsAppMessages],
             // Operational staff: they edit buildings and units but do not add
             // or archive buildings. Once assigned to buildings (P02-03), an
             // agent sees and works on those buildings only (the policies and

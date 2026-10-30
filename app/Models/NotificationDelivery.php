@@ -31,6 +31,7 @@ use LogicException;
  * @property string|null $provider_status
  * @property string|null $error
  * @property int $attempts
+ * @property bool $outcome_unknown an attempt may have reached GoText without an answer (P05-03: its credit is kept)
  * @property int|null $pages
  * @property int|null $cost_kobo
  * @property string|null $source_type
@@ -66,6 +67,7 @@ class NotificationDelivery extends Model
     {
         return [
             'status' => DeliveryStatus::class,
+            'outcome_unknown' => 'boolean',
             'queued_at' => 'datetime',
             'sent_at' => 'datetime',
             'delivered_at' => 'datetime',

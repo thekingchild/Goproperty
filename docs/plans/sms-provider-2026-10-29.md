@@ -35,3 +35,7 @@ Settles the "SMS provider" item of PRE-01 and two rules for P05-02/P05-03. Other
 ## Built in P05-02 (2026-10-30), before GoText's answers
 
 P05-02 was built against GoText's documented API as SocietyFlow (`/home/oluwafemi/Documents/societyflow`, `App\Services\Sms\GoTextSmsClient`) already uses it: the JSON `POST /api/http/sms/send` and a success check on `status`. The open questions above are still open, so `App\Sms\GoTextSmsSender` reads `uid`, a status word, pages and cost by name anywhere in `data` and leaves them empty when absent; delivery status is polled (`GET /api/http/sms/{uid}`); messages are kept to one GSM page; one GoProperty sender ID (`GOTEXT_SENDER_ID`) for every agency, with the agency's name at the start of the text. Real messages go only in production (`SMS_DRIVER=gotext`, `GOTEXT_API_TOKEN`). Once GoText documents the fields of `data`, adjust the parsing in that one class.
+
+## Built in P05-03 (2026-10-30): SMS credits
+
+One credit per SMS page, taken before GoText is called; at zero nothing is sent (`no_credit`). Monthly allowances per plan, purchased bundles through GoProperty's own Paystack, the ledger in Settings → SMS credits, prices and adjustments in the console (ARCHITECTURE.md § 6.7 "How SMS credits are built"). If GoText bills messages over 160 characters or with non-GSM characters as more pages (still to confirm), `SendSms` charges one credit per message today because every SMS is one GSM page.
