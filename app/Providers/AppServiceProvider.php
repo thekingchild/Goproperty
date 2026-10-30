@@ -14,6 +14,9 @@ use App\Navigation\SettingsTabs;
 use App\Navigation\WorkspaceNavigation;
 use App\Settings\SettingDefinition;
 use App\Settings\SettingsRegistry;
+use App\Sms\GoTextSmsSender;
+use App\Sms\LogSmsSender;
+use App\Sms\SmsSender;
 use App\Tenancy\Moves\BuildingRecordMovers;
 use App\Tenancy\OrganizationContext;
 use App\Tenancy\PortalLanding;
@@ -80,6 +83,19 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(WhatsAppSender::class, static fn (): WhatsAppSender => match (config('services.whatsapp.driver')) {
             'log' => new LogWhatsAppSender,
             default => new NoWhatsAppSender,
+        });
+
+        // GoProperty's one SMS account (P05-02, docs/plans/sms-provider-2026-10-29.md):
+        // GoText only in production, so no other environment sends a real
+        // SMS (AGENT.md § 7); the log stand-in everywhere else.
+        $this->app->singleton(SmsSender::class, function (): SmsSender {
+            $token = config('services.gotext.token');
+
+            if (config('services.sms.driver') === 'gotext' && in_array($this->app->environment(), ['production'], true) && is_string($token) && $token !== '') {
+                return new GoTextSmsSender($token, (string) config('services.gotext.sender_id'), (string) config('services.gotext.base_url'));
+            }
+
+            return new LogSmsSender;
         });
 
         $this->app->singleton(SettingsRegistry::class, function (): SettingsRegistry {

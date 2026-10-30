@@ -53,6 +53,18 @@ final class TemplateRenderer
         );
     }
 
+    /**
+     * The text with the whitelisted placeholders replaced by these values
+     * as they are (SMS, P05-02); everything else as typed.
+     *
+     * @param  list<string>  $allowed
+     * @param  array<string, string|int|null>  $values
+     */
+    public function fillPlain(string $text, array $allowed, array $values): string
+    {
+        return $this->fill($text, $allowed, $values, static fn (string $value): string => $value);
+    }
+
     /** How a placeholder is written in a template, for the console's lists. */
     public static function tag(string $name): string
     {

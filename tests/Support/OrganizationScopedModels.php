@@ -16,12 +16,14 @@ use App\Media\Media;
 use App\Models\ComplianceDocument;
 use App\Models\Invitation;
 use App\Models\Membership;
+use App\Models\NotificationDelivery;
 use App\Models\OnboardingChecklistItem;
 use App\Models\Organization;
 use App\Models\OrganizationBankAccount;
 use App\Models\OrganizationOnboarding;
 use App\Models\TierApplication;
 use App\Models\User;
+use App\Sms\DeliveryStatus;
 use App\Support\Money;
 use App\Tenancy\OrganizationContext;
 use Closure;
@@ -378,6 +380,15 @@ final class OrganizationScopedModels
                 'status' => ReminderStatus::Pending,
                 'dedupe_key' => 'probe|'.Str::ulid(),
                 'notification_id' => (string) Str::uuid(),
+            ])->save()),
+            NotificationDelivery::class => fn (): Model => tap(new NotificationDelivery, fn (NotificationDelivery $delivery): bool => $delivery->forceFill([
+                'notification_type' => 'reminder.rent_due',
+                'channel' => 'sms',
+                'recipient_contact' => '+2348031112222',
+                'body' => 'Probe',
+                'status' => DeliveryStatus::Queued,
+                'provider' => 'log',
+                'dedupe_key' => 'probe:'.Str::ulid(),
             ])->save()),
         ];
     }

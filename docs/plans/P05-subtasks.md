@@ -40,5 +40,14 @@ Rules: [ARCHITECTURE.md § 6.7](../../ARCHITECTURE.md) (reminder engine, ladders
 ### Later P05 tasks (to confirm before each one starts)
 
 14. **SMS rungs (P05-02):** to save credits, SMS goes only on rent T−7 and T−1, utility T−0 and overdue +1 and +7. Email and in-app go on every rung.
-15. **SMS delivery status (P05-02):** if GoText has no delivery-report webhook, a queued job polls `GET /sms/{uid}` until a final status.
+15. **SMS delivery status (P05-02):** if GoText has no delivery-report webhook, a queued job polls `GET /sms/{uid}` until a final status. *As built (2026-10-30):* checks 5 minutes, 30 minutes, 2 and 12 hours after sending; still unknown after that, the message stays `sent`.
 16. **Email templates (P05-04):** seeded from P05-01's wording (one template per reminder type and rung kind). The console's `content-manager` role edits them; agencies do not edit wording, only their branding. *As built (2026-10-30):* six reminder templates (`reminder.rent_due`, `rent_upcoming`, `bill_due`, `bill_overdue`, `lease_ending`, `lease_ending_auto_renew`) with P05-01's wording unchanged; rent and other bills share the overdue template, as P05-01's wording did. Bounce and complaint webhooks for Postmark and Mailgun; SES (through SNS) is a follow-up.
+
+### Defaults taken in P05-02 (orchestrator, 2026-10-30; for the product owner to confirm)
+
+17. **"Verified number" is the portal account's.** Phone verification lives on the account (`users.phone_verified_at`, P03-01b), so only a tenant with a portal account whose number is verified is texted, at that number. A tenant record without an account is never texted, even when the agency typed a number.
+18. **At most once.** A send whose outcome is unknown (the job died while calling GoText) is marked failed, never retried: a duplicate costs a credit and confuses the tenant. Other failures retry after 1, 5 and 30 minutes, then the delivery is `failed`.
+19. **Real SMS only in production** (`SMS_DRIVER=gotext` and a token). Staging and local use the log driver until GoText's test mode is confirmed.
+20. **Plain GSM text.** SMS wording uses "NGN" instead of ₦ and drops accents, so 160 characters fit one page (one non-GSM character would cut it to 70).
+21. **Preferences.** An account may turn reminder emails and SMS off (Settings → Notifications); in-app reminders, security and transactional messages stay on. Staff may turn off renewal alert emails.
+22. **SMS link.** The SMS links to the public pay page (`/pay/{reference}`) for every tenant, shorter than the portal's bill page.

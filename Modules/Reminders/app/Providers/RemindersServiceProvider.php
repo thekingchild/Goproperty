@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Modules\Reminders\Providers;
 
 use App\Mail\Templates\TemplateCatalog;
+use App\Sms\SmsSent;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Notifications\Events\NotificationSent;
 use Illuminate\Support\Facades\Event;
 use Modules\Reminders\Jobs\DispatchReminders;
 use Modules\Reminders\Listeners\MarkReminderDelivered;
+use Modules\Reminders\Listeners\MarkReminderSmsSent;
 use Modules\Reminders\Reminders\ReminderTemplates;
 use Nwidart\Modules\Support\ModuleServiceProvider;
 
@@ -38,6 +40,7 @@ final class RemindersServiceProvider extends ModuleServiceProvider
         parent::boot();
 
         Event::listen(NotificationSent::class, MarkReminderDelivered::class);
+        Event::listen(SmsSent::class, MarkReminderSmsSent::class);
 
         // Its email templates, edited in the console (P05-04, PLATFORM_CONSOLE.md § 5).
         $this->callAfterResolving(TemplateCatalog::class, static function (TemplateCatalog $catalog): void {

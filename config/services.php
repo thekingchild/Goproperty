@@ -50,6 +50,19 @@ return [
     // Organizations' own WhatsApp Business accounts (ARCHITECTURE.md § 6.7).
     // `log` (the default until P05-06 builds the Cloud API driver) sends
     // nothing and is never offered in production; `none` switches it off.
+    // SMS (P05-02): GoProperty's own GoText account. `gotext` sends only in
+    // production; any other driver, or any other environment, uses the log
+    // stand-in (App\Providers\AppServiceProvider).
+    'sms' => [
+        'driver' => env('SMS_DRIVER', 'log'),
+    ],
+
+    'gotext' => [
+        'token' => env('GOTEXT_API_TOKEN'),
+        'sender_id' => env('GOTEXT_SENDER_ID', 'GoProperty'),
+        'base_url' => env('GOTEXT_BASE_URL', 'https://app.gotext.ng'),
+    ],
+
     'whatsapp' => [
         'driver' => env('WHATSAPP_DRIVER', 'log'),
     ],

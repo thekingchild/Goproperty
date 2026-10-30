@@ -29,7 +29,7 @@ beforeEach(function () {
 });
 
 it('seeds one template per reminder type and kind of rung, with P05-01\'s wording', function () {
-    expect(EmailTemplate::query()->where('key', 'like', 'reminder.%')->orderBy('key')->pluck('key')->all())->toBe([
+    expect(EmailTemplate::query()->where('key', 'like', 'reminder.%')->where('channel', 'email')->orderBy('key')->pluck('key')->all())->toBe([
         ReminderTemplates::BILL_DUE,
         ReminderTemplates::BILL_OVERDUE,
         ReminderTemplates::LEASE_ENDING,

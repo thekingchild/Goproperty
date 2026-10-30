@@ -29,6 +29,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property Carbon|null $phone_verified_at opened a link sent to it by WhatsApp, or confirmed by an agency in person (P03-01b)
  * @property PhoneVerificationMethod|null $phone_verification_method
  * @property int|null $phone_confirmed_by_user_id the agency member who confirmed it in person
+ * @property array<string, array<string, bool>>|null $preferences notification channel choices (P05-02, NotificationPreferences)
  * @property Carbon|null $email_verified_at
  * @property string $password
  * @property string|null $two_factor_secret
@@ -56,6 +57,7 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
             'email_verified_at' => 'datetime',
             'phone_verified_at' => 'datetime',
             'phone_verification_method' => PhoneVerificationMethod::class,
+            'preferences' => 'array',
             'password' => 'hashed',
         ];
     }

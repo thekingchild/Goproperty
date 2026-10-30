@@ -17,6 +17,7 @@ use Modules\Leasing\Contracts\CycleCalculator;
 use Modules\Leasing\Contracts\EndingLease;
 use Modules\Leasing\Contracts\EndingLeases;
 use Modules\Leasing\Contracts\LeaseBillingSchedule;
+use Modules\Reminders\Enums\ReminderChannel;
 use Modules\Reminders\Enums\ReminderStatus;
 use Modules\Reminders\Enums\ReminderType;
 use Modules\Reminders\Models\Reminder;
@@ -290,6 +291,11 @@ final readonly class ReminderPlanner
 
         foreach ($recipients as $recipient) {
             foreach ($recipient->channels() as $channel) {
+                // SMS only on its own rungs (default 14).
+                if ($channel === ReminderChannel::Sms && ! in_array($rung->days, $rung->type->smsRungs(), true)) {
+                    continue;
+                }
+
                 $rows[$rung->dedupeKey($channel->value, $recipient->key)] = [$recipient, $channel];
             }
         }
@@ -316,6 +322,7 @@ final readonly class ReminderPlanner
                 'recipient_user_id' => $recipient->userId,
                 'recipient_tenant_profile_id' => $recipient->tenantProfileId,
                 'recipient_email' => $recipient->email,
+                'recipient_phone' => $channel === ReminderChannel::Sms ? $recipient->phone : null,
                 'send_at' => ReminderClock::sendAt($today),
                 'status' => ReminderStatus::Pending,
                 'dedupe_key' => (string) $key,

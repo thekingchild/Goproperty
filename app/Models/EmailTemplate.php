@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Mail\Templates\TemplateCategory;
+use App\Mail\Templates\TemplateChannel;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -19,6 +20,7 @@ use LogicException;
  *
  * @property int $id
  * @property string $key
+ * @property TemplateChannel $channel
  * @property string $name
  * @property string|null $description
  * @property TemplateCategory $category
@@ -54,6 +56,7 @@ class EmailTemplate extends Model
     protected function casts(): array
     {
         return [
+            'channel' => TemplateChannel::class,
             'category' => TemplateCategory::class,
             'allowed_placeholders' => 'array',
             'active' => 'boolean',

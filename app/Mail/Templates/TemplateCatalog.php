@@ -25,6 +25,19 @@ final class TemplateCatalog
                 throw new InvalidArgumentException("Template key [{$definition->key}] must look like area.name.");
             }
 
+            if ($definition->channel === TemplateChannel::Sms) {
+                // Never promotional or security SMS (docs/plans/sms-provider-2026-10-29.md decision 4).
+                if (! in_array($definition->category, [TemplateCategory::Transactional, TemplateCategory::Reminder], true)) {
+                    throw new InvalidArgumentException("SMS template [{$definition->key}] must be transactional or a reminder.");
+                }
+
+                foreach ($definition->placeholders as $placeholder) {
+                    if ($placeholder->max === null) {
+                        throw new InvalidArgumentException("SMS template [{$definition->key}] needs a longest length for {$placeholder->name}.");
+                    }
+                }
+            }
+
             $this->definitions[$definition->key] = $definition;
         }
     }

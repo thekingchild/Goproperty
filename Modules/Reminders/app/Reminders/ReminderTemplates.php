@@ -6,6 +6,7 @@ namespace Modules\Reminders\Reminders;
 
 use App\Mail\Templates\Placeholder;
 use App\Mail\Templates\TemplateCategory;
+use App\Mail\Templates\TemplateChannel;
 use App\Mail\Templates\TemplateContent;
 use App\Mail\Templates\TemplateDefinition;
 
@@ -16,6 +17,11 @@ use App\Mail\Templates\TemplateDefinition;
  * the console; agencies change only what the placeholders fill in (their
  * name, through their branding). ReminderMessages gives the values.
  * The in-app notice shows the subject.
+ *
+ * SMS (P05-02): the bill reminders also have an SMS version (key + `.sms`),
+ * plain GSM text that fits one page with every value at its longest
+ * (lengths below; the link's from APP_URL). Renewal alerts go to staff and
+ * have none.
  */
 final class ReminderTemplates
 {
@@ -39,8 +45,64 @@ final class ReminderTemplates
 
     private const string SIGN_OFF = "\n\n{{ agency.name }}";
 
+    /** The SMS version of an email template's key. */
+    public static function sms(string $key): string
+    {
+        return $key.'.sms';
+    }
+
     /** @return list<TemplateDefinition> */
     public static function definitions(): array
+    {
+        return [...self::emails(), ...self::texts()];
+    }
+
+    /** @return list<TemplateDefinition> */
+    private static function texts(): array
+    {
+        $agency = new Placeholder('agency.name', "The agency's name (cut to 24 characters)", 'Adeyemi Realty', 24);
+        $owed = new Placeholder('bill.owed', 'The amount still owed, e.g. "NGN 1,500,000"', 'NGN 1,500,000', 18);
+        $reference = new Placeholder('bill.payment_reference', 'The reference for the transfer narration', 'GP-7K3M9Q', 16);
+        $link = new Placeholder('pay_link', 'The public pay page for the bill', rtrim((string) config('app.url'), '/').'/pay/GP-7K3M9Q', static fn (): int => strlen(route('pay.show', ['reference' => str_repeat('X', 16)])));
+        $dueShort = new Placeholder('bill.due_short', 'When it is due: "today (1 Jan)", "tomorrow (1 Jan)", "in 7 days (1 Jan)"', 'in 7 days (1 Jan)', 19);
+
+        return [
+            self::text(self::RENT_DUE, 'Rent due', 'By SMS on rent T−7 and T−1, to a verified number.', [$agency, $owed, $dueShort, $reference, $link],
+                '{{ agency.name }}: rent of {{ bill.owed }} is due {{ bill.due_short }}. Pay to ref {{ bill.payment_reference }}: {{ pay_link }}'),
+            self::text(self::RENT_UPCOMING, 'Rent due (before the bill)', 'By SMS on a rent SMS rung that comes before the bill is issued.', [
+                $agency,
+                new Placeholder('rent.amount', 'The rent for the period', 'NGN 1,500,000', 18),
+                new Placeholder('rent.due_short', 'When it is due: "in 7 days (1 Jan)"', 'in 7 days (1 Jan)', 19),
+            ], '{{ agency.name }}: your rent of {{ rent.amount }} is due {{ rent.due_short }}. Your invoice with payment details follows.'),
+            self::text(self::BILL_DUE, 'Utility bill due', 'By SMS on utility T−0, to a verified number.', [
+                $agency,
+                new Placeholder('bill.type', 'What kind of bill, e.g. "Electricity" (cut to 14 characters)', 'Electricity', 14),
+                $owed, $dueShort, $reference, $link,
+            ], '{{ agency.name }}: {{ bill.type }} of {{ bill.owed }} due {{ bill.due_short }}. Ref {{ bill.payment_reference }}: {{ pay_link }}'),
+            self::text(self::BILL_OVERDUE, 'Bill overdue', 'By SMS on overdue +1 and +7, to a verified number.', [
+                $agency, $owed,
+                new Placeholder('bill.due_day', 'The due date, e.g. "1 Jan"', '1 Jan', 6),
+                $reference, $link,
+            ], '{{ agency.name }}: {{ bill.owed }} is overdue (due {{ bill.due_day }}). Ref {{ bill.payment_reference }}: {{ pay_link }}'),
+        ];
+    }
+
+    /** @param  list<Placeholder>  $placeholders */
+    private static function text(string $key, string $name, string $description, array $placeholders, string $body): TemplateDefinition
+    {
+        return new TemplateDefinition(
+            key: self::sms($key),
+            name: $name.' (SMS)',
+            description: $description,
+            category: TemplateCategory::Reminder,
+            placeholders: $placeholders,
+            content: new TemplateContent('', $body),
+            channel: TemplateChannel::Sms,
+        );
+    }
+
+    /** @return list<TemplateDefinition> */
+    private static function emails(): array
     {
         $tenant = [
             new Placeholder('recipient.name', "The tenant's name", 'Femi Okon'),

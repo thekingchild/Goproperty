@@ -59,9 +59,14 @@ final readonly class ReminderMessages
             return $this->renewal($reminder, $organization);
         }
 
-        $tenant = $this->stillHears($reminder);
+        $tenantId = $reminder->recipient_tenant_profile_id;
+        $tenant = $tenantId !== null ? ($this->recipients->tenants([$tenantId])[$tenantId] ?? null) : null;
 
-        if ($tenant === null) {
+        if ($tenant !== null && in_array($reminder->channel, $tenant->off, true)) {
+            return SkipReason::OptedOut;
+        }
+
+        if ($tenant === null || ! $this->hears($reminder, $tenant)) {
             return SkipReason::Unreachable;
         }
 
@@ -111,6 +116,10 @@ final readonly class ReminderMessages
                 'bill.due_when' => self::dueWhen($reminder->offset_days, $bill->dueDate),
                 'bill.due_since' => self::since($reminder->offset_days, $bill->dueDate),
                 'bill.payment_reference' => $bill->paymentReference,
+                // For the SMS templates (P05-02): shorter words, the public pay page.
+                'bill.due_short' => self::dueShort($reminder->offset_days, $bill->dueDate),
+                'bill.due_day' => self::shortDay($bill->dueDate),
+                'pay_link' => route('pay.show', ['reference' => $bill->paymentReference]),
             ],
             url: $this->tenantUrl($reminder, $bill),
         );
@@ -140,6 +149,7 @@ final readonly class ReminderMessages
                 'rent.period' => self::period($period->start, $period->end),
                 'rent.due_date' => self::day($reminder->due_date),
                 'rent.due_when' => self::dueWhen($reminder->offset_days, $reminder->due_date),
+                'rent.due_short' => self::dueShort($reminder->offset_days, $reminder->due_date),
             ],
             url: $reminder->recipient_user_id !== null ? route('portal.leases.show', ['lease' => $lease->id]) : null,
         );
@@ -167,6 +177,10 @@ final readonly class ReminderMessages
             return SkipReason::Unreachable;
         }
 
+        if (in_array($reminder->channel, $member->off, true)) {
+            return SkipReason::OptedOut;
+        }
+
         if ($reminder->channel === ReminderChannel::Email && $reminder->recipient_email !== null && $this->suppressions->isSuppressed($reminder->recipient_email)) {
             return SkipReason::Suppressed;
         }
@@ -189,17 +203,15 @@ final readonly class ReminderMessages
         );
     }
 
-    /** The tenant, when they can still be reached on the reminder's channel. */
-    private function stillHears(Reminder $reminder): ?Recipient
+    /** Whether the tenant can still be reached on the reminder's channel, at the address or number it was planned for. */
+    private function hears(Reminder $reminder, Recipient $recipient): bool
     {
-        $tenantId = $reminder->recipient_tenant_profile_id;
-        $recipient = $tenantId !== null ? ($this->recipients->tenants([$tenantId])[$tenantId] ?? null) : null;
-
-        $hears = $recipient !== null && ($reminder->channel === ReminderChannel::Email
-            ? $reminder->recipient_email !== null
-            : $recipient->userId !== null && $recipient->userId === $reminder->recipient_user_id);
-
-        return $hears ? $recipient : null;
+        return match ($reminder->channel) {
+            ReminderChannel::Email => $reminder->recipient_email !== null,
+            ReminderChannel::InApp => $recipient->userId !== null && $recipient->userId === $reminder->recipient_user_id,
+            // Still verified, and still the number planned (a changed number is not texted).
+            ReminderChannel::Sms => $recipient->phone !== null && $recipient->phone === $reminder->recipient_phone,
+        };
     }
 
     private function tenantUrl(Reminder $reminder, RemindableBill $bill): string
@@ -217,6 +229,21 @@ final readonly class ReminderMessages
             $offset === -1 => 'tomorrow ('.self::day($date).')',
             default => 'in '.abs($offset).' days, on '.self::day($date),
         };
+    }
+
+    /** For an SMS: "today (1 Jan)", "tomorrow (1 Jan)" or "in 7 days (1 Jan)". */
+    private static function dueShort(int $offset, CarbonImmutable $date): string
+    {
+        return match (true) {
+            $offset === 0 => 'today',
+            $offset === -1 => 'tomorrow',
+            default => 'in '.abs($offset).' days',
+        }.' ('.self::shortDay($date).')';
+    }
+
+    private static function shortDay(CarbonImmutable $date): string
+    {
+        return $date->format('j M');
     }
 
     /** "yesterday (…)" or "on 1 January 2027, 7 days ago". */

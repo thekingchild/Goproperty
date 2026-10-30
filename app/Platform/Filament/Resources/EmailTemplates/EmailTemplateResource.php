@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Platform\Filament\Resources\EmailTemplates;
 
 use App\Mail\Templates\TemplateCategory;
+use App\Mail\Templates\TemplateChannel;
 use App\Models\EmailTemplate;
 use App\Platform\Filament\Resources\EmailTemplates\Pages\EditEmailTemplate;
 use App\Platform\Filament\Resources\EmailTemplates\Pages\ListEmailTemplates;
@@ -42,7 +43,7 @@ final class EmailTemplateResource extends Resource
 
     protected static string|UnitEnum|null $navigationGroup = 'Content';
 
-    protected static ?string $navigationLabel = 'Email templates';
+    protected static ?string $navigationLabel = 'Message templates';
 
     protected static ?int $navigationSort = 1;
 
@@ -58,18 +59,22 @@ final class EmailTemplateResource extends Resource
         return $table
             ->columns([
                 TextColumn::make('name')->searchable()->sortable()->description(fn (EmailTemplate $record): string => $record->key),
+                TextColumn::make('channel')->badge()->formatStateUsing(fn (TemplateChannel $state): string => $state->label()),
                 TextColumn::make('category')->badge()->formatStateUsing(fn (TemplateCategory $state): string => $state->label()),
-                TextColumn::make('currentVersion.subject')->label('Subject')->limit(60)->wrap(),
+                TextColumn::make('currentVersion.subject')->label('Subject or text')->limit(60)->wrap()
+                    ->state(fn (EmailTemplate $record): ?string => $record->channel === TemplateChannel::Sms ? $record->currentVersion?->body_markdown : $record->currentVersion?->subject),
                 TextColumn::make('currentVersion.version')->label('Version'),
                 TextColumn::make('currentVersion.created_at')->label('Changed')->since()
                     ->description(fn (EmailTemplate $record): string => $record->currentVersion?->createdBy->name ?? 'From the code'),
                 IconColumn::make('active')->boolean(),
             ])
             ->filters([
+                SelectFilter::make('channel')->options([TemplateChannel::Email->value => 'Email', TemplateChannel::Sms->value => 'SMS']),
                 SelectFilter::make('category')->options(TemplateCategory::options()),
             ])
             ->recordActions([EditAction::make()])
-            ->defaultSort('key');
+            ->defaultSort('key')
+            ->paginated([25, 50]);
     }
 
     public static function getRelations(): array

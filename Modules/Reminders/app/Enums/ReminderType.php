@@ -36,6 +36,23 @@ enum ReminderType: string
         };
     }
 
+    /**
+     * The rungs that also go by SMS (docs/plans/P05-subtasks.md default 14,
+     * to save the agency's credits): rent T−7 and T−1, utilities T−0,
+     * overdue +1 and +7. Renewal alerts go to staff: never by SMS.
+     *
+     * @return list<int>
+     */
+    public function smsRungs(): array
+    {
+        return match ($this) {
+            self::RentDue => [7, 1],
+            self::UtilityDue => [0],
+            self::BillOverdue => [1, 7],
+            self::LeaseRenewal => [],
+        };
+    }
+
     /** Whether the rungs count days after the date (overdue) rather than before it. */
     public function countsAfter(): bool
     {

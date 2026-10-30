@@ -10,6 +10,7 @@ namespace App\Mail\Templates;
  * starts with. The wording is GoProperty's to change in the console
  * (`content-manager`); the key, category and placeholders follow the code.
  * Core and modules add theirs to TemplateCatalog from their providers.
+ * An SMS template (P05-02) is a definition of its own with channel `sms`.
  */
 final readonly class TemplateDefinition
 {
@@ -21,7 +22,19 @@ final readonly class TemplateDefinition
         public TemplateCategory $category,
         public array $placeholders,
         public TemplateContent $content,
+        public TemplateChannel $channel = TemplateChannel::Email,
     ) {}
+
+    public function placeholder(string $name): ?Placeholder
+    {
+        foreach ($this->placeholders as $placeholder) {
+            if ($placeholder->name === $name) {
+                return $placeholder;
+            }
+        }
+
+        return null;
+    }
 
     /** @return list<string> */
     public function placeholderNames(): array

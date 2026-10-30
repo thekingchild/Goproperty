@@ -8,7 +8,9 @@ use App\Enums\OrganizationPermission;
 use App\Enums\OrganizationRole;
 use App\Members\Members;
 use App\Models\User;
+use App\Notifications\Preferences\NotificationPreferences;
 use Modules\Properties\Contracts\BuildingAccess;
+use Modules\Reminders\Enums\ReminderChannel;
 use Modules\Tenants\Contracts\TenantDirectory;
 use Modules\Tenants\Contracts\TenantReach;
 
@@ -19,8 +21,12 @@ use Modules\Tenants\Contracts\TenantReach;
  * - **Tenants** (bills): a tenant who may be contacted (Tenants'
  *   TenantReach: not archived; an imported one only once invited or with
  *   a portal account), by email at their portal account's address, else
- *   the tenant record's, and in the app when they have a portal account.
- *   A phone-only tenant without an account is told nothing until P05-02.
+ *   the tenant record's, in the app when they have a portal account, and
+ *   by SMS (P05-02) when that account's phone number is verified (opened
+ *   a link sent to it by WhatsApp, or confirmed by the agency in person;
+ *   ARCHITECTURE.md § 6.7: unverified numbers are never texted). A tenant
+ *   with no account is never texted. Channels the account turned off for
+ *   reminders (App\Notifications\Preferences) are left out.
  * - **Staff** (renewal alerts): the agents assigned to the lease's building
  *   who hold `leases.manage`; when it has none, the organization's owners
  *   and administrators who hold it. In the app and by email.
@@ -32,6 +38,7 @@ final readonly class ReminderRecipients
         private TenantReach $reach,
         private Members $members,
         private BuildingAccess $access,
+        private NotificationPreferences $preferences,
     ) {}
 
     /**
@@ -66,6 +73,8 @@ final readonly class ReminderRecipients
                 userId: $user?->id,
                 tenantProfileId: $tenant->id,
                 email: self::address($user?->email) ?? self::address($tenant->email),
+                phone: $user !== null && $user->hasVerifiedPhone() ? $user->phone : null,
+                off: $this->off($user),
             );
 
             if ($recipient->channels() !== []) {
@@ -95,13 +104,27 @@ final readonly class ReminderRecipients
             ? $assigned
             : $users->filter(static fn (User $user): bool => $user->hasAnyRole(OrganizationRole::Owner->value, OrganizationRole::Admin->value));
 
-        return array_values($chosen->map(static fn (User $user): Recipient => new Recipient(
+        return array_values($chosen->map(fn (User $user): Recipient => new Recipient(
             key: 'user:'.$user->id,
             name: (string) $user->name,
             userId: $user->id,
             tenantProfileId: null,
             email: self::address($user->email),
+            off: $this->off($user),
         ))->all());
+    }
+
+    /**
+     * The reminder channels the account turned off.
+     *
+     * @return list<ReminderChannel>
+     */
+    public function off(?User $user): array
+    {
+        return array_values(array_filter([
+            $this->preferences->allows($user, NotificationPreferences::REMINDERS, 'email') ? null : ReminderChannel::Email,
+            $this->preferences->allows($user, NotificationPreferences::REMINDERS, 'sms') ? null : ReminderChannel::Sms,
+        ]));
     }
 
     private static function address(?string $email): ?string

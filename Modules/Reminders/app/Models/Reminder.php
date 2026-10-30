@@ -36,6 +36,7 @@ use Modules\Reminders\Enums\SkipReason;
  * @property int|null $recipient_user_id
  * @property int|null $recipient_tenant_profile_id
  * @property string|null $recipient_email
+ * @property string|null $recipient_phone the verified number of an `sms` row (P05-02)
  * @property CarbonImmutable|null $send_at
  * @property ReminderStatus $status
  * @property SkipReason|null $skip_reason
@@ -48,6 +49,9 @@ use Modules\Reminders\Enums\SkipReason;
  */
 final class Reminder extends Model
 {
+    /** `notification_deliveries.source_type` of a reminder's SMS (P05-02). */
+    public const string SMS_SOURCE = 'reminder';
+
     use BelongsToOrganization;
 
     public const string BILL = 'bill';

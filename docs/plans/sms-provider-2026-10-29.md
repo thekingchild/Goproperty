@@ -31,3 +31,7 @@ Settles the "SMS provider" item of PRE-01 and two rules for P05-02/P05-03. Other
 - The **DND/transactional route**: whether it needs a registered sender ID, approved templates (`dlt_template_id`) or both, and how long approval takes.
 - **Per-agency sender IDs** (BRANDING_DOCUMENTS.md § 1): how GoText registers them and what is needed from the agency.
 - A test mode or test sender for staging, rate limits, the account balance endpoint (Profile API), and how messages over 160 characters or with non-GSM characters are counted.
+
+## Built in P05-02 (2026-10-30), before GoText's answers
+
+P05-02 was built against GoText's documented API as SocietyFlow (`/home/oluwafemi/Documents/societyflow`, `App\Services\Sms\GoTextSmsClient`) already uses it: the JSON `POST /api/http/sms/send` and a success check on `status`. The open questions above are still open, so `App\Sms\GoTextSmsSender` reads `uid`, a status word, pages and cost by name anywhere in `data` and leaves them empty when absent; delivery status is polled (`GET /api/http/sms/{uid}`); messages are kept to one GSM page; one GoProperty sender ID (`GOTEXT_SENDER_ID`) for every agency, with the agency's name at the start of the text. Real messages go only in production (`SMS_DRIVER=gotext`, `GOTEXT_API_TOKEN`). Once GoText answers, adjust the parsing (and add a delivery-report webhook if it has one) in that one class.

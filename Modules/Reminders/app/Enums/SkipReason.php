@@ -32,6 +32,9 @@ enum SkipReason: string
     /** The email address is on the suppression list: it bounced or complained (P05-04). */
     case Suppressed = 'suppressed';
 
+    /** The person turned this channel off for reminders (Settings → Notifications, P05-02). */
+    case OptedOut = 'opted_out';
+
     /** The organization was suspended or cancelled. */
     case OrganizationInactive = 'organization_inactive';
 }

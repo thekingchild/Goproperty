@@ -8,6 +8,7 @@ use App\Mail\Templates\EmailBrand;
 use App\Mail\Templates\EmailTemplates;
 use App\Models\Organization;
 use App\Models\User;
+use App\Sms\SmsOutbox;
 use App\Tenancy\OrganizationContext;
 use App\Theme\ThemeContext;
 use Carbon\CarbonImmutable;
@@ -42,6 +43,7 @@ final readonly class ReminderSender
         private ReminderMessages $messages,
         private ThemeContext $theme,
         private EmailTemplates $templates,
+        private SmsOutbox $sms,
     ) {}
 
     /**
@@ -107,6 +109,22 @@ final readonly class ReminderSender
 
     private function deliver(Organization $organization, Reminder $reminder, ReminderMessage $message): void
     {
+        if ($reminder->channel === ReminderChannel::Sms) {
+            // One GSM page from the SMS template (P05-02), sent through Core's
+            // outbox: a delivery row first, so a replay sends nothing twice.
+            $this->sms->queue(
+                type: 'reminder.'.$reminder->type->value,
+                to: (string) $reminder->recipient_phone,
+                text: $this->templates->renderSms(ReminderTemplates::sms($message->template), $message->values),
+                dedupeKey: 'reminder:'.$reminder->id,
+                userId: $reminder->recipient_user_id,
+                sourceType: Reminder::SMS_SOURCE,
+                sourceId: $reminder->id,
+            );
+
+            return;
+        }
+
         $user = $reminder->recipient_user_id !== null ? User::query()->find($reminder->recipient_user_id) : null;
 
         $notification = new ReminderNotice(
