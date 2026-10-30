@@ -101,8 +101,10 @@ use Modules\Reminders\Models\Reminder;
 use Modules\SaasBilling\Enums\InvoiceKind;
 use Modules\SaasBilling\Enums\InvoiceStatus;
 use Modules\SaasBilling\Enums\PlatformPaymentStatus;
+use Modules\SaasBilling\Enums\UnitEventReason;
 use Modules\SaasBilling\Models\PlatformInvoice;
 use Modules\SaasBilling\Models\PlatformPayment;
+use Modules\SaasBilling\Models\SubscriptionUnitEvent;
 use Modules\Tenants\Models\TenantProfile;
 use Modules\Tickets\Enums\MessageAuthor;
 use Modules\Tickets\Enums\TicketCategory;
@@ -447,6 +449,15 @@ final class OrganizationScopedModels
                 'paystack_reference' => 'PINV-PROBE-'.Str::upper(Str::random(12)),
                 'status' => PlatformPaymentStatus::Pending,
             ])->save()),
+            // The metering ledger (P06-02; Metering\SubscriptionMetering is the writer): needs the organization's subscription.
+            SubscriptionUnitEvent::class => fn (): Model => tap(new SubscriptionUnitEvent, fn (SubscriptionUnitEvent $event): bool => $event->forceFill([
+                'subscription_id' => self::subscription()->id,
+                'effective_date' => '2027-01-01',
+                'unit_count' => 12,
+                'included_units' => 10,
+                'counted_units' => 2,
+                'reason' => UnitEventReason::Initial,
+            ])->save()),
             // The organization's own WhatsApp (P05-06): WhatsAppConnections, TemplateSync, ChannelMappings and WhatsAppOptIns are the writers.
             WhatsAppConnection::class => fn (): Model => self::whatsappConnection(),
             WhatsAppTemplate::class => fn (): Model => self::whatsappTemplate(),
@@ -467,6 +478,15 @@ final class OrganizationScopedModels
     }
 
     /** An SMS credit bundle's invoice, in the current organization. */
+    /** The current organization's subscription (one per organization), made if missing. */
+    private static function subscription(): Subscription
+    {
+        return Subscription::query()->first() ?? tap(new Subscription, fn (Subscription $subscription): bool => $subscription->forceFill([
+            'plan_id' => (int) DB::table('plans')->where('key', 'starter')->value('id'),
+            'status' => SubscriptionStatus::Active,
+        ])->save());
+    }
+
     private static function platformInvoice(): PlatformInvoice
     {
         return tap(new PlatformInvoice, fn (PlatformInvoice $invoice): bool => $invoice->forceFill([

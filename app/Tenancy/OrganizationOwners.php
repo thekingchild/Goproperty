@@ -26,6 +26,18 @@ final class OrganizationOwners
     }
 
     /**
+     * Its owners, with or without an email address: who is sent GoProperty's
+     * invoices (P06-02, BILLING_PAYMENTS.md § 3 step 4; in the app, and by
+     * email when they have an address).
+     *
+     * @return Collection<int, User>
+     */
+    public function owners(Organization $organization): Collection
+    {
+        return $this->holding($organization, [OrganizationRole::Owner]);
+    }
+
+    /**
      * Its owners and administrators, with or without an email address (an
      * in-app notice reaches a phone-only account too): who is told the SMS
      * credits are running out (P05-03).

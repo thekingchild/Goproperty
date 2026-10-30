@@ -1,8 +1,9 @@
 {{--
     Settings → Subscription (App\Livewire\Settings\SubscriptionPage, P06-01b;
     BILLING_PAYMENTS.md § 1–2): the plan, its state, today's bill, a
-    scheduled change (30 days' notice), what the plan includes and the
-    other plans. Cards stack on phones (UX_DESIGN.md § 6).
+    scheduled change (30 days' notice), what the plan includes, the other
+    plans and GoProperty's invoices (P06-02). Cards stack on phones
+    (UX_DESIGN.md § 6).
 --}}
 <x-page :heading="__('Settings')" :description="__('Your organization\'s details, how tenants pay you, and how your documents look.')">
     <x-workspace.settings-nav current="workspace.settings.subscription" />
@@ -90,6 +91,42 @@
                             <flux:button size="sm" class="mt-3" wire:click="changePlan('{{ $choice->key }}')" wire:confirm="{{ __('Move to :plan now?', ['plan' => $choice->name]) }}" data-test="move-{{ $choice->key }}">{{ __('Move to :plan', ['plan' => $choice->name]) }}</flux:button>
                         @endif
                     </div>
+                @endforeach
+            </div>
+        </section>
+    @endif
+
+    @if ($invoices !== [])
+        <section class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900" data-test="invoices">
+            <flux:heading size="lg" level="2">{{ __('Invoices') }}</flux:heading>
+            <flux:text class="mt-1">{{ __('GoProperty\'s invoices for your subscription, the newest first. Units are counted on each billing day.') }}</flux:text>
+
+            <div class="mt-4 divide-y divide-zinc-100 dark:divide-zinc-800">
+                @foreach ($invoices as $invoice)
+                    <details class="py-3" data-invoice="{{ $invoice->number }}">
+                        <summary class="flex cursor-pointer flex-wrap items-center justify-between gap-2">
+                            <span>
+                                <span class="font-medium text-zinc-900 dark:text-white">{{ $invoice->number }}</span>
+                                <span class="block text-sm text-zinc-500 dark:text-zinc-400">{{ __(':plan, :period', ['plan' => $invoice->planName, 'period' => $invoice->period]) }}</span>
+                            </span>
+                            <span class="text-end">
+                                <span class="font-semibold text-zinc-900 dark:text-white" data-test="invoice-total">{{ $invoice->total->format() }}</span>
+                                <flux:badge size="sm" class="ms-2" data-test="invoice-status">{{ $invoice->statusLabel }}</flux:badge>
+                                @if ($invoice->status === 'open' && $invoice->dueDate)
+                                    <span class="block text-sm text-zinc-500 dark:text-zinc-400">{{ __('Due :date', ['date' => $invoice->dueDate->format('j F Y')]) }}</span>
+                                @endif
+                            </span>
+                        </summary>
+                        <dl class="mt-3 space-y-1 text-sm" data-test="invoice-lines">
+                            <div class="flex justify-between gap-4"><dt class="text-zinc-600 dark:text-zinc-300">{{ __('Units counted') }}</dt><dd>{{ number_format($invoice->units) }}</dd></div>
+                            @foreach ($invoice->lines as $line)
+                                <div class="flex justify-between gap-4"><dt class="text-zinc-600 dark:text-zinc-300">{{ $line->label }}</dt><dd>{{ $line->amount->format() }}</dd></div>
+                            @endforeach
+                            <div class="flex justify-between gap-4 border-t border-zinc-100 pt-1 dark:border-zinc-800"><dt class="text-zinc-600 dark:text-zinc-300">{{ $invoice->subtotalLabel }}</dt><dd>{{ $invoice->subtotal->format() }}</dd></div>
+                            <div class="flex justify-between gap-4"><dt class="text-zinc-600 dark:text-zinc-300">{{ $invoice->vatLabel }}</dt><dd data-test="invoice-vat">{{ $invoice->vat->format() }}</dd></div>
+                            <div class="flex justify-between gap-4 font-semibold"><dt>{{ __('Total') }}</dt><dd>{{ $invoice->total->format() }}</dd></div>
+                        </dl>
+                    </details>
                 @endforeach
             </div>
         </section>

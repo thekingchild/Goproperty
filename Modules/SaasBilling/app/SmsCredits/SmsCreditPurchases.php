@@ -73,7 +73,7 @@ final readonly class SmsCreditPurchases implements SmsCreditCheckout
 
         return array_map(function (int $credits) use ($price): SmsCreditBundle {
             $subtotal = Money::kobo($price)->times($credits);
-            $vat = $subtotal->percentage($this->vatBasisPoints());
+            $vat = $subtotal->percentage($this->plans->vatBasisPoints());
 
             return new SmsCreditBundle($credits, $subtotal, $vat, $subtotal->plus($vat));
         }, $sizes);
@@ -297,17 +297,5 @@ final readonly class SmsCreditPurchases implements SmsCreditCheckout
                 $invoice->save();
             }
         }, 3);
-    }
-
-    /** "7.5" → 750 basis points (BILLING_PAYMENTS.md § 1.4; PlanCatalogue::vatPercent()). */
-    private function vatBasisPoints(): int
-    {
-        $percent = $this->plans->vatPercent();
-
-        if (preg_match('/^(\d{1,2})(?:\.(\d{1,2}))?$/', $percent, $parts) !== 1) {
-            return 750;
-        }
-
-        return (int) $parts[1] * 100 + (int) str_pad($parts[2] ?? '0', 2, '0');
     }
 }

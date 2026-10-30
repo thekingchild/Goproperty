@@ -116,6 +116,21 @@ final class PlanCatalogue
         return is_scalar($vat) ? (string) $vat : '7.5';
     }
 
+    /**
+     * The VAT rate in basis points, "7.5" → 750 (BILLING_PAYMENTS.md § 1.4),
+     * for Money::percentage() on every platform invoice: SMS bundles (P05-03)
+     * and subscriptions (P06-02). A rate that is not a plain percentage with
+     * up to two decimals counts as the launch 7.5 %.
+     */
+    public function vatBasisPoints(): int
+    {
+        if (preg_match('/^(\d{1,2})(?:\.(\d{1,2}))?$/', $this->vatPercent(), $parts) !== 1) {
+            return 750;
+        }
+
+        return (int) $parts[1] * 100 + (int) str_pad($parts[2] ?? '0', 2, '0');
+    }
+
     public function monthsPaidPerYear(): int
     {
         $months = $this->config->get('plans.months_paid_per_year', 10);

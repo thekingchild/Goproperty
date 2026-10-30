@@ -39,6 +39,8 @@ use Illuminate\Support\Facades\DB;
  *   `active` again restores it, only when the subscription was what
  *   suspended it (`organization_suspended`): a staff suspension is lifted
  *   by staff (App\Platform\Customers\OrganizationSuspension).
+ * - recordBilledPeriod(): SaasBilling's metering rolls the billing period
+ *   when it invoices one (P06-02).
  */
 final readonly class SubscriptionService
 {
@@ -154,6 +156,42 @@ final readonly class SubscriptionService
                 'activated_at' => $now,
             ]);
         });
+    }
+
+    /**
+     * Records the billing period just invoiced (P06-02; BILLING_PAYMENTS.md
+     * § 3): its first and last day (Lagos dates) and the units counted.
+     * Called by SaasBilling's metering inside the transaction that writes the
+     * invoice, which is the audit entry for it. Moving `current_period_start`
+     * is what brings a scheduled plan version to an existing customer
+     * (P06-subtasks default 4). No status change, so no event.
+     *
+     * @throws SubscriptionChangeRefused
+     */
+    public function recordBilledPeriod(CarbonImmutable $start, CarbonImmutable $end, int $units): Subscription
+    {
+        return DB::transaction(function () use ($start, $end, $units): Subscription {
+            $this->lockOrganization();
+            $subscription = $this->locked();
+            $start = $start->setTimezone('Africa/Lagos')->startOfDay();
+            $end = $end->setTimezone('Africa/Lagos')->startOfDay();
+
+            if ($end->lessThan($start)) {
+                throw new SubscriptionChangeRefused('A billing period ends on or after its first day.');
+            }
+
+            if ($subscription->current_period_start !== null && $start->lessThan(CarbonImmutable::parse($subscription->current_period_start->toDateString(), 'Africa/Lagos'))) {
+                throw new SubscriptionChangeRefused('A billing period never starts before the current one.');
+            }
+
+            $subscription->forceFill([
+                'current_period_start' => $start->toDateString(),
+                'current_period_end' => $end->toDateString(),
+                'last_billed_units' => max(0, $units),
+            ])->save();
+
+            return $subscription;
+        }, 3);
     }
 
     /** active → past_due: an invoice is open past its due date (P06-05). */

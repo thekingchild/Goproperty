@@ -4,8 +4,17 @@ declare(strict_types=1);
 
 namespace Modules\SaasBilling\Providers;
 
+use App\Mail\Templates\TemplateCatalog;
+use App\Subscriptions\Events\SubscriptionStatusChanged;
+use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Support\Facades\Event;
 use Modules\SaasBilling\Contracts\SmsCreditCheckout;
+use Modules\SaasBilling\Contracts\SubscriptionInvoices;
 use Modules\SaasBilling\Contracts\SubscriptionQuotes;
+use Modules\SaasBilling\Invoices\InvoiceTemplates;
+use Modules\SaasBilling\Invoices\SubscriptionInvoiceList;
+use Modules\SaasBilling\Jobs\MeterUnits;
+use Modules\SaasBilling\Listeners\InvoiceWhenActive;
 use Modules\SaasBilling\Quotes\MonthlyBills;
 use Modules\SaasBilling\SmsCredits\SmsCreditPurchases;
 use Nwidart\Modules\Support\ModuleServiceProvider;
@@ -20,7 +29,11 @@ use Nwidart\Modules\Support\ModuleServiceProvider;
  * (P05-03): Contracts\SmsCreditCheckout for Core's Settings → SMS credits
  * page, the first platform invoices and payments, GoProperty's own
  * Paystack checkout, its return and its webhook (/webhooks/paystack).
- * Subscriptions and their invoices come in P06.
+ * Metering and subscription invoices (P06-02): Metering\SubscriptionMetering,
+ * invoiced when a subscription becomes active (Listeners\InvoiceWhenActive)
+ * and by the hourly `saas-meter-units` (Jobs\MeterUnits); the invoice email
+ * (template `billing.invoice_issued`); Contracts\SubscriptionInvoices for
+ * Core's Settings → Subscription page.
  */
 final class SaasBillingServiceProvider extends ModuleServiceProvider
 {
@@ -39,5 +52,22 @@ final class SaasBillingServiceProvider extends ModuleServiceProvider
 
         $this->app->bind(SubscriptionQuotes::class, MonthlyBills::class);
         $this->app->bind(SmsCreditCheckout::class, SmsCreditPurchases::class);
+        $this->app->bind(SubscriptionInvoices::class, SubscriptionInvoiceList::class);
+
+        $this->callAfterResolving(TemplateCatalog::class, static function (TemplateCatalog $catalog): void {
+            $catalog->add(...InvoiceTemplates::definitions());
+        });
+    }
+
+    public function boot(): void
+    {
+        parent::boot();
+
+        Event::listen(SubscriptionStatusChanged::class, InvoiceWhenActive::class);
+
+        // Billing periods that are over are invoiced (BILLING_PAYMENTS.md § 3): monthly on the 1st, yearly on their date.
+        $this->callAfterResolving(Schedule::class, static function (Schedule $schedule): void {
+            $schedule->job(new MeterUnits, 'billing')->name('saas-meter-units')->hourlyAt(45);
+        });
     }
 }

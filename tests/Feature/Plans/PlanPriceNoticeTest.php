@@ -75,7 +75,7 @@ it('acceptance: refuses any date less than 30 days after the save for a plan wit
     }
 
     expect(PlanVersion::query()->where('plan_id', $growth->id)->count())->toBe(1);
-    Notification::assertNothingSent();
+    Notification::assertSentTimes(PlanTermsChanging::class, 0);
 
     // Day 30 is allowed.
     $version = planEditor()->schedule($this->finance, $plan, termsLike('growth', 4_000_000), CarbonImmutable::parse('2026-12-02', 'Africa/Lagos'), 'Inflation');
@@ -173,7 +173,7 @@ it('lets a plan nobody is on change from today, without notices', function () {
 
     expect($version->notice_given_at)->toBeNull()
         ->and(planNamed('scale')->base->kobo)->toBe(9_000_000);
-    Notification::assertNothingSent();
+    Notification::assertSentTimes(PlanTermsChanging::class, 0);
     expect(fn () => planEditor()->schedule($this->finance, $scale, termsLike('scale', 9_000_000), CarbonImmutable::parse('2026-11-01', 'Africa/Lagos'), 'x'))
         ->toThrow(PlanChangeRefused::class, 'The date cannot be in the past.');
 });

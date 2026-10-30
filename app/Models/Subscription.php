@@ -34,6 +34,8 @@ use LogicException;
  * @property CarbonImmutable|null $suspended_at
  * @property CarbonImmutable|null $ended_at
  * @property bool $organization_suspended
+ * @property int|null $payer_organization_id
+ * @property int|null $last_billed_units
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  * @property-read SubscriptionPlan $plan
@@ -65,6 +67,12 @@ class Subscription extends Model
         return $this->current_period_start ?? ($today ?? CarbonImmutable::now('Africa/Lagos'));
     }
 
+    /** Who pays (P06-02): the payer organization when one is set, else the organization itself. */
+    public function payerId(): int
+    {
+        return $this->payer_organization_id ?? $this->organization_id;
+    }
+
     /** Whole days of trial left (0 on the last day or after). */
     public function trialDaysLeft(?CarbonImmutable $now = null): int
     {
@@ -94,6 +102,8 @@ class Subscription extends Model
             'suspended_at' => 'immutable_datetime',
             'ended_at' => 'immutable_datetime',
             'organization_suspended' => 'boolean',
+            'payer_organization_id' => 'integer',
+            'last_billed_units' => 'integer',
         ];
     }
 }

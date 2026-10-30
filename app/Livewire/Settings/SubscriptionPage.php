@@ -20,13 +20,16 @@ use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
 use Livewire\Component;
+use Modules\SaasBilling\Contracts\SubscriptionInvoices;
 
 /**
  * Settings → Subscription, /o/{organization}/settings/subscription
  * (P06-01b; BILLING_PAYMENTS.md § 1–2): the plan and its state (trial days
  * left), today's monthly bill for the units counted, a scheduled change of
  * the plan's terms (the 30 days' notice), what the plan includes with the
- * staff users used, and the other plans at the organization's units.
+ * staff users used, the other plans at the organization's units, and
+ * GoProperty's latest invoices with their lines (P06-02, through
+ * SaasBilling's Contracts\SubscriptionInvoices).
  *
  * Seeing it: SubscriptionPolicy::viewAny (owners, administrators). Moving
  * to another plan: owners (`organization.billing`), never while GoProperty
@@ -105,6 +108,7 @@ final class SubscriptionPage extends Component
             'staffLimit' => $overview->staffLimit(),
             'choices' => array_values(array_filter($plans->plans(), static fn (Plan $choice): bool => ! $choice->custom)),
             'canChange' => $this->user()->can('changePlan', Subscription::class),
+            'invoices' => app()->bound(SubscriptionInvoices::class) ? app(SubscriptionInvoices::class)->recent() : [],
         ]);
     }
 
