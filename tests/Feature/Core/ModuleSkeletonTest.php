@@ -77,3 +77,20 @@ it('keeps modules apart: nothing outside a module uses its internals', function 
         }
     }
 });
+
+/*
+ * The deploy runs `artisan view:cache`, which stops on a module whose views
+ * folder is missing (nwidart registers `resources/views` for every module).
+ * The daily Install drill failed on this from 2026-10-28 (SaasBilling, then
+ * Reminders): every module keeps the folder, with a .gitkeep when empty.
+ */
+it('gives every module a views folder, so the deploy can cache views', function () {
+    $missing = collect(File::directories(base_path('Modules')))
+        ->reject(fn (string $path): bool => File::isDirectory($path.'/resources/views'))
+        ->map(fn (string $path): string => basename($path))
+        ->values()
+        ->all();
+
+    expect($missing)->toBe([]);
+    expect(Artisan::call('view:cache'))->toBe(0);
+});
