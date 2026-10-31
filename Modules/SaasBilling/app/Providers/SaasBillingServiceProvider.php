@@ -15,10 +15,12 @@ use Modules\SaasBilling\Contracts\SmsCreditCheckout;
 use Modules\SaasBilling\Contracts\SubscriptionInvoices;
 use Modules\SaasBilling\Contracts\SubscriptionPayments;
 use Modules\SaasBilling\Contracts\SubscriptionQuotes;
+use Modules\SaasBilling\Dunning\DunningTemplates;
 use Modules\SaasBilling\Invoices\InvoiceTemplates;
 use Modules\SaasBilling\Invoices\SubscriptionInvoiceList;
 use Modules\SaasBilling\Jobs\MeterUnits;
 use Modules\SaasBilling\Jobs\ReconcilePlatformPayments;
+use Modules\SaasBilling\Jobs\RunDunning;
 use Modules\SaasBilling\Listeners\InvoiceWhenActive;
 use Modules\SaasBilling\Payments\SubscriptionCheckout;
 use Modules\SaasBilling\Payments\TransferProofs;
@@ -51,6 +53,9 @@ use Nwidart\Modules\Support\ModuleServiceProvider;
  * proofs, Payments\TransferProofs) and Contracts\BankTransferReviews (staff
  * confirm or reject, Payments\TransferReviews), with the evidence
  * collection `platform_payment_proofs` and template `billing.transfer_rejected`.
+ * Dunning (P06-05): the hourly `saas-dunning` (Jobs\RunDunning) moves unpaid
+ * subscriptions along the ladder (Dunning\DunningLadder) and tells the
+ * owners (Dunning\DunningTemplates; a failed payment too).
  */
 final class SaasBillingServiceProvider extends ModuleServiceProvider
 {
@@ -88,6 +93,7 @@ final class SaasBillingServiceProvider extends ModuleServiceProvider
 
         $this->callAfterResolving(TemplateCatalog::class, static function (TemplateCatalog $catalog): void {
             $catalog->add(...InvoiceTemplates::definitions());
+            $catalog->add(...DunningTemplates::definitions());
         });
     }
 
@@ -102,6 +108,8 @@ final class SaasBillingServiceProvider extends ModuleServiceProvider
             $schedule->job(new MeterUnits, 'billing')->name('saas-meter-units')->hourlyAt(45);
             // Payments through GoProperty's Paystack still pending are asked about again (§ 4.2: missed webhooks).
             $schedule->job(new ReconcilePlatformPayments, 'billing')->name('saas-paystack-reconcile')->hourlyAt(50);
+            // Unpaid subscriptions move along the dunning ladder (§ 6): past due, grace, suspended, cancelled.
+            $schedule->job(new RunDunning, 'billing')->name('saas-dunning')->hourlyAt(55);
         });
     }
 }

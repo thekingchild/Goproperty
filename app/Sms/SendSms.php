@@ -30,7 +30,8 @@ use Throwable;
  * transaction as the claim, under the organization's balance lock
  * (Credits\SmsCredits::take), so parallel sends never take the balance
  * below zero. With no credit left the delivery ends `no_credit` and GoText
- * is never called. A retry takes nothing again. When the last attempt
+ * is never called. A delivery `paid_by_platform` (GoProperty's own SMS to
+ * the organization's owners, P06-05) takes no credit. A retry takes nothing again. When the last attempt
  * ends with GoText refusing the message outright, and no attempt's outcome
  * was unknown, the credit is given back.
  */
@@ -161,8 +162,9 @@ final class SendSms implements ShouldQueue
             }
 
             // One credit per page (every SMS is one GSM page, SmsText); taken
-            // once, on the first attempt, under the balance lock.
-            if (! $credits->take($delivery)) {
+            // once, on the first attempt, under the balance lock. GoProperty
+            // pays for its own messages to the organization (P06-05).
+            if (! $delivery->paid_by_platform && ! $credits->take($delivery)) {
                 $delivery->forceFill([
                     'status' => DeliveryStatus::NoCredit,
                     'error' => 'No SMS credit left: not sent. The organization can buy more in Settings → SMS credits.',

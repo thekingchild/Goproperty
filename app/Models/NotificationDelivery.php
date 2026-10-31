@@ -32,6 +32,7 @@ use LogicException;
  * @property string|null $error
  * @property int $attempts
  * @property bool $outcome_unknown an attempt may have reached GoText without an answer (P05-03: its credit is kept)
+ * @property bool $paid_by_platform GoProperty's own message to the organization (P06-05): no SMS credit is taken
  * @property int|null $pages
  * @property int|null $cost_kobo
  * @property string|null $source_type
@@ -54,7 +55,7 @@ class NotificationDelivery extends Model
     protected static function booted(): void
     {
         self::updating(static function (self $delivery): void {
-            if ($delivery->isDirty(['recipient_contact', 'body', 'channel', 'dedupe_key', 'source_type', 'source_id', 'notification_type'])) {
+            if ($delivery->isDirty(['recipient_contact', 'body', 'channel', 'dedupe_key', 'source_type', 'source_id', 'notification_type', 'paid_by_platform'])) {
                 throw new LogicException('A delivery keeps the message as it was queued.');
             }
         });
@@ -68,6 +69,7 @@ class NotificationDelivery extends Model
         return [
             'status' => DeliveryStatus::class,
             'outcome_unknown' => 'boolean',
+            'paid_by_platform' => 'boolean',
             'queued_at' => 'datetime',
             'sent_at' => 'datetime',
             'delivered_at' => 'datetime',

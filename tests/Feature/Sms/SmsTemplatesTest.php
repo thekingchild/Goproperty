@@ -43,7 +43,7 @@ describe('acceptance: an SMS template stays under 160 characters', function () {
     it('ships SMS templates that fit one page with every value at its longest, on a long site address too', function () {
         config(['app.url' => 'https://portal.goproperty-lagos.ng']);
 
-        expect(smsDefinitions())->toHaveCount(4);
+        expect(smsDefinitions())->toHaveCount(6);   // 4 reminders (P05-02), suspension and its reminder (P06-05)
 
         foreach (smsDefinitions() as $definition) {
             expect($this->templates->longestSms($definition, $definition->content))->toBeLessThanOrEqual(SmsText::PAGE, $definition->key)

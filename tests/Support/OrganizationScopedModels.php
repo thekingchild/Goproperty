@@ -98,10 +98,12 @@ use Modules\Reminders\Enums\ReminderChannel;
 use Modules\Reminders\Enums\ReminderStatus;
 use Modules\Reminders\Enums\ReminderType;
 use Modules\Reminders\Models\Reminder;
+use Modules\SaasBilling\Enums\DunningStep;
 use Modules\SaasBilling\Enums\InvoiceKind;
 use Modules\SaasBilling\Enums\InvoiceStatus;
 use Modules\SaasBilling\Enums\PlatformPaymentStatus;
 use Modules\SaasBilling\Enums\UnitEventReason;
+use Modules\SaasBilling\Models\DunningNotice;
 use Modules\SaasBilling\Models\PlatformInvoice;
 use Modules\SaasBilling\Models\PlatformPayment;
 use Modules\SaasBilling\Models\SubscriptionUnitEvent;
@@ -457,6 +459,14 @@ final class OrganizationScopedModels
                 'included_units' => 10,
                 'counted_units' => 2,
                 'reason' => UnitEventReason::Initial,
+            ])->save()),
+            // The dunning ladder's notices (P06-05; Dunning\DunningLadder is the writer): needs the organization's subscription.
+            DunningNotice::class => fn (): Model => tap(new DunningNotice, fn (DunningNotice $notice): bool => $notice->forceFill([
+                'subscription_id' => self::subscription()->id,
+                'step' => DunningStep::PastDue,
+                'notice_date' => '2027-01-09',
+                'overdue_kobo' => 1_290_000,
+                'invoice_numbers' => ['PR-2027-000001'],
             ])->save()),
             // The organization's own WhatsApp (P05-06): WhatsAppConnections, TemplateSync, ChannelMappings and WhatsAppOptIns are the writers.
             WhatsAppConnection::class => fn (): Model => self::whatsappConnection(),

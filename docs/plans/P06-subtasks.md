@@ -83,3 +83,24 @@ Started 2026-10-31 at the product owner's request ("Start P06-04"). Built in `Mo
 35. **Confirm** (confirmed by the product owner, 2026-10-31) means the invoice's **whole total** reached GoProperty's account; the staff member ticks that they checked. The payment is confirmed (who and when), the invoice paid, a lapsed subscription active again by the same rule as Paystack (default 26, now `Payments\Reactivation` for both), one audit entry `platform_invoice.paid` with the staff member as causer and method `bank_transfer`, and the owners get the usual receipt (`billing.payment_received`, reference "Bank transfer"). Refused when the invoice is no longer open (paid by card meanwhile: reject the proof; refunds are P06-07's). **No part payments**: a short transfer is rejected with the reason.
 36. **Reject** needs a reason (3–500 characters). The payment becomes `rejected` (kept, never changed), the invoice stays open, audited `platform_payment.transfer_rejected`, and the owners are told in the app and by email (template `billing.transfer_rejected`) with the reason; they may send another proof.
 37. **Nothing confirms a proof automatically** (§ 5 step 4); Paystack's dedicated virtual accounts (§ 4.1) remain the way to match transfers automatically later. The receipt template's line "Paystack reference" now reads "Reference" (it also serves transfers); installs that already seeded the template keep their text until a content manager edits it.
+
+## P06-05 — dunning ladder and suspension gating
+
+Started 2026-10-31 at the product owner's request ("start P06-05"). Built in `Modules\SaasBilling\Dunning` (`DunningLadder`, `DunningTemplates`), `Jobs\RunDunning` and Core's `App\Subscriptions\DunningSchedule`; the suspension gating itself is the central write guard of P01-06.
+
+### Decided by the product owner (2026-10-31)
+
+- **A failed payment is not retried.** No card is kept (2026-10-30), so § 6's "+1d, +3d, +5d" retries have nothing to charge. Each payment Paystack fails emails the owners once, with a Pay now link; after that the due-date ladder does the chasing.
+- **GoProperty pays for its own billing SMS.** The SMS on suspension and every 14 days after take no credits from the agency, so they still go when it has none; only to owners whose phone is verified.
+
+### Defaults taken in P06-05 (for the product owner to confirm)
+
+38. **Each step counts from the one before** (Lagos days): `past_due` the day after the due date; `grace` 7 days after `past_due`; `suspended` 7 days after `grace`; a reminder every 14 days suspended; `cancelled` 90 days after suspension. With the hourly job these are § 6's "7 days" and "14 days past due"; after an outage the customer still gets every day of grace and every warning (one step a run). After an outage only the latest reminder due is sent.
+39. **Who is told:** the owners of the organization and of its payer (as invoices are sent, default 18), not administrators; administrators see the banner. In the app and by email at every step; the grace warning once a day (7 in all, the first on the day grace starts); SMS only on suspension and its reminders (§ 6), to verified phones.
+40. **The notices are templates** (content-manager edits them): `billing.payment_failed`, `billing.past_due`, `billing.grace_warning`, `billing.suspended`, `billing.suspension_reminder`, `billing.cancelled`, and the SMS `billing.suspended.sms`, `billing.suspension_reminder.sms` (one page, no link: "Settings > Subscription"). Each email has Pay now to Settings → Subscription and names the day of the next step.
+41. **Once per step and day**: a `dunning_notices` row (unique per subscription, step and day) written in the transaction that moves the subscription, under the organization's and subscription's locks; `saas-dunning` hourly at :55 on `billing`.
+42. **Cancellation after 90 days suspended** closes the organization (read-only, data kept); reactivating it is staff's (P06-07); the owners are told by email and in the app, not by SMS.
+43. **The banner escalates:** past due and grace say the day the organization would be suspended; once the subscription suspended it, owners and administrators see "pay the open invoices and everything works again at once" with the day it would be cancelled. Agents see only the suspension notice.
+44. **Self-healing:** a past-due, grace or suspended subscription with nothing overdue (two invoices paid at the same moment, each seeing the other open) is made active by the ladder. Platform-covered organizations and payers are never dunned (§ 2).
+45. **The ten write actions** proven refused while suspended, and working again once paid, over HTTP as the browser sends them: add a building, add a unit, add a tenant, draft a lease, activate a lease, record a payment, void a bill, raise a ticket, invite a member, save the organization profile. The guard itself covers every Livewire call and non-GET request (P01-06).
+

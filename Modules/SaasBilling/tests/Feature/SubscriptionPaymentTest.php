@@ -19,19 +19,14 @@ use Filament\Facades\Filament;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Console\Scheduling\CallbackEvent;
 use Illuminate\Console\Scheduling\Schedule;
-use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Notification;
-use Illuminate\Testing\TestResponse;
 use Livewire\Livewire;
 use Modules\SaasBilling\Enums\InvoiceStatus;
 use Modules\SaasBilling\Enums\PlatformPaymentStatus;
 use Modules\SaasBilling\Jobs\ReconcilePlatformPayments;
 use Modules\SaasBilling\Metering\SubscriptionMetering;
-use Modules\SaasBilling\Models\PlatformInvoice;
-use Modules\SaasBilling\Models\PlatformPayment;
 use Modules\SaasBilling\Notifications\PlatformPaymentReceived;
 use Tests\Support\LivewireHttp;
 
@@ -40,6 +35,7 @@ require_once __DIR__.'/../../../../tests/Support/organization-settings.php';
 require_once __DIR__.'/../../../../tests/Support/impersonation.php';
 require_once __DIR__.'/../../../../tests/Feature/Exports/helpers.php';
 require_once __DIR__.'/metering-helpers.php';
+require_once __DIR__.'/payment-helpers.php';
 
 /*
  * P06-03: paying subscription invoices through GoProperty's own Paystack
@@ -55,10 +51,6 @@ require_once __DIR__.'/metering-helpers.php';
  * due 23 November.
  */
 
-const FIRST_INVOICE = 'PR-2026-000001';
-
-const FIRST_INVOICE_KOBO = 1_290_000;
-
 beforeEach(function () {
     Notification::fake();
     seedOrganizationRoles();
@@ -73,73 +65,6 @@ beforeEach(function () {
 });
 
 afterEach(fn () => exportsFreshRequest());
-
-/**
- * GoProperty's Paystack in test mode: every checkout starts, and verify
- * answers for each reference what $charges says ([status, amount] or
- * omitted: not found).
- *
- * @param  array<string, array{0: string, 1: int}>  $charges
- */
-function subscriptionPaystack(array $charges = []): Factory
-{
-    withPaystackKey();
-
-    return fakePaystack([
-        'api.paystack.co/transaction/initialize' => fn (Request $request) => Http::response(['status' => true, 'message' => 'Authorization URL created', 'data' => ['authorization_url' => 'https://checkout.paystack.com/'.$request['reference'], 'access_code' => 'x', 'reference' => $request['reference']]]),
-        'api.paystack.co/transaction/verify/*' => function (Request $request) use ($charges) {
-            $reference = rawurldecode(basename(parse_url($request->url(), PHP_URL_PATH) ?: ''));
-
-            if (! isset($charges[$reference])) {
-                return Http::response(['status' => false, 'message' => 'Transaction reference not found'], 404);
-            }
-
-            [$status, $amount] = $charges[$reference];
-
-            return Http::response(['status' => true, 'message' => 'Verification successful', 'data' => [
-                'reference' => $reference, 'status' => $status, 'amount' => $amount, 'currency' => 'NGN', 'domain' => 'test',
-                'channel' => 'card', 'paid_at' => '2026-11-24T09:05:00.000Z', 'gateway_response' => 'Successful',
-            ]]);
-        },
-    ]);
-}
-
-/** Presses "Pay" on an invoice on Settings → Subscription; returns the Livewire reply. */
-function payInvoice(User $user, string $number = FIRST_INVOICE, string $slug = 'acme-homes'): TestResponse
-{
-    exportsFreshRequest();
-    $page = settingsPage($user, 'subscription', $slug);
-    exportsFreshRequest();
-
-    return LivewireHttp::update(test()->actingAs($user), $page, [], [['pay', [$number]]]);
-}
-
-/** Paystack's webhook to GoProperty's own account for a subscription payment, signed unless told otherwise. */
-function subscriptionWebhook(string $reference, string $event = 'charge.success', ?string $signature = null, int $amount = FIRST_INVOICE_KOBO): TestResponse
-{
-    $body = json_encode(['event' => $event, 'data' => ['reference' => $reference, 'amount' => $amount, 'currency' => 'NGN', 'status' => $event === 'charge.success' ? 'success' : 'failed']], JSON_THROW_ON_ERROR);
-
-    return test()->call('POST', '/webhooks/paystack', [], [], [], [
-        'CONTENT_TYPE' => 'application/json',
-        'HTTP_X_PAYSTACK_SIGNATURE' => $signature ?? hash_hmac('sha512', $body, 'sk_test_goproperty_platform'),
-    ], $body);
-}
-
-function invoiceNumbered(Organization $organization, string $number): PlatformInvoice
-{
-    return inOrganization($organization, fn (): PlatformInvoice => PlatformInvoice::query()->where('number', $number)->sole());
-}
-
-/** @return list<PlatformPayment> */
-function invoicePayments(Organization $organization, string $number): array
-{
-    return inOrganization($organization, fn (): array => array_values(PlatformPayment::query()->where('platform_invoice_id', invoiceNumbered($organization, $number)->id)->orderBy('id')->get()->all()));
-}
-
-function subscriptionOf(Organization $organization): Subscription
-{
-    return inOrganization($organization, fn (): Subscription => Subscription::query()->sole());
-}
 
 it('acceptance: invoice → checkout → webhook → paid → active, in Paystack\'s test mode; the same event twice makes one payment', function () {
     $reference = 'PINV-'.FIRST_INVOICE.'-a1';

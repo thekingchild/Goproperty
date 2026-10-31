@@ -19,6 +19,7 @@ use Modules\SaasBilling\Metering\SubscriptionMetering;
 use Modules\SaasBilling\Models\PlatformInvoice;
 use Modules\SaasBilling\Models\PlatformPayment;
 use Modules\SaasBilling\Notifications\PlatformPaymentReceived;
+use Modules\SaasBilling\Notifications\SubscriptionPaymentFailed;
 use Modules\SaasBilling\Paystack\PaystackUnavailable;
 use Modules\SaasBilling\Paystack\PlatformPaystack;
 use Modules\SaasBilling\Paystack\VerifiedCharge;
@@ -40,7 +41,8 @@ use Modules\SaasBilling\SmsCredits\SmsCreditPurchases;
  * payment's and the invoice's locks, so a payment is settled once however
  * often it is asked (rule 1 and 3). A failed charge fails the payment: an
  * SMS bundle's invoice is then void (the checkout did not happen); a
- * subscription invoice stays open, to be paid again. An abandoned checkout
+ * subscription invoice stays open, to be paid again, and its owners are
+ * told (P06-05). An abandoned checkout
  * stays pending: the payer may still finish it.
  *
  * Confirmed: an SMS bundle adds its credits (App\Sms\Credits\SmsCredits);
@@ -86,7 +88,7 @@ final readonly class PlatformPaymentSettlement
 
         if ($verified === null || $verified->reference !== $reference || ! $verified->succeeded()) {
             if ($verified !== null && $verified->reference === $reference && $verified->failed() && $payment->status === PlatformPaymentStatus::Pending) {
-                $this->fail($payment->id, 'Paystack reports the payment '.$verified->status.'.');
+                $this->fail($payment->id, 'Paystack reports the payment '.$verified->status.'.', tellOwners: true);
             }
 
             return PaymentOutcome::NotPaid;
@@ -103,11 +105,14 @@ final readonly class PlatformPaymentSettlement
     /**
      * A payment that did not happen (Paystack failed it, or the checkout
      * could not start): failed, and an SMS bundle's invoice void. A
-     * subscription invoice stays open.
+     * subscription invoice stays open; when Paystack failed the charge
+     * (`$tellOwners`), its owners are told once, with a Pay now link
+     * (P06-05, BILLING_PAYMENTS.md § 6). Nothing is charged again by itself:
+     * no card is kept.
      */
-    public function fail(int $paymentId, string $reason): void
+    public function fail(int $paymentId, string $reason, bool $tellOwners = false): void
     {
-        DB::transaction(function () use ($paymentId, $reason): void {
+        DB::transaction(function () use ($paymentId, $reason, $tellOwners): void {
             $payment = PlatformPayment::query()->lockForUpdate()->findOrFail($paymentId);
 
             if ($payment->status !== PlatformPaymentStatus::Pending) {
@@ -125,6 +130,12 @@ final readonly class PlatformPaymentSettlement
                 $invoice->status = InvoiceStatus::Void;
                 $invoice->voided_at = CarbonImmutable::now();
                 $invoice->save();
+            }
+
+            if ($tellOwners && $invoice->kind === InvoiceKind::Subscription && $invoice->status === InvoiceStatus::Open) {
+                foreach ($this->owners->owners($this->context->get()) as $owner) {
+                    $owner->notify(new SubscriptionPaymentFailed($invoice->organization_id, $payment->id));
+                }
             }
         }, 3);
     }

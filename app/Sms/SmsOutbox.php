@@ -16,6 +16,8 @@ use InvalidArgumentException;
  * rule 6). The text must already be one GSM page (SmsText; templates
  * guarantee it). The number must be one the caller may text: a verified
  * one (ARCHITECTURE.md § 6.7); the outbox only checks it looks like E.164.
+ * `$paidByPlatform`: GoProperty's own message to the organization (P06-05,
+ * its subscription suspended), which takes none of its SMS credits.
  */
 final readonly class SmsOutbox
 {
@@ -32,6 +34,7 @@ final readonly class SmsOutbox
         ?int $userId = null,
         ?string $sourceType = null,
         ?int $sourceId = null,
+        bool $paidByPlatform = false,
     ): NotificationDelivery {
         if (preg_match('/^\+[1-9]\d{7,14}$/', $to) !== 1) {
             throw new InvalidArgumentException('An SMS goes to an E.164 number.');
@@ -59,6 +62,7 @@ final readonly class SmsOutbox
             'source_type' => $sourceType,
             'source_id' => $sourceId,
             'dedupe_key' => $dedupeKey,
+            'paid_by_platform' => $paidByPlatform,
             'queued_at' => now(),
         ]);
 
