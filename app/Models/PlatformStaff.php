@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Audit\AuditEntry;
+use App\Platform\Audit\AuditLogEntry;
 use App\Platform\Console\HasStaffRoles;
 use Filament\Auth\MultiFactor\App\Contracts\HasAppAuthentication;
 use Filament\Auth\MultiFactor\App\Contracts\HasAppAuthenticationRecovery;
@@ -96,6 +97,17 @@ class PlatformStaff extends Authenticatable implements FilamentUser, HasAppAuthe
     public function history(): MorphMany
     {
         return $this->morphMany(AuditEntry::class, 'subject');
+    }
+
+    /**
+     * Audit entries this staff member caused (the profile's Actions,
+     * P06-07c), read through the console's read model.
+     *
+     * @return MorphMany<AuditLogEntry, $this>
+     */
+    public function auditActions(): MorphMany
+    {
+        return $this->morphMany(AuditLogEntry::class, 'causer');
     }
 
     /*

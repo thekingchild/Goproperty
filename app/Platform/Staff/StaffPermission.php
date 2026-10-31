@@ -89,8 +89,9 @@ enum StaffPermission: string
     case RolesManage = 'roles.manage';
     case ApprovalsView = 'approvals.view';
 
-    // Audit log (§ 7)
+    // Audit log (§ 7) and access log (§ 8)
     case AuditView = 'audit.view';
+    case AccessLogView = 'access_log.view';
 
     // NDPA erasure
     case DataPurge = 'data.purge';
@@ -117,7 +118,7 @@ enum StaffPermission: string
             'analytics' => 'Analytics',
             'settings' => $this === self::EmailProviderSettings ? 'Operations' : 'Platform settings',
             'staff', 'roles', 'approvals' => 'Staff',
-            'audit' => 'Audit',
+            'audit', 'access_log' => 'Audit',
             default => 'Data',
         };
     }
@@ -174,6 +175,7 @@ enum StaffPermission: string
             self::RolesManage => 'Manage roles and grant them to staff',
             self::ApprovalsView => 'See every approval request',
             self::AuditView => 'Read the audit log',
+            self::AccessLogView => 'Read the sign-in (access) log',
             self::DataPurge => 'Delete or purge an organization\'s data (NDPA)',
         };
     }

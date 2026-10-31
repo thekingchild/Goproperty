@@ -9,6 +9,7 @@ use App\Models\StaffRole;
 use App\Models\StaffStatus;
 use App\Platform\Filament\Resources\Staff\Pages\ListStaff;
 use App\Platform\Filament\Resources\Staff\Pages\ViewStaff;
+use App\Platform\Filament\Resources\Staff\RelationManagers\ActionsRelationManager;
 use App\Platform\Filament\Resources\Staff\RelationManagers\HistoryRelationManager;
 use BackedEnum;
 use Filament\Actions\ViewAction;
@@ -131,7 +132,7 @@ final class StaffResource extends Resource
 
     public static function getRelations(): array
     {
-        return [HistoryRelationManager::class];
+        return [HistoryRelationManager::class, ActionsRelationManager::class];
     }
 
     public static function getPages(): array

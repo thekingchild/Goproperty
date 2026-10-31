@@ -28,7 +28,7 @@ Staff access is controlled only by **roles** (spatie permissions on the `staff` 
 | `compliance-officer` | Review Transaction Tier applications and documents, approve/reject tiers, work the compliance flag queue, restrict orgs for compliance | Billing actions, impersonation in write mode |
 | `finance-admin` | Plans & prices, platform invoices, confirm bank-transfer subscription payments, refunds, credit notes | Staff management, compliance documents |
 | `support-agent` | Customer lookup, read-only impersonation (with reason), resend emails/invoices, view delivery logs | Money actions, compliance documents, write-mode impersonation |
-| `technical-admin` | Operations dashboard, view delivery logs (the dashboard's Messaging figures open them, P05-05), queues/failed jobs, webhook replay, backups (run, download, verify, restore to staging), email provider settings | Customer data editing, money actions |
+| `technical-admin` | Operations dashboard, view delivery logs (the dashboard's Messaging figures open them, P05-05), the sign-in (access) log (§ 8, P06-07c), queues/failed jobs, webhook replay, backups (run, download, verify, restore to staging), email provider settings | Customer data editing, money actions |
 | `content-manager` | Email templates, marketing page content, announcements | Customer data |
 | `analyst` | Analytics dashboard and reports (aggregated, no PII) | Anything that changes data |
 
@@ -254,6 +254,13 @@ Lets support staff see exactly what a customer sees.
 
 Built on spatie/laravel-activitylog with extra columns (`impersonator_id`, `ip`, `user_agent`, `reason`, `hash`).
 
+### How it is built (P06-07c)
+
+- **Console → Audit → Audit log** (`/{ADMIN_PATH}/audit-log`, permission `audit.view`, super-admin by default; `AuditLogEntryPolicy`): every `activity_log` entry across organizations, read through the read model `App\Platform\Audit\AuditLogEntry` (a subclass of `App\Audit\AuditEntry` that refuses saves and deletes; subjects are never loaded, since they may be organization-scoped models, so an entry shows its subject as type and ID). Newest first, paged on the server without a total count. Filters: organization (entries whose subject is the organization or whose `properties.organization_id` is it, a JSON path read the same way by MySQL 8 and MariaDB 10.6+, compared as text), log, event (searched), who did it (customer user, GoProperty staff, system), customer user, staff member (the causer), during a support session (`impersonator_staff_id` set) and dates (Lagos days); a search by description. Times are Lagos time.
+- **An entry's page:** when, log, event, description, who did it (name and kind), the support session's staff member and session, what it is about (an organization links to its customer page), the organization, reason (the `reason` column or an older `reason` property), IP, browser, **What changed** (field, before, after: from spatie's `attribute_changes` and the `old` → `new` / `attributes` / `changes` shapes the services write into `properties`), every property as text, and `prev_hash` / `hash`. Everything is rendered as escaped text, never HTML. No create, edit, delete or export (personal data).
+- **Reading it is audited** (`App\Platform\Audit\AuditReads`, log `audit`, event `audit.viewed`, the reader as causer): once per page load of the list (with the filters and search it opened with, `view: list`) and of an entry (`view: entry`, `entry_id`), from the pages' `mount()`, so paging and changing filters do not add entries.
+- **Staff audit:** a staff member's profile (Staff → a staff member) has **Actions** beside **History**: every entry the staff member caused (`PlatformStaff::auditActions()`), newest first, with the audit log's columns, only with `audit.view`; opening it is one `audit.viewed` entry (`view: staff_actions`). The audit log's staff-member filter shows the same entries.
+
 ## 8. Access Logs
 
 - **Authentication log** for both customers and staff: login success/failure (password or passkey), logout, 2FA challenge result, recovery code used, Turnstile failure, invitation accepted, reset link sent, agency-created sign-in link, password reset, lockout. Stores IP, user agent, approximate location and the account (or attempted email).
@@ -263,6 +270,13 @@ Built on spatie/laravel-activitylog with extra columns (`impersonator_id`, `ip`,
 - Retention: 1 year in the app.
 
 Built on `rappasoft/laravel-authentication-log` (or equivalent) for both guards.
+
+### How it is built (P06-07c)
+
+- **Console → Audit → Access log** (`/{ADMIN_PATH}/access-log`, permission `access_log.view`, area Audit: super-admin and technical-admin by default; `AccessLogEntryPolicy`): `authentication_logs` of both guards through the read model `App\Platform\Audit\AccessLogEntry` (refuses saves and deletes; `App\Audit\AccessLog` stays the only writer). Newest first, paged on the server without a total count. Columns: when (Lagos time), the account (the customer user's or staff member's name and email from `authenticatable_type` / `authenticatable_id`, or "Unknown account"), the event by its label, IP, location, browser (shortened; the full string on hover) and new device.
+- **Filters:** account type, event, new device, IP and dates. **Search by email:** the rows of the customer users and staff members with that email, and failed attempts whose `attempted_identifier` is `AccessLog::hashIdentifier()` of it (the log never stores a typed address).
+- **Viewing it is audited:** one `access_log.viewed` entry (log `audit`, the reader as causer) per page load, with the filters it opened with; a searched address is kept only as its HMAC (`searched_identifier`).
+- Read-only, no export. **Not built yet:** the list of staff sessions for super-admins (this section's "Staff sessions are visible to `super-admin`"), console alerts on bursts of failed sign-ins (the Operations dashboard's Security row, § 2) and log retention or archiving.
 
 ## 9. Platform Theme, Website & Sign-in Settings (configurable)
 
