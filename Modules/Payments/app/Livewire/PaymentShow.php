@@ -23,6 +23,8 @@ use Modules\Payments\Models\PaymentAllocation;
 use Modules\Payments\Models\PaymentProof;
 use Modules\Payments\Models\Receipt;
 use Modules\Payments\Models\TenantCreditEntry;
+use Modules\Payments\Payments\AllocationPlan;
+use Modules\Payments\Payments\PartPaymentCounts;
 use Modules\Payments\Payments\PaymentService;
 use Modules\Payments\Proofs\ProofSubmissions;
 use Modules\Properties\Contracts\BuildingAccess;
@@ -122,7 +124,7 @@ final class PaymentShow extends Component
         $this->notice = __('The proof is archived. Its file is kept.');
     }
 
-    public function render(OrganizationContext $context, PaymentRows $rows, PaymentService $payments, BillLedger $ledger, TenantCredit $credit, BuildingAccess $access, ProofSubmissions $proofs, TenantDirectory $tenants): View
+    public function render(OrganizationContext $context, PaymentRows $rows, PaymentService $payments, BillLedger $ledger, TenantCredit $credit, BuildingAccess $access, ProofSubmissions $proofs, TenantDirectory $tenants, PartPaymentCounts $partPayments): View
     {
         $payment = $this->payment();
         // Checked on every render, not only when the page opened.
@@ -144,12 +146,49 @@ final class PaymentShow extends Component
             'allocations' => $allocations,
             'credited' => Money::sum(TenantCreditEntry::query()->where('payment_id', $payment->id)->get()->map(fn (TenantCreditEntry $entry): Money => $entry->amount_kobo)),
             'tenantCredit' => $credit->balance($payment->tenant_profile_id),
-            'plan' => $payment->status->isPending() ? $payments->plan($payment, $user) : null,
+            'plan' => $plan = ($payment->status->isPending() ? $payments->plan($payment, $user) : null),
+            'partPaymentNotes' => $this->partPaymentNotes($payment, $plan, $allocations, $partPayments),
             'canConfirm' => $canConfirm,
             'canReject' => $user->can('reject', $payment),
             'receipt' => $payment->receipt_id !== null ? Receipt::query()->find($payment->receipt_id) : null,
             'billLink' => static fn (?BillBalance $bill): bool => $bill !== null && ($bill->propertyId === null ? $access->limitedTo($user) === null : $access->allows($user, $bill->propertyId)),
         ] + $this->proofReview($payment, $user, $proofs, $tenants));
+    }
+
+    /**
+     * Rent bills this payment takes past the number of payments their lease
+     * allows (P03-17): flagged for the member, never refused (the money
+     * reached the agency). Waiting: the bills confirming would settle;
+     * confirmed: the bills it settled that now have too many payments.
+     *
+     * @param  array<int, array{amount: Money, bill: ?BillBalance, billId: int}>  $allocations
+     * @return list<string>
+     */
+    private function partPaymentNotes(Payment $payment, ?AllocationPlan $plan, array $allocations, PartPaymentCounts $partPayments): array
+    {
+        $notes = [];
+
+        if ($plan !== null) {
+            foreach (array_keys($plan->allocations) as $billId) {
+                $allowance = $partPayments->forBill($billId, leaving: $payment->id);
+
+                if ($allowance !== null && $allowance->made + 1 > $allowance->limit) {
+                    $notes[] = __('Over the agreed number of part payments: confirming makes this payment :count of :limit on bill :number.', ['count' => $allowance->made + 1, 'limit' => $allowance->limit, 'number' => $plan->bills[$billId]->number]);
+                }
+            }
+
+            return $notes;
+        }
+
+        foreach ($allocations as $allocation) {
+            $allowance = $partPayments->forBill($allocation['billId']);
+
+            if ($allowance !== null && $allowance->isOver()) {
+                $notes[] = __('Over the agreed number of part payments: bill :number has :count payments; its lease allows :limit.', ['count' => $allowance->made, 'limit' => $allowance->limit, 'number' => $allocation['bill']->number ?? '']);
+            }
+        }
+
+        return $notes;
     }
 
     /**

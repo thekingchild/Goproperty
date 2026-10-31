@@ -23,6 +23,7 @@ use Illuminate\Validation\ValidationException;
 use LogicException;
 use Modules\Import\Contracts\ImportAction;
 use Modules\Leasing\Contracts\CycleCalculator;
+use Modules\Leasing\Contracts\RentPaymentLimits;
 use Modules\Leasing\Enums\DepositEntryType;
 use Modules\Leasing\Enums\LeaseStatus;
 use Modules\Leasing\Events\LeaseActivated;
@@ -326,6 +327,40 @@ final readonly class LeaseService
 
             $this->audit($wasDraft ? 'lease.draft_cancelled' : 'lease.terminated', $lease, $by, $wasDraft ? 'Draft lease cancelled' : 'Lease terminated', ['reason' => $reason]);
             event(new LeaseTerminated(...[...$this->eventIds($lease, $unit !== null ? $this->unitStatusAfter($unit) : null), 'wasDraft' => $wasDraft]));
+
+            return $lease;
+        });
+    }
+
+    /**
+     * How many payments a tenant may make on one rent bill of this lease
+     * (P03-17): 1 to RentPaymentLimits::MAX, or null for the organization's
+     * default. Owners and administrators, on a lease that has not ended
+     * (LeasePolicy::setPaymentLimit); audited. It applies to the lease's
+     * open bills from the next payment; payments already made stay.
+     *
+     * @throws ValidationException
+     */
+    public function setRentPaymentLimit(User $by, Lease $lease, ?int $limit): Lease
+    {
+        Gate::forUser($by)->authorize('setPaymentLimit', $lease);
+
+        Validator::make(['limit' => $limit], ['limit' => ['nullable', 'integer', 'between:1,'.RentPaymentLimits::MAX]], [
+            'limit.between' => __('Choose 1 to :max payments, or the organization\'s default.', ['max' => RentPaymentLimits::MAX]),
+        ])->validate();
+
+        return $this->transaction(function () use ($by, $lease, $limit): Lease {
+            $lease = $this->lockLease($lease->id);
+            $before = $lease->max_rent_payments;
+
+            if ($before === $limit) {
+                return $lease;
+            }
+
+            $lease->max_rent_payments = $limit;
+            $lease->save();
+
+            $this->audit('lease.rent_payments_changed', $lease, $by, 'Rent part payments changed', ['before' => $before, 'after' => $limit]);
 
             return $lease;
         });
@@ -750,6 +785,8 @@ final readonly class LeaseService
         if ($renewing !== null) {
             // The deposit held under the lease it renews is carried over on activation.
             $lease->deposit_kobo = $this->depositBalance($renewing);
+            // So is how many payments a rent bill may be paid in (P03-17).
+            $lease->max_rent_payments = $renewing->max_rent_payments;
         }
 
         $lease->save();

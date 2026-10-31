@@ -20,6 +20,7 @@ use Modules\Payments\Enums\PaymentStatus;
 use Modules\Payments\Lists\PaymentList;
 use Modules\Payments\Lists\PaymentRows;
 use Modules\Payments\Models\Payment;
+use Modules\Payments\Payments\PartPaymentCounts;
 
 /**
  * Payments, /o/{organization}/payments (ARCHITECTURE.md § 6.4; P03-10a),
@@ -102,7 +103,7 @@ final class PaymentIndex extends Component
         $this->resetPage();
     }
 
-    public function render(OrganizationContext $context, PaymentList $list, PaymentRows $rows): View
+    public function render(OrganizationContext $context, PaymentList $list, PaymentRows $rows, PartPaymentCounts $partPayments): View
     {
         $user = $this->user();
         $filters = $list->filters($this->listExports()['payments']);
@@ -112,6 +113,17 @@ final class PaymentIndex extends Component
             'organization' => $context->get(),
             'payments' => $payments,
             'rows' => $rows->rows($payments->getCollection()),
+            // Waiting payments that would take a rent bill past its lease's number of payments (P03-17).
+            'overPartPayments' => $payments->getCollection()
+                ->filter(static fn (Payment $payment): bool => $payment->status->isPending() && $payment->bill_id !== null)
+                ->filter(static function (Payment $payment) use ($partPayments): bool {
+                    $allowance = $partPayments->forBill((int) $payment->bill_id, leaving: $payment->id);
+
+                    return $allowance !== null && $allowance->made + 1 > $allowance->limit;
+                })
+                ->map(static fn (Payment $payment): int => $payment->id)
+                ->values()
+                ->all(),
             'filtered' => $filters !== [],
             'waiting' => $list->query($user, ['status' => PaymentStatus::PendingConfirmation->value])->count(),
             'statuses' => PaymentStatus::cases(),

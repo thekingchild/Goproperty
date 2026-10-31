@@ -12,6 +12,7 @@ use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 use Modules\Leasing\Contracts\LeasePagePanels;
+use Modules\Leasing\Contracts\RentPaymentLimits;
 use Modules\Leasing\Enums\LeaseStatus;
 use Modules\Leasing\Leases\LeaseService;
 use Modules\Leasing\Lists\LeaseParties;
@@ -57,6 +58,9 @@ final class LeaseShow extends Component
 
     public string $note = '';
 
+    /** Payments allowed on each rent bill of this lease (P03-17): "" = the organization's default, else "1" … "12". */
+    public string $rentPayments = '';
+
     public function boot(OrganizationContext $context): void
     {
         abort_unless($context->has(), 404);
@@ -72,6 +76,18 @@ final class LeaseShow extends Component
         $this->organizationId = $context->id();
         $this->authorize('view', $lease);
         $this->leaseId = $lease->id;
+        $this->rentPayments = (string) ($lease->max_rent_payments ?? '');
+    }
+
+    /** Change how many payments a rent bill of this lease may be paid in (P03-17; owners and administrators). */
+    public function setRentPayments(LeaseService $leases): void
+    {
+        $lease = $this->lease();
+        $this->authorize('setPaymentLimit', $lease);
+        $this->validate(['rentPayments' => ['nullable', 'integer', 'between:1,'.RentPaymentLimits::MAX]], [], ['rentPayments' => __('number of payments')]);
+
+        $lease = $leases->setRentPaymentLimit($this->user(), $lease, $this->rentPayments === '' ? null : (int) $this->rentPayments);
+        $this->notice = __('Saved: rent bills of this lease follow the new number of payments from the next payment.');
     }
 
     public function activate(LeaseService $leases): void
@@ -104,7 +120,7 @@ final class LeaseShow extends Component
         $this->notice = __('The deposit was recorded.');
     }
 
-    public function render(OrganizationContext $context, LeaseParties $parties, LeaseService $leases, LeasePagePanels $panels): View
+    public function render(OrganizationContext $context, LeaseParties $parties, LeaseService $leases, LeasePagePanels $panels, RentPaymentLimits $limits): View
     {
         $lease = $this->lease();
         // Checked on every render, not only when the page opened.
@@ -125,6 +141,11 @@ final class LeaseShow extends Component
             'canRenew' => $user->can('renew', $lease) && ! $lease->renewals()->whereIn('status', [LeaseStatus::Draft, LeaseStatus::Active])->exists(),
             'canTerminate' => $user->can('terminate', $lease),
             'canSettle' => $user->can('settleDeposit', $lease) && $leases->depositBalance($lease)->isPositive(),
+            // Rent part payments (P03-17): this lease's number, else the organization's.
+            'rentPaymentLimit' => $limits->forLease($lease->id),
+            'rentPaymentDefault' => $limits->organizationDefault(),
+            'canSetRentPayments' => $user->can('setPaymentLimit', $lease),
+            'maxRentPayments' => RentPaymentLimits::MAX,
             // The contract PDF (P03-03b), once the lease has been activated.
             'canDownloadContract' => $user->can('downloadContract', $lease),
             'flash' => session('lease-status'),

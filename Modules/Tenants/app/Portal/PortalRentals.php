@@ -11,6 +11,7 @@ use Modules\Billing\Contracts\TenantBillPayment;
 use Modules\Billing\Contracts\TenantBills;
 use Modules\Leasing\Contracts\LeaseSummary;
 use Modules\Leasing\Contracts\TenantLeases;
+use Modules\Payments\Contracts\PartPayments;
 use Modules\Payments\Contracts\PaymentProofs;
 use Modules\Payments\Contracts\TenantProof;
 use Modules\Payments\Contracts\TenantProofs;
@@ -40,6 +41,7 @@ final readonly class PortalRentals
         private PortalChecks $checks,
         private TenantProofs $proofs,
         private PaymentProofs $paymentProofs,
+        private PartPayments $partPayments,
     ) {}
 
     /** @return list<AgencyRentals> by agency name */
@@ -75,6 +77,7 @@ final readonly class PortalRentals
                 )),
                 mayUploadProof: $payment->bill->asksForMoney() && $this->paymentProofs->maySubmit($user, $billId),
                 files: Gate::forUser($user)->allows('downloadAsTenant', $profile),
+                partPayments: $payment->bill->asksForMoney() ? $this->partPayments->forBill($billId)?->describe() : null,
             );
         });
 

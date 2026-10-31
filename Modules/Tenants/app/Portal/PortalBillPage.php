@@ -27,5 +27,7 @@ final readonly class PortalBillPage
         public array $proofs = [],
         public bool $mayUploadProof = false,
         public bool $files = false,
+        /** How many payments the bill may be paid in, when its lease sets a limit (P03-17), e.g. "You can pay this bill in up to 3 payments (1 made)." */
+        public ?string $partPayments = null,
     ) {}
 }

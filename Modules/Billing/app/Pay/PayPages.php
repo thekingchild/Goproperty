@@ -20,6 +20,7 @@ use Modules\Billing\Contracts\PaymentOptions;
 use Modules\Billing\Documents\Invoices;
 use Modules\Billing\Models\Bill;
 use Modules\Billing\Models\BillItem;
+use Modules\Payments\Contracts\PartPayments;
 
 /**
  * Finds a bill by its payment reference for the public pay page
@@ -98,6 +99,8 @@ final readonly class PayPages
             bank: $account instanceof OrganizationBankAccount ? new BankTransfer($account->bank_name, $account->account_name, $account->account_number) : null,
             options: $payable === null ? [] : array_map(static fn (PaymentOption $option): string => $option->render($payable)->toHtml(), $this->options->for($payable)),
             voidedOn: $bill->voided_at !== null ? DocumentDates::day($bill->voided_at) : null,
+            // P03-17: the Payments module counts the bill's payments against its lease's limit.
+            partPayments: app()->bound(PartPayments::class) ? app(PartPayments::class)->forBill($bill->id)?->describe() : null,
         );
     }
 }

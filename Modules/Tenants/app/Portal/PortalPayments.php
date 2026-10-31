@@ -10,6 +10,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\ValidationException;
 use Modules\Billing\Contracts\TenantBill;
 use Modules\Billing\Contracts\TenantBills;
+use Modules\Payments\Contracts\PartPayments;
 use Modules\Payments\Contracts\PaymentProofs;
 use Modules\Payments\Contracts\SubmittedProof;
 use Modules\Payments\Contracts\TenantProofs;
@@ -41,6 +42,7 @@ final readonly class PortalPayments
         private TenantProofs $proofs,
         private TenantReceipts $receipts,
         private PaymentProofs $paymentProofs,
+        private PartPayments $partPayments,
     ) {}
 
     /** @return list<AgencyRecords> by agency name */
@@ -92,6 +94,7 @@ final readonly class PortalPayments
                 agency: AgencyRentals::of($tenancy),
                 bill: $bill,
                 maySubmit: $bill->asksForMoney() && $this->paymentProofs->maySubmit($user, $billId),
+                partPayments: $bill->asksForMoney() ? $this->partPayments->forBill($billId)?->forNextPayment() : null,
             );
         });
 

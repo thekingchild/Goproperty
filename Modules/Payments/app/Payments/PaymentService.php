@@ -88,6 +88,7 @@ final readonly class PaymentService
         private TenantDirectory $tenants,
         private BuildingAccess $access,
         private TenantCredit $credit,
+        private PartPaymentCounts $partPayments,
     ) {}
 
     /**
@@ -180,7 +181,11 @@ final readonly class PaymentService
 
         [$tenantId, $billId] = $this->checkParties($member, $tenantId, $billId, activeTenant: true);
 
-        return $this->transaction(function () use ($submittedBy, $tenantId, $billId, $amount, $paidOn, $payerName, $reference, $note): Payment {
+        return $this->transaction(function () use ($member, $submittedBy, $tenantId, $billId, $amount, $paidOn, $payerName, $reference, $note): Payment {
+            if ($member === null && $billId !== null) {
+                $this->refuseOverPartPayments($billId, $amount);
+            }
+
             $payment = new Payment;
             $payment->tenant_profile_id = $tenantId;
             $payment->bill_id = $billId;
@@ -200,6 +205,45 @@ final readonly class PaymentService
 
             return $payment;
         });
+    }
+
+    /**
+     * A tenant's own proof for a rent bill keeps to the number of payments
+     * its lease allows (P03-17): refused once the bill has had them all
+     * (confirmed or waiting), and the last one allowed must clear what the
+     * bill owes beyond the payments waiting. Under the bill's lock, so two
+     * proofs at once cannot both take the last place. Payments the agency
+     * records or matches are never refused for it (the money reached them):
+     * they are flagged when confirmed.
+     *
+     * @throws ValidationException
+     */
+    private function refuseOverPartPayments(int $billId, Money $amount): void
+    {
+        $bill = $this->ledger->lock([$billId])[$billId] ?? null;
+        $allowance = $bill instanceof BillBalance ? $this->partPayments->forBalance($bill) : null;
+
+        if ($allowance === null) {
+            return;
+        }
+
+        if ($allowance->remaining() === 0) {
+            throw ValidationException::withMessages(['amount' => trans_choice(
+                'This bill is paid in one payment, which has been made or is waiting for the agency to confirm it. Contact the agency if you paid again.|This bill can be paid in at most :limit payments, and all :limit have been made or are waiting for the agency to confirm them. Contact the agency if you paid again.',
+                $allowance->limit,
+                ['limit' => $allowance->limit],
+            )]);
+        }
+
+        $atLeast = $allowance->lastPaymentAtLeast();
+
+        if ($allowance->remaining() === 1 && $amount->lessThan($atLeast)) {
+            throw ValidationException::withMessages(['amount' => trans_choice(
+                'This bill is paid in one payment, so it must be the full :amount.|This bill can be paid in at most :limit payments, so this one must be the full :amount still owed.',
+                $allowance->limit,
+                ['limit' => $allowance->limit, 'amount' => $atLeast->format()],
+            )]);
+        }
     }
 
     /**
@@ -529,6 +573,17 @@ final readonly class PaymentService
             $this->credit->addOverpayment($payment, $plan->credit, $by);
         }
 
+        // Rent bills now past the number of payments their lease allows (P03-17): confirmed, and flagged.
+        $over = [];
+
+        foreach ($plan->allocations as $billId => $amount) {
+            $allowance = $this->partPayments->forBill($billId);
+
+            if ($allowance !== null && $allowance->isOver()) {
+                $over[] = ['bill_id' => $billId, 'number' => $plan->bills[$billId]->number ?? null, 'payments' => $allowance->made, 'limit' => $allowance->limit];
+            }
+        }
+
         $payment->status = PaymentStatus::Confirmed;
         $payment->confirmed_at = CarbonImmutable::now();
         $payment->confirmed_by_user_id = $by?->id;
@@ -546,7 +601,7 @@ final readonly class PaymentService
                 'allocations' => $settled,
                 'credit_kobo' => $plan->credit->kobo,
                 'note' => $note,
-            ]);
+            ] + ($over === [] ? [] : ['over_part_payment_limit' => $over]));
 
         if ($by !== null) {
             $log->causedBy($by);

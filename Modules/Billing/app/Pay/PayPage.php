@@ -39,6 +39,8 @@ final readonly class PayPage
         public ?BankTransfer $bank,
         public array $options,
         public ?string $voidedOn,
+        /** How many payments the bill may be paid in, when its lease sets a limit (P03-17). */
+        public ?string $partPayments = null,
     ) {}
 
     /** Whether the page asks for money (open, with something outstanding). */

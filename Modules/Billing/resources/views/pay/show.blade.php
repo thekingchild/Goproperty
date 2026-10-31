@@ -93,6 +93,9 @@
           <span>{{ __('Amount to pay') }}</span>
           <strong>{{ $page->outstanding->format() }}</strong>
           <span>{{ __('Due :date', ['date' => $page->dueOn]) }}</span>
+          @if ($page->partPayments)
+            <span data-test="pay-part-payments">{{ $page->partPayments }}</span>
+          @endif
         </div>
       @endif
 

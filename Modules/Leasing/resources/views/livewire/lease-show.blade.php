@@ -88,6 +88,24 @@
                     </div>
                 @endif
                 <div>
+                    <dt class="text-sm text-zinc-500 dark:text-zinc-400">{{ __('Payments allowed on each rent bill') }}</dt>
+                    <dd class="text-zinc-900 dark:text-white" data-test="rent-payment-limit">
+                        {{ $rentPaymentLimit === null ? __('No limit') : trans_choice('1: paid in full at once|:count payments', $rentPaymentLimit, ['count' => $rentPaymentLimit]) }}
+                        <span class="text-sm text-zinc-500 dark:text-zinc-400">{{ $lease->max_rent_payments !== null ? __('(this lease)') : __('(the organization\'s default)') }}</span>
+                    </dd>
+                    @if ($canSetRentPayments)
+                        <form wire:submit="setRentPayments" class="mt-2 flex flex-wrap items-end gap-2" data-test="rent-payments-form">
+                            <flux:select wire:model="rentPayments" size="sm" class="max-w-56" :aria-label="__('Payments allowed on each rent bill')" data-test="rent-payments-select">
+                                <flux:select.option value="">{{ $rentPaymentDefault === null ? __('Organization default (no limit)') : __('Organization default (:count)', ['count' => $rentPaymentDefault]) }}</flux:select.option>
+                                @for ($count = 1; $count <= $maxRentPayments; $count++)
+                                    <flux:select.option value="{{ $count }}">{{ $count }}</flux:select.option>
+                                @endfor
+                            </flux:select>
+                            <flux:button type="submit" size="sm" data-test="save-rent-payments">{{ __('Change') }}</flux:button>
+                        </form>
+                    @endif
+                </div>
+                <div>
                     <dt class="text-sm text-zinc-500 dark:text-zinc-400">{{ __('At the end date') }}</dt>
                     <dd class="text-zinc-900 dark:text-white">{{ $lease->auto_renew ? __('Kept active and flagged for renewal') : __('Expires') }}</dd>
                 </div>

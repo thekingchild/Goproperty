@@ -82,6 +82,9 @@
                         @if ($row->sameFileAsAnotherProof)
                             <flux:badge size="sm" color="red" icon="exclamation-triangle" data-test="duplicate-{{ $payment->id }}">{{ __('Same file as another proof') }}</flux:badge>
                         @endif
+                        @if (in_array($payment->id, $overPartPayments, true))
+                            <flux:badge size="sm" color="orange" icon="exclamation-triangle" data-test="over-part-payments-{{ $payment->id }}">{{ __('Over the agreed part payments') }}</flux:badge>
+                        @endif
                         <flux:badge size="sm" :color="$payment->status->color()" data-test="status-{{ $payment->id }}">{{ __($payment->status->label()) }}</flux:badge>
                     </div>
                 </li>

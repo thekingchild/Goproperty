@@ -15,6 +15,7 @@ use Modules\Billing\Bills\BillService;
 use Modules\Billing\Lists\BillParties;
 use Modules\Billing\Models\Bill;
 use Modules\Billing\Models\BillItem;
+use Modules\Payments\Contracts\PartPayments;
 
 /**
  * A bill, /o/{organization}/bills/{bill}: number, status (the OVERDUE
@@ -85,6 +86,8 @@ final class BillShow extends Component
             'bill' => $bill,
             'row' => $row,
             'items' => BillItem::query()->where('bill_id', $bill->id)->orderBy('id')->get(),
+            // How many payments its lease allows and how many it has had (P03-17; Payments' contract).
+            'partPayments' => app()->bound(PartPayments::class) ? app(PartPayments::class)->forBill($bill->id) : null,
             'canVoid' => $this->user()->can('void', $bill),
             'canViewInvoice' => $this->user()->can('viewInvoice', $bill),
         ]);

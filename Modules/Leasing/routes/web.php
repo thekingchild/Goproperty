@@ -8,6 +8,7 @@ use Modules\Leasing\Livewire\ContractSettingsPage;
 use Modules\Leasing\Livewire\LeaseForm;
 use Modules\Leasing\Livewire\LeaseIndex;
 use Modules\Leasing\Livewire\LeaseShow;
+use Modules\Leasing\Livewire\RentPaymentSettingsPage;
 
 /*
  * Workspace pages of the Leasing module. `organization` checks membership
@@ -27,4 +28,6 @@ Route::middleware(['auth', 'verified', 'organization'])->prefix('o/{organization
 
     // Settings → Lease contract: the agency's clause template (org-owner, org-admin).
     Route::livewire('settings/documents/lease-contract', ContractSettingsPage::class)->name('settings.documents.lease-contract');
+    // Settings → Rent payments: how many payments a tenant may make on a rent bill (P03-17; org-owner, org-admin).
+    Route::livewire('settings/payments/rent', RentPaymentSettingsPage::class)->name('settings.payments.rent');
 });

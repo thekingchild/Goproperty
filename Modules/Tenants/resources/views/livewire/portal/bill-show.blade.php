@@ -62,6 +62,9 @@
                 <span class="text-sm opacity-90">{{ __('Amount to pay') }}</span>
                 <span class="text-3xl font-bold break-words">{{ $bill->outstanding->format() }}</span>
                 <span class="text-sm opacity-90">{{ __('Due :date', ['date' => $bill->dueDate->format('d/m/Y')]) }}</span>
+                @if ($page->partPayments)
+                    <span class="text-sm opacity-90" data-test="portal-bill-part-payments">{{ $page->partPayments }}</span>
+                @endif
             </div>
         @else
             <flux:callout variant="success" icon="check-circle" :heading="__('This bill is paid')" :text="__('Nothing is owed on this bill. Keep your receipt from :agency.', ['agency' => $brand->name()])" data-test="portal-bill-paid" />

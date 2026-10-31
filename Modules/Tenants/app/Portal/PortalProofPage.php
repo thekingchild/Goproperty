@@ -19,5 +19,7 @@ final readonly class PortalProofPage
         public AgencyRentals $agency,
         public TenantBill $bill,
         public bool $maySubmit,
+        /** The bill's part payments when its lease sets a limit (P03-17): the line to show, and what this proof must at least be (the last one allowed) or that none is left. */
+        public ?string $partPayments = null,
     ) {}
 }

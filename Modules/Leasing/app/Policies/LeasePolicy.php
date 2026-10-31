@@ -90,6 +90,17 @@ final class LeasePolicy
             ?? (in_array($lease->status, [LeaseStatus::Draft, LeaseStatus::Active], true) && $this->manages($user));
     }
 
+    /**
+     * How many payments a rent bill of this lease may be paid in (P03-17):
+     * owners and administrators (`organization.update`, the same as the
+     * organization's default on Settings → Rent payments), not agents, on a
+     * lease that has not ended.
+     */
+    public function setPaymentLimit(User $user, Lease $lease): Response|bool
+    {
+        return $this->reachable($user, $lease) ?? (! $lease->status->isFinal() && $this->holds($user, OrganizationPermission::UpdateOrganization));
+    }
+
     /** Record the deposit refunded or kept once the lease has ended (a money record). */
     #[BlockedWhileImpersonating]
     public function settleDeposit(User $user, Lease $lease): Response|bool

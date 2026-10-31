@@ -36,6 +36,9 @@
                     <flux:heading size="lg" level="2" class="break-all">{{ $bill->number }}</flux:heading>
                     <span class="text-sm text-zinc-600 dark:text-zinc-300">{{ __('To pay: :amount', ['amount' => $bill->outstanding->format()]) }}</span>
                 </div>
+                @if ($page->partPayments)
+                    <flux:text class="text-sm" data-test="portal-proof-part-payments">{{ $page->partPayments }}</flux:text>
+                @endif
 
                 <flux:input wire:model="amount" inputmode="decimal" :label="__('Amount you paid (₦)')" placeholder="150,000" maxlength="20" required class:input="min-h-11" data-test="proof-amount" />
                 <flux:input wire:model="paidOn" type="date" :label="__('Date you paid')" required class:input="min-h-11" data-test="proof-paid-on" />

@@ -110,6 +110,10 @@
         <section class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900" data-test="payment-split">
             <flux:heading size="lg" level="2">{{ $plan ? __('Confirming settles') : __('Settled') }}</flux:heading>
 
+            @foreach ($partPaymentNotes as $partPaymentNote)
+                <flux:callout variant="warning" icon="exclamation-triangle" class="mt-3" :heading="$partPaymentNote" data-test="part-payment-flag" />
+            @endforeach
+
             <ul class="mt-4 flex flex-col gap-3">
                 @if ($plan)
                     @foreach ($plan->allocations as $billId => $amount)

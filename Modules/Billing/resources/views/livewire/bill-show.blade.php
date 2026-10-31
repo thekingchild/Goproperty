@@ -100,6 +100,12 @@
                     <dt class="text-zinc-900 dark:text-white">{{ __('Outstanding') }}</dt>
                     <dd class="text-zinc-900 dark:text-white" data-test="bill-outstanding">{{ $bill->outstanding()->format() }}</dd>
                 </div>
+                @if ($partPayments)
+                    <div class="flex justify-between" data-test="bill-part-payments">
+                        <dt class="text-zinc-500 dark:text-zinc-400">{{ __('Payments') }}</dt>
+                        <dd class="{{ $partPayments->isOver() ? 'font-medium text-red-700 dark:text-red-400' : 'text-zinc-900 dark:text-white' }}">{{ __(':made of :limit allowed', ['made' => $partPayments->made, 'limit' => $partPayments->limit]) }}@if ($partPayments->waiting > 0){{ __(', :count waiting', ['count' => $partPayments->waiting]) }}@endif</dd>
+                    </div>
+                @endif
             </dl>
         </section>
 

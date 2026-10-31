@@ -19,6 +19,7 @@ use Modules\Import\Contracts\ImportUsages;
 use Modules\Payments\Contracts\HandoverCredits;
 use Modules\Payments\Contracts\OwnerCollections;
 use Modules\Payments\Contracts\OwnerPayments;
+use Modules\Payments\Contracts\PartPayments;
 use Modules\Payments\Contracts\PaymentProofs;
 use Modules\Payments\Contracts\PaymentRecorder;
 use Modules\Payments\Contracts\TenantProofs;
@@ -41,6 +42,7 @@ use Modules\Payments\Models\PaymentProof;
 use Modules\Payments\Models\Receipt;
 use Modules\Payments\Notices\PaymentNoticeEvent;
 use Modules\Payments\Payments\OwnerCollectionRecords;
+use Modules\Payments\Payments\PartPaymentCounts;
 use Modules\Payments\Payments\Recorder;
 use Modules\Payments\Policies\PaymentPolicy;
 use Modules\Payments\Policies\PaymentProofPolicy;
@@ -96,6 +98,8 @@ final class PaymentsServiceProvider extends ModuleServiceProvider
 
         $this->app->bind(PaymentRecorder::class, Recorder::class);
         $this->app->bind(PaymentProofs::class, ProofSubmissions::class);
+        // How many payments a rent bill has had against its lease's limit (P03-17).
+        $this->app->bind(PartPayments::class, PartPaymentCounts::class);
         $this->app->bind(TenantReceipts::class, TenantReceiptRecords::class);
         $this->app->bind(TenantProofs::class, TenantProofRecords::class);
         $this->app->bind(HandoverCredits::class, HandoverCreditRecords::class);

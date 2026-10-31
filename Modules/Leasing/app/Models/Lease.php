@@ -46,6 +46,7 @@ use Modules\Leasing\Enums\LeaseStatus;
  * @property array<string, mixed>|null $other_charges
  * @property int $due_day_offset
  * @property bool $auto_renew
+ * @property int|null $max_rent_payments
  * @property LeaseStatus $status
  * @property int|null $renewal_of_lease_id
  * @property CarbonImmutable|null $reserved_until
@@ -117,6 +118,7 @@ final class Lease extends Model
             'other_charges' => 'array',
             'due_day_offset' => 'integer',
             'auto_renew' => 'boolean',
+            'max_rent_payments' => 'integer',
             'status' => LeaseStatus::class,
             'activated_at' => 'immutable_datetime',
             'expired_at' => 'immutable_datetime',

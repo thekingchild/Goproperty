@@ -31,6 +31,7 @@ use Modules\Leasing\Contracts\LeasePagePanels;
 use Modules\Leasing\Contracts\LiveLeases;
 use Modules\Leasing\Contracts\OwnerLeaseContracts;
 use Modules\Leasing\Contracts\OwnerLeases;
+use Modules\Leasing\Contracts\RentPaymentLimits;
 use Modules\Leasing\Contracts\TenantLeaseContracts;
 use Modules\Leasing\Contracts\TenantLeases;
 use Modules\Leasing\Contracts\UnitLeases;
@@ -49,6 +50,7 @@ use Modules\Leasing\Leases\LeasePanelRegistry;
 use Modules\Leasing\Leases\LeaseRecords;
 use Modules\Leasing\Leases\LeaseService;
 use Modules\Leasing\Leases\OwnerLeaseRecords;
+use Modules\Leasing\Leases\RentPaymentRules;
 use Modules\Leasing\Listeners\IssueLeaseContract;
 use Modules\Leasing\Lists\LeaseList;
 use Modules\Leasing\Models\Lease;
@@ -84,6 +86,12 @@ use Nwidart\Modules\Support\ModuleServiceProvider;
  * (Documents\LeaseContractVerifier), the organization setting
  * `leasing.contract_clauses` (the agency's clause template, default
  * ContractClauses::DEFAULT) and its page under Settings (SettingsTabs).
+ *
+ * Rent part payments (P03-17): Contracts\RentPaymentLimits
+ * (Leases\RentPaymentRules), the organization setting
+ * `leasing.max_rent_payments` and its page Settings → Rent payments
+ * (Livewire\RentPaymentSettingsPage); a lease's own value is changed on its
+ * page (LeaseService::setRentPaymentLimit).
  */
 final class LeasingServiceProvider extends ModuleServiceProvider
 {
@@ -115,6 +123,8 @@ final class LeasingServiceProvider extends ModuleServiceProvider
         $this->app->bind(LiveLeases::class, LeasesMover::class);
         // Panels other modules add to a lease's page (P04-03: the lease's tickets).
         $this->app->singleton(LeasePagePanels::class, LeasePanelRegistry::class);
+        // How many payments a tenant may make on a rent bill (P03-17), for the Payments module.
+        $this->app->bind(RentPaymentLimits::class, RentPaymentRules::class);
         // One of it, so a dry run's memory of the tenants and units it looked up is kept between rows.
         $this->app->singleton(LeasesImportTarget::class);
     }
@@ -131,6 +141,8 @@ final class LeasingServiceProvider extends ModuleServiceProvider
             $settings->define(new SettingDefinition(LeaseService::RESERVATION_DAYS_SETTING, SettingType::Integer, LeaseService::DEFAULT_RESERVATION_DAYS, ['integer', 'between:1,90'], SettingScope::Organization));
             $settings->define(new SettingDefinition(LeaseService::ENDING_SOON_DAYS_SETTING, SettingType::Integer, LeaseService::DEFAULT_ENDING_SOON_DAYS, ['integer', 'between:1,365'], SettingScope::Organization));
             // Plain text, never compiled or evaluated (AGENT.md § 3 rule 10).
+            // Rent part payments (P03-17): empty = no limit.
+            $settings->define(new SettingDefinition(RentPaymentLimits::SETTING, SettingType::Integer, null, ['nullable', 'integer', 'between:1,'.RentPaymentLimits::MAX], SettingScope::Organization));
             $settings->define(new SettingDefinition(ContractClauses::SETTING, SettingType::String, ContractClauses::DEFAULT, ['required', 'string', 'max:'.ContractClauses::MAX_LENGTH], SettingScope::Organization));
         });
 
@@ -149,6 +161,13 @@ final class LeasingServiceProvider extends ModuleServiceProvider
         });
 
         $this->callAfterResolving(SettingsTabs::class, static function (SettingsTabs $tabs): void {
+            $tabs->add(new SettingsTab(
+                key: 'rent-payments',
+                label: 'Rent payments',
+                route: 'workspace.settings.payments.rent',
+                visible: static fn (User $user, Organization $organization): bool => $user->can('viewSettings', $organization),
+                order: 27,
+            ));
             $tabs->add(new SettingsTab(
                 key: 'lease-contract',
                 label: 'Lease contract',
