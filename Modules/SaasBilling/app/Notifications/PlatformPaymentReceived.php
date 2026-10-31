@@ -27,8 +27,9 @@ use Modules\SaasBilling\Models\PlatformPayment;
  * BILLING_PAYMENTS.md § 4.2 "receipt + notifications"): to the
  * organization's owners, in the app and by email (template
  * `billing.payment_received`, GoProperty's branding), linked to Settings →
- * Subscription. Sent by Payments\PlatformPaymentSettlement, queued on
- * `notifications` after the payment's commit, once per payment.
+ * Subscription. Sent by Payments\PlatformPaymentSettlement (Paystack) and
+ * Payments\TransferReviews (a bank transfer staff confirmed, P06-04),
+ * queued on `notifications` after the payment's commit, once per payment.
  */
 final class PlatformPaymentReceived extends Notification implements ShouldQueue
 {
@@ -91,7 +92,7 @@ final class PlatformPaymentReceived extends Notification implements ShouldQueue
             'invoice.period' => SubscriptionInvoiceList::present($invoice)->period,
             'payment.amount' => ($payment->paid_amount_kobo ?? $payment->amount_kobo)->format(),
             'payment.date' => $payment->confirmed_at?->timezone('Africa/Lagos')->format('j F Y'),
-            'payment.reference' => $payment->paystack_reference,
+            'payment.reference' => $payment->isBankTransfer() ? (string) __('Bank transfer') : $payment->paystack_reference,
         ]);
     }
 

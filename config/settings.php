@@ -197,6 +197,18 @@ return [
         // One organization's monthly allowance instead of its plan's (Enterprise: custom); null = the plan's.
         'sms_credits.monthly_allowance' => ['type' => 'integer', 'scope' => 'organization', 'rules' => ['nullable', 'integer', 'between:0,1000000'], 'permission' => 'plans.manage'],
 
+        // ---------------------------------------------------------------
+        // Bank transfers to GoProperty (BILLING_PAYMENTS.md § 5; P06-04):
+        // the account shown on every open subscription invoice, with the
+        // invoice number as the narration. finance-admin. Until all three
+        // are set, invoices offer no bank transfer.
+        // ---------------------------------------------------------------
+
+        'billing.transfer_bank' => ['type' => 'string', 'rules' => ['nullable', 'string', 'max:80', $plain], 'permission' => 'plans.manage'],
+        'billing.transfer_account_name' => ['type' => 'string', 'rules' => ['nullable', 'string', 'max:120', $plain], 'permission' => 'plans.manage'],
+        // A Nigerian NUBAN: 10 digits.
+        'billing.transfer_account_number' => ['type' => 'string', 'rules' => ['nullable', 'string', 'regex:/^[0-9]{10}$/'], 'permission' => 'plans.manage'],
+
     ],
 
 ];

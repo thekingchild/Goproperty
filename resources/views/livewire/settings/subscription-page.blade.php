@@ -2,7 +2,9 @@
     Settings → Subscription (App\Livewire\Settings\SubscriptionPage, P06-01b;
     BILLING_PAYMENTS.md § 1–2): the plan, its state, today's bill, a
     scheduled change (30 days' notice), what the plan includes, the other
-    plans and GoProperty's invoices (P06-02). Cards stack on phones
+    plans and GoProperty's invoices (P06-02), each open one with Pay
+    (P06-03) and GoProperty's account for a bank transfer with the proof
+    form (P06-04). Cards stack on phones
     (UX_DESIGN.md § 6).
 --}}
 <x-page :heading="__('Settings')" :description="__('Your organization\'s details, how tenants pay you, and how your documents look.')">
@@ -138,6 +140,51 @@
                             <div class="flex justify-between gap-4 font-semibold"><dt>{{ __('Total') }}</dt><dd>{{ $invoice->total->format() }}</dd></div>
                         </dl>
                     </details>
+
+                    @if ($invoice->transfer !== null && ($invoice->status === 'open' || $invoice->transfer->status === 'confirmed'))
+                        <div class="pb-3 text-sm" data-test="transfer-status-{{ $invoice->number }}">
+                            <flux:badge size="sm" :color="match ($invoice->transfer->status) { 'pending' => 'amber', 'confirmed' => 'green', default => 'red' }">{{ $invoice->transfer->statusLabel }}</flux:badge>
+                            <span class="ms-1 text-zinc-500 dark:text-zinc-400">{{ __(':amount sent :date', ['amount' => $invoice->transfer->amount->format(), 'date' => $invoice->transfer->transferredOn?->format('j F Y')]) }}</span>
+                            @if ($invoice->status === 'open' && $invoice->transfer->status === 'rejected' && $invoice->transfer->rejectionReason)
+                                <span class="mt-1 block text-zinc-700 dark:text-zinc-300" data-test="transfer-rejection">{{ __('GoProperty\'s reason: :reason', ['reason' => $invoice->transfer->rejectionReason]) }}</span>
+                            @endif
+                        </div>
+                    @endif
+
+                    @if ($invoice->status === 'open' && $transferAccount !== null)
+                        <div class="mb-3 rounded-lg bg-zinc-50 p-4 text-sm dark:bg-zinc-800" data-test="transfer-{{ $invoice->number }}" wire:key="transfer-{{ $invoice->number }}">
+                            <div class="font-medium text-zinc-900 dark:text-white">{{ __('Or pay by bank transfer') }}</div>
+                            <dl class="mt-2 grid grid-cols-1 gap-1 sm:grid-cols-2">
+                                <div><dt class="inline text-zinc-500 dark:text-zinc-400">{{ __('Bank') }}:</dt> <dd class="inline font-medium" data-test="transfer-bank">{{ $transferAccount->bank }}</dd></div>
+                                <div><dt class="inline text-zinc-500 dark:text-zinc-400">{{ __('Account number') }}:</dt> <dd class="inline font-medium" data-test="transfer-account-number">{{ $transferAccount->accountNumber }}</dd></div>
+                                <div><dt class="inline text-zinc-500 dark:text-zinc-400">{{ __('Account name') }}:</dt> <dd class="inline font-medium">{{ $transferAccount->accountName }}</dd></div>
+                                <div><dt class="inline text-zinc-500 dark:text-zinc-400">{{ __('Narration') }}:</dt> <dd class="inline font-medium" data-test="transfer-narration">{{ $invoice->number }}</dd></div>
+                            </dl>
+                            <flux:text class="mt-2">{{ __('Send exactly :total with the invoice number as the narration, then send us the proof. The invoice is marked paid once GoProperty sees the money in its account.', ['total' => $invoice->total->format()]) }}</flux:text>
+
+                            @if ($canSendProof && $transferInvoice === $invoice->number)
+                                <form wire:submit="sendTransfer" class="mt-4 space-y-3" data-test="transfer-form">
+                                    @error('invoice')
+                                        <flux:callout variant="danger" icon="x-circle" :heading="$message" data-test="transfer-refused" />
+                                    @enderror
+                                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                        <flux:input wire:model="amount" :label="__('Amount sent (₦)')" inputmode="decimal" required />
+                                        <flux:input wire:model="transferredOn" type="date" :label="__('Day of the transfer')" required />
+                                        <flux:input wire:model="senderName" :label="__('Name on the account it came from')" required />
+                                        <flux:input wire:model="senderBank" :label="__('Bank it came from (optional)')" />
+                                        <flux:input wire:model="narration" :label="__('Narration you used (optional)')" />
+                                        <flux:input wire:model="file" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" :label="__('Proof: screenshot, photo or PDF, up to 10 MB')" required />
+                                    </div>
+                                    <div class="flex flex-wrap gap-2">
+                                        <flux:button type="submit" variant="primary" size="sm" data-test="send-transfer">{{ __('Send proof') }}</flux:button>
+                                        <flux:button type="button" size="sm" variant="ghost" wire:click="cancelTransfer">{{ __('Cancel') }}</flux:button>
+                                    </div>
+                                </form>
+                            @elseif ($canSendProof && ($invoice->transfer === null || ! $invoice->transfer->isPending()))
+                                <flux:button size="sm" class="mt-3" wire:click="startTransfer('{{ $invoice->number }}')" data-test="start-transfer-{{ $invoice->number }}">{{ __('Send proof of transfer') }}</flux:button>
+                            @endif
+                        </div>
+                    @endif
                 @endforeach
             </div>
         </section>

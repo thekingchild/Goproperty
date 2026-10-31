@@ -8,6 +8,8 @@ use App\Mail\Templates\TemplateCatalog;
 use App\Subscriptions\Events\SubscriptionStatusChanged;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Event;
+use Modules\SaasBilling\Contracts\BankTransferReviews;
+use Modules\SaasBilling\Contracts\BankTransfers;
 use Modules\SaasBilling\Contracts\PlatformWebhookReplays;
 use Modules\SaasBilling\Contracts\SmsCreditCheckout;
 use Modules\SaasBilling\Contracts\SubscriptionInvoices;
@@ -19,6 +21,8 @@ use Modules\SaasBilling\Jobs\MeterUnits;
 use Modules\SaasBilling\Jobs\ReconcilePlatformPayments;
 use Modules\SaasBilling\Listeners\InvoiceWhenActive;
 use Modules\SaasBilling\Payments\SubscriptionCheckout;
+use Modules\SaasBilling\Payments\TransferProofs;
+use Modules\SaasBilling\Payments\TransferReviews;
 use Modules\SaasBilling\Payments\WebhookReplays;
 use Modules\SaasBilling\Quotes\MonthlyBills;
 use Modules\SaasBilling\SmsCredits\SmsCreditPurchases;
@@ -42,7 +46,11 @@ use Nwidart\Modules\Support\ModuleServiceProvider;
  * Contracts\SubscriptionPayments (Payments\SubscriptionCheckout), one
  * settlement for every platform payment (Payments\PlatformPaymentSettlement:
  * return, webhook, replay, the hourly `saas-paystack-reconcile`), and
- * Contracts\PlatformWebhookReplays for the console.
+ * Contracts\PlatformWebhookReplays for the console. Bank transfers
+ * (P06-04): Contracts\BankTransfers (GoProperty's account and the owners'
+ * proofs, Payments\TransferProofs) and Contracts\BankTransferReviews (staff
+ * confirm or reject, Payments\TransferReviews), with the evidence
+ * collection `platform_payment_proofs` and template `billing.transfer_rejected`.
  */
 final class SaasBillingServiceProvider extends ModuleServiceProvider
 {
@@ -64,6 +72,19 @@ final class SaasBillingServiceProvider extends ModuleServiceProvider
         $this->app->bind(SubscriptionInvoices::class, SubscriptionInvoiceList::class);
         $this->app->bind(SubscriptionPayments::class, SubscriptionCheckout::class);
         $this->app->bind(PlatformWebhookReplays::class, WebhookReplays::class);
+        $this->app->bind(BankTransfers::class, TransferProofs::class);
+        $this->app->bind(BankTransferReviews::class, TransferReviews::class);
+
+        // Proofs of bank transfers to GoProperty: a screenshot, a photo or a
+        // PDF, at most 10 MB; evidence (never deleted; ARCHITECTURE.md § 9).
+        if (! is_array(config('media.collections.'.BankTransfers::COLLECTION))) {
+            config(['media.collections.'.BankTransfers::COLLECTION => [
+                'mimes' => ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
+                'max_kb' => 10 * 1024,
+                'conversions' => [],
+                'kind' => 'evidence',
+            ]]);
+        }
 
         $this->callAfterResolving(TemplateCatalog::class, static function (TemplateCatalog $catalog): void {
             $catalog->add(...InvoiceTemplates::definitions());

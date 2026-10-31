@@ -4,12 +4,8 @@ declare(strict_types=1);
 
 namespace Modules\SaasBilling\Payments;
 
-use App\Enums\SubscriptionStatus;
 use App\Models\Organization;
-use App\Models\Subscription;
 use App\Sms\Credits\SmsCredits;
-use App\Subscriptions\SubscriptionChangeRefused;
-use App\Subscriptions\SubscriptionService;
 use App\Support\Money;
 use App\Tenancy\OrganizationContext;
 use App\Tenancy\OrganizationOwners;
@@ -50,15 +46,15 @@ use Modules\SaasBilling\SmsCredits\SmsCreditPurchases;
  * Confirmed: an SMS bundle adds its credits (App\Sms\Credits\SmsCredits);
  * a subscription invoice makes a lapsed subscription (`past_due`, `grace`,
  * `suspended`) active again once no other invoice is overdue (§ 6
- * "Reactivation"; SubscriptionService::activate(), which restores a
- * suspended organization), and its owners are told after the commit.
+ * "Reactivation": Payments\Reactivation, the same path as a confirmed
+ * bank transfer), and its owners are told after the commit.
  */
 final readonly class PlatformPaymentSettlement
 {
     public function __construct(
         private PlatformPaystack $paystack,
         private SmsCredits $credits,
-        private SubscriptionService $subscriptions,
+        private Reactivation $reactivation,
         private OrganizationContext $context,
         private OrganizationOwners $owners,
     ) {}
@@ -186,7 +182,7 @@ final readonly class PlatformPaymentSettlement
             return PaymentOutcome::Confirmed;
         }
 
-        $reactivated = $this->reactivate($invoice);
+        $reactivated = $this->reactivation->afterPaid($invoice);
 
         activity(SubscriptionMetering::LOG)
             ->event('platform_invoice.paid')
@@ -207,39 +203,6 @@ final readonly class PlatformPaymentSettlement
         }
 
         return PaymentOutcome::Confirmed;
-    }
-
-    /**
-     * A lapsed subscription is active again once nothing is overdue (§ 6
-     * "Reactivation": the same path for Paystack and, in P06-04, a confirmed
-     * bank transfer). A cancelled one is reactivated by staff (P06-07).
-     */
-    private function reactivate(PlatformInvoice $invoice): bool
-    {
-        $subscription = Subscription::query()->first();
-        $lapsed = [SubscriptionStatus::PastDue, SubscriptionStatus::Grace, SubscriptionStatus::Suspended];
-
-        if (! $subscription instanceof Subscription || ! in_array($subscription->status, $lapsed, true)) {
-            return false;
-        }
-
-        $stillOverdue = PlatformInvoice::query()
-            ->where('kind', InvoiceKind::Subscription)
-            ->where('status', InvoiceStatus::Open)
-            ->whereDate('due_date', '<', CarbonImmutable::now('Africa/Lagos')->toDateString())
-            ->exists();
-
-        if ($stillOverdue) {
-            return false;
-        }
-
-        try {
-            $this->subscriptions->activate(null, "Invoice {$invoice->number} paid");
-        } catch (SubscriptionChangeRefused) {
-            return false;
-        }
-
-        return true;
     }
 
     private function auditHeld(PlatformInvoice $invoice, PlatformPayment $payment, Money $paid, VerifiedCharge $verified, string $reason): void

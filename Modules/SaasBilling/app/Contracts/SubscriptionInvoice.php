@@ -11,7 +11,8 @@ use Carbon\CarbonImmutable;
  * A subscription invoice as the customer sees it (P06-02;
  * BILLING_PAYMENTS.md § 3): the plan and the period, the units counted, a
  * line for the base price and one for the extra units (each a month), the
- * subtotal for the period, VAT as its own line, and the total.
+ * subtotal for the period, VAT as its own line, and the total. With the
+ * latest proof of a bank transfer sent for it, if any (P06-04).
  */
 final readonly class SubscriptionInvoice
 {
@@ -37,5 +38,6 @@ final readonly class SubscriptionInvoice
         public ?CarbonImmutable $dueDate,
         public ?CarbonImmutable $paidAt,
         public ?CarbonImmutable $issuedAt,
+        public ?BankTransferStatus $transfer = null,
     ) {}
 }

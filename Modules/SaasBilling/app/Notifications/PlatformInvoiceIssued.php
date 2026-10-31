@@ -17,8 +17,10 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\Route;
+use Modules\SaasBilling\Contracts\BankTransfers;
 use Modules\SaasBilling\Contracts\InvoiceLine;
 use Modules\SaasBilling\Contracts\SubscriptionInvoice;
+use Modules\SaasBilling\Contracts\TransferAccount;
 use Modules\SaasBilling\Invoices\InvoiceTemplates;
 use Modules\SaasBilling\Invoices\SubscriptionInvoiceList;
 use Modules\SaasBilling\Models\PlatformInvoice;
@@ -92,6 +94,22 @@ final class PlatformInvoiceIssued extends Notification implements ShouldQueue
             'invoice.lines' => implode("\n", $lines),
             'invoice.total' => $invoice->total->format(),
             'invoice.due_date' => $invoice->dueDate?->format('j F Y'),
+            'bank_transfer' => $this->bankTransfer($invoice),
+        ]);
+    }
+
+    /** How to pay it by bank transfer (P06-04), when GoProperty's account is set and the invoice is open. */
+    private function bankTransfer(SubscriptionInvoice $invoice): ?string
+    {
+        $account = app(BankTransfers::class)->account();
+
+        if (! $account instanceof TransferAccount || $invoice->status !== 'open') {
+            return null;
+        }
+
+        return __('Or pay by bank transfer to :account with :number as the narration, then send the proof from Settings → Subscription.', [
+            'account' => $account->describe(),
+            'number' => $invoice->number,
         ]);
     }
 

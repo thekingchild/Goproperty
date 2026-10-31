@@ -6,14 +6,17 @@ namespace Modules\SaasBilling\Invoices;
 
 use App\Support\Money;
 use Carbon\CarbonImmutable;
+use Modules\SaasBilling\Contracts\BankTransferStatus;
 use Modules\SaasBilling\Contracts\InvoiceLine;
 use Modules\SaasBilling\Contracts\SubscriptionInvoice;
 use Modules\SaasBilling\Contracts\SubscriptionInvoices;
 use Modules\SaasBilling\Enums\InvoiceKind;
 use Modules\SaasBilling\Enums\InvoiceStatus;
+use Modules\SaasBilling\Enums\PlatformPaymentStatus;
 use Modules\SaasBilling\Metering\BillingPeriod;
 use Modules\SaasBilling\Metering\SubscriptionMetering;
 use Modules\SaasBilling\Models\PlatformInvoice;
+use Modules\SaasBilling\Models\PlatformPayment;
 
 /**
  * Subscription invoices as the customer sees them (P06-02): on Settings →
@@ -24,17 +27,27 @@ final readonly class SubscriptionInvoiceList implements SubscriptionInvoices
 {
     public function recent(int $limit = 12): array
     {
-        return array_values(PlatformInvoice::query()
+        $invoices = PlatformInvoice::query()
             ->where('kind', InvoiceKind::Subscription)
             ->orderByDesc('period_start')
             ->orderByDesc('id')
             ->limit($limit)
+            ->get();
+
+        // The latest proof of a bank transfer for each (P06-04).
+        $transfers = PlatformPayment::query()
+            ->whereIn('platform_invoice_id', $invoices->modelKeys())
+            ->where('method', PlatformPayment::BANK_TRANSFER)
+            ->orderBy('id')
             ->get()
-            ->map(static fn (PlatformInvoice $invoice): SubscriptionInvoice => self::present($invoice))
+            ->keyBy('platform_invoice_id');
+
+        return array_values($invoices
+            ->map(static fn (PlatformInvoice $invoice): SubscriptionInvoice => self::present($invoice, $transfers->get($invoice->id)))
             ->all());
     }
 
-    public static function present(PlatformInvoice $invoice): SubscriptionInvoice
+    public static function present(PlatformInvoice $invoice, ?PlatformPayment $transfer = null): SubscriptionInvoice
     {
         $covered = $invoice->status === InvoiceStatus::Paid && $invoice->notes === SubscriptionMetering::COVERED_NOTE;
         $vatPercent = $invoice->vat_percent ?? '7.5';
@@ -58,6 +71,18 @@ final readonly class SubscriptionInvoiceList implements SubscriptionInvoices
             dueDate: $invoice->due_date,
             paidAt: $invoice->paid_at,
             issuedAt: $invoice->created_at,
+            transfer: $transfer instanceof PlatformPayment ? new BankTransferStatus(
+                status: $transfer->status->value,
+                statusLabel: match ($transfer->status) {
+                    PlatformPaymentStatus::Pending => __('Proof sent: GoProperty is checking it'),
+                    PlatformPaymentStatus::Confirmed => __('Bank transfer confirmed'),
+                    default => __('Proof not accepted'),
+                },
+                amount: $transfer->stated_amount_kobo ?? $transfer->amount_kobo,
+                transferredOn: $transfer->transferred_on,
+                sentAt: $transfer->created_at,
+                rejectionReason: $transfer->rejection_reason,
+            ) : null,
         );
     }
 

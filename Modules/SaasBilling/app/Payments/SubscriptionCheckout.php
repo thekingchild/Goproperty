@@ -45,7 +45,7 @@ final readonly class SubscriptionCheckout implements SubscriptionPayments
     public function start(User $payer, string $invoiceNumber, string $returnUrl): string
     {
         if (! $this->paystack->available()) {
-            throw new CheckoutRefused(__('Paying online is not available yet. Contact GoProperty to pay by bank transfer.'));
+            throw new CheckoutRefused(__('Paying online is not available yet. Pay by bank transfer instead.'));
         }
 
         if ($payer->email === null) {
@@ -62,7 +62,7 @@ final readonly class SubscriptionCheckout implements SubscriptionPayments
                 throw new CheckoutRefused(__('Invoice :number is already paid.', ['number' => $locked->number]));
             }
 
-            $attempt = PlatformPayment::query()->where('platform_invoice_id', $locked->id)->count() + 1;
+            $attempt = PlatformPayment::query()->where('platform_invoice_id', $locked->id)->where('method', PlatformPayment::PAYSTACK)->count() + 1;
             $payment = new PlatformPayment;
             $payment->forceFill([
                 'platform_invoice_id' => $locked->id,
@@ -117,6 +117,7 @@ final readonly class SubscriptionCheckout implements SubscriptionPayments
     {
         $pending = PlatformPayment::query()
             ->where('platform_invoice_id', $invoice->id)
+            ->where('method', PlatformPayment::PAYSTACK)
             ->where('status', PlatformPaymentStatus::Pending)
             ->pluck('paystack_reference');
 
