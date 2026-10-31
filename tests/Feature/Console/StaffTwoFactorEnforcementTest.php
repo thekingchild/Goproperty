@@ -20,6 +20,8 @@ use App\Platform\Filament\Resources\Staff\StaffResource;
 use App\Platform\Staff\StaffLifecycle;
 use App\Platform\Staff\StaffPermission;
 use App\Platform\Staff\StaffRoles;
+use App\Support\Money;
+use App\Tenancy\OrganizationContext;
 use Filament\Facades\Filament;
 use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\DB;
@@ -29,6 +31,11 @@ use Illuminate\Support\Facades\Route as Router;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Livewire\Livewire;
+use Modules\SaasBilling\Enums\InvoiceKind;
+use Modules\SaasBilling\Enums\InvoiceStatus;
+use Modules\SaasBilling\Enums\PlatformPaymentStatus;
+use Modules\SaasBilling\Models\PlatformInvoice;
+use Modules\SaasBilling\Models\PlatformPayment;
 use PragmaRX\Google2FA\Google2FA;
 
 /*
@@ -73,6 +80,24 @@ function consolePageUrls(PlatformStaff $someone): array
 
         return EmailTemplate::query()->orderBy('id')->firstOrFail();
     };
+    // A GoProperty invoice and a Paystack payment of it (P06-07b), in an organization of their own.
+    $platformPayment = null;
+    $billingRecords = function () use (&$platformPayment): PlatformPayment {
+        return $platformPayment ??= app(OrganizationContext::class)->run(Organization::factory()->create(), function (): PlatformPayment {
+            $invoice = new PlatformInvoice;
+            $invoice->forceFill([
+                'number' => 'PR-2026-'.random_int(100_000, 999_999), 'kind' => InvoiceKind::SmsCredits, 'sms_credits' => 500,
+                'subtotal_kobo' => Money::naira(3_000), 'vat_kobo' => Money::naira(225), 'total_kobo' => Money::naira(3_225), 'status' => InvoiceStatus::Open,
+            ])->save();
+            $payment = new PlatformPayment;
+            $payment->forceFill([
+                'platform_invoice_id' => $invoice->id, 'method' => PlatformPayment::PAYSTACK, 'amount_kobo' => Money::naira(3_225), 'currency' => 'NGN',
+                'paystack_reference' => 'PINV-'.$invoice->number.'-a1', 'status' => PlatformPaymentStatus::Pending,
+            ])->save();
+
+            return $payment;
+        });
+    };
     $urls = [];
 
     foreach (Router::getRoutes()->getRoutes() as $route) {
@@ -94,6 +119,8 @@ function consolePageUrls(PlatformStaff $someone): array
                     str_contains($route->uri(), 'email-templates') => $emailTemplate()->id,
                     // A plan (P06-01a): the launch plans are seeded by a migration.
                     str_contains($route->uri(), 'plans') => SubscriptionPlan::query()->orderBy('id')->firstOrFail()->id,
+                    str_contains($route->uri(), 'platform-invoices') => $billingRecords()->platform_invoice_id,
+                    str_contains($route->uri(), 'platform-payments') => $billingRecords()->id,
                     str_contains($route->uri(), 'customer-users') => ($customerUser ??= User::factory()->create())->id,
                     str_contains($route->uri(), 'customers') => ($organization ??= Organization::factory()->create())->id,
                     str_contains($route->uri(), 'impersonation-log') => ($supportSession ??= ImpersonationSession::query()->forceCreate([

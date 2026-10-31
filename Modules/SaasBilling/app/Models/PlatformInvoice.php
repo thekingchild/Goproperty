@@ -21,7 +21,9 @@ use Modules\SaasBilling\Enums\InvoiceStatus;
  * (P06-02, written by Metering\SubscriptionMetering, with the terms and
  * the count it was worked out from). Organization-scoped; never deleted;
  * an issued one keeps its number, amounts and terms, and a paid one never
- * changes.
+ * changes, except that refunding the whole payment that paid a
+ * subscription invoice opens it again (P06-07b, BILLING_PAYMENTS.md § 8:
+ * reopenAfterRefund()).
  *
  * @property int $id
  * @property int $organization_id
@@ -69,15 +71,45 @@ final class PlatformInvoice extends Model
 
     protected $guarded = ['*'];
 
+    /** Set only while reopenAfterRefund() saves. */
+    private static bool $reopening = false;
+
     protected static function booted(): void
     {
         self::updating(static function (self $invoice): void {
+            if (self::$reopening && ! $invoice->isDirty(self::ISSUED) && array_diff(array_keys($invoice->getDirty()), ['status', 'paid_at', 'due_date', 'updated_at']) === []) {
+                return;
+            }
+
             if ($invoice->getOriginal('status') === InvoiceStatus::Paid || $invoice->isDirty(self::ISSUED)) {
                 throw new LogicException('An issued platform invoice keeps its number and amounts, and a paid one never changes.');
             }
         });
 
         self::deleting(static fn (): never => throw new LogicException('Platform invoices are never deleted.'));
+    }
+
+    /**
+     * A paid subscription invoice is owed again: the whole payment that paid
+     * it was refunded (Refunds\PlatformRefunds only, inside its transaction,
+     * the invoice locked). Due $due, so the dunning ladder follows it.
+     */
+    public function reopenAfterRefund(CarbonImmutable $due): void
+    {
+        if ($this->status !== InvoiceStatus::Paid || $this->kind !== InvoiceKind::Subscription) {
+            throw new LogicException('Only a paid subscription invoice is opened again by a refund.');
+        }
+
+        $this->status = InvoiceStatus::Open;
+        $this->paid_at = null;
+        $this->due_date = $due;
+        self::$reopening = true;
+
+        try {
+            $this->save();
+        } finally {
+            self::$reopening = false;
+        }
     }
 
     /** @return array<string, string> */

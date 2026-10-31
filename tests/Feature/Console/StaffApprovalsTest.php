@@ -169,10 +169,11 @@ it('does not grant on approval if the staff member was deactivated meanwhile', f
 });
 
 it('serves later two-person actions the same way (no handler: marked approved)', function () {
-    $requester = staffNamed('Funke', ['finance-admin']);
-    $approver = staffNamed('Gbenga', ['finance-admin']);
+    // Production restores have no handler yet (P06-10); refunds have theirs since P06-07b (Modules/SaasBilling/tests/Feature/RefundTest.php).
+    $requester = staffNamed('Funke', ['technical-admin']);
+    $approver = staffNamed('Gbenga', ['super-admin']);
 
-    $request = $this->approvals->request(ApprovalAction::Refund, $requester, null, 'Refund ₦150,000 to Demo Realty', ['amount_kobo' => 15_000_000], 'Charged twice');
+    $request = $this->approvals->request(ApprovalAction::ProductionRestore, $requester, null, 'Restore last night\'s backup to production', ['backup' => 'db-2026-10-30'], 'Bad migration');
 
     expect(fn () => $this->approvals->approve($request, $requester))->toThrow(ApprovalRefused::class, 'your own request')
         ->and(fn () => $this->approvals->approve($request, staffNamed('Sade', ['support-agent'])))->toThrow(ApprovalRefused::class, 'permission');

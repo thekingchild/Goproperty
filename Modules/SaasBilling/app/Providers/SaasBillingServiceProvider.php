@@ -10,12 +10,15 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Event;
 use Modules\SaasBilling\Contracts\BankTransferReviews;
 use Modules\SaasBilling\Contracts\BankTransfers;
+use Modules\SaasBilling\Contracts\InvoiceEmails;
+use Modules\SaasBilling\Contracts\PlatformRefunds;
 use Modules\SaasBilling\Contracts\PlatformWebhookReplays;
 use Modules\SaasBilling\Contracts\SmsCreditCheckout;
 use Modules\SaasBilling\Contracts\SubscriptionInvoices;
 use Modules\SaasBilling\Contracts\SubscriptionPayments;
 use Modules\SaasBilling\Contracts\SubscriptionQuotes;
 use Modules\SaasBilling\Dunning\DunningTemplates;
+use Modules\SaasBilling\Invoices\InvoiceResends;
 use Modules\SaasBilling\Invoices\InvoiceTemplates;
 use Modules\SaasBilling\Invoices\SubscriptionInvoiceList;
 use Modules\SaasBilling\Jobs\MeterUnits;
@@ -27,6 +30,7 @@ use Modules\SaasBilling\Payments\TransferProofs;
 use Modules\SaasBilling\Payments\TransferReviews;
 use Modules\SaasBilling\Payments\WebhookReplays;
 use Modules\SaasBilling\Quotes\MonthlyBills;
+use Modules\SaasBilling\Refunds\PlatformRefunds as Refunds;
 use Modules\SaasBilling\SmsCredits\SmsCreditPurchases;
 use Nwidart\Modules\Support\ModuleServiceProvider;
 
@@ -55,7 +59,12 @@ use Nwidart\Modules\Support\ModuleServiceProvider;
  * collection `platform_payment_proofs` and template `billing.transfer_rejected`.
  * Dunning (P06-05): the hourly `saas-dunning` (Jobs\RunDunning) moves unpaid
  * subscriptions along the ladder (Dunning\DunningLadder) and tells the
- * owners (Dunning\DunningTemplates; a failed payment too).
+ * owners (Dunning\DunningTemplates; a failed payment too). The console's
+ * billing pages (P06-07b): Contracts\PlatformRefunds (Refunds\PlatformRefunds:
+ * refunds through Paystack's API or recorded bank transfers, with the
+ * two-person approval above `billing.refund_approval_above_kobo`, template
+ * `billing.refund_issued`, Paystack's refund webhooks) and
+ * Contracts\InvoiceEmails (sending an invoice email again).
  */
 final class SaasBillingServiceProvider extends ModuleServiceProvider
 {
@@ -79,6 +88,8 @@ final class SaasBillingServiceProvider extends ModuleServiceProvider
         $this->app->bind(PlatformWebhookReplays::class, WebhookReplays::class);
         $this->app->bind(BankTransfers::class, TransferProofs::class);
         $this->app->bind(BankTransferReviews::class, TransferReviews::class);
+        $this->app->bind(PlatformRefunds::class, Refunds::class);
+        $this->app->bind(InvoiceEmails::class, InvoiceResends::class);
 
         // Proofs of bank transfers to GoProperty: a screenshot, a photo or a
         // PDF, at most 10 MB; evidence (never deleted; ARCHITECTURE.md § 9).

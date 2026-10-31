@@ -46,6 +46,7 @@ enum StaffPermission: string
     case PaymentsConfirmTransfer = 'payments.confirm_transfer';
     case RefundsCreate = 'refunds.create';
     case RefundsApprove = 'refunds.approve';
+    case RefundsConfigure = 'refunds.configure';
     case CreditNotesCreate = 'credit_notes.create';
 
     // Support
@@ -142,6 +143,7 @@ enum StaffPermission: string
             self::PaymentsConfirmTransfer => 'Confirm bank-transfer subscription payments',
             self::RefundsCreate => 'Request refunds',
             self::RefundsApprove => 'Approve refunds',
+            self::RefundsConfigure => 'Set the amount above which refunds need approval',
             self::CreditNotesCreate => 'Issue credit notes',
             self::EmailsResend => 'Resend emails and invoices',
             self::DeliveryLogsView => 'View delivery logs',

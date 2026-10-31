@@ -13,4 +13,6 @@ enum PaymentOutcome: string
     case Ignored = 'ignored';
     case NotPaid = 'not_paid';
     case Rejected = 'rejected';
+    // A refund event moved one of the payment's refunds (P06-07b).
+    case Refund = 'refund';
 }

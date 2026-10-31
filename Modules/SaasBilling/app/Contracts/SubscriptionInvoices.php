@@ -13,4 +13,7 @@ interface SubscriptionInvoices
 {
     /** @return list<SubscriptionInvoice> the newest first */
     public function recent(int $limit = 12): array;
+
+    /** One of the current organization's subscription invoices with its lines (the console's invoice page, P06-07b); null when it has none with this id. */
+    public function find(int $invoiceId): ?SubscriptionInvoice;
 }

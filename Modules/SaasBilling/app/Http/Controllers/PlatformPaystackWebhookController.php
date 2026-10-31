@@ -44,7 +44,14 @@ final class PlatformPaystackWebhookController
         $decoded = json_decode($body, true);
         $event = is_array($decoded) && is_string($decoded['event'] ?? null) ? mb_substr($decoded['event'], 0, 60) : null;
         $data = is_array($decoded) && is_array($decoded['data'] ?? null) ? $decoded['data'] : [];
-        $reference = is_string($data['reference'] ?? null) ? mb_substr($data['reference'], 0, 100) : null;
+        // Refund events (P06-07b) name the refunded transaction instead of a reference of their own.
+        $reference = match (true) {
+            is_string($event) && str_starts_with($event, 'refund.') && is_string($data['transaction_reference'] ?? null) => $data['transaction_reference'],
+            is_string($event) && str_starts_with($event, 'refund.') && is_array($data['transaction'] ?? null) && is_string($data['transaction']['reference'] ?? null) => $data['transaction']['reference'],
+            is_string($data['reference'] ?? null) => $data['reference'],
+            default => null,
+        };
+        $reference = $reference !== null ? mb_substr($reference, 0, 100) : null;
         $now = CarbonImmutable::now();
 
         $id = DB::table('webhook_log')->insertGetId([

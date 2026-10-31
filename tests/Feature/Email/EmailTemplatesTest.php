@@ -265,6 +265,7 @@ describe('the console', function () {
         $reminder = EmailTemplate::query()->where('key', 'reminder.rent_due')->sole();
 
         Livewire::test(ListEmailTemplates::class)
+            ->set('tableRecordsPerPage', 50)
             ->assertCanSeeTableRecords([$this->template, $reminder])
             ->filterTable('category', 'reminder')
             ->assertCanSeeTableRecords([$reminder])

@@ -24,8 +24,10 @@ use App\Models\OrganizationBankAccount;
 use App\Models\OrganizationFeatureOverride;
 use App\Models\OrganizationOnboarding;
 use App\Models\PlanChangeNotice;
+use App\Models\PlatformStaff;
 use App\Models\SmsCreditBalance;
 use App\Models\SmsCreditEntry;
+use App\Models\StaffStatus;
 use App\Models\Subscription;
 use App\Models\TierApplication;
 use App\Models\User;
@@ -102,10 +104,12 @@ use Modules\SaasBilling\Enums\DunningStep;
 use Modules\SaasBilling\Enums\InvoiceKind;
 use Modules\SaasBilling\Enums\InvoiceStatus;
 use Modules\SaasBilling\Enums\PlatformPaymentStatus;
+use Modules\SaasBilling\Enums\RefundStatus;
 use Modules\SaasBilling\Enums\UnitEventReason;
 use Modules\SaasBilling\Models\DunningNotice;
 use Modules\SaasBilling\Models\PlatformInvoice;
 use Modules\SaasBilling\Models\PlatformPayment;
+use Modules\SaasBilling\Models\PlatformRefund;
 use Modules\SaasBilling\Models\SubscriptionUnitEvent;
 use Modules\Tenants\Models\TenantProfile;
 use Modules\Tickets\Enums\MessageAuthor;
@@ -451,6 +455,29 @@ final class OrganizationScopedModels
                 'paystack_reference' => 'PINV-PROBE-'.Str::upper(Str::random(12)),
                 'status' => PlatformPaymentStatus::Pending,
             ])->save()),
+            // Refunds (P06-07b; Refunds\PlatformRefunds is the writer): of a payment, asked by a staff member.
+            PlatformRefund::class => fn (): Model => tap(new PlatformRefund, function (PlatformRefund $refund): void {
+                $invoice = self::platformInvoice();
+                $payment = new PlatformPayment;
+                $payment->forceFill([
+                    'platform_invoice_id' => $invoice->id,
+                    'method' => PlatformPayment::PAYSTACK,
+                    'amount_kobo' => Money::naira(3_225),
+                    'currency' => 'NGN',
+                    'paystack_reference' => 'PINV-PROBE-'.Str::upper(Str::random(12)),
+                    'status' => PlatformPaymentStatus::Pending,
+                ])->save();
+                $staff = PlatformStaff::query()->create(['name' => 'Probe', 'email' => 'probe-'.Str::lower(Str::random(10)).'@goproperty.ng', 'password' => 'x-long-password-1', 'status' => StaffStatus::Active]);
+                $refund->forceFill([
+                    'platform_payment_id' => $payment->id,
+                    'platform_invoice_id' => $invoice->id,
+                    'method' => PlatformPayment::PAYSTACK,
+                    'amount_kobo' => Money::naira(100),
+                    'status' => RefundStatus::Requested,
+                    'reason' => 'Probe',
+                    'requested_by_staff_id' => $staff->id,
+                ])->save();
+            }),
             // The metering ledger (P06-02; Metering\SubscriptionMetering is the writer): needs the organization's subscription.
             SubscriptionUnitEvent::class => fn (): Model => tap(new SubscriptionUnitEvent, fn (SubscriptionUnitEvent $event): bool => $event->forceFill([
                 'subscription_id' => self::subscription()->id,

@@ -208,6 +208,8 @@ return [
         'billing.transfer_account_name' => ['type' => 'string', 'rules' => ['nullable', 'string', 'max:120', $plain], 'permission' => 'plans.manage'],
         // A Nigerian NUBAN: 10 digits.
         'billing.transfer_account_number' => ['type' => 'string', 'rules' => ['nullable', 'string', 'regex:/^[0-9]{10}$/'], 'permission' => 'plans.manage'],
+        // Refunds above this (kobo, counting the payment's earlier refunds) need a second staff member's approval (P06-07b; PLATFORM_CONSOLE.md § 1). Default ₦100,000.
+        'billing.refund_approval_above_kobo' => ['type' => 'integer', 'default' => 10_000_000, 'rules' => ['required', 'integer', 'between:0,100000000000'], 'permission' => 'refunds.configure'],
 
     ],
 

@@ -13,7 +13,8 @@ use App\Mail\Templates\TemplateDefinition;
  * GoProperty's invoice email (P06-02; BILLING_PAYMENTS.md § 3 step 4), its
  * payment receipt (P06-03, § 4.2 "receipt + notifications"; also for a bank
  * transfer staff confirmed, P06-04) and the notice that a bank-transfer
- * proof was not accepted (P06-04, § 5 step 3): to the
+ * proof was not accepted (P06-04, § 5 step 3), and the notice of a refund
+ * (P06-07b, § 8): to the
  * owners of the organization (and of its payer, when another), in
  * GoProperty's branding, edited by `content-manager` like every template.
  * Transactional: always sent. The in-app notice shows the subject.
@@ -25,6 +26,8 @@ final class InvoiceTemplates
     public const string PAYMENT_RECEIVED = 'billing.payment_received';
 
     public const string TRANSFER_REJECTED = 'billing.transfer_rejected';
+
+    public const string REFUND_ISSUED = 'billing.refund_issued';
 
     /** @return list<TemplateDefinition> */
     public static function definitions(): array
@@ -100,6 +103,29 @@ final class InvoiceTemplates
                         ."GoProperty checked the proof of a {{ payment.amount }} bank transfer on {{ payment.date }} that {{ organization.name }} sent for invoice {{ invoice.number }}, and could not accept it:\n\n"
                         ."{{ rejection.reason }}\n\n"
                         .'Invoice {{ invoice.number }} for {{ invoice.total }} is still open. An owner can pay it by card, or send another proof, from Settings → Subscription.',
+                    actionLabel: 'See your invoices',
+                ),
+            ),
+            new TemplateDefinition(
+                key: self::REFUND_ISSUED,
+                name: 'GoProperty refund',
+                description: "To an organization's owners when GoProperty refunds a payment it received: through Paystack, or by GoProperty's own bank transfer.",
+                category: TemplateCategory::Transactional,
+                placeholders: [
+                    new Placeholder('recipient.name', "The owner's name", 'Ada Okafor'),
+                    new Placeholder('organization.name', "The organization's name", 'Adeyemi Realty Ltd'),
+                    new Placeholder('invoice.number', 'The invoice the payment was for', 'PR-2026-000123'),
+                    new Placeholder('refund.amount', 'The amount refunded', '₦43,000'),
+                    new Placeholder('refund.date', 'The day of the refund, e.g. "5 December 2026"', '5 December 2026'),
+                    new Placeholder('refund.how', 'How the money comes back', 'Paystack returns it to the card or account you paid with, usually within 5 to 10 working days.'),
+                    new Placeholder('invoice.after', 'What happens to the invoice now (empty when nothing changes)', 'Invoice PR-2026-000123 is open again, due 12 December 2026.'),
+                ],
+                content: new TemplateContent(
+                    subject: 'GoProperty refunded {{ refund.amount }} (invoice {{ invoice.number }})',
+                    body: "Hello {{ recipient.name }},\n\n"
+                        ."GoProperty refunded {{ refund.amount }} to {{ organization.name }} on {{ refund.date }}, from the payment for invoice {{ invoice.number }}.\n\n"
+                        ."{{ refund.how }}\n\n"
+                        .'{{ invoice.after }}',
                     actionLabel: 'See your invoices',
                 ),
             ),

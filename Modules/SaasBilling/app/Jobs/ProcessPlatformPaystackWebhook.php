@@ -12,6 +12,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\DB;
+use Modules\SaasBilling\Contracts\PlatformRefunds;
 use Modules\SaasBilling\Enums\PaymentOutcome;
 use Modules\SaasBilling\Payments\PlatformPaymentSettlement;
 use Modules\SaasBilling\Paystack\PaystackUnavailable;
@@ -21,7 +22,10 @@ use Throwable;
  * Processes a delivery to GoProperty's own webhook (P05-03, P06-03;
  * BILLING_PAYMENTS.md § 4.2: kept first, processed on the queue), on
  * `billing`. Only deliveries whose signature matched, and only
- * `charge.success` and `charge.failed`: the payment with that reference is
+ * `charge.success` and `charge.failed`, and the refund events (P06-07b:
+ * the refunds being processed of the payment with that reference are
+ * checked with Paystack, Refunds\PlatformRefunds::checkPayment()). For a
+ * charge the payment with that reference is
  * found by one unscoped read of its `organization_id` (the
  * lookup-by-public-key pattern) and settled inside that organization
  * (Payments\PlatformPaymentSettlement, which verifies with Paystack first:
@@ -52,7 +56,10 @@ final class ProcessPlatformPaystackWebhook implements ShouldQueue
     /** The events that mean "ask Paystack about this reference". */
     public const array EVENTS = ['charge.success', 'charge.failed'];
 
-    public function handle(OrganizationContext $context, PlatformPaymentSettlement $settlement): void
+    /** Paystack's refund events: "ask Paystack about this payment's refunds". */
+    public const array REFUND_EVENTS = ['refund.pending', 'refund.processing', 'refund.processed', 'refund.failed', 'refund.needs-attention'];
+
+    public function handle(OrganizationContext $context, PlatformPaymentSettlement $settlement, PlatformRefunds $refunds): void
     {
         $log = DB::table('webhook_log')->where('id', $this->webhookLogId)->whereNull('organization_id')->where('provider', 'paystack')->first();
 
@@ -61,6 +68,21 @@ final class ProcessPlatformPaystackWebhook implements ShouldQueue
         }
 
         $reference = is_string($log->reference) ? $log->reference : null;
+
+        if (in_array($log->event, self::REFUND_EVENTS, true) && $reference !== null) {
+            try {
+                $changed = $refunds->checkPayment($reference);
+            } catch (PaystackUnavailable $unavailable) {
+                DB::table('webhook_log')->where('id', $this->webhookLogId)->update(['processing_error' => mb_substr($unavailable->getMessage(), 0, 500), 'updated_at' => now()]);
+
+                throw $unavailable;
+            }
+
+            $this->finish($changed > 0 ? PaymentOutcome::Refund : PaymentOutcome::Ignored);
+
+            return;
+        }
+
         $organization = $reference !== null ? PlatformPaymentSettlement::organizationFor($reference) : null;
 
         if (! in_array($log->event, self::EVENTS, true) || $reference === null || ! $organization instanceof Organization) {

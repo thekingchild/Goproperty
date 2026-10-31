@@ -47,6 +47,13 @@ final readonly class SubscriptionInvoiceList implements SubscriptionInvoices
             ->all());
     }
 
+    public function find(int $invoiceId): ?SubscriptionInvoice
+    {
+        $invoice = PlatformInvoice::query()->where('kind', InvoiceKind::Subscription)->find($invoiceId);
+
+        return $invoice instanceof PlatformInvoice ? self::present($invoice) : null;
+    }
+
     public static function present(PlatformInvoice $invoice, ?PlatformPayment $transfer = null): SubscriptionInvoice
     {
         $covered = $invoice->status === InvoiceStatus::Paid && $invoice->notes === SubscriptionMetering::COVERED_NOTE;

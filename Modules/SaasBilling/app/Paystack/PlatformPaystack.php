@@ -110,6 +110,64 @@ final readonly class PlatformPaystack
         );
     }
 
+    /**
+     * Asks Paystack to refund part or all of a transaction (POST /refund;
+     * P06-07b). Paystack queues it: the answer is its refund's id and
+     * status, usually `pending` or `processing`.
+     *
+     * @throws PaystackUnavailable when Paystack cannot be reached or refuses (nothing was refunded)
+     */
+    public function refund(string $reference, int $amountKobo, string $merchantNote): PaystackRefund
+    {
+        try {
+            $response = $this->request()->post('/refund', [
+                'transaction' => $reference,
+                'amount' => $amountKobo,
+                'currency' => 'NGN',
+                'merchant_note' => mb_substr($merchantNote, 0, 200),
+            ]);
+        } catch (ConnectionException $exception) {
+            throw new PaystackUnavailable('Paystack could not be reached.', previous: $exception);
+        }
+
+        $refund = $response->successful() && $response->json('status') === true ? PaystackRefund::from($response->json('data')) : null;
+
+        if (! $refund instanceof PaystackRefund) {
+            $message = $response->json('message');
+
+            throw new PaystackUnavailable('Paystack did not accept the refund ('.$response->status().(is_string($message) ? ': '.mb_substr($message, 0, 150) : '').').');
+        }
+
+        return $refund;
+    }
+
+    /**
+     * A refund as Paystack has it now (GET /refund/{id}); null when Paystack
+     * has none with this id.
+     *
+     * @throws PaystackUnavailable
+     */
+    public function fetchRefund(string $id): ?PaystackRefund
+    {
+        try {
+            $response = $this->request()->get('/refund/'.rawurlencode($id));
+        } catch (ConnectionException $exception) {
+            throw new PaystackUnavailable('Paystack could not be reached.', previous: $exception);
+        }
+
+        if ($response->status() === 404) {
+            return null;
+        }
+
+        $refund = $response->successful() && $response->json('status') === true ? PaystackRefund::from($response->json('data')) : null;
+
+        if (! $refund instanceof PaystackRefund) {
+            throw new PaystackUnavailable('Paystack answered '.$response->status().' with a refund GoProperty cannot read.');
+        }
+
+        return $refund;
+    }
+
     private function secretKey(): string
     {
         $key = config('services.paystack.secret_key');

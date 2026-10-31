@@ -186,8 +186,12 @@ final class ApprovalService
                 throw new ApprovalRefused($refusal);
             }
 
+            $handler = $this->handler($locked->action);
+
             if ($decision === ApprovalStatus::Approved) {
-                $this->handler($locked->action)?->apply($locked, $decider);
+                $handler?->apply($locked, $decider);
+            } elseif ($handler instanceof HandlesNotApproved) {
+                $handler->notApproved($locked);
             }
 
             $locked->forceFill([
@@ -218,6 +222,12 @@ final class ApprovalService
     private function markExpired(ApprovalRequest $request): void
     {
         $request->forceFill(['status' => ApprovalStatus::Expired, 'decided_at' => now()])->save();
+
+        $handler = $this->handler($request->action);
+
+        if ($handler instanceof HandlesNotApproved) {
+            $handler->notApproved($request);
+        }
 
         $this->audit->record('approval.expired', $request, null, "approval expired: {$request->summary}", [
             'action' => $request->action->value,
