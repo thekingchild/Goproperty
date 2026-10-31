@@ -18,6 +18,7 @@ use App\Platform\Compliance\DocumentLinks;
 use App\Platform\Filament\Auth\AcceptStaffInvitation;
 use App\Platform\Filament\Pages\Settings\BrandAppearance;
 use App\Platform\Filament\Resources\Staff\StaffResource;
+use App\Platform\Staff\DefaultStaffRole;
 use App\Platform\Staff\StaffLifecycle;
 use App\Platform\Staff\StaffPermission;
 use App\Platform\Staff\StaffRoles;
@@ -247,4 +248,52 @@ it('opens every one of those pages once 2FA is enrolled (super-admin)', function
 
         expect($response->isSuccessful())->toBeTrue("{$url} answered {$response->status()}");
     }
+});
+
+/*
+ * P06-07 acceptance: "Every page policy-checked per staff role". Every
+ * console page, opened as each default role, either opens or answers 403
+ * (never an error or a page that skips its check), and only the console's
+ * home is open to every role: each other page is refused to at least one.
+ */
+it('acceptance: checks every console page against each default staff role', function () {
+    $urls = consolePageUrls(staffMember());
+    // The home, and the session keep-alive every signed-in page calls.
+    $everyone = ['/'.config('app.admin_path'), '/'.config('app.admin_path').'/session/ping'];
+    $openedBy = array_fill_keys($urls, []);
+
+    foreach (DefaultStaffRole::values() as $role) {
+        $staff = staffNamed('Role'.str_replace('-', '', $role), [$role]);
+
+        foreach ($urls as $url) {
+            $this->flushSession();
+            $status = $this->actingAs($staff, 'staff')->get($url)->status();
+
+            expect(in_array($status, [200, 204, 403], true))->toBeTrue("{$url} answered {$status} for {$role}");
+
+            if ($status !== 403) {
+                $openedBy[$url][] = $role;
+            }
+        }
+    }
+
+    foreach ($openedBy as $url => $roles) {
+        $path = (string) parse_url($url, PHP_URL_PATH);
+
+        if (in_array($path, $everyone, true)) {
+            continue;
+        }
+
+        expect(count($roles))->toBeLessThan(count(DefaultStaffRole::values()), "{$path} opens for every role")
+            ->and($roles)->toContain('super-admin');
+    }
+
+    // Spot checks of the P06-07 pages against PLATFORM_CONSOLE.md § 1.
+    $opened = fn (string $suffix): array => collect($openedBy)->first(fn (array $roles, string $url): bool => str_ends_with((string) parse_url($url, PHP_URL_PATH), $suffix)) ?? [];
+    expect($opened('/platform-payments'))->toEqualCanonicalizing(['super-admin', 'finance-admin'])
+        ->and($opened('/platform-invoices'))->toEqualCanonicalizing(['super-admin', 'finance-admin', 'support-agent'])
+        ->and($opened('/settings/refunds'))->toBe(['super-admin'])
+        ->and($opened('/audit-log'))->toBe(['super-admin'])
+        ->and($opened('/access-log'))->toEqualCanonicalizing(['super-admin', 'technical-admin'])
+        ->and($opened('/customers'))->not->toContain('analyst');
 });
