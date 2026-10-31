@@ -104,3 +104,14 @@ Started 2026-10-31 at the product owner's request ("start P06-05"). Built in `Mo
 44. **Self-healing:** a past-due, grace or suspended subscription with nothing overdue (two invoices paid at the same moment, each seeing the other open) is made active by the ladder. Platform-covered organizations and payers are never dunned (§ 2).
 45. **The ten write actions** proven refused while suspended, and working again once paid, over HTTP as the browser sends them: add a building, add a unit, add a tenant, draft a lease, activate a lease, record a payment, void a bill, raise a ticket, invite a member, save the organization profile. The guard itself covers every Livewire call and non-GET request (P01-06).
 
+## P06-06 — management handover on live subscriptions
+
+Started 2026-10-31 at the product owner's request ("Let start P06-06"). The payer switch first planned here stays dropped (BILLING_PAYMENTS.md § 7.8): no organization pays another's bill. Built in SaasBilling's `Quotes\MonthlyBills` (with `Metering\BillingPeriod::next()` and `Contracts\NextInvoice`) and the Handovers accept screen; no migration, package, permission or queue.
+
+### Defaults taken in P06-06 (for the product owner to confirm)
+
+46. **The next billing day is the subscription's own:** the trial's last day while in trial (that first invoice is charged by days to the month's end, default 13), the 1st for monthly subscriptions, the renewal date for yearly ones, today when a period is already due. A grace or suspended organization is shown the period it would be billed once active again. An organization with no subscription is shown the 1st of next month on its signup plan, else the cheapest plan for the units.
+47. **The screen's amounts are the next invoice's**, worked out by metering's own rules for the units after the handover: the plan's version in effect on that period's first day (a scheduled price included), the period, how it is charged, the subtotal before and after, VAT and the total. The headline keeps § 7.3's monthly wording at those terms; the next invoice is stated under it. A platform-covered organization is told it has nothing to pay.
+48. **The consent amount stays the monthly price after** (`monthly_after_kobo`): acceptance is refused when it changed while the screen was open. The next billing day and the next invoice's subtotal before and after go in the acceptance's audit entry; no new columns.
+49. **No proration and no re-issue** (§ 1.4): accepting, ending or returning invoices and credits nothing. Each organization counts the units it has on its own billing day, so the receiving organization pays for the buildings from its next billing day and the landlord's organization stops on its next billing day; a building that moves twice between two billing days is billed by whoever has it on each one's day. Proration waits for the post-MVP refinement.
+

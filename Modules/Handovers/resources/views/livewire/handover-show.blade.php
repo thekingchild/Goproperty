@@ -87,7 +87,29 @@
             @if ($change->cheaper !== null)
                 <flux:callout class="mt-3" icon="light-bulb" data-test="cheaper-plan" :heading="__('The :plan plan would cost :amount a month for these units: you can change plan in Billing.', ['plan' => $change->cheaper->plan->name, 'amount' => $change->cheaper->amount->format()])" />
             @endif
-            <flux:text class="mt-2">{{ __(':vat% VAT is added on each invoice. Units are counted on the billing day; there is no part-month charge.', ['vat' => $change->after->vatPercent]) }}</flux:text>
+            @php($next = $change->after->next)
+            @if ($next !== null && $change->before->next !== null)
+                <flux:text class="mt-2" data-test="next-invoice">
+                    @if ($next->covered)
+                        {{ __('GoProperty covers your subscription: your next invoice, on :date, is marked paid when it is issued, with nothing to pay.', ['date' => $next->billingDay->format('j F Y')]) }}
+                    @else
+                        {{ __('Your next invoice, on :date for :period (:charged), goes from :before to :after before VAT: :total with :vat% VAT.', [
+                            'date' => $next->billingDay->format('j F Y'),
+                            'period' => $next->period(),
+                            'charged' => match (true) {
+                                $next->isPartMonth() => __(':days of :month days', ['days' => $next->daysBilled, 'month' => $next->daysInMonth]),
+                                $next->cycle === \App\Enums\BillingCycle::Annual => __('a year at :months months\' price', ['months' => $next->monthsBilled]),
+                                default => __('a full month'),
+                            },
+                            'before' => $change->before->next->subtotal->format(),
+                            'after' => $next->subtotal->format(),
+                            'total' => $next->total->format(),
+                            'vat' => $change->after->vatPercent,
+                        ]) }}
+                    @endif
+                </flux:text>
+            @endif
+            <flux:text class="mt-2">{{ __(':vat% VAT is added on each invoice. Units are counted on the billing day, so the buildings are first billed then; there is no proration.', ['vat' => $change->after->vatPercent]) }}</flux:text>
             @if ($isReturn)
                 <flux:text class="mt-1" data-test="return-explainer">{{ __('Accepting moves the buildings, their units, the tenants of their active leases, those leases with their deposits, utility settings and meter readings, and their photos into your account, for good: a return has no notice and no end. Bills, receipts and payments :agency issued stay with it, and it collects what is still owed on them.', ['agency' => $holder->name]) }}</flux:text>
             @else

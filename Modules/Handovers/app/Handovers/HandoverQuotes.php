@@ -55,7 +55,7 @@ final readonly class HandoverQuotes
             before: $before,
             after: $after,
             units: $units,
-            from: $this->quotes->nextBillingDay(),
+            from: $after->next->billingDay ?? $this->quotes->nextBillingDay($receiver),
             cheaper: $cheapest->plan->key !== $after->plan->key && $cheapest->amount->lessThan($after->amount) ? $cheapest : null,
         );
     }

@@ -357,6 +357,10 @@ final readonly class HandoverService
                     'monthly_after_kobo' => $change->after->amount->kobo,
                     'plan_key' => $change->after->plan->key,
                     'vat_percent' => $change->after->vatPercent,
+                    // The invoice the receiving organization's next billing day brings (P06-06).
+                    'next_billing_day' => $change->from->toDateString(),
+                    'next_invoice_subtotal_before_kobo' => $change->before->next?->subtotal->kobo,
+                    'next_invoice_subtotal_after_kobo' => $change->after->next?->subtotal->kobo,
                 ]);
                 $this->auditMove($locked, $move, $actor);
 

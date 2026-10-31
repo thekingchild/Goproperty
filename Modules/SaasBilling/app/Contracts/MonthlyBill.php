@@ -12,7 +12,8 @@ use App\Support\Money;
  * (BILLING_PAYMENTS.md § 1.4): its plan's base price plus each unit over
  * the included ones, before VAT. Shown on a management handover's accept
  * screen, before and after the handed-over units, and recorded when the
- * handover is accepted (§ 7.3).
+ * handover is accepted (§ 7.3). The plan's terms are those in effect on
+ * the next billing day, and `next` is the invoice that day brings.
  */
 final readonly class MonthlyBill
 {
@@ -25,6 +26,8 @@ final readonly class MonthlyBill
         public string $vatPercent,
         /** False when the organization chose no plan yet and the cheapest one for its units is shown. */
         public bool $planChosen,
+        /** The invoice the next metering run issues for these units (P06-06); null for a plan suggestion. */
+        public ?NextInvoice $next = null,
     ) {}
 
     /** Units over the plan's included ones, which cost extra. */

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\SaasBilling\Metering;
 
 use App\Enums\BillingCycle;
+use App\Enums\SubscriptionStatus;
 use App\Models\Subscription;
 use Carbon\CarbonImmutable;
 
@@ -86,6 +87,38 @@ final readonly class BillingPeriod
             : $next->lessThan($today->startOfMonth());
 
         return self::starting($missedWhole ? $today : $next, $cycle, $monthsPaidPerYear);
+    }
+
+    /**
+     * The period the next metering run will bill for this subscription
+     * (P06-06, for quotes), seen on $today, with the day it is billed:
+     *
+     * - in trial: the period that starts on the trial's last day, billed
+     *   that day (the trial's end makes it active, then it is invoiced);
+     * - a period already due: the one due() gives, billed in today's run;
+     * - else the period after the current one, billed on its first day.
+     *
+     * A grace or suspended subscription is billed only once it is active
+     * again; the period is then the one shown here, as long as it pays
+     * within the month. With `cancel_at_period_end` (nothing sets it yet)
+     * the period after the current one is still returned, though it will
+     * not be billed.
+     *
+     * @return array{0: self, 1: CarbonImmutable} the period and its billing day
+     */
+    public static function next(Subscription $subscription, CarbonImmutable $today, int $monthsPaidPerYear): array
+    {
+        $today = self::day($today);
+        $cycle = $subscription->billing_cycle;
+
+        if ($subscription->status === SubscriptionStatus::Trialing) {
+            $period = self::starting(self::day($subscription->trial_ends_at ?? $today), $cycle, $monthsPaidPerYear);
+        } else {
+            $after = $subscription->current_period_end !== null ? self::day($subscription->current_period_end)->addDay() : $today;
+            $period = self::due($subscription, $today, $monthsPaidPerYear) ?? self::starting($after, $cycle, $monthsPaidPerYear);
+        }
+
+        return [$period, $period->start->max($today)];
     }
 
     public function isPartMonth(): bool

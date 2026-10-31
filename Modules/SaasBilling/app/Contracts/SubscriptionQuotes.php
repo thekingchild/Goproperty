@@ -13,8 +13,10 @@ use Carbon\CarbonImmutable;
  * accept screen, which shows the receiving organization's bill before and
  * after the handed-over units and refuses an acceptance when the amount
  * changed while the screen was open. The plan is the organization's
- * subscription's at its current terms (P06-01b), else the cheapest for the
- * units. Bound in SaasBillingServiceProvider.
+ * subscription's at its terms on the next billing day (P06-01b, P06-06),
+ * else the signup choice, else the cheapest for the units; the bill's
+ * `next` is the invoice the next metering run issues for those units.
+ * Bound in SaasBillingServiceProvider.
  */
 interface SubscriptionQuotes
 {
@@ -24,6 +26,11 @@ interface SubscriptionQuotes
     /** The cheapest plan's bill for this many units (to suggest a bigger plan when it would be cheaper). */
     public function cheapestFor(int $units): MonthlyBill;
 
-    /** The next billing day: units are counted on the 1st of each month (BILLING_PAYMENTS.md § 3), Lagos time. */
-    public function nextBillingDay(): CarbonImmutable;
+    /**
+     * The organization's next billing day, Lagos time (BILLING_PAYMENTS.md
+     * § 3): its trial's end, the 1st for monthly subscriptions, the renewal
+     * date for yearly ones; without an organization or a subscription, the
+     * 1st of next month.
+     */
+    public function nextBillingDay(?Organization $organization = null): CarbonImmutable;
 }

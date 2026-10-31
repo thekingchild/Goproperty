@@ -159,10 +159,15 @@ it('acceptance: keeps everyone on the old terms until the date, and existing cus
         ->and($base($this->beta))->toBe(4_000_000)
         ->and($features()->enabled(Feature::WhatsApp, $this->beta))->toBeFalse();
 
-    // ...while Acme keeps its terms through the billing period it is in (it started on 2 November), quote included.
+    // ...while Acme keeps its terms through the billing period it is in (it started on 2 November).
     expect($base($this->acme))->toBe(3_500_000)
-        ->and($features()->enabled(Feature::WhatsApp, $this->acme))->toBeTrue()
-        ->and(app(SubscriptionQuotes::class)->for($this->acme)->amount->kobo)->toBe(3_500_000);
+        ->and($features()->enabled(Feature::WhatsApp, $this->acme))->toBeTrue();
+
+    // The handover quote prices Acme's next billing day (P06-06): its next metering run bills from
+    // today (December was never metered here), at the new terms, as metering will.
+    $quote = app(SubscriptionQuotes::class)->for($this->acme);
+    expect($quote->amount->kobo)->toBe(4_000_000)
+        ->and($quote->next?->billingDay->toDateString())->toBe('2027-01-01');
 });
 
 it('lets a plan nobody is on change from today, without notices', function () {
