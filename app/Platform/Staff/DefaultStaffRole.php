@@ -31,7 +31,7 @@ enum DefaultStaffRole: string
     {
         return match ($this) {
             self::SuperAdmin => 'Everything, including staff management, role grants, production restore approval and system settings. Still subject to two-person rules.',
-            self::OperationsManager => 'Customers, organization suspend/reactivate, plan changes, grace extensions, all dashboards.',
+            self::OperationsManager => 'Customers, organization suspend/reactivate, plan changes, feature overrides, grace extensions, all dashboards.',
             self::ComplianceOfficer => 'Transaction Tier applications and documents, tier decisions, compliance flags, compliance restrictions.',
             self::FinanceAdmin => 'Plans and prices, platform invoices, bank-transfer confirmations, refunds, credit notes.',
             self::SupportAgent => 'Customer lookup, read-only impersonation with a reason, resending emails and invoices, delivery logs.',
@@ -56,7 +56,7 @@ enum DefaultStaffRole: string
         return match ($this) {
             self::SuperAdmin => P::cases(),
             self::OperationsManager => [
-                P::CustomersView, P::CustomersSuspend, P::CustomersChangePlan, P::CustomersExtendGrace,
+                P::CustomersView, P::CustomersSuspend, P::CustomersChangePlan, P::CustomersExtendGrace, P::CustomersOverrideFeatures,
                 P::ImpersonateReadOnly, P::ImpersonationViewLog,
                 P::OperationsView, P::AnalyticsView, P::DeliveryLogsView,
             ],

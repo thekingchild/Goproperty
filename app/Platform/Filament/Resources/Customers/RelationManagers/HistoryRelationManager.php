@@ -7,6 +7,7 @@ namespace App\Platform\Filament\Resources\Customers\RelationManagers;
 use App\Audit\AuditEntry;
 use App\Models\PlatformStaff;
 use App\Models\User;
+use App\Platform\Customers\Customer;
 use App\Platform\Staff\StaffPermission;
 use Filament\Facades\Filament;
 use Filament\Resources\RelationManagers\RelationManager;
@@ -16,8 +17,10 @@ use Illuminate\Database\Eloquent\Model;
 
 /**
  * Audit entries about the organization, newest first: suspensions and
- * reactivations with the staff member and reason, and every other change
- * logged on it. Read-only: the audit log is append-only.
+ * reactivations with the staff member and reason, every other change
+ * logged on it (feature overrides, P06-07a), and its subscription's moves
+ * (plan changes, cancellation, reactivation, the dunning ladder).
+ * Read-only: the audit log is append-only.
  */
 final class HistoryRelationManager extends RelationManager
 {
@@ -39,7 +42,11 @@ final class HistoryRelationManager extends RelationManager
 
     public function table(Table $table): Table
     {
+        $customer = $this->getOwnerRecord();
+
         return $table
+            // The organization's own entries and its subscription's (P06-07a).
+            ->query(fn () => $customer instanceof Customer ? $customer->historyQuery() : AuditEntry::query()->whereRaw('1 = 0'))
             ->columns([
                 TextColumn::make('created_at')->label('When')->dateTime()->sortable(),
                 TextColumn::make('event')->badge(),

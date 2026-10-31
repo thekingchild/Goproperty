@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 namespace App\Platform\Filament\Resources\Customers\Pages;
 
+use App\Enums\BillingCycle;
 use App\Platform\Customers\Customer;
 use App\Platform\Customers\CustomerSmsCredits;
+use App\Platform\Customers\CustomerSubscriptions;
 use App\Platform\Customers\OrganizationSuspension;
 use App\Platform\Filament\Concerns\ActsAsStaff;
 use App\Platform\Filament\Resources\Customers\CustomerResource;
 use Filament\Actions\Action;
+use Filament\Forms\Components\Radio;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Resources\Pages\ViewRecord;
@@ -20,7 +24,10 @@ use Illuminate\Support\Facades\Gate;
  * by CustomerPolicy (`customers.suspend`) and carried out by
  * OrganizationSuspension, which re-checks, audits with the reason and
  * emails the org-owners. Adjust SMS credits and SMS allowance (P05-03,
- * `plans.manage`) go through CustomerSmsCredits, audited.
+ * `plans.manage`) go through CustomerSmsCredits, audited. Change plan
+ * (`customers.change_plan`) and Cancel / Reactivate subscription
+ * (`customers.suspend`) go through CustomerSubscriptions (P06-07a), which
+ * re-checks and moves the subscription through SubscriptionService.
  *
  * @property-read Customer $record
  */
@@ -32,7 +39,10 @@ final class ViewCustomer extends ViewRecord
 
     protected function getHeaderActions(): array
     {
-        return [$this->adjustSmsCreditsAction(), $this->smsAllowanceAction(), $this->suspendAction(), $this->reactivateAction()];
+        return [
+            $this->changePlanAction(), $this->cancelSubscriptionAction(), $this->reactivateSubscriptionAction(),
+            $this->adjustSmsCreditsAction(), $this->smsAllowanceAction(), $this->suspendAction(), $this->reactivateAction(),
+        ];
     }
 
     private function customer(): Customer
@@ -63,6 +73,114 @@ final class ViewCustomer extends ViewRecord
                 ->label('Note to the organization owner (optional)')
                 ->helperText('Quoted in the email to the org-owners. Leave out anything they must not see.')
                 ->maxLength(OrganizationSuspension::NOTE_MAX),
+        ];
+    }
+
+    /** Staff move a customer to any plan, custom and no longer offered ones included (P06-07a, default 50). */
+    public function changePlanAction(): Action
+    {
+        return Action::make('changePlan')
+            ->label('Change plan')
+            ->icon('heroicon-o-arrows-right-left')
+            ->color('gray')
+            ->authorize(fn (): bool => $this->allows('changePlan'))
+            ->modalHeading(fn (): string => 'Change the plan of '.$this->customer()->name)
+            ->modalDescription('At once, at the plan\'s current terms; the current invoice is not changed. Limits are not checked: an organization over one keeps everything and adds nothing until it is under it. The owners are not emailed.')
+            ->fillForm(fn (): array => [
+                'plan_id' => $this->customer()->subscription?->plan_id,
+                'billing_cycle' => $this->customer()->subscription?->billing_cycle->value,
+            ])
+            ->schema([
+                Select::make('plan_id')->label('Plan')->required()
+                    ->options(fn (): array => app(CustomerSubscriptions::class)->planOptions()),
+                Radio::make('billing_cycle')->label('Billing')->required()
+                    ->options(collect(BillingCycle::cases())->mapWithKeys(fn (BillingCycle $cycle): array => [$cycle->value => $cycle->label()])->all()),
+                Textarea::make('reason')->label('Reason')->required()
+                    ->minLength(CustomerSubscriptions::REASON_MIN)->maxLength(CustomerSubscriptions::REASON_MAX)
+                    ->helperText('Kept in the audit log with your name; not sent to the customer.'),
+            ])
+            ->action(function (array $data): void {
+                self::attempt(function () use ($data): string {
+                    $planId = $data['plan_id'] ?? null;
+                    $subscription = app(CustomerSubscriptions::class)->changePlan(
+                        self::actor(),
+                        $this->customer()->organization(),
+                        is_numeric($planId) ? (int) $planId : 0,
+                        BillingCycle::tryFrom(is_string($data['billing_cycle'] ?? null) ? $data['billing_cycle'] : '') ?? BillingCycle::Monthly,
+                        (string) ($data['reason'] ?? ''),
+                    );
+
+                    return $this->customer()->name.' is now on '.$subscription->plan->name.', billed '.mb_strtolower($subscription->billing_cycle->label()).'.';
+                });
+                $this->reloadCustomer();
+            });
+    }
+
+    /** Cancel from any status but cancelled (P06-07a, default 52): the organization is closed, its data kept. */
+    public function cancelSubscriptionAction(): Action
+    {
+        return Action::make('cancelSubscription')
+            ->label('Cancel subscription')
+            ->icon('heroicon-o-no-symbol')
+            ->color('danger')
+            ->authorize(fn (): bool => $this->allows('cancelSubscription'))
+            ->requiresConfirmation()
+            ->modalHeading(fn (): string => 'Cancel the subscription of '.$this->customer()->name.'?')
+            ->modalDescription('No further invoice is issued. From their next request its members can sign in, view and export, but cannot change anything. Nothing is deleted. The org-owners are emailed.')
+            ->schema($this->subscriptionReasonFields())
+            ->action(function (array $data): void {
+                self::attempt(function () use ($data): string {
+                    app(CustomerSubscriptions::class)->cancel(
+                        self::actor(),
+                        $this->customer()->organization(),
+                        (string) ($data['reason'] ?? ''),
+                        isset($data['note_to_owner']) ? (string) $data['note_to_owner'] : null,
+                    );
+
+                    return 'The subscription of '.$this->customer()->name.' is cancelled.';
+                });
+                $this->reloadCustomer();
+            });
+    }
+
+    /** Only a cancelled subscription (P06-07a, default 52): billed again from today, the organization reopened if the subscription closed it. */
+    public function reactivateSubscriptionAction(): Action
+    {
+        return Action::make('reactivateSubscription')
+            ->label('Reactivate subscription')
+            ->icon('heroicon-o-arrow-path')
+            ->color('success')
+            ->authorize(fn (): bool => $this->allows('reactivateSubscription'))
+            ->requiresConfirmation()
+            ->modalHeading(fn (): string => 'Reactivate the subscription of '.$this->customer()->name.'?')
+            ->modalDescription('It becomes active at once and is invoiced again (the period due, from today when months were missed), then follows the usual reminders. The organization reopens if the subscription closed it; a suspension by staff stays. The org-owners are emailed.')
+            ->schema($this->subscriptionReasonFields())
+            ->action(function (array $data): void {
+                self::attempt(function () use ($data): string {
+                    app(CustomerSubscriptions::class)->reactivate(
+                        self::actor(),
+                        $this->customer()->organization(),
+                        (string) ($data['reason'] ?? ''),
+                        isset($data['note_to_owner']) ? (string) $data['note_to_owner'] : null,
+                    );
+
+                    return 'The subscription of '.$this->customer()->name.' is active again.';
+                });
+                $this->reloadCustomer();
+            });
+    }
+
+    /** @return list<Textarea> */
+    private function subscriptionReasonFields(): array
+    {
+        return [
+            Textarea::make('reason')->label('Reason')->required()
+                ->minLength(CustomerSubscriptions::REASON_MIN)->maxLength(CustomerSubscriptions::REASON_MAX)
+                ->helperText('Kept in the audit log with your name; not sent to the customer.'),
+            Textarea::make('note_to_owner')
+                ->label('Note to the organization owner (optional)')
+                ->helperText('Quoted in the email to the org-owners. Leave out anything they must not see.')
+                ->maxLength(CustomerSubscriptions::NOTE_MAX),
         ];
     }
 

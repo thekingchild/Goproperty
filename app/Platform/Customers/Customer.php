@@ -10,13 +10,17 @@ use App\Enums\OrganizationStatus;
 use App\Enums\OrganizationType;
 use App\Enums\TransactionTier;
 use App\Models\Organization;
+use App\Models\Subscription;
 use App\Models\User;
+use App\Platform\Plans\CustomerFeatureOverride;
 use App\Policies\CustomerPolicy;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Attributes\UsePolicy;
+use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
@@ -43,6 +47,7 @@ use LogicException;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property Carbon|null $deleted_at
+ * @property-read CustomerSubscription|null $subscription
  */
 #[Hidden(['cac_number', 'branding'])]
 #[UsePolicy(CustomerPolicy::class)]
@@ -81,6 +86,27 @@ class Customer extends Model
     }
 
     /**
+     * Its GoProperty subscription (P06-07a), one per organization once a plan is chosen.
+     *
+     * @return HasOne<CustomerSubscription, $this>
+     */
+    public function subscription(): HasOne
+    {
+        return $this->hasOne(CustomerSubscription::class, 'organization_id');
+    }
+
+    /**
+     * Its feature overrides, ended ones too (P06-07a; the page shows every
+     * feature through App\Platform\Plans\FeatureOverrides::standings()).
+     *
+     * @return HasMany<CustomerFeatureOverride, $this>
+     */
+    public function featureOverrides(): HasMany
+    {
+        return $this->hasMany(CustomerFeatureOverride::class, 'organization_id');
+    }
+
+    /**
      * Audit entries about the organization (suspensions, reactivations and
      * every other change logged on it).
      *
@@ -89,6 +115,23 @@ class Customer extends Model
     public function history(): HasMany
     {
         return $this->hasMany(AuditEntry::class, 'subject_id')->where('subject_type', (new Organization)->getMorphClass());
+    }
+
+    /**
+     * The organization's History on its console page: the entries about it
+     * and those about its subscription (plan changes, cancellations and the
+     * dunning ladder's moves, P06-07a), newest first by the caller.
+     *
+     * @return EloquentBuilder<AuditEntry>
+     */
+    public function historyQuery(): EloquentBuilder
+    {
+        $organizationId = $this->getKey();
+
+        return AuditEntry::query()->where(fn (EloquentBuilder $query) => $query
+            ->where(fn (EloquentBuilder $about) => $about->where('subject_type', (new Organization)->getMorphClass())->where('subject_id', $organizationId))
+            ->orWhere(fn (EloquentBuilder $about) => $about->where('subject_type', (new Subscription)->getMorphClass())
+                ->whereIn('subject_id', DB::table('subscriptions')->select('id')->where('organization_id', $organizationId))));
     }
 
     /** The organization itself, for the services that change it. */

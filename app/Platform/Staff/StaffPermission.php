@@ -26,6 +26,7 @@ enum StaffPermission: string
     case CustomersSuspend = 'customers.suspend';
     case CustomersChangePlan = 'customers.change_plan';
     case CustomersExtendGrace = 'customers.extend_grace';
+    case CustomersOverrideFeatures = 'customers.override_features';
 
     // Impersonation (§ 6)
     case ImpersonateReadOnly = 'impersonate.read_only';
@@ -130,6 +131,7 @@ enum StaffPermission: string
             self::CustomersSuspend => 'Suspend and reactivate organizations',
             self::CustomersChangePlan => 'Change a customer\'s plan',
             self::CustomersExtendGrace => 'Extend a grace period',
+            self::CustomersOverrideFeatures => 'Grant or withhold plan features for a customer',
             self::ImpersonateReadOnly => 'Impersonate a user (read-only, with reason)',
             self::ImpersonateWrite => 'Impersonate a user in write mode (needs approval)',
             self::ImpersonationViewLog => 'Read the impersonation log',
