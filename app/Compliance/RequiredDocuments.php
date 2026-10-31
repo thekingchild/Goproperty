@@ -8,35 +8,61 @@ use App\Enums\ComplianceDocumentType;
 use App\Enums\TransactionTier;
 use App\Models\ComplianceDocument;
 use App\Models\TierApplication;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 
 /**
  * What a Transaction Tier application must carry before it can be
  * submitted (ONBOARDING_COMPLIANCE.md § 5.3): the required documents of the
- * tier asked for (`config/tiers.php`, until the Tier settings screen of
- * P06-08 moves them to `transaction_tiers.required_documents`), each with
- * at least one document that is waiting for review or accepted and not
- * expired, a proof of address dated within 3 months, and for Tier 3 a
- * named compliance contact. Tier 2 needs the SCUML certificate.
+ * tier asked for (the tier's version in force, `transaction_tiers`, edited in
+ * Compliance → Tier settings, P06-08), each with at least one document that
+ * is waiting for review or accepted and not expired, a proof of address
+ * dated within 3 months, and for Tier 3 a named compliance contact. Tier 2
+ * needs the SCUML certificate.
+ *
+ * Which version's documents count (docs/plans/P06-subtasks.md default 78):
+ * today's, except for an application already with compliance (submitted or
+ * under review), which keeps those in force on the day it was submitted, so a
+ * change never blocks an application compliance is reviewing.
  */
-final class RequiredDocuments
+final readonly class RequiredDocuments
 {
+    public function __construct(private TransactionTiers $tiers) {}
+
     /** @return list<ComplianceDocumentType> */
-    public function required(TransactionTier $tier): array
+    public function required(TransactionTier $tier, ?CarbonInterface $day = null): array
     {
-        return $this->types($tier, 'required_documents');
+        return $this->tiers->terms($tier, $day)->requiredDocuments;
     }
 
     /** @return list<ComplianceDocumentType> */
-    public function optional(TransactionTier $tier): array
+    public function optional(TransactionTier $tier, ?CarbonInterface $day = null): array
     {
-        return $this->types($tier, 'optional_documents');
+        return $this->tiers->terms($tier, $day)->optionalDocuments;
+    }
+
+    /** @return list<ComplianceDocumentType> */
+    public function requiredFor(TierApplication $application): array
+    {
+        return $this->required($application->requested_tier, $this->dayFor($application));
+    }
+
+    /** @return list<ComplianceDocumentType> */
+    public function optionalFor(TierApplication $application): array
+    {
+        return $this->optional($application->requested_tier, $this->dayFor($application));
     }
 
     /** Every type an application for the tier may carry, required first. */
     public function accepts(TransactionTier $tier, ComplianceDocumentType $type): bool
     {
         return in_array($type, [...$this->required($tier), ...$this->optional($tier)], true);
+    }
+
+    /** The day whose documents the application is checked against (null = today). */
+    public function dayFor(TierApplication $application): ?CarbonInterface
+    {
+        return $application->status->isWithCompliance() ? $application->submitted_at : null;
     }
 
     public function needsComplianceContact(TransactionTier $tier): bool
@@ -53,13 +79,14 @@ final class RequiredDocuments
     public function problems(TierApplication $application): array
     {
         $documents = $application->currentDocuments()->get();
+        $day = $this->dayFor($application);
         $problems = [];
 
-        foreach ($this->missing($application->requested_tier, $documents) as $type) {
+        foreach ($this->missing($application->requested_tier, $documents, $day) as $type) {
             $problems[] = "Upload the {$type->label()}.";
         }
 
-        foreach ($this->required($application->requested_tier) as $type) {
+        foreach ($this->required($application->requested_tier, $day) as $type) {
             $months = $type->maxAgeMonths();
 
             if ($months !== null && $this->usable($documents, $type)->isNotEmpty() && $this->recent($documents, $type, $months)->isEmpty()) {
@@ -80,10 +107,10 @@ final class RequiredDocuments
      * @param  Collection<int, ComplianceDocument>  $documents
      * @return list<ComplianceDocumentType>
      */
-    public function missing(TransactionTier $tier, Collection $documents): array
+    public function missing(TransactionTier $tier, Collection $documents, ?CarbonInterface $day = null): array
     {
         return array_values(array_filter(
-            $this->required($tier),
+            $this->required($tier, $day),
             fn (ComplianceDocumentType $type): bool => $this->usable($documents, $type)->isEmpty(),
         ));
     }
@@ -121,16 +148,5 @@ final class RequiredDocuments
 
         return $this->usable($documents, $type)
             ->filter(fn (ComplianceDocument $document): bool => $document->issued_at !== null && $document->issued_at->greaterThanOrEqualTo($oldest));
-    }
-
-    /** @return list<ComplianceDocumentType> */
-    private function types(TransactionTier $tier, string $key): array
-    {
-        $values = config("tiers.tiers.{$tier->value}.{$key}", []);
-
-        return array_values(array_map(
-            static fn (mixed $value): ComplianceDocumentType => ComplianceDocumentType::from((string) $value),
-            is_array($values) ? $values : [],
-        ));
     }
 }

@@ -61,7 +61,7 @@ enum DefaultStaffRole: string
                 P::OperationsView, P::AnalyticsView, P::DeliveryLogsView,
             ],
             self::ComplianceOfficer => [
-                P::CustomersView, P::ComplianceViewDocuments, P::TiersReview, P::TiersApprove, P::TiersConfigure,
+                P::CustomersView, P::ComplianceViewDocuments, P::TiersReview, P::TiersApprove, P::TiersConfigure, P::TiersOverride,
                 P::ComplianceFlags, P::ComplianceRestrict, P::ImpersonationViewLog,
             ],
             self::FinanceAdmin => [

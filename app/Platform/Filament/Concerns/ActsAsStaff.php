@@ -7,6 +7,7 @@ namespace App\Platform\Filament\Concerns;
 use App\Models\PlatformStaff;
 use App\Platform\Approvals\ApprovalRefused;
 use App\Platform\Compliance\TierReviewRefused;
+use App\Platform\Compliance\TierSettingsRefused;
 use App\Platform\Customers\CustomerChangeRefused;
 use App\Platform\Impersonation\ImpersonationRefused;
 use App\Platform\Plans\PlanChangeRefused;
@@ -43,7 +44,7 @@ trait ActsAsStaff
     {
         try {
             $message = $change();
-        } catch (StaffChangeRefused|ApprovalRefused|CustomerChangeRefused|ImpersonationRefused|TierReviewRefused|PlanChangeRefused $refused) {
+        } catch (StaffChangeRefused|ApprovalRefused|CustomerChangeRefused|ImpersonationRefused|TierReviewRefused|TierSettingsRefused|PlanChangeRefused $refused) {
             Notification::make()->title($refused->getMessage())->danger()->send();
 
             return false;

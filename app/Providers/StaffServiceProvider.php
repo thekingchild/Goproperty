@@ -8,6 +8,7 @@ use App\Models\PlatformStaff;
 use App\Platform\Approvals\ApprovalAction;
 use App\Platform\Approvals\ApprovalService;
 use App\Platform\Billing\RefundApproval;
+use App\Platform\Compliance\TierSettingsApproval;
 use App\Platform\Impersonation\WriteImpersonationApproval;
 use App\Platform\Staff\RoleGrantApproval;
 use App\Platform\Staff\StaffAudit;
@@ -30,6 +31,7 @@ final class StaffServiceProvider extends ServiceProvider
             $approvals->handle(ApprovalAction::RoleGrant, RoleGrantApproval::class);
             $approvals->handle(ApprovalAction::WriteImpersonation, WriteImpersonationApproval::class);
             $approvals->handle(ApprovalAction::Refund, RefundApproval::class);
+            $approvals->handle(ApprovalAction::TierSettings, TierSettingsApproval::class);
 
             return $approvals;
         });

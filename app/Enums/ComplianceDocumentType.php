@@ -9,8 +9,8 @@ use App\Enums\Concerns\HasValues;
 /**
  * The documents a Transaction Tier application can carry
  * (ONBOARDING_COMPLIANCE.md § 5.3, DATABASE_SCHEMA.md § 9). Which ones a tier
- * requires is configuration (`config/tiers.php`, App\Compliance\RequiredDocuments)
- * until the Tier settings screen exists (P06-08).
+ * requires is set per tier version in Compliance → Tier settings
+ * (`transaction_tiers`, P06-08; App\Compliance\RequiredDocuments).
  */
 enum ComplianceDocumentType: string
 {

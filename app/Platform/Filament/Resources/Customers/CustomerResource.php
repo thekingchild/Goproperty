@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace App\Platform\Filament\Resources\Customers;
 
+use App\Compliance\OrganizationTierLimits;
+use App\Compliance\TransactionTiers;
 use App\Enums\OrganizationStatus;
 use App\Enums\OrganizationType;
 use App\Enums\SubscriptionStatus;
 use App\Enums\TransactionTier;
+use App\Models\PlatformStaff;
 use App\Models\SubscriptionPlan;
+use App\Platform\Compliance\TierDraft;
 use App\Platform\Customers\Customer;
 use App\Platform\Customers\CustomerSmsCredits;
 use App\Platform\Filament\Resources\Customers\Pages\ListCustomers;
@@ -243,6 +247,27 @@ final class CustomerResource extends Resource
                     IconEntry::make('platform_covered')->label('Platform covered')->boolean()
                         ->helperText(fn (Customer $record): ?string => $record->platform_covered ? 'Invoices are marked paid when issued.' : null),
                 ]),
+            // P06-08: the Transaction Tier limits that apply (Set / End tier limits are page actions).
+            Section::make('Transaction Tier limits')
+                ->columns(4)
+                ->schema([
+                    TextEntry::make('tier_terms')->label('Tier')
+                        ->state(fn (Customer $record): string => $record->transaction_tier->label().' — '.self::tierLimits($record)->terms->name),
+                    TextEntry::make('tier_annual_limit')->label('Yearly collection limit')
+                        ->state(fn (Customer $record): string => self::limit(self::tierLimits($record)->annualLimit()?->kobo, self::tierLimits($record)->override?->annual_volume_limit_kobo)),
+                    TextEntry::make('tier_single_limit')->label('Single-payment limit')
+                        ->state(fn (Customer $record): string => self::limit(self::tierLimits($record)->singlePaymentLimit()?->kobo, self::tierLimits($record)->override?->single_payment_limit_kobo)),
+                    TextEntry::make('tier_override_until')->label('Custom limits until')
+                        ->state(fn (Customer $record): ?string => self::tierLimits($record)->override?->expires_at?->setTimezone(TransactionTiers::TIMEZONE)->format('j M Y'))
+                        ->placeholder('None: the tier\'s limits apply'),
+                    TextEntry::make('tier_override_reason')->label('Why')->columnSpan(3)
+                        ->state(fn (Customer $record): ?string => self::tierLimits($record)->override?->reason)
+                        ->visible(fn (Customer $record): bool => self::tierLimits($record)->hasOverride()),
+                    TextEntry::make('tier_override_by')->label('Set by')
+                        ->state(fn (Customer $record): ?string => self::tierOverrideBy($record))
+                        ->placeholder('—')
+                        ->visible(fn (Customer $record): bool => self::tierLimits($record)->hasOverride()),
+                ]),
             // P05-03: the customer's SMS credits; finance-admin adjusts them and sets a custom allowance (page actions).
             Section::make('SMS credits')
                 ->columns(4)
@@ -272,6 +297,25 @@ final class CustomerResource extends Resource
         $tags = array_filter([$plan->custom ? 'custom' : null, $plan->is_active ? null : 'not offered']);
 
         return $plan->name.($tags !== [] ? ' ('.implode(', ', $tags).')' : '');
+    }
+
+    public static function tierLimits(Customer $record): OrganizationTierLimits
+    {
+        return app(TransactionTiers::class)->forOrganization($record->organization());
+    }
+
+    /** "₦80,000,000 (custom)", "₦50,000,000", "No cap". */
+    private static function limit(?int $applies, ?int $custom): string
+    {
+        return TierDraft::amount($applies).($custom !== null ? ' (custom)' : '');
+    }
+
+    private static function tierOverrideBy(Customer $record): ?string
+    {
+        $id = self::tierLimits($record)->override?->set_by_staff_id;
+        $name = $id !== null ? PlatformStaff::query()->whereKey($id)->value('name') : null;
+
+        return is_string($name) ? $name : null;
     }
 
     private static function smsCredits(Customer $record): SmsCreditSummary

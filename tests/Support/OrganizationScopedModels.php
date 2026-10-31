@@ -23,6 +23,7 @@ use App\Models\Organization;
 use App\Models\OrganizationBankAccount;
 use App\Models\OrganizationFeatureOverride;
 use App\Models\OrganizationOnboarding;
+use App\Models\OrganizationTierOverride;
 use App\Models\PlanChangeNotice;
 use App\Models\PlatformStaff;
 use App\Models\SmsCreditBalance;
@@ -444,6 +445,12 @@ final class OrganizationScopedModels
                 'feature_key' => 'whatsapp',
                 'enabled' => true,
                 'reason' => 'Probe',
+            ])->save()),
+            // Custom Transaction Tier limits (P06-08; App\Platform\Compliance\TierOverrides is the writer).
+            OrganizationTierOverride::class => fn (): Model => tap(new OrganizationTierOverride, fn (OrganizationTierOverride $override): bool => $override->forceFill([
+                'annual_volume_limit_kobo' => 8_000_000_000,
+                'reason' => 'Probe',
+                'expires_at' => now()->addMonth(),
             ])->save()),
             // Rows on their own (Modules\SaasBilling\SmsCredits\SmsCreditPurchases is the writer, P05-03).
             PlatformInvoice::class => fn (): Model => self::platformInvoice(),

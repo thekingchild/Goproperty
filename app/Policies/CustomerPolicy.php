@@ -94,6 +94,16 @@ final class CustomerPolicy
         return $actor->holdsStaffPermission(P::CustomersView) && $actor->holdsStaffPermission(P::CustomersOverrideFeatures);
     }
 
+    /**
+     * Custom Transaction Tier limits for one organization (P06-08, default
+     * 79): `tiers.override` (compliance-officer, super-admin), no approval.
+     * App\Platform\Compliance\TierOverrides re-checks.
+     */
+    public function overrideTierLimits(PlatformStaff $actor, Customer $customer): bool
+    {
+        return $actor->holdsStaffPermission(P::CustomersView) && $actor->holdsStaffPermission(P::TiersOverride);
+    }
+
     public function create(PlatformStaff $actor): bool
     {
         return false;

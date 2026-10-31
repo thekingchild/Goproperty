@@ -4,41 +4,9 @@ declare(strict_types=1);
 
 use App\Enums\OnboardingStep;
 use App\Enums\OrganizationPermission;
-use App\Enums\TransactionTier;
 use App\Onboarding\OrganizationSlug;
-use App\Onboarding\TierGuide;
-use App\Support\Money;
-use Illuminate\Config\Repository;
 
 /* The signup wizard's fixed rules (ONBOARDING_COMPLIANCE.md § 2, § 5.2). */
-
-function tierGuide(): TierGuide
-{
-    return new TierGuide(new Repository(['tiers' => require dirname(__DIR__, 3).'/config/tiers.php']));
-}
-
-it('suggests the lowest tier whose yearly limit covers the stated collections', function (string $naira, TransactionTier $tier) {
-    expect(tierGuide()->recommend(Money::naira($naira)))->toBe($tier);
-})->with([
-    ['0', TransactionTier::One],
-    ['50,000,000', TransactionTier::One],
-    ['50,000,000.01', TransactionTier::Two],
-    ['500,000,000', TransactionTier::Two],
-    ['500,000,001', TransactionTier::Three],
-]);
-
-it('shows the launch limits of each tier', function () {
-    [$one, $two, $three] = tierGuide()->options();
-
-    expect($one->annualLimit?->format())->toBe('₦50,000,000')
-        ->and($one->singlePaymentLimit?->format())->toBe('₦5,000,000')
-        ->and($one->needsReview())->toBeFalse()
-        ->and($two->annualLimit?->format())->toBe('₦500,000,000')
-        ->and($two->singlePaymentLimit?->format())->toBe('₦50,000,000')
-        ->and($two->needsReview())->toBeTrue()
-        ->and($three->annualLimit)->toBeNull()
-        ->and($three->needsReview())->toBeTrue();
-});
 
 it('puts the steps in order and maps each organization step to a permission', function () {
     expect(OnboardingStep::Account->number())->toBe(1)

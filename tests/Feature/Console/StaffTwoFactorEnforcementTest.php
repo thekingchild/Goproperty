@@ -12,6 +12,7 @@ use App\Models\StaffRole;
 use App\Models\StaffStatus;
 use App\Models\SubscriptionPlan;
 use App\Models\TierApplication;
+use App\Models\TransactionTierVersion;
 use App\Models\User;
 use App\Notifications\StaffInvitation;
 use App\Platform\Compliance\DocumentLinks;
@@ -117,6 +118,8 @@ function consolePageUrls(PlatformStaff $someone): array
                 'record' => match (true) {
                     str_contains($route->uri(), 'tier-applications') => ($application ??= $tierApplication())->id,
                     str_contains($route->uri(), 'staff-roles') => $role->id,
+                    // A Transaction Tier version (P06-08): the launch values are seeded by a migration.
+                    str_contains($route->uri(), 'tier-settings') => TransactionTierVersion::query()->orderBy('id')->firstOrFail()->id,
                     // An email template (P05-04): seeded from the code's catalog.
                     str_contains($route->uri(), 'email-templates') => $emailTemplate()->id,
                     // A plan (P06-01a): the launch plans are seeded by a migration.
@@ -295,5 +298,7 @@ it('acceptance: checks every console page against each default staff role', func
         ->and($opened('/settings/refunds'))->toBe(['super-admin'])
         ->and($opened('/audit-log'))->toBe(['super-admin'])
         ->and($opened('/access-log'))->toEqualCanonicalizing(['super-admin', 'technical-admin'])
-        ->and($opened('/customers'))->not->toContain('analyst');
+        ->and($opened('/customers'))->not->toContain('analyst')
+        // P06-08: Compliance → Tier settings, for those who propose, approve or override tier limits.
+        ->and($opened('/tier-settings'))->toEqualCanonicalizing(['super-admin', 'compliance-officer']);
 });

@@ -22,6 +22,7 @@ enum ApprovalAction: string
     case RoleGrant = 'role_grant';
     case WriteImpersonation = 'write_impersonation';
     case DataPurge = 'data_purge';
+    case TierSettings = 'tier_settings';
 
     public function label(): string
     {
@@ -31,6 +32,7 @@ enum ApprovalAction: string
             self::RoleGrant => 'Role grant',
             self::WriteImpersonation => 'Write-mode impersonation',
             self::DataPurge => 'Data purge',
+            self::TierSettings => 'Transaction Tier settings',
         };
     }
 
@@ -42,6 +44,7 @@ enum ApprovalAction: string
             self::RoleGrant => StaffPermission::RolesManage,
             self::WriteImpersonation => StaffPermission::ImpersonateWrite,
             self::DataPurge => StaffPermission::DataPurge,
+            self::TierSettings => StaffPermission::TiersApproveSettings,
         };
     }
 

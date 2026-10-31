@@ -38,6 +38,8 @@ enum StaffPermission: string
     case TiersReview = 'tiers.review';
     case TiersApprove = 'tiers.approve';
     case TiersConfigure = 'tiers.configure';
+    case TiersApproveSettings = 'tiers.approve_settings';
+    case TiersOverride = 'tiers.override';
     case ComplianceFlags = 'compliance.flags';
     case ComplianceRestrict = 'compliance.restrict';
 
@@ -138,7 +140,9 @@ enum StaffPermission: string
             self::ComplianceViewDocuments => 'View compliance documents',
             self::TiersReview => 'Review Transaction Tier applications',
             self::TiersApprove => 'Approve or reject Transaction Tiers',
-            self::TiersConfigure => 'Edit Transaction Tier limits and documents',
+            self::TiersConfigure => 'Propose changes to Transaction Tier limits and documents',
+            self::TiersApproveSettings => 'Approve changes to Transaction Tier limits and documents',
+            self::TiersOverride => 'Set custom Transaction Tier limits for one organization',
             self::ComplianceFlags => 'Work the compliance flag queue',
             self::ComplianceRestrict => 'Restrict organizations for compliance',
             self::PlansManage => 'Plans and prices',
