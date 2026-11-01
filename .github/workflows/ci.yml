@@ -30,9 +30,11 @@ jobs:
   ci:
     name: CI (${{ matrix.name }})
     runs-on: ubuntu-24.04
-    # The full suite takes 15-20 minutes on MySQL (2026-10-28); 35 leaves room
-    # to grow while still stopping a hung job.
-    timeout-minutes: 35
+    # The full suite took 15-20 minutes on MySQL (2026-10-28) and about 32-38
+    # on GitHub's 2-core runners for private repositories (2026-11-01, 4,102
+    # tests in 2 processes); 60 leaves room to grow while still stopping a
+    # hung job.
+    timeout-minutes: 60
 
     strategy:
       fail-fast: false
