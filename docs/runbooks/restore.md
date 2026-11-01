@@ -1,6 +1,12 @@
 # Runbook — Restoring a Backup
 
-Backups are described in [PLATFORM_CONSOLE.md § 4](../../PLATFORM_CONSOLE.md). This runbook is the way back when the console cannot be used: the site is down, the server is gone, or a restore must be done by hand. The console's own restore screens come in P06-10.
+Backups are described in [PLATFORM_CONSOLE.md § 4](../../PLATFORM_CONSOLE.md). This runbook is the way back when the console cannot be used: the site is down, the server is gone, or a restore must be done by hand. While the site works, use **Console → Operations → Backups** instead (§ 0).
+
+## 0. From the console (the site works)
+
+- **Verify** a backup, **restore to staging** (`BACKUP_STAGING_DB_DATABASE`), or **restore to production** from Console → Operations → Backups. A production restore needs a super-admin's approval in Staff → Approvals; it then runs within a minute: maintenance mode, a safety backup, the restore, newer migrations, everyone signed out, maintenance mode off. Follow it in Backup activity.
+- **If the site stays in maintenance mode** after a restore to production, both the restore and putting back the safety backup failed (a critical log line says so). Restore the safety backup named in that log line by hand (§ 2, with the zip from the destination), then `php artisan up`.
+- **Record each quarterly drill** with Record a drill on the same page.
 
 ## 1. What a backup is
 
@@ -47,5 +53,5 @@ The command never writes to the site's own database. Restore into a new, empty d
 
 ## 5. Monthly check
 
-- **Verify:** on the 1st of each month at 04:00 the scheduler restores the newest database backup into `BACKUP_VERIFY_DB_DATABASE` and checks every table and the migration history are there. The run is then marked verified. Run it any time with `php artisan goproperty:backup-verify`.
-- **Set-up:** on shared hosting the verify database must be created once in the control panel. It is wiped on every verify, so never point it at real data.
+- **Verify:** on the 1st of each month at 04:00 the scheduler restores the newest database backup into `BACKUP_VERIFY_DB_DATABASE` and checks every table and the migration history are there, then empties the verify database again. The backup is then marked verified, and the check is listed in Console → Operations → Backup activity. Run it any time with **Verify** on a backup in the console, or `php artisan goproperty:backup-verify`.
+- **Set-up:** on shared hosting the verify database must be created once in the control panel. It is wiped on every verify, so never point it at real data. The same goes for `BACKUP_STAGING_DB_DATABASE`, which a restore to staging replaces.

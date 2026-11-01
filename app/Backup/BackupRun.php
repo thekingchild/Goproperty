@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Backup;
 
+use App\Policies\BackupRunPolicy;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\UsePolicy;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
@@ -26,6 +28,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $notes
  */
 #[Fillable(['type', 'filename', 'size_bytes', 'backup_destination_id', 'status', 'verified_at', 'started_at', 'finished_at', 'triggered_by', 'triggered_by_staff_id', 'notes'])]
+#[UsePolicy(BackupRunPolicy::class)]
 class BackupRun extends Model
 {
     /** @return BelongsTo<BackupDestination, $this> */

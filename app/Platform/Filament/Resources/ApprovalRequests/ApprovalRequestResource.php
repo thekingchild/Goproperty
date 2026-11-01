@@ -8,12 +8,15 @@ use App\Models\ApprovalRequest;
 use App\Platform\Approvals\ApprovalAction;
 use App\Platform\Approvals\ApprovalService;
 use App\Platform\Approvals\ApprovalStatus;
+use App\Platform\Console\StepUp;
 use App\Platform\Filament\Concerns\ActsAsStaff;
 use App\Platform\Filament\Resources\ApprovalRequests\Pages\ListApprovalRequests;
 use App\Platform\Staff\StaffPermission;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
@@ -115,13 +118,30 @@ final class ApprovalRequestResource extends Resource
                     ->icon('heroicon-o-check')
                     ->requiresConfirmation()
                     ->modalDescription(fn (ApprovalRequest $record): string => $record->summary)
-                    ->schema([Textarea::make('note')->maxLength(500)])
+                    // Approving a restore to production re-checks the approver too (PLATFORM_CONSOLE.md § 4).
+                    ->schema(fn (ApprovalRequest $record): array => array_values(array_filter([
+                        $record->action === ApprovalAction::ProductionRestore ? TextInput::make('password')->label('Your password')->password()->required() : null,
+                        $record->action === ApprovalAction::ProductionRestore && app(StepUp::class)->needsCode(self::actor()) ? TextInput::make('code')->label('Code from your authenticator app')->required()->length(6) : null,
+                        Textarea::make('note')->maxLength(500),
+                    ])))
                     ->authorize(fn (ApprovalRequest $record): bool => self::actor()->can('approve', $record))
-                    ->action(fn (ApprovalRequest $record, array $data): bool => self::attempt(function () use ($record, $data): string {
-                        app(ApprovalService::class)->approve($record, self::actor(), isset($data['note']) ? (string) $data['note'] : null);
+                    ->action(function (ApprovalRequest $record, array $data): bool {
+                        if ($record->action === ApprovalAction::ProductionRestore) {
+                            $problem = app(StepUp::class)->confirm(self::actor(), (string) ($data['password'] ?? ''), isset($data['code']) ? (string) $data['code'] : null);
 
-                        return 'Approved.';
-                    })),
+                            if ($problem !== null) {
+                                Notification::make()->title($problem)->danger()->send();
+
+                                return false;
+                            }
+                        }
+
+                        return self::attempt(function () use ($record, $data): string {
+                            app(ApprovalService::class)->approve($record, self::actor(), isset($data['note']) ? (string) $data['note'] : null);
+
+                            return $record->action === ApprovalAction::ProductionRestore ? 'Approved: the restore starts within a minute, with the site in maintenance mode.' : 'Approved.';
+                        });
+                    }),
                 Action::make('reject')
                     ->color('danger')
                     ->icon('heroicon-o-x-mark')

@@ -7,6 +7,7 @@ namespace App\Backup;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Database\Connection;
 use Illuminate\Database\DatabaseManager;
+use Illuminate\Filesystem\FilesystemManager;
 use Illuminate\Support\Str;
 use RuntimeException;
 use Spatie\Backup\BackupDestination\BackupDestination as SpatieDestination;
@@ -16,9 +17,11 @@ use ZipArchive;
  * Opens a database backup and loads it into another database
  * (PLATFORM_CONSOLE.md § 4, docs/runbooks/restore.md). Pure PHP: the zip is
  * decrypted with the archive password and the dump is replayed statement
- * by statement over PDO, so no mysql client is needed. It never writes to
- * the site's own database: production restores go into a new database
- * that .env is then pointed at.
+ * by statement over PDO, so no mysql client is needed. It writes to the
+ * site's own database only through replaceLive(), which an approved
+ * production restore from the console uses (P06-10); by hand
+ * (`goproperty:backup-restore`) a restore goes into a new database that
+ * .env is then pointed at.
  */
 final readonly class Restorer
 {
@@ -28,6 +31,7 @@ final readonly class Restorer
         private ArchivePassword $password,
         private DatabaseManager $db,
         private Config $config,
+        private FilesystemManager $filesystems,
     ) {}
 
     /**
@@ -41,8 +45,36 @@ final readonly class Restorer
         $newest = SpatieDestination::create($destination->diskName(), 'goproperty-db')->newestBackup()
             ?? throw new RuntimeException("There is no database backup at {$destination->name} yet.");
 
-        $local = rtrim($workDirectory, '/').'/'.basename($newest->path());
-        $in = $newest->stream();
+        return $this->copyDown($newest->stream(), $newest->path(), $workDirectory);
+    }
+
+    /**
+     * Downloads one backup file (its path inside the destination) into $workDirectory.
+     *
+     * @return array{path: string, name: string}
+     */
+    public function download(BackupDestination $destination, string $path, string $workDirectory): array
+    {
+        $this->config->set('filesystems.disks.'.$destination->diskName(), $destination->diskConfig());
+        $this->filesystems->forgetDisk($destination->diskName());
+        $disk = $this->filesystems->disk($destination->diskName());
+
+        if (! $disk->exists($path)) {
+            throw new RuntimeException("{$path} is no longer at {$destination->name}: retention may have removed it.");
+        }
+
+        $stream = $disk->readStream($path) ?? throw new RuntimeException("{$path} cannot be read from {$destination->name}.");
+
+        return $this->copyDown($stream, $path, $workDirectory);
+    }
+
+    /**
+     * @param  resource  $in
+     * @return array{path: string, name: string}
+     */
+    private function copyDown($in, string $name, string $workDirectory): array
+    {
+        $local = rtrim($workDirectory, '/').'/'.basename($name);
         $out = fopen($local, 'wb');
 
         if ($out === false) {
@@ -52,7 +84,11 @@ final readonly class Restorer
         stream_copy_to_stream($in, $out);
         fclose($out);
 
-        return ['path' => $local, 'name' => $newest->path()];
+        if (is_resource($in)) {
+            fclose($in);
+        }
+
+        return ['path' => $local, 'name' => $name];
     }
 
     /** Decrypts the zip and returns the path of its SQL dump. */
@@ -112,13 +148,57 @@ final readonly class Restorer
      */
     public function import(string $sqlPath, string $database): int
     {
-        $live = (string) $this->config->get('database.connections.'.$this->config->get('database.default').'.database');
-
-        if ($database === '' || $database === $live) {
+        if ($database === '' || $database === $this->liveDatabase()) {
             throw new RuntimeException('Refusing to restore into the site\'s own database. Restore into a new database and point DB_DATABASE at it.');
         }
 
-        $connection = $this->connectionTo($database);
+        try {
+            return $this->replay($sqlPath, $this->connectionTo($database));
+        } finally {
+            $this->db->purge(self::CONNECTION);
+        }
+    }
+
+    /**
+     * Replaces the site's own database with the dump. Only an approved
+     * production restore calls this (App\Backup\Operations\ProductionRestore),
+     * with the site in maintenance mode and a safety backup taken first.
+     *
+     * @return int statements run
+     */
+    public function replaceLive(string $sqlPath): int
+    {
+        $connection = $this->db->connection();
+
+        try {
+            return $this->replay($sqlPath, $connection);
+        } finally {
+            // The session settings the dump changed must not outlive it.
+            $this->db->reconnect();
+        }
+    }
+
+    /** Drops every table in $database (never the site's own): a verify cleans up after itself. */
+    public function wipe(string $database): void
+    {
+        if ($database === '' || $database === $this->liveDatabase()) {
+            throw new RuntimeException('Refusing to empty the site\'s own database.');
+        }
+
+        try {
+            $this->emptyDatabase($this->connectionTo($database));
+        } finally {
+            $this->db->purge(self::CONNECTION);
+        }
+    }
+
+    private function liveDatabase(): string
+    {
+        return (string) $this->config->get('database.connections.'.$this->config->get('database.default').'.database');
+    }
+
+    private function replay(string $sqlPath, Connection $connection): int
+    {
         $this->emptyDatabase($connection);
 
         $handle = fopen($sqlPath, 'rb');
@@ -156,7 +236,6 @@ final readonly class Restorer
             }
         } finally {
             fclose($handle);
-            $this->db->purge(self::CONNECTION);
         }
 
         return $count;

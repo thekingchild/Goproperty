@@ -130,6 +130,13 @@ return [
     'verify_database' => env('BACKUP_VERIFY_DB_DATABASE'),
 
     /*
+    | The staging site's database, which "Restore to staging" in the console
+    | replaces (P06-10). On the same database server, reachable with this
+    | site's database user; never this site's own database.
+    */
+    'staging_database' => env('BACKUP_STAGING_DB_DATABASE'),
+
+    /*
     | The zip password. Empty: derived from APP_KEY (App\Backup\ArchivePassword).
     | At least 20 characters when set.
     */

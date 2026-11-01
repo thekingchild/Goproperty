@@ -169,11 +169,12 @@ it('does not grant on approval if the staff member was deactivated meanwhile', f
 });
 
 it('serves later two-person actions the same way (no handler: marked approved)', function () {
-    // Production restores have no handler yet (P06-10); refunds have theirs since P06-07b (Modules/SaasBilling/tests/Feature/RefundTest.php).
+    // Data purges have no handler yet; refunds have theirs since P06-07b (Modules/SaasBilling/tests/Feature/RefundTest.php)
+    // and production restores since P06-10 (tests/Feature/Console/BackupsConsoleTest.php).
     $requester = staffNamed('Funke', ['technical-admin']);
     $approver = staffNamed('Gbenga', ['super-admin']);
 
-    $request = $this->approvals->request(ApprovalAction::ProductionRestore, $requester, null, 'Restore last night\'s backup to production', ['backup' => 'db-2026-10-30'], 'Bad migration');
+    $request = $this->approvals->request(ApprovalAction::DataPurge, $requester, null, 'Purge organization #12\'s data (NDPA erasure)', ['organization_id' => 12], 'Erasure request from the owner');
 
     expect(fn () => $this->approvals->approve($request, $requester))->toThrow(ApprovalRefused::class, 'your own request')
         ->and(fn () => $this->approvals->approve($request, staffNamed('Sade', ['support-agent'])))->toThrow(ApprovalRefused::class, 'permission');

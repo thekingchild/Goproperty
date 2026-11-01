@@ -13,12 +13,15 @@
         <testsuite name="Feature">
             <directory>tests/Feature</directory>
         </testsuite>
-        <testsuite name="Drill">
-            <directory>tests/Drill</directory>
-        </testsuite>
         <testsuite name="Modules">
             <directory>Modules/*/tests/Unit</directory>
             <directory>Modules/*/tests/Feature</directory>
+        </testsuite>
+        <!-- Last: drills truncate every table after each test, rows seeded
+             by migrations (plans, tiers) included, which the feature tests
+             running after them on the same worker would miss. -->
+        <testsuite name="Drill">
+            <directory>tests/Drill</directory>
         </testsuite>
     </testsuites>
     <source>

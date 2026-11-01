@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Platform\Filament\Concerns;
 
+use App\Backup\Operations\BackupRefused;
 use App\Models\PlatformStaff;
 use App\Platform\Approvals\ApprovalRefused;
 use App\Platform\Compliance\TierReviewRefused;
@@ -18,8 +19,8 @@ use Filament\Notifications\Notification;
 use Illuminate\Auth\Access\AuthorizationException;
 
 /**
- * For console pages that change staff, roles, approvals, customers or tier
- * applications, or start support sessions: the signed-in staff member, and
+ * For console pages that change staff, roles, approvals, customers, tier
+ * applications or backups, or start support sessions: the signed-in staff member, and
  * refusals from the services shown as a notification.
  */
 trait ActsAsStaff
@@ -44,7 +45,7 @@ trait ActsAsStaff
     {
         try {
             $message = $change();
-        } catch (StaffChangeRefused|ApprovalRefused|CustomerChangeRefused|ImpersonationRefused|TierReviewRefused|TierSettingsRefused|PlanChangeRefused $refused) {
+        } catch (BackupRefused|StaffChangeRefused|ApprovalRefused|CustomerChangeRefused|ImpersonationRefused|TierReviewRefused|TierSettingsRefused|PlanChangeRefused $refused) {
             Notification::make()->title($refused->getMessage())->danger()->send();
 
             return false;

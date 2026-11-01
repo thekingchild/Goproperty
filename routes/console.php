@@ -5,7 +5,7 @@ declare(strict_types=1);
 use App\Audit\AuditChain;
 use App\Audit\AuthenticationLog;
 use App\Backup\BackupRunner;
-use App\Backup\BackupVerifier;
+use App\Backup\Operations\OperationRunner;
 use App\Compliance\Monitoring\TierMonitor;
 use App\Hosting\Heartbeats;
 use App\Hosting\Queue\QueueTick;
@@ -61,14 +61,22 @@ Schedule::call(fn (BackupRunner $runner) => $runner->run('db'))->name('backup-db
 Schedule::call(fn (BackupRunner $runner) => $runner->run('files'))->name('backup-files')->dailyAt('02:30');
 
 // Monthly proof that the newest database backup restores (needs
-// BACKUP_VERIFY_DB_DATABASE); a failure is a critical log line.
-Schedule::call(function (BackupVerifier $verifier): void {
-    $result = $verifier->verify();
+// BACKUP_VERIFY_DB_DATABASE); recorded as a verify in Operations → Backups,
+// and a failure is a critical log line.
+Schedule::call(function (OperationRunner $operations): void {
+    $result = $operations->monthlyVerify();
 
     if (! $result['ok']) {
         Log::critical('The monthly backup verify failed: '.$result['message']);
     }
 })->name('backup-verify')->monthlyOn(1, '04:00');
+
+// What staff queued in Operations → Backups (P06-10): backups now, verifies,
+// restores. In-process, one tick at a time; a restore can take many minutes.
+Schedule::call(fn (OperationRunner $operations) => $operations->runDue())
+    ->name('backup-operations')
+    ->everyMinute()
+    ->withoutOverlapping(12 * 60);
 
 // Two-person requests nobody decided in time (PLATFORM_CONSOLE.md § 1).
 Schedule::call(fn (ApprovalService $approvals) => $approvals->expireStale())

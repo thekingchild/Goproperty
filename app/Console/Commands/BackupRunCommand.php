@@ -9,7 +9,8 @@ use App\Backup\BackupRunner;
 use Illuminate\Console\Command;
 
 /**
- * Runs a backup now (the console's "Run backup now" comes in P06-10).
+ * Runs a backup now from the command line (the console's "Back up now" is
+ * Operations → Backups, P06-10).
  * The nightly runs are scheduled in routes/console.php.
  */
 final class BackupRunCommand extends Command

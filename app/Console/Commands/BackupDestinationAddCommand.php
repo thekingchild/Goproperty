@@ -9,8 +9,8 @@ use App\Backup\DestinationCheck;
 use Illuminate\Console\Command;
 
 /**
- * Adds a backup destination from the command line (the console screen
- * comes in P06-10). Secrets come from files or a hidden prompt, never
+ * Adds a backup destination from the command line (the console's screen
+ * is Operations → Backup destinations, P06-10). Secrets come from files or a hidden prompt, never
  * from the command line, where they would land in the shell history.
  */
 final class BackupDestinationAddCommand extends Command

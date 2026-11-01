@@ -238,3 +238,38 @@ Started 2026-11-01 at the product owner's request ("start P06-09"); one task, bu
      - emailing every owner when a tier's terms change (owners hear only when the change affects them, through the flags);
      - an email to the owners when compliance extends a grace (the banner shows the new date);
      - checking a payment synchronously (each payment's check is queued after its confirmation commits).
+
+## P06-10 — Backups console
+
+Started 2026-11-01 at the product owner's request ("start P06-10"); one task, built by the orchestrator on the backup engine of P00-12 (`App\Backup`). Rules: [PLATFORM_CONSOLE.md § 1 "Two-person rules", § 4](../../PLATFORM_CONSOLE.md); [DATABASE_SCHEMA.md § 8](../../DATABASE_SCHEMA.md) `backup_destinations`, `backup_runs`, `backup_operations`; [docs/runbooks/restore.md](../runbooks/restore.md). AC: backup verify restores the latest dump into a temporary database; production restore cannot start without a second approver.
+
+### Defaults taken in P06-10 (for the product owner to confirm)
+
+102. **Where it lives.** The console's side is Core: `App\Backup\Operations` (requests, the runner, the production restore, destinations, download links), with three pages under **Operations**: **Backups** (every backup at every destination, and the actions), **Backup activity** (what staff asked for, with its state and result) and **Backup destinations**.
+103. **How requests run.** "Run now", verifies and restores wait for the scheduler's minute tick (`backup-operations`, every minute, never two at once, lock up to 12 hours), which runs them in the cron's own PHP process like the nightly backups. They are not queue jobs, because the queue retries a job after 90 seconds and a long restore would start twice. A tick runs up to 10 requests, oldest first, a production restore last. One still "running" after 6 hours died with its process and is marked failed.
+104. **One at a time.** Only one open request of each kind: one database backup and one files backup, one verify, one restore to staging, one restore to production (waiting for approval, queued or running). A queued request can be withdrawn by staff holding the permission that queues it.
+105. **Download.** A signed link valid 15 minutes (`backups.download`) streams the zip as it is stored, still AES-256 encrypted; opening it needs the archive password (`goproperty:backup-password`). Each download is audited when it happens, not when the link is made. A backup that retention has removed answers "no longer at its destination".
+106. **Verify.** Shared hosts cannot create databases, so the "temporary database" is the one named in `BACKUP_VERIFY_DB_DATABASE`. The backup is restored there, checked, and every table there is dropped again. A backup with the site's full migration history must have every table the site has. An older one (made before the newest migrations) passes with the core tables and is reported as "N migrations older". A verified backup marks every copy with the same file name. The monthly check is recorded as a verify in Backup activity.
+107. **Restore to staging** replaces the database named in `BACKUP_STAGING_DB_DATABASE` (the staging site's, on the same server and reachable with this site's database user; never this site's own), with a reason of 10–500 characters. The staging site's newer migrations are not run for it.
+108. **Asking for a production restore.** The technical admin confirms their password and authenticator code every time (the 10-minute step-up window is not enough), types the backup's name (its timestamp, e.g. `2026-11-09-01-30-00`) and gives a reason of 10–500 characters. A second staff member with `backups.approve_production_restore` (a super-admin, never the requester) approves in Staff → Approvals within a day, also confirming their password and code. Rejected or expired, the restore is cancelled.
+109. **In place.** The console restores over the site's own database, after a safety backup, instead of restoring into a new database and pointing `.env` at it: the app cannot create databases on shared hosting and should not rewrite `.env`. That by-hand way stays in the runbook for when the console is down.
+110. **Order of a production restore.**
+     - The backup is downloaded and decrypted first, while the site is up: if it cannot be, nothing happens.
+     - Maintenance mode goes on (503, "retry after 60"; no bypass link).
+     - A safety backup goes to every active database destination (`triggered_by` `safety`); at least one must succeed, or nothing is restored.
+     - Every table is replaced and newer migrations run.
+     - The cache, cache locks, queued jobs and sessions from the backup's time are emptied: jobs queued then ran long ago, and everyone signs in again.
+     - The backups console's own records (destinations, runs, operations) are carried over from before, so the list still shows every backup, the safety backup included.
+     - Maintenance mode goes off.
+111. **When it fails half way,** the safety backup is restored the same way and the operation is marked failed. If that fails too, the site stays in maintenance mode with a critical log line, and the runbook takes over.
+112. **What a production restore drops:** everything written after the backup, the audit entries and the approval request of the restore included (all of it is in the safety backup). Afterwards one audit entry, `backup.production_restored`, names the requester, the approver, the approval request and the safety backup.
+113. **Destinations.**
+     - A destination is never deleted: it is switched off, and its backups stay downloadable and restorable.
+     - Credentials are write-only: a blank field on a change keeps the stored one.
+     - A folder on the server is offered only outside production (drills).
+     - **Check** writes, reads back and deletes a small file and records when and what it found. A change clears the last check.
+     - The audit says which credentials were replaced, never their values.
+114. **Drills.** **Record a drill** (`backups.restore_staging`) takes the date (today back to a year ago), passed or failed, and notes of 10–500 characters. The Backups page shows the last passed drill. Nothing warns when a quarter passes without one: alerts belong to P08-03.
+115. **Audit:** log name `backups`. It records requests, approvals, results, downloads, withdrawals, drills and destination changes.
+116. **Who:** as seeded since P01-07. The technical admin holds every `backups.*` permission except approving a production restore; the super-admin holds all of them.
+117. **Failures** (a backup, verify or restore that fails) are critical log lines and show as failed in Backup activity; alerts to staff come with P08-03.

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers\Filament;
 
+use App\Http\Controllers\Console\BackupDownloadController;
 use App\Http\Controllers\Console\ComplianceDocumentController;
 use App\Http\Controllers\Console\SchedulerHeartbeatController;
 use App\Http\Controllers\Console\ThemePreviewController;
@@ -116,6 +117,12 @@ final class ConsolePanelProvider extends PanelProvider
                         ->whereNumber('document')
                         ->middleware(['signed', 'throttle:60,1'])
                         ->name('compliance-document');
+
+                    // A backup zip: signed, 15 minutes, permission-checked and audited (PLATFORM_CONSOLE.md § 4).
+                    Route::get('backups/{run}/download', BackupDownloadController::class)
+                        ->whereNumber('run')
+                        ->middleware(['signed', 'throttle:30,1'])
+                        ->name('backup-download');
                 });
             })
             ->discoverResources(in: app_path('Platform/Filament/Resources'), for: 'App\\Platform\\Filament\\Resources')

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Backup\Operations\ProductionRestoreApproval;
 use App\Models\PlatformStaff;
 use App\Platform\Approvals\ApprovalAction;
 use App\Platform\Approvals\ApprovalService;
@@ -32,6 +33,7 @@ final class StaffServiceProvider extends ServiceProvider
             $approvals->handle(ApprovalAction::WriteImpersonation, WriteImpersonationApproval::class);
             $approvals->handle(ApprovalAction::Refund, RefundApproval::class);
             $approvals->handle(ApprovalAction::TierSettings, TierSettingsApproval::class);
+            $approvals->handle(ApprovalAction::ProductionRestore, ProductionRestoreApproval::class);
 
             return $approvals;
         });

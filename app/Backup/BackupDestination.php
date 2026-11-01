@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Backup;
 
+use App\Policies\BackupDestinationPolicy;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Attributes\UsePolicy;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use InvalidArgumentException;
@@ -22,11 +24,14 @@ use InvalidArgumentException;
  * @property array<string, mixed> $config
  * @property string $applies_to db|files|both
  * @property bool $active
+ * @property Carbon|null $checked_at last "Check" from the console
+ * @property string|null $check_problem what that check found, null when it worked
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['name', 'driver', 'config', 'applies_to', 'active'])]
+#[Fillable(['name', 'driver', 'config', 'applies_to', 'active', 'checked_at', 'check_problem'])]
 #[Hidden(['config'])]
+#[UsePolicy(BackupDestinationPolicy::class)]
 class BackupDestination extends Model
 {
     public const array DRIVERS = ['s3', 'google_drive', 'local'];
@@ -86,6 +91,7 @@ class BackupDestination extends Model
         return [
             'config' => 'encrypted:array',
             'active' => 'boolean',
+            'checked_at' => 'datetime',
         ];
     }
 }

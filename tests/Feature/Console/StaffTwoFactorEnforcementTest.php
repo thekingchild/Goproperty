@@ -3,6 +3,9 @@
 declare(strict_types=1);
 
 use App\Audit\AuditEntry;
+use App\Backup\BackupDestination;
+use App\Backup\BackupRun;
+use App\Backup\Operations\DownloadLinks;
 use App\Compliance\Monitoring\ComplianceFlags;
 use App\Enums\ComplianceFlagType;
 use App\Mail\Templates\EmailTemplates;
@@ -30,6 +33,7 @@ use App\Tenancy\OrganizationContext;
 use Filament\Facades\Filament;
 use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Route as Router;
@@ -147,18 +151,36 @@ function consolePageUrls(PlatformStaff $someone): array
                     default => $someone->id,
                 },
                 'surface' => 'landing',
+                // A backup zip (P06-10), at a folder destination, reached through its signed link.
+                'run' => backupRunForPages()->id,
                 // A compliance document's file (P01-03), reached through its signed link.
                 'document' => DB::table('compliance_documents')->where('tier_application_id', ($application ??= $tierApplication())->id)->value('id'),
                 default => throw new RuntimeException("Fill the {$parameter} parameter of {$name} in this test."),
             };
         }
 
-        $urls[] = $name === DocumentLinks::ROUTE
+        $urls[] = in_array($name, [DocumentLinks::ROUTE, DownloadLinks::ROUTE], true)
             ? URL::temporarySignedRoute($name, now()->addMinutes(5), $parameters)
             : route($name, $parameters);
     }
 
     return $urls;
+}
+
+/** A successful database backup whose zip is in a folder destination (once per test). */
+function backupRunForPages(): BackupRun
+{
+    return BackupRun::query()->where('filename', 'goproperty-db/2026-11-01-01-30-00.zip')->first() ?? (function (): BackupRun {
+        $root = storage_path('framework/testing/backup-pages-'.Str::random(8));
+        File::ensureDirectoryExists($root.'/goproperty-db');
+        File::put($root.'/goproperty-db/2026-11-01-01-30-00.zip', 'zip bytes');
+        $destination = BackupDestination::query()->create(['name' => 'Drill folder', 'driver' => 'local', 'config' => ['root' => $root], 'applies_to' => 'both']);
+
+        return BackupRun::query()->create([
+            'type' => 'db', 'filename' => 'goproperty-db/2026-11-01-01-30-00.zip', 'size_bytes' => 9, 'backup_destination_id' => $destination->id,
+            'status' => 'success', 'started_at' => now(), 'finished_at' => now(), 'triggered_by' => 'schedule',
+        ]);
+    })();
 }
 
 it('sends staff without 2FA to enrol from every console page, whatever their roles', function () {
@@ -254,7 +276,7 @@ it('opens every one of those pages once 2FA is enrolled (super-admin)', function
     foreach (consolePageUrls($staff) as $url) {
         $response = $this->actingAs($staff, 'staff')->get($url);
 
-        expect($response->isSuccessful())->toBeTrue("{$url} answered {$response->status()}");
+        expect($response->isSuccessful())->toBeTrue("{$url} answered {$response->getStatusCode()}");
     }
 });
 
@@ -275,7 +297,7 @@ it('acceptance: checks every console page against each default staff role', func
 
         foreach ($urls as $url) {
             $this->flushSession();
-            $status = $this->actingAs($staff, 'staff')->get($url)->status();
+            $status = $this->actingAs($staff, 'staff')->get($url)->getStatusCode();
 
             expect(in_array($status, [200, 204, 403], true))->toBeTrue("{$url} answered {$status} for {$role}");
 
@@ -307,5 +329,9 @@ it('acceptance: checks every console page against each default staff role', func
         // P06-08: Compliance → Tier settings, for those who propose, approve or override tier limits.
         ->and($opened('/tier-settings'))->toEqualCanonicalizing(['super-admin', 'compliance-officer'])
         // P06-09: Compliance → Flags, the compliance queue.
-        ->and($opened('/compliance-flags'))->toEqualCanonicalizing(['super-admin', 'compliance-officer']);
+        ->and($opened('/compliance-flags'))->toEqualCanonicalizing(['super-admin', 'compliance-officer'])
+        // P06-10: Operations → Backups, Backup activity and Backup destinations, and a backup's download.
+        ->and($opened('/backups'))->toEqualCanonicalizing(['super-admin', 'technical-admin'])
+        ->and($opened('/backup-activity'))->toEqualCanonicalizing(['super-admin', 'technical-admin'])
+        ->and($opened('/backup-destinations'))->toEqualCanonicalizing(['super-admin', 'technical-admin']);
 });
