@@ -4,17 +4,21 @@
          bootstrap="vendor/autoload.php"
          colors="true"
 >
+    <!-- The suites do not overlap: CI runs the app's (Unit,Feature,Drill) and
+         the modules' (Modules) in separate jobs (docs/runbooks/ci.md § 1). -->
     <testsuites>
         <testsuite name="Unit">
             <directory>tests/Unit</directory>
-            <directory>Modules/*/tests/Unit</directory>
         </testsuite>
         <testsuite name="Feature">
             <directory>tests/Feature</directory>
-            <directory>Modules/*/tests/Feature</directory>
         </testsuite>
         <testsuite name="Drill">
             <directory>tests/Drill</directory>
+        </testsuite>
+        <testsuite name="Modules">
+            <directory>Modules/*/tests/Unit</directory>
+            <directory>Modules/*/tests/Feature</directory>
         </testsuite>
     </testsuites>
     <source>

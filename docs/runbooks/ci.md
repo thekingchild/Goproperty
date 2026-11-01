@@ -4,7 +4,7 @@ The quality gate from [AGENT.md § 2](../../AGENT.md) runs in GitHub Actions on 
 
 ## 1. What runs
 
-`composer ci` runs, in order:
+`composer ci` (locally) runs, in order:
 
 1. `pint --parallel --test`: code style (Laravel preset + `declare(strict_types=1)`)
 2. `phpstan analyse`: Larastan at level 7 (`phpstan.neon`; the plan's minimum is 6)
@@ -12,14 +12,21 @@ The quality gate from [AGENT.md § 2](../../AGENT.md) runs in GitHub Actions on 
 
 The suite runs on the **shared-hosting profile** (`HOSTING_PROFILE=shared`: database cache and sessions, no broadcasting, polling, dompdf); only the queue runs jobs inline. It includes the cron drill (`tests/Drill/CronDrillTest.php`), which starts `php artisan schedule:run` with `exec`, `proc_open` and pcntl disabled and checks that a queued job ran ([INSTALLER.md § 8](../../INSTALLER.md)). The document numbering drill (`tests/Drill/DocumentNumberingDrillTest.php`, P03-04a) starts six PHP processes that take numbers at once on their own database connections, some rolling back, and checks the numbers are exactly 1…N. The lease activation drill (`tests/Drill/LeaseActivationDrillTest.php`, P03-03a) starts four processes that each try to activate every draft lease of three units (three drafts per unit) at once, and checks that exactly one lease per unit becomes active, with contract numbers 1…N and one deposit entry each. The bill generation drill (`tests/Drill/BillGenerationDrillTest.php`, P03-04b) starts four processes that generate the same organization's rent bills at once (leases behind by several periods, without the job's lock) and checks that every period is billed exactly once with invoice numbers 1…N, then the same for utility bills (P03-06b: four processes generating the same units' utility bills at once — flat daily, weekly and monthly utilities and metered ones with readings — every period billed once, every meter reading on exactly one bill), then that six processes paying one bill at once never settle it beyond its amount. The payment confirmation drill (`tests/Drill/PaymentConfirmationDrillTest.php`, P03-10a) starts six processes confirming 30 payments for one bill at once through `PaymentService` (the bill takes exactly its amount, the rest becomes tenant credit; explicit splits beyond what is owed are refused) and four processes confirming the same ten payments (each confirmed once). The statement matching drill (`tests/Drill/StatementMatchingDrillTest.php`, P03-07b) starts six processes, three running the matcher and three matching by hand, over the same ten statement credits at once, and checks that each line was matched by exactly one try and has exactly one payment (key `statement-line:{id}`), with the bill never settled beyond its amount. The **Deploy** and **Release** workflows call this workflow first ([shared-hosting.md § 3](shared-hosting.md), [release.md](release.md)).
 
-CI runs it once per database, because cPanel/Plesk hosts often provide MariaDB rather than MySQL ([ARCHITECTURE.md § 2](../../ARCHITECTURE.md)):
+CI runs the same checks as `composer ci`, split into jobs. **`Style and types`** runs Pint and Larastan once (no database). The Pest suite runs once per database, because cPanel/Plesk hosts often provide MariaDB rather than MySQL ([ARCHITECTURE.md § 2](../../ARCHITECTURE.md)), and in **two parts** per database, because the whole suite took 46–60+ minutes on GitHub's 2-core runners (2026-11-01):
 
-| Job | Image | Laravel connection |
+| Database | Image | Laravel connection |
 | --- | --- | --- |
-| `CI (MySQL 8.0)` | `mysql:8.0` | `mysql` |
-| `CI (MySQL 8.4)` | `mysql:8.4` | `mysql` |
-| `CI (MariaDB 10.6)` | `mariadb:10.6` | `mariadb` |
-| `CI (MariaDB 11.4)` | `mariadb:11.4` | `mariadb` |
+| MySQL 8.0 | `mysql:8.0` | `mysql` |
+| MySQL 8.4 | `mysql:8.4` | `mysql` |
+| MariaDB 10.6 | `mariadb:10.6` | `mariadb` |
+| MariaDB 11.4 | `mariadb:11.4` | `mariadb` |
+
+| Part | Test suites (`phpunit.xml`) | Tests (2026-11-01) |
+| --- | --- | --- |
+| `app` | `Unit,Feature,Drill` (`tests/`) | 2,258 |
+| `modules` | `Modules` (`Modules/*/tests/Unit` and `Feature`) | 1,844 |
+
+That makes eight test jobs, named `CI (MySQL 8.0, app)`, `CI (MySQL 8.0, modules)` and so on. Each runs `php artisan test --parallel --testsuite=…`. The `phpunit.xml` suites do not overlap, so the two parts together are exactly the full suite; a new suite must be added to one part in `ci.yml`. Pest's own `--shard` option is not used: Pest 4.7 recognises only test classes under `Tests\`, so it would silently skip every module test.
 
 These are the oldest and newest LTS releases of each engine that shared hosts still run.
 
@@ -51,7 +58,7 @@ Set once by a repository admin, in **Settings → Rules → Rulesets → New bra
 - **Target:** the default branch (`main`).
 - **Restrict deletions** and **Block force pushes**: on.
 - **Require a pull request before merging**: on (at least 1 approval once there is a second developer).
-- **Require status checks to pass**: on, with "require branches to be up to date" on. Add the five checks `CI (MySQL 8.0)`, `CI (MySQL 8.4)`, `CI (MariaDB 10.6)`, `CI (MariaDB 11.4)` and `Old PHP guard`. They appear in the picker after the workflow has run once.
+- **Require status checks to pass**: on, with "require branches to be up to date" on. Add the ten checks `Style and types`, the eight `CI (<database>, app|modules)` jobs (`CI (MySQL 8.0, app)`, `CI (MySQL 8.0, modules)`, … `CI (MariaDB 11.4, modules)`) and `Old PHP guard`. They appear in the picker after the workflow has run once.
 - **Bypass list:** empty, so admins follow the same rule.
 
 If a job is renamed or a database version is added, update the required checks in the same change, or merges will wait for a check that never reports.

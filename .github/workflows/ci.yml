@@ -1,6 +1,8 @@
-# Quality gate: Pint, Larastan and Pest via `composer ci` (AGENT.md § 2),
-# once per supported database. cPanel/Plesk hosts often run MariaDB, so both
-# engines are tested at their oldest and newest supported LTS versions
+# Quality gate: the checks of `composer ci` (AGENT.md § 2), split into jobs.
+# Pint and Larastan run once; the Pest suite runs once per supported
+# database, in two halves (the app's tests and the modules' tests) so each job
+# stays well inside its time limit. cPanel/Plesk hosts often run MariaDB, so
+# both engines are tested at their oldest and newest supported LTS versions
 # (ARCHITECTURE.md § 2, docs/runbooks/ci.md). The suite runs on the
 # shared-hosting profile, including a cron drill with exec/proc_open disabled.
 # Gotenberg (headless Chrome over HTTP) runs as a second service so the
@@ -27,19 +29,64 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  ci:
-    name: CI (${{ matrix.name }})
+  style-types:
+    name: Style and types
     runs-on: ubuntu-24.04
-    # The full suite took 15-20 minutes on MySQL (2026-10-28) and about 32-38
-    # on GitHub's 2-core runners for private repositories (2026-11-01, 4,102
-    # tests in 2 processes); 60 leaves room to grow while still stopping a
-    # hung job.
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@4424c9aab975b57bd706ee5a39c6b4334d6e4f60 # 2.40.0
+        with:
+          php-version: '8.4'
+          extensions: bcmath, ctype, curl, dom, exif, fileinfo, gd, intl, mbstring, openssl, pdo_mysql, sodium, tokenizer, xml, zip
+          tools: composer:v2
+          coverage: none
+
+      - name: Get Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Composer packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ runner.os }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Prepare application
+        run: |
+          cp .env.example .env
+          php artisan key:generate --ansi
+          php artisan config:clear --ansi
+
+      - name: Code style (Pint)
+        run: composer lint:check
+
+      - name: Types (Larastan)
+        run: composer types:check
+
+  ci:
+    name: CI (${{ matrix.database.name }}, ${{ matrix.part.name }})
+    runs-on: ubuntu-24.04
+    # The whole suite took 46-60+ minutes on GitHub's 2-core runners for
+    # private repositories (2026-11-01, 4,102 tests in 2 processes), so it
+    # runs in two halves of about 2,250 and 1,850 tests. 60 minutes still
+    # stops a hung job.
     timeout-minutes: 60
 
     strategy:
       fail-fast: false
       matrix:
-        include:
+        database:
           - name: MySQL 8.0
             image: mysql:8.0
             connection: mysql
@@ -56,10 +103,17 @@ jobs:
             image: mariadb:11.4
             connection: mariadb
             health: healthcheck.sh --connect --innodb_initialized
+        # The phpunit.xml suites do not overlap, so the two parts together
+        # are exactly the full suite. A new suite must join one of them.
+        part:
+          - name: app
+            suites: Unit,Feature,Drill
+          - name: modules
+            suites: Modules
 
     services:
       database:
-        image: ${{ matrix.image }}
+        image: ${{ matrix.database.image }}
         env:
           # The MariaDB image accepts the MYSQL_* names too.
           MYSQL_ROOT_PASSWORD: password
@@ -67,7 +121,7 @@ jobs:
         ports:
           - 3306:3306
         options: >-
-          --health-cmd="${{ matrix.health }}"
+          --health-cmd="${{ matrix.database.health }}"
           --health-interval=5s
           --health-timeout=5s
           --health-retries=20
@@ -85,7 +139,7 @@ jobs:
 
     env:
       HOSTING_PROFILE: shared
-      DB_CONNECTION: ${{ matrix.connection }}
+      DB_CONNECTION: ${{ matrix.database.connection }}
       DB_HOST: 127.0.0.1
       DB_PORT: 3306
       DB_DATABASE: testing
@@ -147,8 +201,11 @@ jobs:
           cp .env.example .env
           php artisan key:generate --ansi
 
-      - name: Run quality gate
-        run: composer ci
+      # The test step of `composer ci`, for this part of the suite.
+      - name: Run tests (${{ matrix.part.suites }})
+        run: |
+          php artisan config:clear --ansi
+          php artisan test --parallel --testsuite=${{ matrix.part.suites }}
 
   php-guard:
     name: Old PHP guard

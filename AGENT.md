@@ -48,7 +48,7 @@ php artisan module:make <Name>   # then composer dump-autoload && composer lint 
 php artisan module:migrate <Name>
 ```
 
-CI runs `composer ci` on every push, once each on MySQL 8.0/8.4 and MariaDB 10.6/11.4 ([docs/runbooks/ci.md](docs/runbooks/ci.md)). Never merge red.
+CI runs the checks of `composer ci` on every push: style and types once, the tests on MySQL 8.0/8.4 and MariaDB 10.6/11.4, each in two parts (app and modules; [docs/runbooks/ci.md](docs/runbooks/ci.md)). Never merge red.
 
 ## 3. Non-Negotiable Invariants
 
