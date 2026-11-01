@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Compliance\Monitoring\CheckConfirmedPayment;
 use App\Documents\Verification\DocumentVerifiers;
 use App\Exports\ListExports;
 use App\Marketing\PlanCatalogue;
@@ -34,8 +35,10 @@ use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use Modules\Payments\Events\PaymentConfirmed;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -132,6 +135,9 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+
+        // The Transaction Tier checks of each confirmed payment (P06-09).
+        Event::listen(PaymentConfirmed::class, CheckConfirmedPayment::class);
     }
 
     /**

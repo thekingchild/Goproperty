@@ -173,3 +173,68 @@ Started 2026-10-31 at the product owner's request ("start P06-08"). Rules: [ONBO
 82. **Audit:** log `compliance`, events `tier_settings.proposed`, `tier_settings.approved`, `tier_settings.not_approved` (rejected or expired), `tier_settings.cancelled`, `tier_override.set`, `tier_override.ended`, each with the staff member, the reason and before and after; the approval request's own entries as for every two-person action.
 83. **Activation text:** the signup wizard's "Activation" line comes from the review target ("Active straight away" without one; "Compliance review, about N business days", and "and a call" for Tier 3 as § 5.2 says).
 84. **Not built in P06-08:** emailing owners about a change of limits or documents (P06-09, with the volumes), restricting anyone, a "no cap" override, and the forecast (P06-09).
+
+## P06-09 — Transaction Tier monitoring
+
+Started 2026-11-01 at the product owner's request ("start P06-09"); one task, built by the orchestrator. Rules: [ONBOARDING_COMPLIANCE.md § 5.1, § 5.4–5.5](../../ONBOARDING_COMPLIANCE.md); [DATABASE_SCHEMA.md § 9](../../DATABASE_SCHEMA.md) `compliance_flags`, `organization_volume_snapshots`; [PLATFORM_CONSOLE.md § 1A](../../PLATFORM_CONSOLE.md) (`compliance.flags`, `compliance.restrict`); [ARCHITECTURE.md § 11](../../ARCHITECTURE.md) (daily 03:30 `compliance:evaluate-tiers`). AC: an organization crossing 80 % and 100 % gets exactly one flag each; 30 days later without an application it is restricted, and its tenants still see their bills, upload proofs and get receipts.
+
+### Defaults taken in P06-09 (for the product owner to confirm)
+
+85. **Where it lives.** The monitoring is Core (`App\Compliance\Monitoring`), beside the tiers it measures against. It reads payments and leases only through two new module contracts: `Modules\Payments\Contracts\CollectionVolumes` (what was collected) and `Modules\Leasing\Contracts\RentForecast` (what the leases will bill). Staff work in `App\Platform\Compliance`.
+86. **What counts as collected:** every tenant payment that was confirmed (refunded ones too, as reversals are not built), on the Lagos day it was paid, through any channel (bank transfer, Paystack, proofs, cash, POS). Imported payment history (source `import`) does not count: it was collected before GoProperty. The rolling 12 months are the 365 days ending today; the largest single payment is taken over the same days.
+87. **The forecast** is the rent of the periods of active and renewed leases that start from tomorrow through the next 12 months, up to each lease's end. Drafts, charges other than rent and utilities are not counted, because no schedule exists for them yet.
+88. **The numbers live in `config/compliance.php` → `monitoring`:**
+    - warning at 80 %;
+    - grace of 30 days, or 60 days after a limit was lowered;
+    - cash thresholds of ₦5,000,000 for a person and ₦10,000,000 for a company (MLPPA 2022);
+    - structuring: 3 payments within 14 days, each from 80 % of a threshold up to just under it;
+    - a spike is over 3× the average of the last 6 full months, and only counts when the month has reached at least ₦1,000,000.
+89. **Flags are episodes.**
+    - `volume_80`, `volume_100` and `forecast_over` open once for each organization and tier, and stay open while the measure stays over its line.
+    - A daily run that finds the measure back under its line resolves the flag itself, with the note "back under". A later crossing opens a new flag.
+    - Approving a higher tier resolves the volume flags of the old tier.
+    - `dedupe_key` (unique) is `<type>:<organization>:t<tier>:<n>`.
+90. **Payment flags.**
+    - `single_over`: a payment above the single-payment limit that applies, which is the override's limit where one is set. The owner and the queue are told.
+    - Tier 3 has no single-payment cap. A payment there above the review amount (₦100m) gives a `single_over` for the queue only.
+    - `cash_threshold`: a cash payment at or above ₦5m from a person, or ₦10m from a company (the payment's payer type). The owner and the queue are told.
+    - Each of these flags is keyed by its payment.
+91. **`possible_structuring`** covers cash and bank-transfer payments. It opens when the same tenant makes 3 or more confirmed payments within 14 days, each from 80 % of the threshold up to just under it. The threshold is the cash threshold for cash and the single-payment limit for transfers. Only the queue is told; the owner and the tenant never see it. There is at most one flag per tenant in any 14 days.
+92. **`spike`** opens when the calendar month so far (Lagos time) is over 3× the average of the 6 full months before it. The average must be above zero and the month must have reached ₦1m. Only the queue is told, once per organization per month.
+93. **When it runs.**
+    - Each confirmed payment queues a check after it is committed. The check covers the single-payment, cash and structuring flags and the volume flags.
+    - Every day at 03:30 a check runs for every organization that is not cancelled: the day's snapshot, volume, forecast, spike, grace and restriction. It is registered with `Schedule::call` and can also be run by hand as `php artisan compliance:evaluate-tiers`.
+    - Snapshots are one row per organization per Lagos day. A second run on the same day replaces that day's row.
+94. **Who is told.**
+    - Owners get an in-app notice and an email for `volume_80`, `forecast_over`, `volume_100`, `single_over` and `cash_threshold`, and when the organization is restricted or the restriction is lifted. The emails are templates that the content manager can edit.
+    - Document expiry keeps its existing email. It now also records `document_expiring` and `document_expired` flags.
+    - Banners shown in the workspace:
+      - to owners: "approaching your limit" (80 % or forecast) and "Upgrade required by {grace end}" (100 %), each with **Upgrade tier**;
+      - to every member: "restricted", with what is limited.
+95. **Grace.**
+    - A `volume_100` flag gets a grace that ends at the start of the Lagos day 30 days later.
+    - If the limit in force was lowered in the last 60 days, and the organization was within the old limit, the grace instead ends 60 days after the lower limit took effect, whichever is later.
+    - Compliance can **extend the grace** on the flag (`compliance.restrict`). The new end is up to 90 days from today and needs a reason, and the change is audited.
+96. **Restriction by the monitoring.**
+    - The daily run restricts an `active` organization when all of these are true:
+      - its `volume_100` grace has ended;
+      - it has no open application (submitted, under review or waiting for more information; a draft does not count);
+      - its volume is still over the limit.
+    - The restriction is lifted, by the next daily run or at once where noted, when:
+      - an application is submitted (at once; an organization under review is never restricted);
+      - the volume falls back under the limit;
+      - a higher tier or a higher override limit applies.
+    - The run never touches a suspended or cancelled organization. It lifts only restrictions it made itself (`organizations.restriction_source` is `tier_monitoring`).
+97. **Restriction by staff.** **Restrict** and **Lift restriction** sit on the organization's console page. They need `compliance.restrict` and a reason, are audited, and the owners are emailed. Only staff lift a restriction made by staff.
+98. **What restriction limits.** Leases, buildings and units already refuse new records while restricted. Since P06-09, online payment is paused: the "Pay online" button is not offered. A payment already started through Paystack still settles. Bills, recording and confirming payments, receipts, proofs and the tenant portal are untouched.
+99. **The flag queue** is Console → Compliance → **Flags** (`/compliance-flags`, `compliance.flags`).
+    - It opens on the flags for compliance (`volume_100`, `single_over`, `cash_threshold`, `possible_structuring`, `spike`) that are open or acknowledged. Filters show every type and status.
+    - Staff can **Acknowledge** and **Assign to me**. **Resolve** and **Dismiss** each need a note.
+    - Each action is audited (log `compliance`).
+100. **Staff never close the volume flags.** `volume_80`, `volume_100` and `forecast_over` are closed only by the monitoring: the measure falls back, or a higher tier or custom limit applies. Staff can acknowledge them, assign them and extend a `volume_100` grace. If staff could resolve one while the organization was still over, the next run would open a new one with a fresh grace, which would quietly extend the grace without the audited reason that **Extend grace** requires.
+101. **Not built in P06-09:**
+     - re-verification of Tier 2 and 3 organizations;
+     - acting on an expired document beyond its flag;
+     - emailing every owner when a tier's terms change (owners hear only when the change affects them, through the flags);
+     - an email to the owners when compliance extends a grace (the banner shows the new date);
+     - checking a payment synchronously (each payment's check is queued after its confirmation commits).

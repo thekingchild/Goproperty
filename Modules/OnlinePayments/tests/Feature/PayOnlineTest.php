@@ -12,6 +12,7 @@ use Modules\OnlinePayments\Connections\PaystackConnections;
 use Modules\OnlinePayments\Enums\TransactionStatus;
 use Modules\OnlinePayments\Jobs\SettlePaystackTransaction;
 use Modules\OnlinePayments\PayOnline\PaystackOption;
+use Modules\OnlinePayments\Transactions\OnlinePaymentRefused;
 use Modules\Payments\Enums\PaymentStatus;
 
 require_once __DIR__.'/helpers.php';
@@ -118,6 +119,32 @@ describe('the pay page', function () {
         connectPaystack($this->paystack, $this->acme, $this->owner);
         confirmedPayment($this->acme, $this->owner, $this->kemi, '850,000', ['billId' => (string) $this->bill->id]);
         payPage($this->bill->payment_reference)->assertOk()->assertSee('This bill is paid')->assertDontSee('data-test="paystack-pay"', false);
+    });
+});
+
+describe('a restricted organization (P06-09, ONBOARDING_COMPLIANCE.md § 5.5)', function () {
+    it('pauses "Pay online" while restricted; a payment started before still settles, and bank transfer stays offered', function () {
+        Queue::fake([SettlePaystackTransaction::class]);
+        connectPaystack($this->paystack, $this->acme, $this->owner);
+        $started = startOnlinePayment($this->acme, $this->bill);
+        $this->paystack->pays($started->reference);
+
+        $this->acme->forceFill(['status' => OrganizationStatus::Restricted])->save();
+        payPage($this->bill->payment_reference)->assertOk()
+            ->assertDontSee('data-test="paystack-pay"', false)
+            ->assertSee('0123456789');
+        expect(fn () => startOnlinePayment($this->acme, $this->bill))->toThrow(OnlinePaymentRefused::class, 'cannot be paid online');
+
+        // Lifted: offered again.
+        $this->acme->forceFill(['status' => OrganizationStatus::Active])->save();
+        payPage($this->bill->payment_reference)->assertSee('data-test="paystack-pay"', false);
+
+        // Restricted again, the payment started before settles when the payer comes back.
+        $this->acme->forceFill(['status' => OrganizationStatus::Restricted])->save();
+        payOnlinePage("/pay/{$this->bill->payment_reference}/online/return?trxref={$started->reference}&reference={$started->reference}")
+            ->assertRedirect("/pay/{$this->bill->payment_reference}");
+        Queue::pushed(SettlePaystackTransaction::class)->each(fn (SettlePaystackTransaction $job) => app()->call([$job, 'handle']));
+        expect(paymentsOf($this->acme)->sole()->status)->toBe(PaymentStatus::Confirmed);
     });
 });
 

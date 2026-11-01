@@ -104,6 +104,17 @@ final class CustomerPolicy
         return $actor->holdsStaffPermission(P::CustomersView) && $actor->holdsStaffPermission(P::TiersOverride);
     }
 
+    /**
+     * Restrict an active organization for compliance, or lift a restriction
+     * (P06-09, ONBOARDING_COMPLIANCE.md § 5.5, default 97):
+     * `compliance.restrict` (compliance-officer, super-admin).
+     * App\Compliance\Monitoring\TierRestrictions re-checks.
+     */
+    public function restrictForCompliance(PlatformStaff $actor, Customer $customer): bool
+    {
+        return $actor->holdsStaffPermission(P::CustomersView) && $actor->holdsStaffPermission(P::ComplianceRestrict);
+    }
+
     public function create(PlatformStaff $actor): bool
     {
         return false;

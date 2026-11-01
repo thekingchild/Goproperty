@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Modules\OnlinePayments\Transactions;
 
+use App\Enums\OrganizationStatus;
 use App\Support\Money;
+use App\Tenancy\OrganizationContext;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -33,8 +35,10 @@ use Modules\Payments\Contracts\PaymentSource;
  * organization's account (AGENT.md § 3 rule 8); GoProperty only records it.
  *
  * - offers()/start(): a bill is offered "Pay online" while the connection
- *   is active and what it still owes is positive and within the
- *   organization's online-payment cap (above it: bank details only).
+ *   is active, the organization is not restricted (ONBOARDING_COMPLIANCE.md
+ *   § 5.5: online payment paused, P06-09) and what it still owes is
+ *   positive and within the organization's online-payment cap (above it:
+ *   bank details only). A transaction started before still settles.
  *   start() keeps the transaction (bill, amount asked) before asking
  *   Paystack to initialize it.
  * - settle(): after a webhook or the payer's return. Never trusts the
@@ -64,6 +68,7 @@ final readonly class PaystackTransactions
         private PaystackClient $paystack,
         private BillLedger $ledger,
         private PaymentRecorder $recorder,
+        private OrganizationContext $context,
     ) {}
 
     /** Whether the bill may be paid online now: connected and active, owing something, within the cap. */
@@ -72,6 +77,11 @@ final readonly class PaystackTransactions
         $connection = $this->connections->current();
 
         if (! $connection instanceof PaystackConnection || ! $connection->active() || ! $this->connections->planAllows()) {
+            return false;
+        }
+
+        // ONBOARDING_COMPLIANCE.md § 5.5: a restricted organization's online payment is paused (P06-09).
+        if ($this->context->has() && $this->context->get()->status === OrganizationStatus::Restricted) {
             return false;
         }
 

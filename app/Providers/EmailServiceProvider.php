@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Compliance\Monitoring\TierMonitoringTemplates;
 use App\Mail\Suppression\DropSuppressedRecipients;
 use App\Mail\Templates\TemplateCatalog;
 use App\Plans\PlanTemplates;
@@ -24,10 +25,11 @@ final class EmailServiceProvider extends ServiceProvider
     {
         $this->app->singleton(TemplateCatalog::class);
 
-        // Core's own templates: the SMS credit notices (P05-03) and the plan change notice (P06-01a).
+        // Core's own templates: the SMS credit notices (P05-03), the plan change notice (P06-01a) and the Transaction Tier monitoring's notices (P06-09).
         $this->callAfterResolving(TemplateCatalog::class, static function (TemplateCatalog $catalog): void {
             $catalog->add(...SmsCreditTemplates::definitions());
             $catalog->add(...PlanTemplates::definitions());
+            $catalog->add(...TierMonitoringTemplates::definitions());
         });
     }
 

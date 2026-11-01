@@ -16,6 +16,7 @@ use Livewire\Livewire;
 use Modules\Billing\Events\BillIssued;
 use Modules\Import\Contracts\ImportTargets;
 use Modules\Import\Contracts\ImportUsages;
+use Modules\Payments\Contracts\CollectionVolumes;
 use Modules\Payments\Contracts\HandoverCredits;
 use Modules\Payments\Contracts\OwnerCollections;
 use Modules\Payments\Contracts\OwnerPayments;
@@ -41,6 +42,7 @@ use Modules\Payments\Models\Payment;
 use Modules\Payments\Models\PaymentProof;
 use Modules\Payments\Models\Receipt;
 use Modules\Payments\Notices\PaymentNoticeEvent;
+use Modules\Payments\Payments\CollectionVolumeRecords;
 use Modules\Payments\Payments\OwnerCollectionRecords;
 use Modules\Payments\Payments\PartPaymentCounts;
 use Modules\Payments\Payments\Recorder;
@@ -105,6 +107,7 @@ final class PaymentsServiceProvider extends ModuleServiceProvider
         $this->app->bind(HandoverCredits::class, HandoverCreditRecords::class);
         // What was collected for bills, by when it counts (the owner statements, P08-05).
         $this->app->bind(OwnerCollections::class, OwnerCollectionRecords::class);
+        $this->app->bind(CollectionVolumes::class, CollectionVolumeRecords::class);
         // The owner portal's payment history and receipts (P03-16): no references, no bank details.
         $this->app->bind(OwnerPayments::class, OwnerPaymentRecords::class);
         $this->app->singleton(OpeningBalancesImportTarget::class);

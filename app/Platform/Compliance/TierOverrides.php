@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Platform\Compliance;
 
 use App\Compliance\ComplianceAudit;
+use App\Compliance\Monitoring\TierMonitor;
 use App\Compliance\TransactionTiers;
 use App\Models\Organization;
 use App\Models\OrganizationTierOverride;
@@ -32,7 +33,8 @@ use Throwable;
  * the organization's context under its lock, and write one audit entry (log
  * `compliance`, `tier_override.set` / `tier_override.ended`, the organization
  * as subject so it shows on its History, before and after). The owners are
- * not emailed (default 79).
+ * not emailed (default 79). Afterwards the monitoring measures the
+ * organization against its new limits (P06-09: flags and restriction).
  */
 final readonly class TierOverrides
 {
@@ -44,6 +46,7 @@ final readonly class TierOverrides
         private OrganizationContext $context,
         private TransactionTiers $tiers,
         private ComplianceAudit $audit,
+        private TierMonitor $monitor,
     ) {}
 
     /**
@@ -79,7 +82,7 @@ final readonly class TierOverrides
             throw new TierSettingsRefused('A yearly limit needs a single-payment limit too.');
         }
 
-        return $this->inOrganization($organization, function () use ($staff, $organization, $annualLimitKobo, $singlePaymentLimitKobo, $reason, $end): OrganizationTierOverride {
+        $set = $this->inOrganization($organization, function () use ($staff, $organization, $annualLimitKobo, $singlePaymentLimitKobo, $reason, $end): OrganizationTierOverride {
             $override = OrganizationTierOverride::query()->lockForUpdate()->first();
             $before = $override instanceof OrganizationTierOverride && $override->inForce() ? $this->describe($override) : null;
 
@@ -104,6 +107,11 @@ final readonly class TierOverrides
 
             return $override;
         });
+
+        // The limits that apply changed: the volume flags and restriction follow (P06-09).
+        $this->monitor->evaluate($organization);
+
+        return $set;
     }
 
     /** @throws TierSettingsRefused */
@@ -112,7 +120,7 @@ final readonly class TierOverrides
         $this->authorize($staff);
         $reason = $reason !== null && trim($reason) !== '' ? $this->reason($reason) : null;
 
-        return $this->inOrganization($organization, function () use ($staff, $organization, $reason): OrganizationTierOverride {
+        $ended = $this->inOrganization($organization, function () use ($staff, $organization, $reason): OrganizationTierOverride {
             $override = OrganizationTierOverride::query()->lockForUpdate()->first();
 
             if (! $override instanceof OrganizationTierOverride || ! $override->inForce()) {
@@ -131,6 +139,10 @@ final readonly class TierOverrides
 
             return $override;
         });
+
+        $this->monitor->evaluate($organization);
+
+        return $ended;
     }
 
     /** The first and last end days staff may choose today (Lagos). */

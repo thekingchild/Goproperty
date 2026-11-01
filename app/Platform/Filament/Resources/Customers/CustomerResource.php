@@ -10,6 +10,7 @@ use App\Enums\OrganizationStatus;
 use App\Enums\OrganizationType;
 use App\Enums\SubscriptionStatus;
 use App\Enums\TransactionTier;
+use App\Models\OrganizationVolumeSnapshot;
 use App\Models\PlatformStaff;
 use App\Models\SubscriptionPlan;
 use App\Platform\Compliance\TierDraft;
@@ -21,6 +22,7 @@ use App\Platform\Filament\Resources\Customers\RelationManagers\FeaturesRelationM
 use App\Platform\Filament\Resources\Customers\RelationManagers\HistoryRelationManager;
 use App\Platform\Filament\Resources\Customers\RelationManagers\MembersRelationManager;
 use App\Sms\Credits\SmsCreditSummary;
+use App\Tenancy\OrganizationContext;
 use BackedEnum;
 use Carbon\CarbonImmutable;
 use Filament\Actions\ViewAction;
@@ -267,6 +269,21 @@ final class CustomerResource extends Resource
                         ->state(fn (Customer $record): ?string => self::tierOverrideBy($record))
                         ->placeholder('—')
                         ->visible(fn (Customer $record): bool => self::tierLimits($record)->hasOverride()),
+                    // P06-09: the latest daily measure and a restriction (Restrict / Lift restriction are page actions).
+                    TextEntry::make('tier_collected')->label('Collected, last 12 months')
+                        ->state(fn (Customer $record): ?string => self::volumeLine(self::latestVolume($record)))
+                        ->placeholder('Not measured yet'),
+                    TextEntry::make('tier_forecast')->label('Forecast, next 12 months')
+                        ->state(fn (Customer $record): ?string => ($snapshot = self::latestVolume($record)) !== null ? TierDraft::amount($snapshot->forecast_12m_kobo) : null)
+                        ->placeholder('—'),
+                    TextEntry::make('tier_largest')->label('Largest payment, 12 months')
+                        ->state(fn (Customer $record): ?string => ($snapshot = self::latestVolume($record)) !== null ? TierDraft::amount($snapshot->largest_payment_kobo) : null)
+                        ->placeholder('—'),
+                    TextEntry::make('tier_restriction')->label('Restriction')
+                        ->state(fn (Customer $record): string => $record->status === OrganizationStatus::Restricted
+                            ? ($record->organization()->restriction_source?->label() ?? 'Restricted').' (since '.($record->organization()->restricted_at?->setTimezone(TransactionTiers::TIMEZONE)->format('j M Y') ?? '—').')'
+                            : 'None')
+                        ->color(fn (Customer $record): ?string => $record->status === OrganizationStatus::Restricted ? 'danger' : null),
                 ]),
             // P05-03: the customer's SMS credits; finance-admin adjusts them and sets a custom allowance (page actions).
             Section::make('SMS credits')
@@ -302,6 +319,28 @@ final class CustomerResource extends Resource
     public static function tierLimits(Customer $record): OrganizationTierLimits
     {
         return app(TransactionTiers::class)->forOrganization($record->organization());
+    }
+
+    /** The latest daily Transaction Tier measure (P06-09), read in the organization's context. */
+    public static function latestVolume(Customer $record): ?OrganizationVolumeSnapshot
+    {
+        return app(OrganizationContext::class)->run($record->organization(), static fn (): ?OrganizationVolumeSnapshot => OrganizationVolumeSnapshot::query()->latest('date')->first());
+    }
+
+    /** "₦42,000,000 (84 % of ₦50,000,000) on 3 Nov 2026". */
+    private static function volumeLine(?OrganizationVolumeSnapshot $snapshot): ?string
+    {
+        if ($snapshot === null) {
+            return null;
+        }
+
+        $line = TierDraft::amount($snapshot->rolling_12m_volume_kobo);
+
+        if ($snapshot->annual_limit_kobo !== null && $snapshot->annual_limit_kobo > 0) {
+            $line .= ' ('.intdiv($snapshot->rolling_12m_volume_kobo * 100, $snapshot->annual_limit_kobo).' % of '.TierDraft::amount($snapshot->annual_limit_kobo).')';
+        }
+
+        return $line.' on '.$snapshot->date->format('j M Y');
     }
 
     /** "₦80,000,000 (custom)", "₦50,000,000", "No cap". */

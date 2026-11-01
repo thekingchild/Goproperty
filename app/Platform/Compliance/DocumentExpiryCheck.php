@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Platform\Compliance;
 
 use App\Compliance\ComplianceAudit;
+use App\Compliance\Monitoring\ComplianceFlags;
 use App\Enums\ComplianceDocumentStatus;
+use App\Enums\ComplianceFlagType;
 use App\Enums\TierApplicationStatus;
 use App\Models\ComplianceDocument;
 use App\Models\Organization;
@@ -31,9 +33,10 @@ use Illuminate\Support\Facades\DB;
  *   application), noted once (`expired_notified_at`).
  *
  * Each organization's owners get one email per run listing what changed,
- * and each change is in the audit log. Safe to re-run: a document is
+ * and each change is in the audit log and, since P06-09, a
+ * `document_expiring` / `document_expired` compliance flag. Safe to re-run: a document is
  * flagged at most once per stage. The organization's tier is not changed:
- * the docs only ask for reminders and flags (re-verification is P06-09).
+ * the docs only ask for reminders and flags.
  * The console lists the flagged documents (Compliance → Document expiry).
  */
 final readonly class DocumentExpiryCheck
@@ -42,6 +45,7 @@ final readonly class DocumentExpiryCheck
         private OrganizationContext $context,
         private OrganizationOwners $owners,
         private ComplianceAudit $audit,
+        private ComplianceFlags $flags,
     ) {}
 
     /** @return array{expiring: int, expired: int} */
@@ -85,6 +89,7 @@ final readonly class DocumentExpiryCheck
                         'attributes' => ['status' => ComplianceDocumentStatus::Expired->value],
                         'tier_application_id' => $document->tier_application_id,
                     ]);
+                    $this->flags->raise(ComplianceFlagType::DocumentExpired, "document_expired:{$document->id}", self::flagged($document));
                     $counts['expired']++;
                 } else {
                     $document->forceFill(['expiring_notified_at' => now()])->save();
@@ -92,6 +97,7 @@ final readonly class DocumentExpiryCheck
                         'tier_application_id' => $document->tier_application_id,
                         'expires_at' => $expiresAt->toDateString(),
                     ]);
+                    $this->flags->raise(ComplianceFlagType::DocumentExpiring, "document_expiring:{$document->id}", self::flagged($document));
                     $counts['expiring']++;
                 }
 
@@ -108,6 +114,22 @@ final readonly class DocumentExpiryCheck
         }
 
         return $counts;
+    }
+
+    /**
+     * The document's `compliance_flags` row (P06-09): the owners were told by
+     * this run's email.
+     *
+     * @return array<string, mixed>
+     */
+    private static function flagged(ComplianceDocument $document): array
+    {
+        return [
+            'subject_type' => 'compliance_document',
+            'subject_id' => $document->id,
+            'owners_notified_at' => now(),
+            'details' => ['document_type' => $document->type->value, 'expires_at' => $document->expires_at?->toDateString()],
+        ];
     }
 
     /** @return Collection<int, ComplianceDocument> */

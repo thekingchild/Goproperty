@@ -10,11 +10,14 @@ use App\Documents\Verification\DocumentVerification;
 use App\Documents\Verification\VerificationCodes;
 use App\Enums\ChecklistItem;
 use App\Enums\ComplianceDocumentType;
+use App\Enums\ComplianceFlagStatus;
+use App\Enums\ComplianceFlagType;
 use App\Enums\OnboardingStep;
 use App\Enums\SubscriptionStatus;
 use App\Enums\TransactionTier;
 use App\Media\Media;
 use App\Models\ComplianceDocument;
+use App\Models\ComplianceFlag;
 use App\Models\Invitation;
 use App\Models\Membership;
 use App\Models\NotificationDelivery;
@@ -24,6 +27,7 @@ use App\Models\OrganizationBankAccount;
 use App\Models\OrganizationFeatureOverride;
 use App\Models\OrganizationOnboarding;
 use App\Models\OrganizationTierOverride;
+use App\Models\OrganizationVolumeSnapshot;
 use App\Models\PlanChangeNotice;
 use App\Models\PlatformStaff;
 use App\Models\SmsCreditBalance;
@@ -451,6 +455,20 @@ final class OrganizationScopedModels
                 'annual_volume_limit_kobo' => 8_000_000_000,
                 'reason' => 'Probe',
                 'expires_at' => now()->addMonth(),
+            ])->save()),
+            // Transaction Tier monitoring (P06-09; App\Compliance\Monitoring\ComplianceFlags and TierMonitor are the writers).
+            ComplianceFlag::class => fn (): Model => tap(new ComplianceFlag, fn (ComplianceFlag $flag): bool => $flag->forceFill([
+                'type' => ComplianceFlagType::Spike,
+                'status' => ComplianceFlagStatus::Open,
+                'dedupe_key' => 'probe:'.Str::random(12),
+            ])->save()),
+            OrganizationVolumeSnapshot::class => fn (): Model => tap(new OrganizationVolumeSnapshot, fn (OrganizationVolumeSnapshot $snapshot): bool => $snapshot->forceFill([
+                'date' => now()->toDateString(),
+                'tier' => 1,
+                'rolling_12m_volume_kobo' => 0,
+                'forecast_12m_kobo' => 0,
+                'largest_payment_kobo' => 0,
+                'month_volume_kobo' => 0,
             ])->save()),
             // Rows on their own (Modules\SaasBilling\SmsCredits\SmsCreditPurchases is the writer, P05-03).
             PlatformInvoice::class => fn (): Model => self::platformInvoice(),

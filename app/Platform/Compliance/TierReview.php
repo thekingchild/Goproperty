@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Platform\Compliance;
 
 use App\Compliance\ComplianceAudit;
+use App\Compliance\Monitoring\TierMonitor;
+use App\Compliance\Monitoring\TierRestrictions;
 use App\Compliance\OrganizationTier;
 use App\Compliance\RequiredDocuments;
 use App\Enums\ChecklistItem;
@@ -48,6 +50,8 @@ final readonly class TierReview
         private RequiredDocuments $requirements,
         private OnboardingChecklist $checklist,
         private OrganizationOwners $owners,
+        private TierMonitor $monitor,
+        private TierRestrictions $restrictions,
     ) {}
 
     /** Marks a submitted application as being reviewed by this staff member. @throws TierReviewRefused */
@@ -116,6 +120,9 @@ final readonly class TierReview
             $this->checklist->complete(ChecklistItem::Tier, null, ['approved_tier' => $application->requested_tier->value]);
             $this->notifyOwners($organization, $application, $noteToOwner);
         });
+
+        // The old tier's volume flags close and a restriction they caused lifts (P06-09).
+        $this->monitor->evaluate($record->organization());
     }
 
     /** Rejects the application; the organization keeps its tier. @throws TierReviewRefused */
@@ -136,6 +143,9 @@ final readonly class TierReview
             $this->audit->record('tier_application.rejected', $application, $actor, "Rejected {$organization->name}'s {$application->requested_tier->label()} application", $this->change($from, $application), $reason);
             $this->notifyOwners($organization, $application, $noteToOwner);
         });
+
+        // Without an application under review, a grace that has ended restricts it (P06-09).
+        $this->restrictions->reconcileNow($record->organization());
     }
 
     /** @throws TierReviewRefused */

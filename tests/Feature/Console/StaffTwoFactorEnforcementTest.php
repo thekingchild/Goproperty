@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use App\Audit\AuditEntry;
+use App\Compliance\Monitoring\ComplianceFlags;
+use App\Enums\ComplianceFlagType;
 use App\Mail\Templates\EmailTemplates;
 use App\Models\EmailTemplate;
 use App\Models\ImpersonationSession;
@@ -33,6 +35,7 @@ use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Route as Router;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Str;
 use Livewire\Livewire;
 use Modules\SaasBilling\Enums\InvoiceKind;
 use Modules\SaasBilling\Enums\InvoiceStatus;
@@ -120,6 +123,8 @@ function consolePageUrls(PlatformStaff $someone): array
                     str_contains($route->uri(), 'staff-roles') => $role->id,
                     // A Transaction Tier version (P06-08): the launch values are seeded by a migration.
                     str_contains($route->uri(), 'tier-settings') => TransactionTierVersion::query()->orderBy('id')->firstOrFail()->id,
+                    // A compliance flag (P06-09), in an organization of its own.
+                    str_contains($route->uri(), 'compliance-flags') => app(OrganizationContext::class)->run(Organization::factory()->create(), fn (): int => app(ComplianceFlags::class)->raise(ComplianceFlagType::Spike, 'spike:page-test:'.Str::random(8))?->id ?? 0),
                     // An email template (P05-04): seeded from the code's catalog.
                     str_contains($route->uri(), 'email-templates') => $emailTemplate()->id,
                     // A plan (P06-01a): the launch plans are seeded by a migration.
@@ -300,5 +305,7 @@ it('acceptance: checks every console page against each default staff role', func
         ->and($opened('/access-log'))->toEqualCanonicalizing(['super-admin', 'technical-admin'])
         ->and($opened('/customers'))->not->toContain('analyst')
         // P06-08: Compliance → Tier settings, for those who propose, approve or override tier limits.
-        ->and($opened('/tier-settings'))->toEqualCanonicalizing(['super-admin', 'compliance-officer']);
+        ->and($opened('/tier-settings'))->toEqualCanonicalizing(['super-admin', 'compliance-officer'])
+        // P06-09: Compliance → Flags, the compliance queue.
+        ->and($opened('/compliance-flags'))->toEqualCanonicalizing(['super-admin', 'compliance-officer']);
 });

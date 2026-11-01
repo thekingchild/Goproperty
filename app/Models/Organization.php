@@ -7,6 +7,7 @@ namespace App\Models;
 use App\Casts\MoneyCast;
 use App\Enums\OrganizationStatus;
 use App\Enums\OrganizationType;
+use App\Enums\RestrictionSource;
 use App\Enums\TransactionTier;
 use App\Media\HasOrganizationMedia;
 use App\Support\Money;
@@ -49,6 +50,8 @@ use Spatie\MediaLibrary\HasMedia;
  * @property string|null $signup_plan_key plan key chosen at signup; interim until the subscription exists (P06-01)
  * @property Carbon|null $suspended_at set by App\Platform\Customers\OrganizationSuspension only
  * @property OrganizationStatus|null $status_before_suspension the status reactivation returns to
+ * @property RestrictionSource|null $restriction_source who restricted it (P06-09; null unless restricted), set by App\Compliance\Monitoring\TierRestrictions only
+ * @property Carbon|null $restricted_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property Carbon|null $deleted_at
@@ -87,6 +90,8 @@ class Organization extends Model implements HasMedia
             'trial_ends_at' => 'datetime',
             'suspended_at' => 'datetime',
             'status_before_suspension' => OrganizationStatus::class,
+            'restriction_source' => RestrictionSource::class,
+            'restricted_at' => 'datetime',
         ];
     }
 

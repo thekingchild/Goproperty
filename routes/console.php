@@ -6,6 +6,7 @@ use App\Audit\AuditChain;
 use App\Audit\AuthenticationLog;
 use App\Backup\BackupRunner;
 use App\Backup\BackupVerifier;
+use App\Compliance\Monitoring\TierMonitor;
 use App\Hosting\Heartbeats;
 use App\Hosting\Queue\QueueTick;
 use App\Platform\Approvals\ApprovalService;
@@ -86,6 +87,14 @@ Schedule::call(fn (Impersonations $impersonations) => $impersonations->endExpire
 Schedule::call(fn (DocumentExpiryCheck $check) => $check->run())
     ->name('compliance-document-expiry')
     ->dailyAt('03:15');
+
+// Transaction Tier monitoring (P06-09, ONBOARDING_COMPLIANCE.md § 5.4–5.5):
+// every organization's rolling 12 months, forecast and month against its
+// tier: the day's snapshot, flags, grace and restriction. By hand:
+// `php artisan compliance:evaluate-tiers`.
+Schedule::call(fn (TierMonitor $monitor) => $monitor->daily())
+    ->name('compliance-evaluate-tiers')
+    ->dailyAt('03:30');
 
 // SMS credits (P05-03): this Lagos month's allowance for every organization
 // not cancelled, last month's unused one expired; once a month each, made up

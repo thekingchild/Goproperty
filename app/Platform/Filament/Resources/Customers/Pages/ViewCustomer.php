@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Platform\Filament\Resources\Customers\Pages;
 
+use App\Compliance\Monitoring\TierRestrictions;
 use App\Enums\BillingCycle;
+use App\Enums\OrganizationStatus;
 use App\Platform\Compliance\TierOverrides;
 use App\Platform\Compliance\TierSettings;
 use App\Platform\Customers\Customer;
@@ -47,6 +49,7 @@ final class ViewCustomer extends ViewRecord
         return [
             $this->changePlanAction(), $this->cancelSubscriptionAction(), $this->reactivateSubscriptionAction(),
             $this->adjustSmsCreditsAction(), $this->smsAllowanceAction(), $this->setTierLimitsAction(), $this->endTierLimitsAction(),
+            $this->restrictAction(), $this->liftRestrictionAction(),
             $this->suspendAction(), $this->reactivateAction(),
         ];
     }
@@ -171,6 +174,58 @@ final class ViewCustomer extends ViewRecord
                     );
 
                     return 'Custom limits set for '.$this->customer()->name.' until '.$override->expires_at?->setTimezone('Africa/Lagos')->format('j M Y').'.';
+                });
+                $this->reloadCustomer();
+            });
+    }
+
+    /** P06-09 (ONBOARDING_COMPLIANCE.md § 5.5, default 97): restrict an active organization for compliance. */
+    public function restrictAction(): Action
+    {
+        return Action::make('restrict')
+            ->label('Restrict')
+            ->icon('heroicon-o-no-symbol')
+            ->color('danger')
+            ->authorize(fn (): bool => $this->allows('restrictForCompliance'))
+            ->visible(fn (): bool => $this->customer()->status === OrganizationStatus::Active)
+            ->requiresConfirmation()
+            ->modalHeading(fn (): string => 'Restrict '.$this->customer()->name)
+            ->modalDescription('No new leases, buildings or units, and online payment paused. Bills, payments, receipts and the tenant portal keep working. The owners are emailed; only staff can lift it.')
+            ->schema([
+                Textarea::make('reason')->label('Reason')->required()
+                    ->minLength(TierRestrictions::REASON_MIN)->maxLength(TierRestrictions::REASON_MAX)
+                    ->helperText('Kept in the audit log; not sent to the customer.'),
+            ])
+            ->action(function (array $data): void {
+                self::attempt(function () use ($data): string {
+                    app(TierRestrictions::class)->restrict(self::actor(), $this->customer()->organization(), (string) ($data['reason'] ?? ''));
+
+                    return $this->customer()->name.' is restricted.';
+                });
+                $this->reloadCustomer();
+            });
+    }
+
+    public function liftRestrictionAction(): Action
+    {
+        return Action::make('liftRestriction')
+            ->label('Lift restriction')
+            ->icon('heroicon-o-lock-open')
+            ->color('gray')
+            ->authorize(fn (): bool => $this->allows('restrictForCompliance'))
+            ->visible(fn (): bool => $this->customer()->status === OrganizationStatus::Restricted)
+            ->requiresConfirmation()
+            ->modalDescription('The organization works fully again and the owners are emailed. A restriction for an ended grace period comes back on the next daily run if it still applies: extend the grace on its flag instead.')
+            ->schema([
+                Textarea::make('reason')->label('Reason')->required()
+                    ->minLength(TierRestrictions::REASON_MIN)->maxLength(TierRestrictions::REASON_MAX)
+                    ->helperText('Kept in the audit log; not sent to the customer.'),
+            ])
+            ->action(function (array $data): void {
+                self::attempt(function () use ($data): string {
+                    app(TierRestrictions::class)->lift(self::actor(), $this->customer()->organization(), (string) ($data['reason'] ?? ''));
+
+                    return 'The restriction on '.$this->customer()->name.' is lifted.';
                 });
                 $this->reloadCustomer();
             });

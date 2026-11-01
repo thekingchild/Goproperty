@@ -31,6 +31,7 @@ use Modules\Leasing\Contracts\LeasePagePanels;
 use Modules\Leasing\Contracts\LiveLeases;
 use Modules\Leasing\Contracts\OwnerLeaseContracts;
 use Modules\Leasing\Contracts\OwnerLeases;
+use Modules\Leasing\Contracts\RentForecast;
 use Modules\Leasing\Contracts\RentPaymentLimits;
 use Modules\Leasing\Contracts\TenantLeaseContracts;
 use Modules\Leasing\Contracts\TenantLeases;
@@ -50,6 +51,7 @@ use Modules\Leasing\Leases\LeasePanelRegistry;
 use Modules\Leasing\Leases\LeaseRecords;
 use Modules\Leasing\Leases\LeaseService;
 use Modules\Leasing\Leases\OwnerLeaseRecords;
+use Modules\Leasing\Leases\RentForecastRecords;
 use Modules\Leasing\Leases\RentPaymentRules;
 use Modules\Leasing\Listeners\IssueLeaseContract;
 use Modules\Leasing\Lists\LeaseList;
@@ -121,6 +123,7 @@ final class LeasingServiceProvider extends ModuleServiceProvider
         // The owner portal's contract download (P03-16): the issued contract only.
         $this->app->bind(OwnerLeaseContracts::class, OwnerContractFiles::class);
         $this->app->bind(LiveLeases::class, LeasesMover::class);
+        $this->app->bind(RentForecast::class, RentForecastRecords::class);
         // Panels other modules add to a lease's page (P04-03: the lease's tickets).
         $this->app->singleton(LeasePagePanels::class, LeasePanelRegistry::class);
         // How many payments a tenant may make on a rent bill (P03-17), for the Payments module.

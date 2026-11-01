@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Compliance;
 
+use App\Compliance\Monitoring\TierRestrictions;
 use App\Enums\ComplianceDocumentStatus;
 use App\Enums\ComplianceDocumentType;
 use App\Enums\TierApplicationStatus;
@@ -42,6 +43,7 @@ final readonly class TierApplications
         private ComplianceFiles $files,
         private RequiredDocuments $requirements,
         private ComplianceAudit $audit,
+        private TierRestrictions $restrictions,
     ) {}
 
     /** The application that is not decided yet, if any. */
@@ -261,7 +263,7 @@ final readonly class TierApplications
      */
     public function submit(User $by, TierApplication $application, ?string $note = null): TierApplication
     {
-        return DB::transaction(function () use ($by, $application, $note): TierApplication {
+        $submitted = DB::transaction(function () use ($by, $application, $note): TierApplication {
             $locked = $this->locked($application);
             $this->ensureEditable($locked);
             $note = $this->clean($note);
@@ -294,6 +296,11 @@ final readonly class TierApplications
 
             return $locked;
         });
+
+        // An organization whose application is with compliance is never restricted (§ 5.5, P06-09).
+        $this->restrictions->reconcileNow($this->context->get());
+
+        return $submitted;
     }
 
     private function locked(TierApplication $application): TierApplication
