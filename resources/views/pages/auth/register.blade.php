@@ -4,12 +4,14 @@
     Nigerian mobile number (a contact and sign-in name, never sent an SMS
     code) and password. The bot check shows when SignupBotCheck asks for it
     ($showCheck). Errors are about the form only: the page never says
-    whether an address already has an account.
+    whether an address already has an account. A plan picked on the pricing
+    page ($chosenPlan, P06-11) is shown here and preselected in the wizard.
 --}}
 @php
     $turnstile = app(\App\Auth\SignIn\Turnstile::class);
     $brand = app(\App\Theme\ThemeContext::class)->current()->name();
-    $trialDays = app(\App\Marketing\PlanCatalogue::class)->trialDays();
+    $chosenPlan ??= null;
+    $trialDays = $chosenPlan?->trialDays ?? app(\App\Marketing\PlanCatalogue::class)->trialDays();
     $invalid = fn (string $field): bool => $errors->has($field);
 @endphp
 <x-layouts::auth-split :title="__('Start free trial')" :activity="false">
@@ -31,6 +33,13 @@
     <h1>Start your free trial</h1>
     <p>{{ $trialDays }} days with every feature. No card needed.</p>
   </header>
+
+  @if ($chosenPlan)
+    <div class="alert alert--info" role="status" data-test="chosen-plan">
+      <span><b>{{ $chosenPlan->name }} plan, billed {{ $chosenCycle === \App\Enums\BillingCycle::Annual ? 'yearly' : 'monthly' }}</b>
+        {{ $chosenCycle === \App\Enums\BillingCycle::Annual ? $chosenPlan->base->times($monthsPaidPerYear)->format().' a year' : $chosenPlan->base->format().' a month' }} for {{ number_format($chosenPlan->includedUnits) }} units, plus VAT, after your free trial. You can change it before the trial starts.</span>
+    </div>
+  @endif
 
   @error('turnstile')
     @include('pages.auth.partials.alert', ['message' => $message])

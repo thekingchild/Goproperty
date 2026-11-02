@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Onboarding;
 
+use App\Enums\BillingCycle;
 use App\Enums\ChecklistItem;
 use App\Enums\OnboardingStep;
 use App\Enums\OrganizationStatus;
@@ -31,9 +32,10 @@ use Illuminate\Support\Facades\DB;
  * - Tier 2/3 is recorded as requested; the organization keeps its approved
  *   tier (Tier 1) until compliance approves documents (P01-03).
  * - The plan step starts the `trialing` subscription (P06-01b, through
- *   SubscriptionService) on the chosen plan, for the plan's trial days from
- *   the first choice; `organizations.signup_plan_key` / `trial_ends_at`
- *   keep the signup record.
+ *   SubscriptionService) on the chosen plan and billing cycle (monthly, or
+ *   yearly as picked on the pricing page, P06-11), for the plan's trial
+ *   days from the first choice; `organizations.signup_plan_key` /
+ *   `trial_ends_at` keep the signup record.
  * - Collections and data can only be put off for now; their checklist
  *   items stay pending until those features mark them done.
  */
@@ -94,17 +96,17 @@ final readonly class OnboardingWizard
     }
 
     /** Plan step: the plan, and the free trial, which starts the first time a plan is chosen. */
-    public function choosePlan(User $by, Plan $plan): void
+    public function choosePlan(User $by, Plan $plan, BillingCycle $cycle = BillingCycle::Monthly): void
     {
-        $this->save(OnboardingStep::Plan, function () use ($by, $plan): void {
+        $this->save(OnboardingStep::Plan, function () use ($by, $plan, $cycle): void {
             $organization = $this->organization();
             $organization->signup_plan_key = $plan->key;
             $organization->trial_ends_at ??= now()->addDays($plan->trialDays);
             $organization->save();
 
-            $this->subscriptions->start($by, $plan, CarbonImmutable::instance($organization->trial_ends_at));
+            $this->subscriptions->start($by, $plan, CarbonImmutable::instance($organization->trial_ends_at), $cycle);
 
-            $this->checklist->complete(ChecklistItem::Plan, $by, ['plan' => $plan->key]);
+            $this->checklist->complete(ChecklistItem::Plan, $by, ['plan' => $plan->key, 'billing_cycle' => $cycle->value]);
         });
 
         // A bigger plan's SMS allowance from now (the difference this month; P05-03).

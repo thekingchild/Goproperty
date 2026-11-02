@@ -6,6 +6,8 @@ namespace App\Http\Controllers\Onboarding;
 
 use App\Audit\AccessLog;
 use App\Auth\SignIn\Turnstile;
+use App\Marketing\PlanCatalogue;
+use App\Marketing\SignupPlanChoice;
 use App\Onboarding\RegisterAccount;
 use App\Onboarding\SignupBotCheck;
 use Illuminate\Http\RedirectResponse;
@@ -65,11 +67,22 @@ final class RegisterController
         return view('pages.auth.register-sent', ['email' => is_string($email) ? $email : null]);
     }
 
-    /** The account step's form (Fortify's register view). */
+    /**
+     * The account step's form (Fortify's register view). A pricing-page link
+     * (`?plan=growth&cycle=annual`, P06-11) is remembered for the wizard's
+     * plan step and shown above the form.
+     */
     public static function formView(Request $request): View
     {
+        $choice = app(SignupPlanChoice::class);
+        $choice->remember($request);
+        $plan = $choice->plan($request->session());
+
         return view('pages.auth.register', [
             'showCheck' => app(SignupBotCheck::class)->required($request->ip()),
+            'chosenPlan' => $plan,
+            'chosenCycle' => $choice->cycle($request->session()),
+            'monthsPaidPerYear' => app(PlanCatalogue::class)->monthsPaidPerYear(),
         ]);
     }
 }

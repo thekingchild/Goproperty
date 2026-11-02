@@ -6,12 +6,14 @@ namespace App\Http\Controllers\Marketing;
 
 use App\Marketing\PlanCatalogue;
 use App\Marketing\PublicSite;
+use App\Plans\Feature;
 use App\Support\Money;
 use Illuminate\Contracts\View\View;
 
 /**
- * The public marketing pages (UX_DESIGN.md § 4): the landing page and the
- * privacy and terms pages, all built from the published theme settings.
+ * The public marketing pages (UX_DESIGN.md § 4): the landing page, the
+ * pricing page (P06-11) and the privacy and terms pages, all built from the
+ * published theme settings and the plan catalogue's live plans.
  */
 final class MarketingController
 {
@@ -22,16 +24,19 @@ final class MarketingController
 
     public function home(PublicSite $site, PlanCatalogue $plans): View
     {
-        $calcPlan = $plans->bestFor(self::CALCULATOR_UNITS);
-        $perUnitNaira = (int) round($calcPlan->priceFor(self::CALCULATOR_UNITS)->kobo / self::CALCULATOR_UNITS / 100);
+        return view('marketing.home', $this->shared($site) + $this->calculator($plans));
+    }
 
-        return view('marketing.home', $this->shared($site) + [
-            'plans' => $plans,
-            'calcUnits' => self::CALCULATOR_UNITS,
-            'calcMax' => self::CALCULATOR_MAX,
-            'calcPlan' => $calcPlan,
-            // Whole naira, as the calculator script shows it.
-            'calcPerUnit' => Money::kobo($perUnitNaira * 100),
+    /**
+     * The pricing page (P06-11; BILLING_PAYMENTS.md § 1.1–1.2): the
+     * calculator and plan cards of the landing page, then every offered plan
+     * side by side with its features and limits, all from the plan tables
+     * at today's terms (a scheduled version shows from its date).
+     */
+    public function pricing(PublicSite $site, PlanCatalogue $plans): View
+    {
+        return view('marketing.pricing', $this->shared($site) + $this->calculator($plans) + [
+            'features' => Feature::cases(),
         ]);
     }
 
@@ -49,6 +54,22 @@ final class MarketingController
             'heading' => 'Terms of service',
             'body' => $site->theme()->string('site.terms'),
         ]);
+    }
+
+    /** @return array<string, mixed> */
+    private function calculator(PlanCatalogue $plans): array
+    {
+        $calcPlan = $plans->bestFor(self::CALCULATOR_UNITS);
+        $perUnitNaira = (int) round($calcPlan->priceFor(self::CALCULATOR_UNITS)->kobo / self::CALCULATOR_UNITS / 100);
+
+        return [
+            'plans' => $plans,
+            'calcUnits' => self::CALCULATOR_UNITS,
+            'calcMax' => self::CALCULATOR_MAX,
+            'calcPlan' => $calcPlan,
+            // Whole naira, as the calculator script shows it.
+            'calcPerUnit' => Money::kobo($perUnitNaira * 100),
+        ];
     }
 
     /** @return array<string, mixed> */

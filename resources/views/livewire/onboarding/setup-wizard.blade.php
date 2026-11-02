@@ -77,6 +77,19 @@
         </div>
       @endif
       <form class="stack" wire:submit="savePlan" novalidate>
+        @php $yearly = $cycle === \App\Enums\BillingCycle::Annual->value; @endphp
+        <fieldset class="field choices">
+          <legend>Billed</legend>
+          <div class="cycle-choice" data-test="cycle">
+            @foreach (\App\Enums\BillingCycle::cases() as $option)
+              <label @class(['cycle-choice__option', 'is-selected' => $cycle === $option->value])>
+                <input type="radio" name="cycle" value="{{ $option->value }}" wire:model.live="cycle">
+                <span>{{ $option->label() }}@if ($option === \App\Enums\BillingCycle::Annual) <small>{{ 12 - $monthsPaidPerYear }} months free</small>@endif</span>
+              </label>
+            @endforeach
+          </div>
+          @error('cycle')<p class="hint hint--error">{{ $message }}</p>@enderror
+        </fieldset>
         <fieldset class="field choices">
           <legend class="sr-only">Plan</legend>
           @foreach ($plans as $option)
@@ -85,7 +98,11 @@
               <span class="choice__body">
                 <strong>{{ $option->name }}
                   @if ($option->featured)<span class="badge">Most popular</span>@endif
-                  <span class="choice__price">{{ $option->custom ? 'from ' : '' }}{{ $option->base->format() }}<small>/month</small></span>
+                  @if ($yearly && ! $option->custom)
+                    <span class="choice__price">{{ $option->base->times($monthsPaidPerYear)->format() }}<small>/year</small></span>
+                  @else
+                    <span class="choice__price">{{ $option->custom ? 'from ' : '' }}{{ $option->base->format() }}<small>/month</small></span>
+                  @endif
                 </strong>
                 <span>{{ $option->audience }}</span>
                 <span class="choice__meta">{{ number_format($option->includedUnits) }} units included{{ $option->extraUnit !== null ? ' · '.$option->extraUnit->format().' per extra unit' : '' }}</span>
@@ -94,7 +111,7 @@
           @endforeach
           @error('plan')<p class="hint hint--error">{{ $message }}</p>@enderror
         </fieldset>
-        <p class="hint">Prices before VAT. You can change plan at any time during the trial.</p>
+        <p class="hint">Prices before VAT.@if ($yearly) Yearly: pay {{ $monthsPaidPerYear }} months, get 12; extra units are counted at each renewal.@endif You can change plan at any time during the trial.</p>
         @include('livewire.onboarding.partials.actions', ['primary' => 'Start my free trial', 'target' => 'savePlan', 'back' => true])
       </form>
       @break

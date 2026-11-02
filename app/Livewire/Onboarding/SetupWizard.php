@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Livewire\Onboarding;
 
+use App\Enums\BillingCycle;
 use App\Enums\ChecklistItem;
 use App\Enums\ChecklistStatus;
 use App\Enums\OnboardingStep;
@@ -11,9 +12,11 @@ use App\Enums\OrganizationType;
 use App\Enums\TransactionTier;
 use App\Marketing\Plan;
 use App\Marketing\PlanCatalogue;
+use App\Marketing\SignupPlanChoice;
 use App\Models\OnboardingChecklistItem;
 use App\Models\Organization;
 use App\Models\OrganizationOnboarding;
+use App\Models\Subscription;
 use App\Models\User;
 use App\Onboarding\OnboardingWizard;
 use App\Onboarding\StepOutOfOrder;
@@ -60,6 +63,9 @@ final class SetupWizard extends Component
 
     public string $plan = '';
 
+    /** BillingCycle value: monthly, or yearly ("pay 10 months, get 12"). */
+    public string $cycle = 'monthly';
+
     #[Locked]
     public ?string $notice = null;
 
@@ -73,7 +79,7 @@ final class SetupWizard extends Component
         abort_unless($context->id() === $this->organizationId, 404);
     }
 
-    public function mount(OrganizationContext $context, OnboardingWizard $wizard, PlanCatalogue $plans): void
+    public function mount(OrganizationContext $context, OnboardingWizard $wizard, PlanCatalogue $plans, SignupPlanChoice $choice): void
     {
         $organization = $context->get();
         $this->organizationId = $organization->id;
@@ -86,7 +92,7 @@ final class SetupWizard extends Component
         }
 
         $this->authorize('continueSignup', [$organization, $state->step]);
-        $this->fillFrom($organization, $state, $plans);
+        $this->fillFrom($organization, $state, $plans, $choice);
     }
 
     public function saveOrganization(OnboardingWizard $wizard): void
@@ -113,16 +119,21 @@ final class SetupWizard extends Component
         $this->attempt(fn () => $wizard->chooseTier($this->user(), $volume, TransactionTier::from((int) $this->tier)));
     }
 
-    public function savePlan(OnboardingWizard $wizard, PlanCatalogue $plans): void
+    public function savePlan(OnboardingWizard $wizard, PlanCatalogue $plans, SignupPlanChoice $choice): void
     {
         $this->authorizeStep(OnboardingStep::Plan);
 
         $keys = array_map(static fn (Plan $plan): string => $plan->key, $plans->plans());
-        $this->validate(['plan' => ['required', Rule::in($keys)]], ['plan.required' => 'Choose a plan.'], ['plan' => 'plan']);
+        $this->validate([
+            'plan' => ['required', Rule::in($keys)],
+            'cycle' => ['required', Rule::enum(BillingCycle::class)],
+        ], ['plan.required' => 'Choose a plan.'], ['plan' => 'plan', 'cycle' => 'billing period']);
 
         $chosen = collect($plans->plans())->firstOrFail(fn (Plan $plan): bool => $plan->key === $this->plan);
 
-        $this->attempt(fn () => $wizard->choosePlan($this->user(), $chosen));
+        if ($this->attempt(fn () => $wizard->choosePlan($this->user(), $chosen, BillingCycle::from($this->cycle)))) {
+            $choice->forget(session()->driver());
+        }
     }
 
     public function setUpCollectionsLater(OnboardingWizard $wizard): void
@@ -170,6 +181,7 @@ final class SetupWizard extends Component
             'recommendedTier' => $volume !== null ? $tiers->recommend($volume) : null,
             'plans' => $plans->plans(),
             'trialDays' => $plans->trialDays(),
+            'monthsPaidPerYear' => $plans->monthsPaidPerYear(),
             'brand' => app(ThemeContext::class)->current()->name(),
             'host' => parse_url((string) config('app.url'), PHP_URL_HOST) ?: 'goproperty.ng',
             'collectionLinks' => $this->collectionLinks($organization),
@@ -215,7 +227,12 @@ final class SetupWizard extends Component
         return $amount->isNegative() ? null : $amount;
     }
 
-    private function fillFrom(Organization $organization, OrganizationOnboarding $state, PlanCatalogue $plans): void
+    /**
+     * The plan step starts on the plan and cycle already chosen: the trial's,
+     * else the one picked on the pricing page in this browser (P06-11), else
+     * the featured plan, monthly.
+     */
+    private function fillFrom(Organization $organization, OrganizationOnboarding $state, PlanCatalogue $plans, SignupPlanChoice $choice): void
     {
         $this->form->fillFrom($organization);
         $this->annualVolume = $state->declared_annual_volume_kobo !== null
@@ -223,7 +240,9 @@ final class SetupWizard extends Component
             : '';
         $this->tier = $state->requested_tier?->value;
         $featured = collect($plans->plans())->first(fn (Plan $plan): bool => $plan->featured);
-        $this->plan = $organization->signup_plan_key ?? $featured->key ?? '';
+        $session = session()->driver();
+        $this->plan = $organization->signup_plan_key ?? $choice->plan($session)->key ?? $featured->key ?? '';
+        $this->cycle = (Subscription::query()->first()->billing_cycle ?? $choice->cycle($session))->value;
     }
 
     /** Runs a wizard change; a stale tab gets the current step instead of an error. */

@@ -215,6 +215,12 @@ select.input { appearance: none; padding-right: 2.5rem; background-image: url("d
 .choice__meta { font-size: .8125rem !important; color: var(--muted) !important; }
 .choice__price { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; }
 .choice__price small { font-weight: 500; color: var(--muted); }
+.cycle-choice { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+.cycle-choice__option { display: flex; align-items: center; gap: .5rem; padding: .625rem .875rem; border: 1px solid var(--border-strong); border-radius: 12px; background: #fff; cursor: pointer; font-weight: 600; }
+.cycle-choice__option input { width: 16px; height: 16px; margin: 0; flex: none; accent-color: var(--color-primary-700); cursor: pointer; }
+.cycle-choice__option small { display: block; font-weight: 500; color: var(--color-primary-700); font-size: .75rem; }
+.cycle-choice__option:focus-within { outline: 2px solid var(--color-primary-700); outline-offset: 2px; }
+.cycle-choice__option.is-selected { border-color: var(--color-primary-700); background: var(--color-primary-50); box-shadow: 0 0 0 1px var(--color-primary-700); }
 .badge { display: inline-flex; align-items: center; padding: .1rem .5rem; border-radius: 999px; background: var(--color-primary-100); color: var(--color-primary-900); font-size: .6875rem; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; }
 
 .options-list { display: grid; gap: .625rem; margin: 0; padding: 0; list-style: none; }

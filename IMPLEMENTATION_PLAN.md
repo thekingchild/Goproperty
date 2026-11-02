@@ -25,7 +25,7 @@ Each phase below is split into numbered tasks (`P00-01`, `P00-02`, …). Each ta
 | P03 | Leasing, branded documents & the customer money loop + import (part 2) | 9–12 | M3 | Complete (2026-10-31) |
 | P04 | Maintenance tickets | 13 | M4 | Complete (2026-10-29) |
 | P05 | Reminders, notifications, email templates & WhatsApp | 14–15 | M5 | Complete (2026-10-30) |
-| P06 | SaaS billing, compliance monitoring & full platform console | 16–18 | M6 | In progress |
+| P06 | SaaS billing, compliance monitoring & full platform console | 16–18 | M6 | Complete (2026-11-02) |
 | P07 | Building Group | 19 | M7 | Not started |
 | P08 | Reports, operations & analytics dashboards | 20 | M8 | Not started |
 | P09 | Hardening, NDPA & launch | 21–23 | M9 (Launch) | Not started |
@@ -164,7 +164,7 @@ Depends on: P03. Waves and the defaults for its open questions: [docs/plans/P05-
 
 **Phase exit:** all P05 tasks complete.
 
-### P06 — SaaS billing, compliance monitoring & full platform console (Weeks 16–18) — In progress
+### P06 — SaaS billing, compliance monitoring & full platform console (Weeks 16–18) — Complete (2026-11-02)
 
 Depends on: P05 (dunning notifications) and P01 (console core).
 
@@ -180,7 +180,7 @@ Depends on: P05 (dunning notifications) and P01 (console core).
 | P06-08 — **Complete (2026-10-31)** | Tier settings screen: editable tier limits and documents (two-person approval, effective dates, versions), per-organization overrides | A limit change needs a second approver and applies from its effective date |
 | P06-09 — **Complete (2026-11-01)** | Transaction Tier monitoring ([ONBOARDING_COMPLIANCE.md § 5.4–5.5](ONBOARDING_COMPLIANCE.md)): daily `compliance:evaluate-tiers`, volume snapshots, flags (80%/100%/single-over/cash threshold/structuring/spike/document expiry), upgrade prompts, 30-day grace, restriction, compliance flag queue | Time-travel: an org crossing 80% and 100% gets exactly one flag each; after 30 days without an application it becomes restricted, yet tenants can still view bills, upload proofs and receive receipts |
 | P06-10 — **Complete (2026-11-01)** | Backups console ([PLATFORM_CONSOLE.md § 4](PLATFORM_CONSOLE.md)): destinations, run now, list/download, verify, restore to staging, production restore with two-person approval | Backup verify restores the latest dump into a temporary database; production restore cannot start without a second approver |
-| P06-11 — **Not started** | Marketing/pricing page + plan checkout for new orgs | Pricing page reads live plan data; checkout starts a subscription in sandbox |
+| P06-11 — **Complete (2026-11-02)** | Marketing/pricing page + plan checkout for new orgs | Pricing page reads live plan data; checkout starts a subscription in sandbox |
 
 **Phase exit:** all P06 tasks complete.
 

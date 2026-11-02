@@ -30,7 +30,7 @@
           </div>
         @endif
       </div>
-      <div><h4>Product</h4><ul><li><a href="{{ $anchor('features') }}">Features</a></li><li><a href="{{ $anchor('payments') }}">Payments</a></li><li><a href="{{ $anchor('pricing') }}">Pricing</a></li><li><a href="{{ $anchor('faq') }}">FAQ</a></li></ul></div>
+      <div><h4>Product</h4><ul><li><a href="{{ $anchor('features') }}">Features</a></li><li><a href="{{ $anchor('payments') }}">Payments</a></li><li><a href="{{ request()->routeIs('home') ? '#pricing' : route('pricing') }}">Pricing</a></li><li><a href="{{ $anchor('faq') }}">FAQ</a></li></ul></div>
       <div><h4>Company</h4><ul><li><a href="{{ $demoUrl }}">Book a demo</a></li>@if ($theme->string('theme.support_email') !== '')<li><a href="mailto:{{ $theme->string('theme.support_email') }}">Contact</a></li>@endif<li><a href="{{ route('login') }}">Log in</a></li></ul></div>
       <div><h4>Legal</h4><ul><li><a href="{{ route('privacy') }}">Privacy</a></li><li><a href="{{ route('terms') }}">Terms</a></li></ul></div>
     </div>

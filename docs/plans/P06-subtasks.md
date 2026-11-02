@@ -273,3 +273,21 @@ Started 2026-11-01 at the product owner's request ("start P06-10"); one task, bu
 115. **Audit:** log name `backups`. It records requests, approvals, results, downloads, withdrawals, drills and destination changes.
 116. **Who:** as seeded since P01-07. The technical admin holds every `backups.*` permission except approving a production restore; the super-admin holds all of them.
 117. **Failures** (a backup, verify or restore that fails) are critical log lines and show as failed in Backup activity; alerts to staff come with P08-03.
+
+## P06-11 — Pricing page and plan checkout for new organizations
+
+Started 2026-11-02 at the product owner's request ("start P06-11"); one task, built by the orchestrator. Rules: [UX_DESIGN.md § 4](../../UX_DESIGN.md) (pricing section and page), [BILLING_PAYMENTS.md § 1.1–1.3](../../BILLING_PAYMENTS.md) (prices from the plan tables), [ONBOARDING_COMPLIANCE.md § 2](../../ONBOARDING_COMPLIANCE.md) step 4 (14-day trial, no card). AC: pricing page reads live plan data; checkout starts a subscription in sandbox.
+
+### Decided by the product owner (2026-11-02)
+
+- **"Checkout" carries the choice into the trial; nothing is paid at signup.** The plan and the billing period (monthly or yearly) picked on the pricing page go through signup, the wizard's plan step opens with them selected, and saving it starts the `trialing` subscription on that plan and period, with no card, as § 2 step 4 says. The first invoice is paid through GoProperty's Paystack (test mode in the sandbox, P06-03) when the trial ends. A "skip the trial and pay now" option was offered and not chosen: it would change the trial and invoicing rules.
+- **A pricing page of its own at `/pricing`,** with the landing page's calculator and plan cards and a plan-by-plan comparison of every feature and limit, all read from the plan tables. The landing page keeps its pricing section, and its nav's "Pricing" link still jumps to it.
+
+### Defaults taken in P06-11 (for the product owner to confirm)
+
+118. **How the choice travels.** "Start free trial" on a plan card links to `/register?plan=<key>&cycle=monthly|annual` (the Monthly/Yearly toggle switches the link). The account step keeps it in the session (`App\Marketing\SignupPlanChoice`) and shows "Growth plan, billed yearly: ₦350,000 a year for 50 units, plus VAT, after your free trial". The session survives the verification link opened in the same browser. Opened in another browser, the wizard proposes its usual plan (the featured one, monthly), as before P06-11. Nothing is stored on the account.
+119. **Which links count.** Only a plan offered to new signups and not priced "from" (Enterprise stays "Talk to us"). An unknown, withdrawn or Enterprise key is ignored without an error. Any period other than yearly (`annual`, `yearly` or `year`) is read as monthly.
+120. **The wizard's plan step** gets a **Monthly / Yearly** choice above the plans. Yearly shows each plan at "pay 10 months, get 12" (`config/plans.php`). It starts on the trial's plan and period when the step was saved before, else the pricing page's choice, else the featured plan, monthly. Saving it may change both until the trial ends, through `SubscriptionService::start()` as before; the trial's end date never moves. Custom plans are shown as before (monthly "from" price).
+121. **The comparison table** lists, for every plan offered to new signups at today's terms: base price a month and a year (Enterprise: "Custom contract"), units included, each extra unit ("Custom" when none), trial days, then every feature of the registry (`App\Plans\Feature`) with its switch or limit. Rows common to every plan (properties, branded documents, portals, transfers, import, tickets, email reminders) are one sentence above the table, not data. A version scheduled for a later date shows from that date.
+122. **Settings → Subscription** says "Billed monthly" or "Billed yearly" under the plan's status.
+123. **The sitemap** lists `/pricing`. The pricing page's nav links lead back to the landing page's sections, and its "Pricing" link is marked as the current page; the footer's "Pricing" leads to `/pricing` on every page but the landing page.

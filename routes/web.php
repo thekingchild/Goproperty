@@ -60,6 +60,7 @@ use Illuminate\View\Middleware\ShareErrorsFromSession;
 // Public marketing pages (UX_DESIGN.md § 4, PLATFORM_CONSOLE.md § 9.3–9.5).
 Route::middleware(PublicPageHeaders::class)->controller(MarketingController::class)->group(function () {
     Route::get('/', 'home')->name('home');
+    Route::get('pricing', 'pricing')->name('pricing');
     Route::get('privacy', 'privacy')->name('privacy');
     Route::get('terms', 'terms')->name('terms');
 });

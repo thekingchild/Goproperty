@@ -82,6 +82,8 @@ Sections, in order:
 | 12 | Final CTA (dark, skyline) | "Your next rent cycle could be the easy one." + trial and demo buttons |
 | 13 | Footer | Logo, footer text, social links (theme settings), Product / Company / Help columns |
 
+**Pricing page (`/pricing`, P06-11).** Same nav (its links lead back to the landing page's sections; "Pricing" is the current page), footer and CTA band, with a shorter dark page head ("Priced per unit…") instead of the hero. Then the calculator, Monthly/Yearly toggle and plan cards of section 8, and **Compare plans**: one column per plan offered to new signups, rows for the base price a month and a year, units included, each extra unit and trial days, then every feature and limit of the plan registry (tick, dash or number). The table scrolls sideways inside its card on phones (row labels stay put); the page itself never does. Every value comes from the plan tables at today's terms. On both pages, a plan's "Start free trial" opens signup with that plan and the period the toggle shows (`/register?plan=growth&cycle=annual`); Enterprise stays "Talk to us" ([docs/plans/P06-subtasks.md](docs/plans/P06-subtasks.md) defaults 118–123).
+
 - Interactions are keyboard accessible (tabs use arrow keys), respect `prefers-reduced-motion`, and the page still reads correctly with JavaScript off (default tab content is in the HTML).
 - Sections fade up once as they enter the viewport. No autoplay video, no carousels.
 - SEO and custom-code slots in `<head>`/`<body>` follow [PLATFORM_CONSOLE.md § 9.4–9.5](PLATFORM_CONSOLE.md).

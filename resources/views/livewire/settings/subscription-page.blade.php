@@ -53,6 +53,7 @@
                     <dd class="mt-1 text-2xl font-semibold text-zinc-900 dark:text-white" data-test="plan-name">{{ $plan->name }}</dd>
                     @if ($subscription)
                         <dd class="mt-1"><flux:badge size="sm" data-test="status">{{ __($subscription->status->label()) }}</flux:badge></dd>
+                        <dd class="mt-1 text-sm text-zinc-500 dark:text-zinc-400" data-test="cycle">{{ $subscription->billing_cycle === \App\Enums\BillingCycle::Annual ? __('Billed yearly') : __('Billed monthly') }}</dd>
                     @endif
                 </div>
                 <div class="rounded-lg bg-zinc-50 p-4 dark:bg-zinc-800">

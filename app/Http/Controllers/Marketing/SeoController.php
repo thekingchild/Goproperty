@@ -19,7 +19,7 @@ final class SeoController
     public const array DISALLOWED = ['/login', '/register', '/o/', '/portal', '/owner', '/pay/', '/verify/', '/install', '/dashboard', '/settings'];
 
     /** Marketing pages listed in the sitemap, by route name. */
-    public const array PAGES = ['home', 'privacy', 'terms'];
+    public const array PAGES = ['home', 'pricing', 'privacy', 'terms'];
 
     public function robots(PublicSite $site): Response
     {

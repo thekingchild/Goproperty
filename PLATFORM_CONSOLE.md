@@ -382,7 +382,7 @@ Plain-text fields strip tags and reject `<` `>`. Prices on the landing page are 
 
 Output on public pages: `<title>`, description, canonical, Open Graph (`og:site_name`, `og:type`, `og:title`, `og:description`, `og:url`, `og:image` + size, `og:locale=en_NG`), `twitter:card=summary_large_image`, `theme-color`, favicon/manifest links, and JSON-LD (`Organization` + `SoftwareApplication` with the Starter price as an `Offer`). Help-centre and news articles can override title and description per page.
 
-`/robots.txt` disallows `/login`, `/o/`, `/portal`, `/owner`, `/pay/`, `/verify/` and never mentions the console path. `/sitemap.xml` lists marketing pages and published articles (cached 10 minutes). Login, 2FA, password and app pages are always `noindex, nofollow`.
+`/robots.txt` disallows `/login`, `/o/`, `/portal`, `/owner`, `/pay/`, `/verify/` and never mentions the console path. `/sitemap.xml` lists marketing pages (home, pricing, privacy, terms) and published articles (cached 10 minutes). Login, 2FA, password and app pages are always `noindex, nofollow`.
 
 ### 9.5 Custom code
 

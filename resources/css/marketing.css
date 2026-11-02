@@ -546,3 +546,24 @@ html:has(.announce:not([hidden])) .nav-spacer { height: calc(84px + 2.5rem); }
 
 /* ===== Console theme preview (PLATFORM_CONSOLE.md § 9.8) ===== */
 .preview-ribbon { position: fixed; inset: auto 1rem 1rem; z-index: 60; margin: 0 auto; max-width: 34rem; padding: .625rem 1rem; border-radius: 999px; background: var(--color-brand-accent-50); color: var(--color-brand-accent-700); box-shadow: var(--shadow-panel); font-size: .875rem; font-weight: 600; text-align: center; }
+
+/* ===== Pricing page (P06-11) ===== */
+.site-top--page { min-height: 0; }
+@media (min-width: 1024px) { .site-top--page { min-height: 0; } }
+.page-head { padding-block: 2.75rem clamp(3rem, 7vw, 5rem); }
+.page-head .eyebrow { color: var(--color-brand-accent-soft); }
+.page-head .lede { color: rgba(255,255,255,.78); }
+.page-head__title { max-width: 20ch; }
+.compare { margin-top: 2.5rem; overflow-x: auto; border: 1px solid var(--border); border-radius: var(--gp-radius-lg); background: #fff; }
+.compare:focus-visible { outline: 2px solid var(--color-primary-700); outline-offset: 2px; }
+.compare__table { width: 100%; min-width: 44rem; border-collapse: collapse; font-size: .9375rem; }
+.compare__table th, .compare__table td { padding: .85rem 1rem; border-bottom: 1px solid var(--border); text-align: center; vertical-align: middle; }
+.compare__table thead th { position: sticky; top: 0; background: #fff; font-size: 1rem; font-weight: 800; }
+.compare__table thead th.is-featured { color: var(--color-primary-700); }
+.compare__table tbody th[scope="row"], .compare__table tfoot th { position: sticky; left: 0; z-index: 1; width: 34%; background: #fff; text-align: start; font-weight: 600; }
+.compare__table td { font-variant-numeric: tabular-nums; }
+.compare__table td.is-yes svg { color: var(--color-primary-700); vertical-align: middle; }
+.compare__table td.is-no { color: var(--muted); }
+.compare__group th { background: var(--canvas); text-align: start; font-size: .8125rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.compare__table tfoot td, .compare__table tfoot th { border-bottom: 0; }
+.compare__table tfoot .btn { white-space: nowrap; }

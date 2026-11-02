@@ -5,44 +5,7 @@
     settings and the plan catalogue (PLATFORM_CONSOLE.md § 9).
 --}}
 <x-layouts::marketing :schema="true" :script="true">
-<div class="nav-bar" data-nav>
-  @include('marketing.partials.announcement')
-  <div class="wrap nav">
-    @include('marketing.partials.brand', ['tone' => 'dark'])
-    <nav class="nav__links" aria-label="Primary">
-      <a href="#product">Product</a>
-      <a href="#features">Features</a>
-      <a href="#payments">Payments</a>
-      <a href="#pricing">Pricing</a>
-      <a href="#faq">FAQ</a>
-    </nav>
-    <div class="nav__actions">
-      <a class="nav__login" href="{{ route('login') }}">Log in</a>
-      <a class="pill pill--login" href="{{ route('login') }}">Log in</a>
-      <a class="pill pill--trial" href="{{ $trialUrl }}">Start free trial</a>
-      <button class="menu-btn" type="button" aria-label="Open menu" aria-haspopup="dialog" data-menu-open>
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
-      </button>
-    </div>
-  </div>
-  <dialog class="menu" aria-labelledby="menu-title" data-menu>
-    <div class="menu__head">
-      <p id="menu-title">{{ $brand }}</p>
-      <button class="menu__close" type="button" aria-label="Close menu" data-menu-close><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
-    </div>
-    <nav aria-label="Menu">
-      <a href="#product">Product</a>
-      <a href="#features">Features</a>
-      <a href="#payments">Payments</a>
-      <a href="#pricing">Pricing</a>
-      <a href="#faq">FAQ</a>
-    </nav>
-    <div class="menu__ctas">
-      <a class="btn btn--primary" href="{{ $trialUrl }}">Start free trial</a>
-      <a class="btn btn--ghost" href="{{ route('login') }}">Log in</a>
-    </div>
-  </dialog>
-</div>
+@include('marketing.partials.nav', ['landing' => true])
 
 @include('marketing.partials.hero')
 
@@ -398,26 +361,7 @@
         <p class="lede">A base price that includes some units, then a small fee for each extra one. No fee on payments. Every plan starts with a {{ $plans->trialDays() }}-day free trial — no card.</p>
       </div>
 
-      <div class="calc reveal">
-        <div>
-          <label for="units">How many units do you manage?</label>
-          <div class="calc__units"><output for="units" data-units-out>{{ number_format($calcUnits) }}</output><span>blocks / apartments</span></div>
-          <input class="range" id="units" type="range" min="1" max="{{ $calcMax }}" value="{{ $calcUnits }}" data-units>
-        </div>
-        <div class="calc__result" aria-live="polite">
-          <small>Best plan for you</small>
-          <p class="calc__price" data-calc-price>{{ $calcPlan->priceFor($calcUnits)->format() }} <span>/ month</span></p>
-          <p class="calc__meta" data-calc-meta>{{ $calcPlan->name }} · {{ $calcPerUnit->format() }} per unit a month · plus {{ $plans->vatPercent() }}% VAT</p>
-        </div>
-      </div>
-
-      <div class="billing-toggle reveal">
-        <div class="seg" role="tablist" aria-label="Billing period" data-tabs="period">
-          <button type="button" role="tab" aria-selected="true" data-period="month">Monthly</button>
-          <button type="button" role="tab" aria-selected="false" data-period="year" tabindex="-1">Yearly <span class="save-tag">{{ 12 - $plans->monthsPaidPerYear() }} months free</span></button>
-        </div>
-      </div>
-
+      @include('marketing.partials.calculator')
       @include('marketing.partials.plans')
       <p class="price-note">Prices exclude {{ $plans->vatPercent() }}% VAT. Units are blocks/apartments, counted on your billing day.</p>
     </div>

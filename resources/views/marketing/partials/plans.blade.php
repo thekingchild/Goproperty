@@ -1,4 +1,9 @@
-{{-- Plan cards from the plan catalogue (BILLING_PAYMENTS.md § 1.1); never typed into settings. --}}
+{{--
+    Plan cards from the plan catalogue (BILLING_PAYMENTS.md § 1.1); never typed
+    into settings. "Start free trial" carries the plan and the billing period
+    into signup (P06-11, App\Marketing\SignupPlanChoice); the page script
+    switches the link with the Monthly/Yearly toggle.
+--}}
 <div class="plans reveal" data-plans>
   @foreach ($plans->plans() as $plan)
     <article @class(['plan', 'plan--featured' => $plan->featured, 'is-match' => $plan->key === $calcPlan->key]) data-plan="{{ $plan->key }}">
@@ -20,7 +25,7 @@
       @if ($plan->custom)
         <a class="btn btn--dark" href="{{ $demoUrl }}">Talk to us</a>
       @else
-        <a @class(['btn', 'btn--white' => $plan->featured, 'btn--ghost' => ! $plan->featured]) href="{{ $trialUrl }}">Start free trial</a>
+        <a @class(['btn', 'btn--white' => $plan->featured, 'btn--ghost' => ! $plan->featured]) href="{{ route('register', ['plan' => $plan->key, 'cycle' => 'monthly']) }}" data-href-month="{{ route('register', ['plan' => $plan->key, 'cycle' => 'monthly']) }}" data-href-year="{{ route('register', ['plan' => $plan->key, 'cycle' => 'annual']) }}">Start free trial</a>
       @endif
     </article>
   @endforeach
