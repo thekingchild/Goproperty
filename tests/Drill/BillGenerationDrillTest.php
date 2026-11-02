@@ -56,7 +56,7 @@ use Modules\Tenants\Models\TenantProfile;
  * rows, so this test commits and cleans up after itself.
  */
 
-const BILL_DRILL_TABLES = ['bill_items', 'utility_readings', 'bills', 'unit_utility_settings', 'utility_types', 'document_verifications', 'lease_contracts', 'lease_deposit_entries', 'leases', 'units', 'properties', 'tenant_profiles', 'document_counters', 'settings', 'organizations', 'users', 'activity_log'];
+const BILL_DRILL_TABLES = ['bill_items', 'utility_readings', 'bills', 'unit_utility_settings', 'utility_types', 'document_verifications', 'lease_contracts', 'lease_deposit_entries', 'group_members', 'building_groups', 'leases', 'units', 'properties', 'tenant_profiles', 'document_counters', 'settings', 'organizations', 'users', 'activity_log'];
 
 beforeEach(function () {
     DB::table('audit_chain_head')->insertOrIgnore(['id' => 1, 'last_hash' => null, 'updated_at' => now()]);

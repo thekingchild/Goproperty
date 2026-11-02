@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\Gate;
 use Livewire\Livewire;
 use Modules\Import\Contracts\ImportTargets;
 use Modules\Import\Contracts\ImportUsages;
+use Modules\Leasing\Contracts\BuildingResidents;
 use Modules\Leasing\Contracts\CycleCalculator as CycleCalculatorContract;
 use Modules\Leasing\Contracts\EndingLeases;
 use Modules\Leasing\Contracts\ImportedLeases;
@@ -53,6 +54,7 @@ use Modules\Leasing\Leases\LeaseService;
 use Modules\Leasing\Leases\OwnerLeaseRecords;
 use Modules\Leasing\Leases\RentForecastRecords;
 use Modules\Leasing\Leases\RentPaymentRules;
+use Modules\Leasing\Leases\ResidentRecords;
 use Modules\Leasing\Listeners\IssueLeaseContract;
 use Modules\Leasing\Lists\LeaseList;
 use Modules\Leasing\Models\Lease;
@@ -69,7 +71,8 @@ use Nwidart\Modules\Support\ModuleServiceProvider;
  * and Contracts\OwnerLeaseContracts for the owner portal, P03-15 and
  * P03-16; Contracts\UnitLeases for maintenance
  * tickets, P04-01; Contracts\LeasePagePanels, where other modules add
- * panels to a lease's page, P04-03), and adds the lease pages
+ * panels to a lease's page, P04-03; Contracts\BuildingResidents for the
+ * Building Group's members, P07-01), and adds the lease pages
  * (routes, Livewire namespace `leasing::`, classes in
  * Modules\Leasing\Livewire), LeasePolicy, the sidebar item "Leases", the
  * list's export (Lists\LeaseList), the organization settings
@@ -128,6 +131,8 @@ final class LeasingServiceProvider extends ModuleServiceProvider
         $this->app->singleton(LeasePagePanels::class, LeasePanelRegistry::class);
         // How many payments a tenant may make on a rent bill (P03-17), for the Payments module.
         $this->app->bind(RentPaymentLimits::class, RentPaymentRules::class);
+        // Who lives in a building (active leases), for the Building Group's members (P07-01).
+        $this->app->bind(BuildingResidents::class, ResidentRecords::class);
         // One of it, so a dry run's memory of the tenants and units it looked up is kept between rows.
         $this->app->singleton(LeasesImportTarget::class);
     }

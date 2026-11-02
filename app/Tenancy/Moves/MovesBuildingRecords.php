@@ -8,7 +8,7 @@ namespace App\Tenancy\Moves;
  * "Move these buildings' live records to organization X" (ARCHITECTURE.md
  * § 6.1, BILLING_PAYMENTS.md § 7.4): implemented by every module that owns
  * building-linked live records (Properties, Tenants, Leasing, Billing,
- * Tickets) and by Core's media library (App\Media\MediaMover), and
+ * Tickets, BuildingGroup) and by Core's media library (App\Media\MediaMover), and
  * registered into BuildingRecordMovers from the owner's service provider,
  * the way import targets are (§ 6.12).
  *
@@ -24,7 +24,7 @@ namespace App\Tenancy\Moves;
  */
 interface MovesBuildingRecords
 {
-    /** Lower runs first: Properties 10, Tenants 20, Leasing 30, Tenants' portal links 35, Billing 40, Tickets 50, media 90. */
+    /** Lower runs first: Properties 10, Tenants 20, Leasing 30, Tenants' portal links 35, Billing 40, Tickets 50, Building Group 60, media 90. */
     public function order(): int;
 
     /**

@@ -18,6 +18,7 @@ use Modules\Import\Contracts\UpsertResult;
 use Modules\Properties\Buildings\Amenities;
 use Modules\Properties\Buildings\Properties;
 use Modules\Properties\Enums\PropertyType;
+use Modules\Properties\Events\PropertyCreated;
 use Modules\Properties\Models\Property;
 use Modules\Properties\Models\Unit;
 use WeakMap;
@@ -240,6 +241,11 @@ final class PropertiesImportTarget implements ImportTarget
         }
 
         $property->save();
+
+        if ($action !== ImportAction::Update) {
+            // After the chunk commits: the Building Group opens the building's group (P07-01).
+            PropertyCreated::dispatch($property->organization_id, $property->id, restored: $action === ImportAction::Restore);
+        }
 
         if ($action === ImportAction::Restore) {
             activity(Properties::LOG)

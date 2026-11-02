@@ -1,0 +1,28 @@
+{
+    "name": "goproperty/buildinggroup",
+    "description": "Building Group: one discussion group per building, its members kept in step with leases (P07)",
+    "authors": [
+        {
+            "name": "GoProperty",
+            "email": ""
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [],
+            "aliases": {
+
+            }
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Modules\\BuildingGroup\\": "app/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Modules\\BuildingGroup\\Tests\\": "tests/"
+        }
+    }
+}

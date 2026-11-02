@@ -16,6 +16,7 @@ use App\Tenancy\OrganizationContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Modules\Billing\Handover\UtilitiesMover;
+use Modules\BuildingGroup\Handover\BuildingGroupsMover;
 use Modules\Leasing\Handover\LeasesMover;
 use Modules\Properties\Handover\BuildingsMover;
 use Modules\Properties\Models\Property;
@@ -101,7 +102,7 @@ it('refuses rows that are not in the organization the buildings leave, and recor
 
 it('runs every module\'s mover, in order, media last', function () {
     expect(array_map(fn (MovesBuildingRecords $mover): string => $mover::class, app(BuildingRecordMovers::class)->all()))
-        ->toBe([BuildingsMover::class, TenantsMover::class, LeasesMover::class, LeftPortalLinksRevoker::class, UtilitiesMover::class, TicketsMover::class, MediaMover::class]);
+        ->toBe([BuildingsMover::class, TenantsMover::class, LeasesMover::class, LeftPortalLinksRevoker::class, UtilitiesMover::class, TicketsMover::class, BuildingGroupsMover::class, MediaMover::class]);
 });
 
 it('lets only the management handover run moves, and only OrganizationMoves start one', function () {

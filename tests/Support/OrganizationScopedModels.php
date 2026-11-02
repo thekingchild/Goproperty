@@ -56,6 +56,9 @@ use Modules\Billing\Models\UnitUtilitySetting;
 use Modules\Billing\Models\UtilityReading;
 use Modules\Billing\Models\UtilityType;
 use Modules\Billing\Utilities\MeterValue;
+use Modules\BuildingGroup\Enums\MemberType;
+use Modules\BuildingGroup\Models\BuildingGroup;
+use Modules\BuildingGroup\Models\GroupMember;
 use Modules\Collections\Enums\DateOrder;
 use Modules\Collections\Enums\LineDirection;
 use Modules\Collections\Enums\StatementFormat;
@@ -376,6 +379,14 @@ final class OrganizationScopedModels
                 'figures' => ['format' => 1],
                 'version' => 1,
             ])->save()),
+            // Building Group (P07-01): Groups\BuildingGroups is the writer; the probes are about the rows.
+            BuildingGroup::class => fn (): Model => self::buildingGroup(),
+            GroupMember::class => fn (): Model => tap(new GroupMember, fn (GroupMember $member): bool => $member->forceFill([
+                'building_group_id' => self::buildingGroup()->id,
+                'member_type' => MemberType::Tenant,
+                'tenant_profile_id' => TenantProfile::factory()->create()->id,
+                'joined_at' => now(),
+            ])->save()),
             // Maintenance tickets (P04-01): TicketService is the writer; the probes are about the rows.
             Ticket::class => fn (): Model => self::ticket(),
             TicketStatusChange::class => fn (): Model => tap(new TicketStatusChange, fn (TicketStatusChange $change): bool => $change->forceFill([
@@ -587,6 +598,15 @@ final class OrganizationScopedModels
             'status' => TemplateStatus::Approved,
             'components' => [['type' => 'BODY', 'text' => 'Hello {{1}}']],
             'variable_count' => 1,
+        ])->save());
+    }
+
+    /** An open Building Group of a new building, in the current organization. */
+    private static function buildingGroup(): BuildingGroup
+    {
+        return tap(new BuildingGroup, fn (BuildingGroup $group): bool => $group->forceFill([
+            'property_id' => Property::factory()->create()->id,
+            'is_active' => true,
         ])->save());
     }
 

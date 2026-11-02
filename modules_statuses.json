@@ -13,5 +13,6 @@
     "OwnerStatements": true,
     "Tickets": true,
     "Reminders": true,
-    "WhatsApp": true
+    "WhatsApp": true,
+    "BuildingGroup": true
 }

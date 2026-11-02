@@ -18,6 +18,7 @@ use Illuminate\Validation\ValidationException;
 use Modules\Properties\Enums\PropertyStatus;
 use Modules\Properties\Enums\PropertyType;
 use Modules\Properties\Enums\UnitStatus;
+use Modules\Properties\Events\PropertyCreated;
 use Modules\Properties\Models\OwnerProfile;
 use Modules\Properties\Models\Property;
 
@@ -68,6 +69,8 @@ final readonly class Properties
                     $this->audit('property.created', $property, $by, 'Building added', ['slug' => $property->slug]);
                     // ONBOARDING_COMPLIANCE.md § 2 step 6: "or add your first property".
                     $this->checklist->complete(ChecklistItem::Data, $by, ['first_property_id' => $property->id]);
+                    // After the commit: the Building Group opens the building's group (P07-01).
+                    PropertyCreated::dispatch($property->organization_id, $property->id);
 
                     return $property;
                 });

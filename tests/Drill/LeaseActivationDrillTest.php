@@ -28,7 +28,7 @@ use Modules\Tenants\Models\TenantProfile;
  * rows, so this test commits and cleans up after itself.
  */
 
-const LEASE_DRILL_TABLES = ['jobs', 'lease_contracts', 'document_verifications', 'lease_deposit_entries', 'leases', 'units', 'properties', 'tenant_profiles', 'document_counters', 'organizations', 'users', 'activity_log'];
+const LEASE_DRILL_TABLES = ['jobs', 'lease_contracts', 'document_verifications', 'lease_deposit_entries', 'group_members', 'building_groups', 'leases', 'units', 'properties', 'tenant_profiles', 'document_counters', 'organizations', 'users', 'activity_log'];
 
 beforeEach(function () {
     // DatabaseTruncation empties every table between drills, the audit
