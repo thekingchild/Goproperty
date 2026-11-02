@@ -240,7 +240,7 @@ it('gives every workspace list page a working export, in Excel and CSV', functio
     $offered = array_values(array_unique($offered));
     sort($offered);
     expect($offered)->toBe(array_keys($registry->keys()))
-        ->toBe(['bank_statement_lines', 'bank_statements', 'bills', 'building_agents', 'buildings', 'expenses', 'handovers_made', 'handovers_received', 'imports', 'leases', 'member_invitations', 'members', 'owner_statements', 'owners', 'payments', 'receipts', 'sms_credit_entries', 'tenants', 'tickets', 'units', 'utility_readings', 'utility_settings', 'utility_types']);
+        ->toBe(['bank_statement_lines', 'bank_statements', 'bills', 'building_agents', 'building_groups', 'buildings', 'expenses', 'handovers_made', 'handovers_received', 'imports', 'leases', 'member_invitations', 'members', 'owner_statements', 'owners', 'payments', 'receipts', 'sms_credit_entries', 'tenants', 'tickets', 'units', 'utility_readings', 'utility_settings', 'utility_types']);
 });
 
 it('makes every Livewire component that pages through a list use the export', function () {

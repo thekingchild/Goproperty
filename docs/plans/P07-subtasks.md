@@ -19,3 +19,31 @@ Started 2026-11-02 at the product owner's request ("Start P07-01"); one task, bu
 9. **Membership changes are not audited one by one.** They follow the leases, which are audited; a handover's audit entry counts the members who left and joined (`building_group_members_left`, `building_group_members_joined`).
 
 **Open question for the product owner:** default 8 means a group's posts stay with the organization that wrote them when a building is handed over. If the receiving agency should see the landlord's earlier posts, that is a copy step for P07-02 to add.
+
+## P07-02 — posts, comments, reactions; rich text; images
+
+Started 2026-11-02 at the product owner's request ("Start P07-02"); one task, built by the orchestrator in `Modules\BuildingGroup` (ARCHITECTURE.md § 6.8 "How posts, comments and reactions are built").
+
+### Defaults taken in P07-02 (orchestrator, 2026-11-02; for the product owner to confirm)
+
+10. **Staff see the groups of the buildings they see, and write with `building_groups.participate`.** Seeing needs `properties.view` (owners, administrators, agents), so a suspended organization's staff can still read; an agent assigned to buildings sees their buildings' groups only. Posting, commenting and reacting need `building_groups.participate` (the same three roles already hold it). Moderation (`building_groups.moderate`) waits for P07-04.
+11. **Tenants see and write in a group only while they are members** (P07-01: an active lease in the building) and the group is open. A tenant whose lease ends loses the group at once, their old posts staying with their name. Tenants write from the portal as the tenant record that makes them a member.
+12. **The plan switch gates everything.** Without Building Group (Starter), the sidebar item is hidden, the workspace pages answer 403 with the upgrade message, the portal leaves that agency's groups out and the writer refuses; the posts are kept for the day the plan includes it again. An organization that has not chosen a plan yet is not gated (as every switch).
+13. **Rich text is bold, italic, bulleted and numbered lists, and links (http, https, mailto)**, the toolbar ARCHITECTURE.md § 6.8 names. Links open in a new tab with `rel="nofollow noopener noreferrer ugc"`. Pasted text comes in plain; pasted headings become paragraphs; anything else is removed. No headings, quotes, underline, colours or embedded images in the words.
+14. **Lengths:** a post's text at most 5,000 characters (the schema's 5,000, counted as text, not markup), a comment's 2,000; more than 20,000 bytes of HTML is refused, never cut.
+15. **Photos are for posts only:** up to 4, JPEG, PNG or WebP, 2 MB each (ARCHITECTURE.md § 6.8), within the media library's pixel caps (8,000 px a side, 25 MP). GIF, HEIC (iPhones: save as JPEG), SVG, PDF and anything else are refused. A collection of their own (`group_images`, attachments) rather than the 10 MB `photos` of buildings. Comments carry no photos.
+16. **Names in the feed:** a tenant shows as the agency's record of them, first name and surname initial ("Kemi A."), never their unit, phone or email; staff show by name with the agency's name beside it.
+17. **Reactions: six emojis** (👍 ❤️ 😂 😮 😢 🙏), **one per person per post or comment**: the same again takes it back, another replaces it. The schema's unique key listed the emoji too, which would have allowed several; it is left out to match ARCHITECTURE.md § 6.8 "one reaction per user". Taking a reaction back deletes its row: a toggle, not a record.
+18. **Replies are one level deep:** a reply to a reply is filed under the same comment.
+19. **Group settings** (`building_groups.settings`): `members_post` (default on: tenants start posts; off: only staff start posts, tenants still comment and react) and `images` (default on). Read and enforced now; the form to change them comes with moderation (P07-04).
+20. **Authors remove their own posts and comments** (soft delete, gone for everyone). A removed post takes its comments and **its photos are deleted for good** (attachments; a photo posted by mistake must really go), audited with their sha256; a removed comment takes its replies.
+21. **No editing yet.** `edited_at` stays for a later task; an author removes and posts again.
+22. **Limits per person, across groups:** 10 posts an hour, 60 comments an hour, 120 reactions a minute.
+23. **While GoProperty staff impersonate**, a write session may post words (audited with both identities) but photos are neither added nor shown (people's photos, PLATFORM_CONSOLE.md § 6), as on tickets; removing is refused (a delete).
+24. **Read-only cases:** a suspended organization's groups (staff and tenants), a closed group (staff read it; tenants do not see it), a muted member (P07-04 sets the mute; it is honoured now).
+25. **Audit:** publishing and removing posts and comments are logged (`building_group`), ids only, never the words; reactions are not logged.
+26. **No notifications for posts yet.** P07-03 brings live updates; whether to notify by email or SMS is for later.
+27. **The building's owner (`/owner`) has no group page in P07-02.** Owners are not members (default 3); whether they read or write in their buildings' groups is for the product owner.
+28. **Default 8's open question stays open:** posts are not copied when a building is handed over; the receiving agency starts a fresh group.
+
+**Found while building (not changed):** `App\Media\UploadValidator` checks that a JPEG, PNG or WebP decodes by reading its header only (to keep memory low on shared hosts), so a file cut short after its header passes and its thumbnail then fails on the `media` queue (the page then links the original, which a browser cannot show). A full decode before storing would catch it at a memory cost; for the product owner to decide.

@@ -191,7 +191,7 @@ Depends on: P03 (leases drive membership).
 | ID | Deliverable | Acceptance |
 | --- | --- | --- |
 | P07-01 — **Complete (2026-11-02)** | Per-building group (auto-created), membership sync from leases | Ending a lease removes the tenant from the group; a new lease adds them |
-| P07-02 — **Not started** | Posts, comments, reactions; rich text (limited toolbar, sanitized); images (validated + thumbnails) | XSS suite: script/iframe/onload payloads neutralized; disallowed upload types rejected |
+| P07-02 — **Complete (2026-11-02)** | Posts, comments, reactions; rich text (limited toolbar, sanitized); images (validated + thumbnails) | XSS suite: script/iframe/onload payloads neutralized; disallowed upload types rejected |
 | P07-03 — **Not started** | Polling updates (shared hosting) with Reverb realtime on VPS | Two browser sessions see a post/comment/reaction within 30 s by polling (shared-hosting profile) and within 1 s via Reverb (VPS profile) |
 | P07-04 — **Not started** | Moderation (pin/hide/mute), report-abuse | Hidden/removed posts vanish for members but remain for moderators with an audit trail |
 

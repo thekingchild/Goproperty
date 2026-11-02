@@ -52,6 +52,12 @@ final class BuildingGroup extends Model
         return $this->hasMany(GroupMember::class);
     }
 
+    /** @return HasMany<GroupPost, $this> */
+    public function posts(): HasMany
+    {
+        return $this->hasMany(GroupPost::class);
+    }
+
     /** @return array<string, string> */
     protected function casts(): array
     {

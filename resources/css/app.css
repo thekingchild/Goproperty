@@ -71,6 +71,11 @@
     ::file-selector-button {
         border-color: var(--color-gray-200, currentColor);
     }
+
+    /* Alpine shows these once it has started (e.g. the Building Group's reaction picker). */
+    [x-cloak] {
+        display: none !important;
+    }
 }
 
 [data-flux-field]:not(ui-radio, ui-checkbox) {

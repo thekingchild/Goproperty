@@ -56,9 +56,15 @@ use Modules\Billing\Models\UnitUtilitySetting;
 use Modules\Billing\Models\UtilityReading;
 use Modules\Billing\Models\UtilityType;
 use Modules\Billing\Utilities\MeterValue;
+use Modules\BuildingGroup\Enums\AuthorKind;
 use Modules\BuildingGroup\Enums\MemberType;
+use Modules\BuildingGroup\Enums\ReactableType;
+use Modules\BuildingGroup\Enums\Reaction;
 use Modules\BuildingGroup\Models\BuildingGroup;
+use Modules\BuildingGroup\Models\GroupComment;
 use Modules\BuildingGroup\Models\GroupMember;
+use Modules\BuildingGroup\Models\GroupPost;
+use Modules\BuildingGroup\Models\GroupReaction;
 use Modules\Collections\Enums\DateOrder;
 use Modules\Collections\Enums\LineDirection;
 use Modules\Collections\Enums\StatementFormat;
@@ -387,6 +393,20 @@ final class OrganizationScopedModels
                 'tenant_profile_id' => TenantProfile::factory()->create()->id,
                 'joined_at' => now(),
             ])->save()),
+            // Posts, comments and reactions (P07-02): Posts\GroupPosts is the writer; the probes are about the rows.
+            GroupPost::class => fn (): Model => self::groupPost(),
+            GroupComment::class => fn (): Model => tap(new GroupComment, fn (GroupComment $comment): bool => $comment->forceFill([
+                'group_post_id' => self::groupPost()->id,
+                'author_kind' => AuthorKind::Staff,
+                'author_user_id' => User::factory()->create()->id,
+                'body' => '<p>Probe comment</p>',
+            ])->save()),
+            GroupReaction::class => fn (): Model => tap(new GroupReaction, fn (GroupReaction $reaction): bool => $reaction->forceFill([
+                'user_id' => User::factory()->create()->id,
+                'reactable_type' => ReactableType::Post,
+                'reactable_id' => self::groupPost()->id,
+                'emoji' => Reaction::ThumbsUp,
+            ])->save()),
             // Maintenance tickets (P04-01): TicketService is the writer; the probes are about the rows.
             Ticket::class => fn (): Model => self::ticket(),
             TicketStatusChange::class => fn (): Model => tap(new TicketStatusChange, fn (TicketStatusChange $change): bool => $change->forceFill([
@@ -607,6 +627,18 @@ final class OrganizationScopedModels
         return tap(new BuildingGroup, fn (BuildingGroup $group): bool => $group->forceFill([
             'property_id' => Property::factory()->create()->id,
             'is_active' => true,
+        ])->save());
+    }
+
+    /** A published staff post in a new group, in the current organization. */
+    private static function groupPost(): GroupPost
+    {
+        return tap(new GroupPost, fn (GroupPost $post): bool => $post->forceFill([
+            'building_group_id' => self::buildingGroup()->id,
+            'author_kind' => AuthorKind::Staff,
+            'author_user_id' => User::factory()->create()->id,
+            'body' => '<p>Probe post</p>',
+            'last_activity_at' => now(),
         ])->save());
     }
 

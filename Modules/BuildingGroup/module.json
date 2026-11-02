@@ -1,7 +1,7 @@
 {
     "name": "BuildingGroup",
     "alias": "buildinggroup",
-    "description": "Building Group: one discussion group per building, its members kept in step with leases (P07)",
+    "description": "Building Group: one discussion group per building, its members kept in step with leases, its posts, comments and reactions (P07)",
     "keywords": [],
     "priority": 0,
     "providers": [

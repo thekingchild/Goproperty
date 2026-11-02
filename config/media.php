@@ -52,7 +52,9 @@ return [
     ],
 
     'collections' => [
-        // Building, unit and Building Group photos.
+        // Building and unit photos. (Building Group photos have their own
+        // collection, `group_images`, 2 MB each: the BuildingGroup module's
+        // provider adds it, P07-02.)
         'photos' => [
             'mimes' => ['image/jpeg', 'image/png', 'image/webp'],
             'max_kb' => 10 * 1024,
