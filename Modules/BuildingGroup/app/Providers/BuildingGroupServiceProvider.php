@@ -20,6 +20,7 @@ use Modules\BuildingGroup\Jobs\SyncBuildingGroups;
 use Modules\BuildingGroup\Listeners\FollowLeases;
 use Modules\BuildingGroup\Listeners\OpenBuildingGroup;
 use Modules\BuildingGroup\Lists\GroupList;
+use Modules\BuildingGroup\Live\GroupChannel;
 use Modules\BuildingGroup\Models\BuildingGroup;
 use Modules\BuildingGroup\Models\GroupComment;
 use Modules\BuildingGroup\Models\GroupPost;
@@ -44,6 +45,10 @@ use Nwidart\Modules\Support\ModuleServiceProvider;
  * (tab "Building Group"), routes/web.php, the Livewire namespace
  * `buildinggroup::`, the list's export (Lists\GroupList) and the media
  * collection `group_images` (the posts' photos: attachments).
+ *
+ * P07-03 keeps open group pages current (Live\LiveFeed): they poll, and
+ * on a VPS Reverb nudges them on the private channel `group.{id}`
+ * (Live\GroupChannel, registered here).
  */
 final class BuildingGroupServiceProvider extends ModuleServiceProvider
 {
@@ -109,6 +114,9 @@ final class BuildingGroupServiceProvider extends ModuleServiceProvider
         }
 
         Event::listen(PropertyCreated::class, OpenBuildingGroup::class);
+
+        // Live updates on a VPS (P07-03): who may listen to a group's page.
+        GroupChannel::register();
 
         // A management handover: the leaving organization's group closes, the receiving one's opens (BILLING_PAYMENTS.md § 7.4).
         $this->callAfterResolving(BuildingRecordMovers::class, static fn (BuildingRecordMovers $movers) => $movers->register(BuildingGroupsMover::class));

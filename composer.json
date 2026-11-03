@@ -16,6 +16,7 @@
         "filament/filament": "~5.10.3",
         "laravel/fortify": "~1.41.0",
         "laravel/framework": "~13.38.0",
+        "laravel/reverb": "dev-main#94ccfe195094a0685b75c15d7eea62124f0d9dbc",
         "laravel/tinker": "~3.0.2",
         "league/flysystem-aws-s3-v3": "^3.35",
         "livewire/blaze": "~1.0.20",

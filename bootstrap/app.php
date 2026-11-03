@@ -29,6 +29,10 @@ $app = Application::configure(basePath: dirname(__DIR__))
             Route::group([], __DIR__.'/../routes/webhooks.php');
         },
     )
+    // POST /broadcasting/auth for private channels (Reverb on a VPS), for
+    // signed-in, verified users like the pages it serves; the modules
+    // register their channels (routes/channels.php).
+    ->withBroadcasting(__DIR__.'/../routes/channels.php', ['middleware' => ['web', 'auth', 'verified', 'throttle:120,1']])
     ->withMiddleware(function (Middleware $middleware): void {
         // Before anything else: no APP_KEY → /install, then "being set up"
         // until the install is finalized (INSTALLER.md § 3).

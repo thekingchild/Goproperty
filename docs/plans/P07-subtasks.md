@@ -47,3 +47,22 @@ Started 2026-11-02 at the product owner's request ("Start P07-02"); one task, bu
 28. **Default 8's open question stays open:** posts are not copied when a building is handed over; the receiving agency starts a fresh group.
 
 **Found while building (not changed):** `App\Media\UploadValidator` checks that a JPEG, PNG or WebP decodes by reading its header only (to keep memory low on shared hosts), so a file cut short after its header passes and its thumbnail then fails on the `media` queue (the page then links the original, which a browser cannot show). A full decode before storing would catch it at a memory cost; for the product owner to decide.
+
+## P07-03 — live updates: polling on shared hosting, Reverb on a VPS
+
+Started 2026-11-03 at the product owner's request ("Start P07-03"); one task, built by the orchestrator in `Modules\BuildingGroup\Live` with Core's hosting switches (ARCHITECTURE.md § 6.8 "How live updates are built", § 12.1; runbook docs/runbooks/vps-realtime.md).
+
+### Defaults taken in P07-03 (orchestrator, 2026-11-03; for the product owner to confirm)
+
+29. **Every 15 s on shared hosting, every 60 s behind Reverb**, the figures of ARCHITECTURE.md § 12.1 (§ 6.8 said "every 20–30 s"; it now says 15 s). Both are settings (`REALTIME_POLL_SECONDS`, `REALTIME_FALLBACK_POLL_SECONDS`).
+30. **New posts, comments and reactions simply appear in place** at the next refresh: no "3 new posts" bar, no sound, no badge in the sidebar. What the person is typing, and how far they have read, are kept.
+31. **Polling pauses in a hidden tab and after 30 minutes without activity** (no tap, key, scroll or focus), and catches up at once when the person is back. So a group page left open no longer keeps its session alive past the usual timeout, and forgotten tabs do not load a shared host.
+32. **A nudge says only "this group changed"** (a version number): never words, names or ids. The page then asks for its feed through Livewire, with every check of a normal request.
+33. **Who may listen is who may open the page**, checked when the browser subscribes. A tenant whose lease ends while their page is open keeps hearing content-free nudges until the page's next refresh, which sends them to their list of groups; they never receive words after leaving.
+34. **Nudges go at once from the writer's request, not through the queue**, so pages hear them within a second. If Reverb is down the write still succeeds (the error is logged) and pages catch up at their next poll; the app waits at most 2 s to connect to Reverb and 3 s for an answer.
+35. **The writer's own tab is not nudged** (its page shows the change with its answer); the writer's other tabs are.
+36. **Reverb only carries nudges:** browsers cannot send messages to each other (client events off), only this site's pages may connect (APP_URL's host; `REVERB_ALLOWED_ORIGINS` adds others), each connection is rate-limited (60 messages a minute), and Reverb listens on 127.0.0.1:8080 behind the web server's proxy.
+37. **Reverb is pinned to a commit of its main branch** (`laravel/reverb` `dev-main#94ccfe1`, 2026-10-19): its latest release, 1.12.0, does not accept Guzzle 8 (`guzzlehttp/psr7` v3), which GoProperty has used from the start. The commit is 1.12.0 plus Guzzle 8 support and a security fix (client events limited to members of the connection's app). Replace it with the first release that includes them (`~1.13`).
+38. **Only the Building Group's pages are live in P07-03.** Ticket threads (named with them in `App\Hosting\Realtime`) keep refreshing on the person's own actions; making them live is a later task.
+
+**For P07-04:** moderation writes (pin, hide, mute, remove) must call `Live\LiveFeed::changed()` like `Posts\GroupPosts` does, so open pages follow them.

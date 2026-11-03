@@ -3,9 +3,13 @@
     pages: the notice of the last action, a refusal, the post form when the
     person may post, then the posts and "Show more". The variables are the
     pages' (posts, more, showImages, canPost, canAttach, canComment,
-    canReact, notice, replyingTo).
+    canReact, notice, replyingTo, live).
+
+    Live updates (P07-03): Alpine `groupLive` (resources/js/app.js) calls
+    refreshFeed every $live['poll'] seconds while the tab is shown and the
+    person active, and on a VPS when Reverb says the group changed.
 --}}
-<div class="flex flex-col gap-4" data-test="group-feed">
+<div class="flex flex-col gap-4" data-test="group-feed" x-data="groupLive(@js($live))" data-live-poll="{{ $live['poll'] }}" @if ($live['websocket'] !== null) data-live-channel="{{ $live['websocket']['channel'] }}" @endif>
     @if ($notice)
         <flux:callout variant="success" icon="check-circle" :heading="$notice" role="status" data-test="group-notice" />
     @endif

@@ -8,6 +8,8 @@ use App\Hosting\HostingProfile;
 use App\Hosting\Realtime;
 use App\Hosting\RealtimeDriver;
 use Illuminate\Contracts\Cache\Repository;
+use Illuminate\Support\Facades\Artisan;
+use Laravel\Reverb\ReverbServiceProvider;
 
 const DRIVER_VARIABLES = [
     'QUEUE_CONNECTION', 'CACHE_STORE', 'SESSION_DRIVER', 'BROADCAST_CONNECTION',
@@ -152,6 +154,9 @@ describe('configuration check', function () {
         'jobs pushed elsewhere' => [['queue.default' => 'sync'], 'Jobs are pushed to "sync" but the queue tick drains "database"'],
         'tick on a non-database queue' => [['hosting.queue_tick.connection' => 'sync'], 'drains a "database" connection only'],
         'reverb without broadcasting' => [['hosting.realtime.driver' => 'reverb'], 'REALTIME_DRIVER=reverb needs BROADCAST_CONNECTION=reverb'],
+        'reverb without its keys' => [['broadcasting.default' => 'reverb', 'broadcasting.connections.reverb.options.host' => 'ws.example.com'], 'BROADCAST_CONNECTION=reverb needs REVERB_APP_ID, REVERB_APP_KEY, REVERB_APP_SECRET.'],
+        'reverb without its host' => [['broadcasting.default' => 'reverb', 'broadcasting.connections.reverb.app_id' => '1', 'broadcasting.connections.reverb.key' => 'k', 'broadcasting.connections.reverb.secret' => 's', 'broadcasting.connections.reverb.options.host' => null], 'BROADCAST_CONNECTION=reverb needs REVERB_HOST.'],
+        'reverb with no host for browsers' => [['hosting.realtime.driver' => 'reverb', 'broadcasting.default' => 'reverb', 'hosting.realtime.client.host' => null], 'where browsers reach Reverb'],
         'chrome without Gotenberg' => [['pdf.driver' => 'chrome', 'pdf.chrome.url' => null], 'PDF_DRIVER=chrome needs PDF_CHROME_URL'],
         'unknown PDF driver' => [['pdf.driver' => 'wkhtmltopdf'], 'PDF_DRIVER must be "dompdf" or "chrome"'],
     ]);
@@ -160,6 +165,30 @@ describe('configuration check', function () {
         config(['hosting.profile' => 'vps', 'hosting.queue_tick.enabled' => false]);
 
         expect(app(HostingCheck::class)->problems())->toBe([]);
+    });
+
+    it('accepts a VPS with Reverb set up, Reverb\'s server installed with the app (P07-03)', function () {
+        config([
+            'hosting.profile' => 'vps', 'hosting.queue_tick.enabled' => false,
+            'hosting.realtime.driver' => 'reverb', 'broadcasting.default' => 'reverb',
+            'broadcasting.connections.reverb.app_id' => '1', 'broadcasting.connections.reverb.key' => 'key', 'broadcasting.connections.reverb.secret' => 'secret',
+            'broadcasting.connections.reverb.options.host' => '127.0.0.1', 'hosting.realtime.client.host' => 'ws.example.com',
+        ]);
+
+        expect(app(HostingCheck::class)->problems())->toBe([])
+            ->and(class_exists(ReverbServiceProvider::class))->toBeTrue()
+            ->and(array_keys(Artisan::all()))->toContain('reverb:start');
+    });
+
+    it('keeps Reverb to this site\'s pages and to listening only (P07-03)', function () {
+        $reverb = configFileUnder('reverb.php', ['APP_URL' => 'https://app.goproperty.ng', 'REVERB_ALLOWED_ORIGINS' => null, 'REVERB_APP_ACCEPT_CLIENT_EVENTS_FROM' => null, 'REVERB_SERVER_HOST' => null]);
+        $app = $reverb['apps']['apps'][0];
+
+        expect($app['allowed_origins'])->toBe(['app.goproperty.ng'])
+            ->and($app['accept_client_events_from'])->toBe('none')
+            ->and($reverb['servers']['reverb']['host'])->toBe('127.0.0.1')
+            ->and(configFileUnder('reverb.php', ['REVERB_ALLOWED_ORIGINS' => 'app.goproperty.ng, *.goproperty.ng'])['apps']['apps'][0]['allowed_origins'])->toBe(['app.goproperty.ng', '*.goproperty.ng'])
+            ->and(configFileUnder('broadcasting.php', [])['connections']['reverb']['client_options'])->toBe(['connect_timeout' => 2.0, 'timeout' => 3.0]);
     });
 });
 

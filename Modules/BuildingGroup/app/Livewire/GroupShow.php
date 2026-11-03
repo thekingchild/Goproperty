@@ -29,7 +29,8 @@ use Modules\BuildingGroup\Models\GroupMember;
  * scope and checked (`view`: another building's group answers 404 to an
  * assigned agent) on every request. A closed group (its building archived
  * or handed over) is read-only. Images show unless GoProperty staff are
- * impersonating (`viewImages`).
+ * impersonating (`viewImages`). Kept current while open (P07-03,
+ * RunsGroupFeed::refreshFeed()).
  */
 #[Layout('layouts::app')]
 #[Title('Building Group')]
@@ -54,6 +55,7 @@ final class GroupShow extends Component
         $this->authorize('view', $group);
         $user = $this->user();
         $images = $user->can('viewImages', $group);
+        $live = $this->goLive();
         [$posts, $more] = $feed->page($group, $user, $this->limit, $images);
         $this->keepBoxes($posts);
 
@@ -69,6 +71,7 @@ final class GroupShow extends Component
             'canAttach' => $user->can('attachImages', $group),
             'canComment' => $user->can('comment', $group),
             'canReact' => $user->can('react', $group),
+            'live' => $live,
         ]);
     }
 
@@ -83,6 +86,11 @@ final class GroupShow extends Component
         $this->authorize('view', $group);
 
         return $callback($group, $this->user());
+    }
+
+    protected function leaveTo(): string
+    {
+        return route('workspace.groups.index', app(OrganizationContext::class)->get());
     }
 
     private function group(): BuildingGroup

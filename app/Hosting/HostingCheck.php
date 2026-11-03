@@ -43,11 +43,28 @@ final readonly class HostingCheck
             $problems[] = 'BROADCAST_CONNECTION=reverb needs pusher/pusher-php-server (installed with Reverb).';
         }
 
+        if ($broadcast === 'reverb') {
+            $missing = array_keys(array_filter([
+                'REVERB_APP_ID' => $this->string('broadcasting.connections.reverb.app_id') === '',
+                'REVERB_APP_KEY' => $this->string('broadcasting.connections.reverb.key') === '',
+                'REVERB_APP_SECRET' => $this->string('broadcasting.connections.reverb.secret') === '',
+                'REVERB_HOST' => $this->string('broadcasting.connections.reverb.options.host') === '',
+            ]));
+
+            if ($missing !== []) {
+                $problems[] = sprintf('BROADCAST_CONNECTION=reverb needs %s.', implode(', ', $missing));
+            }
+        }
+
         try {
             $realtime = Realtime::fromConfig($this->config);
 
             if ($realtime->usesWebsockets() && $broadcast !== 'reverb') {
                 $problems[] = 'REALTIME_DRIVER=reverb needs BROADCAST_CONNECTION=reverb.';
+            }
+
+            if ($realtime->usesWebsockets() && $this->string('hosting.realtime.client.host') === '') {
+                $problems[] = 'REALTIME_DRIVER=reverb needs REVERB_HOST (or REVERB_CLIENT_HOST): where browsers reach Reverb.';
             }
         } catch (Throwable $e) {
             $problems[] = $e->getMessage();

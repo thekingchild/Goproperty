@@ -23,6 +23,7 @@ use Modules\BuildingGroup\Enums\PostStatus;
 use Modules\BuildingGroup\Enums\ReactableType;
 use Modules\BuildingGroup\Enums\Reaction;
 use Modules\BuildingGroup\Groups\GroupMembership;
+use Modules\BuildingGroup\Live\LiveFeed;
 use Modules\BuildingGroup\Models\BuildingGroup;
 use Modules\BuildingGroup\Models\GroupComment;
 use Modules\BuildingGroup\Models\GroupPost;
@@ -60,7 +61,9 @@ use Modules\BuildingGroup\Models\GroupReaction;
  * re-read, so a group closed or a post removed meanwhile wins. Posts and
  * comments, and their removal, are audited (log `building_group`, ids
  * only: never the words). Limits a person, across groups: 10 posts an hour,
- * 60 comments an hour, 120 reactions a minute.
+ * 60 comments an hour, 120 reactions a minute. Every write tells
+ * Live\LiveFeed once it commits, so open pages of the group catch up
+ * (P07-03).
  */
 final readonly class GroupPosts
 {
@@ -88,6 +91,7 @@ final readonly class GroupPosts
         private GroupMembership $membership,
         private PlanGate $plans,
         private OrganizationContext $context,
+        private LiveFeed $live,
     ) {}
 
     /**
@@ -154,6 +158,8 @@ final readonly class GroupPosts
                 ])
                 ->log('Post published in the Building Group');
 
+            $this->live->changed($group->id);
+
             return $post;
         }, 3);
     }
@@ -209,6 +215,8 @@ final readonly class GroupPosts
                 ])
                 ->log($parentId === null ? 'Comment posted in the Building Group' : 'Reply posted in the Building Group');
 
+            $this->live->changed($group->id);
+
             return $comment;
         }, 3);
     }
@@ -232,6 +240,7 @@ final readonly class GroupPosts
             $this->plans->ensureFeature(Feature::BuildingGroup, $this->context->get());
             // The comment may have gone while the post was waiting.
             $this->item($type, $id);
+            $this->live->changed($post->building_group_id);
 
             $reaction = GroupReaction::query()
                 ->where('user_id', $by->id)
@@ -282,6 +291,8 @@ final readonly class GroupPosts
                 ])
                 ->log('Post removed from the Building Group by its author');
 
+            $this->live->changed($post->building_group_id);
+
             return $images;
         }, 3);
 
@@ -314,6 +325,8 @@ final readonly class GroupPosts
                 ->causedBy($by)
                 ->withProperties(['building_group_id' => $post->building_group_id, 'group_post_id' => $post->id])
                 ->log('Comment removed from the Building Group by its author');
+
+            $this->live->changed($post->building_group_id);
         }, 3);
     }
 

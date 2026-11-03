@@ -34,6 +34,14 @@ return [
         'driver' => env('REALTIME_DRIVER', $vps ? 'reverb' : 'polling'),
         'poll_seconds' => (int) env('REALTIME_POLL_SECONDS', 15),
         'fallback_poll_seconds' => (int) env('REALTIME_FALLBACK_POLL_SECONDS', 60),
+
+        // Where browsers reach Reverb, when not where the app does (the app may
+        // talk to 127.0.0.1:8080 while browsers use wss://ws.example.com:443).
+        'client' => [
+            'host' => env('REVERB_CLIENT_HOST', env('REVERB_HOST')),
+            'port' => (int) env('REVERB_CLIENT_PORT', env('REVERB_PORT', 443)),
+            'scheme' => env('REVERB_CLIENT_SCHEME', env('REVERB_SCHEME', 'https')),
+        ],
     ],
 
     /*

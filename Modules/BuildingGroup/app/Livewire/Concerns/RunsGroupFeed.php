@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Modules\BuildingGroup\Livewire\Concerns;
 
+use App\Hosting\Realtime;
+use App\Hosting\WebsocketClient;
 use App\Models\User;
 use Closure;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
@@ -15,11 +18,13 @@ use Modules\BuildingGroup\Enums\ReactableType;
 use Modules\BuildingGroup\Enums\Reaction;
 use Modules\BuildingGroup\Feed\FeedPost;
 use Modules\BuildingGroup\Feed\GroupFeed;
+use Modules\BuildingGroup\Live\LiveFeed;
 use Modules\BuildingGroup\Models\BuildingGroup;
 use Modules\BuildingGroup\Models\GroupComment;
 use Modules\BuildingGroup\Models\GroupPost;
 use Modules\BuildingGroup\Posts\GroupPosts;
 use Modules\BuildingGroup\Posts\GroupRefused;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 /**
  * A group's page, on the workspace and in the portal (P07-02): the post
@@ -32,6 +37,13 @@ use Modules\BuildingGroup\Posts\GroupRefused;
  * property. A refused action shows its reason where it was asked for:
  * the post form (`body`, `images`), a comment box (`comments.{post}`), a
  * reply box (`replies.{comment}`) or the page (`group`).
+ *
+ * Live updates (P07-03, Live\LiveFeed): the page calls refreshFeed() every
+ * few seconds (App\Hosting\Realtime::pollSeconds()) and, on a VPS, when
+ * Reverb says the group changed (Alpine `groupLive`, resources/js/app.js).
+ * It is checked like any action and renders again only when the group's
+ * feed version moved since the page last showed it; a person who may no
+ * longer see the group is taken to the list of groups.
  */
 trait RunsGroupFeed
 {
@@ -58,6 +70,10 @@ trait RunsGroupFeed
     #[Locked]
     public ?string $notice = null;
 
+    /** The group's feed version this page last showed (Live\LiveFeed). */
+    #[Locked]
+    public string $seen = '';
+
     /** The side this page writes from. */
     abstract protected function author(): AuthorKind;
 
@@ -71,6 +87,25 @@ trait RunsGroupFeed
      * @return T
      */
     abstract protected function inGroup(Closure $callback): mixed;
+
+    /** Where the page goes when the person may no longer see the group. */
+    abstract protected function leaveTo(): string;
+
+    /** Brings the feed up to date: re-renders only when the group changed since it was shown. */
+    public function refreshFeed(LiveFeed $live): void
+    {
+        try {
+            $this->inGroup(static fn (BuildingGroup $group): int => $group->id);
+        } catch (AuthorizationException|HttpExceptionInterface) {
+            $this->redirect($this->leaveTo(), navigate: true);
+
+            return;
+        }
+
+        if ($live->version($this->groupId) === $this->seen) {
+            $this->skipRender();
+        }
+    }
 
     public function publish(GroupPosts $posts): void
     {
@@ -160,6 +195,26 @@ trait RunsGroupFeed
     public function showMore(): void
     {
         $this->limit = min($this->limit + GroupFeed::PAGE, 10 * GroupFeed::PAGE);
+    }
+
+    /**
+     * Notes the feed version about to be shown (read before the feed, so a
+     * write in between only causes one more render) and returns the page's
+     * live settings for the feed partial: seconds between polls, seconds of
+     * inactivity before polling pauses, and Reverb's browser settings on a
+     * VPS (null on shared hosting).
+     *
+     * @return array{poll: int, idle: int, websocket: array<string, int|string>|null}
+     */
+    protected function goLive(): array
+    {
+        $this->seen = app(LiveFeed::class)->version($this->groupId);
+
+        return [
+            'poll' => app(Realtime::class)->pollSeconds(),
+            'idle' => LiveFeed::IDLE_SECONDS,
+            'websocket' => app(WebsocketClient::class)->settings(LiveFeed::channel($this->groupId)),
+        ];
     }
 
     /**

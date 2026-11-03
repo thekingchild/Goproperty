@@ -27,7 +27,8 @@ use Modules\Tenants\Contracts\PortalTenant;
  * (AuthorKind::Tenant, through the tenant record that makes them a
  * member). The group is looked up among the user's own on every request
  * (Portal\TenantGroups): a group they are not a member of now — never was,
- * or their lease there has ended — answers 404. Phone first: one column,
+ * or their lease there has ended — answers 404, and an open page goes back
+ * to the list at its next refresh (P07-03). Phone first: one column,
  * 44 px targets, no autofocus.
  */
 #[Layout('layouts::app')]
@@ -50,6 +51,7 @@ final class PortalGroupShow extends Component
         $user = $this->user();
         [$tenancy, $group] = $this->found($groups);
         $branding = Branding::fromOrganization($tenancy->organization);
+        $live = $this->goLive();
 
         $state = $groups->within($tenancy, function () use ($user, $group, $groups, $feed, $tenancy): array {
             $gate = Gate::forUser($user);
@@ -78,6 +80,7 @@ final class PortalGroupShow extends Component
             'initials' => $branding->initials(),
             'organizationId' => $tenancy->organization->id,
             'readOnly' => $tenancy->readOnly(),
+            'live' => $live,
         ]);
     }
 
@@ -93,6 +96,11 @@ final class PortalGroupShow extends Component
         [$tenancy, $group] = $this->found($groups);
 
         return $groups->within($tenancy, static fn (): mixed => $callback($group, $user));
+    }
+
+    protected function leaveTo(): string
+    {
+        return route('portal.groups.index');
     }
 
     /** @return array{PortalTenant, BuildingGroup} */
