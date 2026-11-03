@@ -155,6 +155,8 @@ function consolePageUrls(PlatformStaff $someone): array
                 'run' => backupRunForPages()->id,
                 // A compliance document's file (P01-03), reached through its signed link.
                 'document' => DB::table('compliance_documents')->where('tier_application_id', ($application ??= $tierApplication())->id)->value('id'),
+                // A System analytics section as CSV (P08-02).
+                'section' => 'revenue',
                 default => throw new RuntimeException("Fill the {$parameter} parameter of {$name} in this test."),
             };
         }
@@ -333,5 +335,8 @@ it('acceptance: checks every console page against each default staff role', func
         // P06-10: Operations → Backups, Backup activity and Backup destinations, and a backup's download.
         ->and($opened('/backups'))->toEqualCanonicalizing(['super-admin', 'technical-admin'])
         ->and($opened('/backup-activity'))->toEqualCanonicalizing(['super-admin', 'technical-admin'])
-        ->and($opened('/backup-destinations'))->toEqualCanonicalizing(['super-admin', 'technical-admin']);
+        ->and($opened('/backup-destinations'))->toEqualCanonicalizing(['super-admin', 'technical-admin'])
+        // P08-02: Operations → System analytics and its CSV downloads (PLATFORM_CONSOLE.md § 3).
+        ->and($opened('/analytics'))->toEqualCanonicalizing(['super-admin', 'operations-manager', 'analyst'])
+        ->and($opened('/analytics/export/revenue'))->toEqualCanonicalizing(['super-admin', 'operations-manager', 'analyst']);
 });

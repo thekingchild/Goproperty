@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers\Filament;
 
+use App\Http\Controllers\Console\AnalyticsExportController;
 use App\Http\Controllers\Console\BackupDownloadController;
 use App\Http\Controllers\Console\ComplianceDocumentController;
 use App\Http\Controllers\Console\SchedulerHeartbeatController;
@@ -11,6 +12,7 @@ use App\Http\Controllers\Console\ThemePreviewController;
 use App\Http\Middleware\StaffAccountState;
 use App\Http\Middleware\StaffIdleTimeout;
 use App\Http\Middleware\StaffIpAllowlist;
+use App\Platform\Analytics\AnalyticsCsv;
 use App\Platform\Console\ConsoleRequests;
 use App\Platform\Filament\Auth\AcceptStaffInvitation;
 use App\Platform\Filament\Auth\StaffLogin;
@@ -123,6 +125,12 @@ final class ConsolePanelProvider extends PanelProvider
                         ->whereNumber('run')
                         ->middleware(['signed', 'throttle:30,1'])
                         ->name('backup-download');
+
+                    // A System analytics section as CSV, for the page's range (PLATFORM_CONSOLE.md § 3; audited).
+                    Route::get('analytics/export/{section}', AnalyticsExportController::class)
+                        ->whereIn('section', array_keys(AnalyticsCsv::SECTIONS))
+                        ->middleware('throttle:30,1')
+                        ->name('analytics-export');
                 });
             })
             ->discoverResources(in: app_path('Platform/Filament/Resources'), for: 'App\\Platform\\Filament\\Resources')

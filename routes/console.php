@@ -9,6 +9,7 @@ use App\Backup\Operations\OperationRunner;
 use App\Compliance\Monitoring\TierMonitor;
 use App\Hosting\Heartbeats;
 use App\Hosting\Queue\QueueTick;
+use App\Platform\Analytics\SnapshotRunner;
 use App\Platform\Approvals\ApprovalService;
 use App\Platform\Compliance\DocumentExpiryCheck;
 use App\Platform\Impersonation\Impersonations;
@@ -103,6 +104,14 @@ Schedule::call(fn (DocumentExpiryCheck $check) => $check->run())
 Schedule::call(fn (TierMonitor $monitor) => $monitor->daily())
     ->name('compliance-evaluate-tiers')
     ->dailyAt('03:30');
+
+// Platform analytics (P08-02, PLATFORM_CONSOLE.md § 3): the Lagos day that
+// ended gets its figures in `daily_platform_metrics` at the first run after
+// midnight; later runs find it done, so a missed night is made up within
+// the hour. By hand: `php artisan metrics:snapshot [date]`.
+Schedule::call(fn (SnapshotRunner $runner) => $runner->nightly())
+    ->name('metrics-snapshot')
+    ->hourlyAt(10);
 
 // SMS credits (P05-03): this Lagos month's allowance for every organization
 // not cancelled, last month's unused one expired; once a month each, made up
