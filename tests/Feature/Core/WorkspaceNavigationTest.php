@@ -35,8 +35,8 @@ function sidebarItemsOf(User $user): array
 it('shows each role the workspace pages it may open, Core and module pages alike', function (OrganizationRole $role, array $items) {
     expect(sidebarItemsOf(joinAs(User::factory()->create(), $this->acme, $role)))->toBe($items);
 })->with([
-    'org-owner' => [OrganizationRole::Owner, ['home', 'buildings', 'units', 'owners', 'tenants', 'leases', 'bills', 'utilities', 'payments', 'receipts', 'statements', 'expenses', 'tickets', 'groups', 'imports', 'compliance', 'members', 'handovers', 'settings']],
-    'org-admin' => [OrganizationRole::Admin, ['home', 'buildings', 'units', 'owners', 'tenants', 'leases', 'bills', 'utilities', 'payments', 'receipts', 'statements', 'expenses', 'tickets', 'groups', 'imports', 'members', 'settings']],
+    'org-owner' => [OrganizationRole::Owner, ['home', 'buildings', 'units', 'owners', 'tenants', 'leases', 'bills', 'utilities', 'payments', 'receipts', 'statements', 'expenses', 'tickets', 'groups', 'reports', 'imports', 'compliance', 'members', 'handovers', 'settings']],
+    'org-admin' => [OrganizationRole::Admin, ['home', 'buildings', 'units', 'owners', 'tenants', 'leases', 'bills', 'utilities', 'payments', 'receipts', 'statements', 'expenses', 'tickets', 'groups', 'reports', 'imports', 'members', 'settings']],
     'agent' => [OrganizationRole::Agent, ['home', 'buildings', 'units', 'owners', 'tenants', 'leases', 'bills', 'utilities', 'payments', 'receipts', 'expenses', 'tickets', 'groups']],
 ]);
 

@@ -1,0 +1,28 @@
+{
+    "name": "goproperty/reports",
+    "description": "Reports: the customer dashboards of the workspace (occupancy, collections vs billed, arrears aging, upcoming renewals, expenses by category, per-building performance) with CSV and PDF export",
+    "authors": [
+        {
+            "name": "GoProperty",
+            "email": ""
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [],
+            "aliases": {
+
+            }
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Modules\\Reports\\": "app/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Modules\\Reports\\Tests\\": "tests/"
+        }
+    }
+}

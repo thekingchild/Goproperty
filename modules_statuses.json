@@ -14,5 +14,6 @@
     "Tickets": true,
     "Reminders": true,
     "WhatsApp": true,
-    "BuildingGroup": true
+    "BuildingGroup": true,
+    "Reports": true
 }

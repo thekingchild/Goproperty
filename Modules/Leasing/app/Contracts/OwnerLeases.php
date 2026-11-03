@@ -72,7 +72,8 @@ interface OwnerLeases
      * The active leases in these buildings whose end date falls between
      * $from and $to (both days included), soonest first, each with its
      * draft renewal if one was made (the owner statements' upcoming
-     * renewals, P08-05).
+     * renewals, P08-05; the customer dashboards' too, P08-01, with the
+     * buildings the member's report covers).
      *
      * @param  list<int>  $propertyIds
      * @return list<EndingLease>

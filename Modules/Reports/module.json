@@ -1,0 +1,11 @@
+{
+    "name": "Reports",
+    "alias": "reports",
+    "description": "Reports: the customer dashboards of the workspace (occupancy, collections vs billed, arrears aging, upcoming renewals, expenses by category, per-building performance) with CSV and PDF export",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\Reports\\Providers\\ReportsServiceProvider"
+    ],
+    "files": []
+}

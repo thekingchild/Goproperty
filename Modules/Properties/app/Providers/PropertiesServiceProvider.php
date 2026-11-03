@@ -27,8 +27,10 @@ use Modules\Leasing\Events\LeaseRenewed;
 use Modules\Leasing\Events\LeaseTerminated;
 use Modules\Properties\Assignments\AgentNarrowing;
 use Modules\Properties\Assignments\DropRemovedMemberAssignments;
+use Modules\Properties\Buildings\BuildingOccupancyRecords;
 use Modules\Properties\Buildings\PropertyDirectoryService;
 use Modules\Properties\Contracts\BuildingAccess;
+use Modules\Properties\Contracts\BuildingOccupancy;
 use Modules\Properties\Contracts\ImportedUnits;
 use Modules\Properties\Contracts\OwnerPortalAccess;
 use Modules\Properties\Contracts\OwnerProfileDirectory;
@@ -105,6 +107,8 @@ final class PropertiesServiceProvider extends ModuleServiceProvider
         $this->app->bind(PropertyDirectory::class, PropertyDirectoryService::class);
         $this->app->bind(UnitDirectory::class, UnitDirectoryService::class);
         $this->app->bind(BuildingAccess::class, AgentNarrowing::class);
+        // Each building's units by status, for the customer dashboards (P08-01).
+        $this->app->bind(BuildingOccupancy::class, BuildingOccupancyRecords::class);
         // Owners and the owner portal's path, for the owner statements (P08-05).
         $this->app->bind(OwnerProfileDirectory::class, OwnerProfileDirectoryService::class);
         $this->app->bind(OwnerPortalAccess::class, OwnerPortalAccessService::class);

@@ -27,7 +27,7 @@ Each phase below is split into numbered tasks (`P00-01`, `P00-02`, …). Each ta
 | P05 | Reminders, notifications, email templates & WhatsApp | 14–15 | M5 | Complete (2026-10-30) |
 | P06 | SaaS billing, compliance monitoring & full platform console | 16–18 | M6 | Complete (2026-11-02) |
 | P07 | Building Group | 19 | M7 | Complete (2026-11-03) |
-| P08 | Reports, operations & analytics dashboards | 20 | M8 | Not started |
+| P08 | Reports, operations & analytics dashboards | 20 | M8 | In progress |
 | P09 | Hardening, NDPA & launch | 21–23 | M9 (Launch) | Not started |
 
 ## 3. Work Packages
@@ -197,13 +197,13 @@ Depends on: P03 (leases drive membership).
 
 **Phase exit:** all P07 tasks complete.
 
-### P08 — Reports, operations & analytics dashboards (Week 20) — Not started
+### P08 — Reports, operations & analytics dashboards (Week 20) — In progress
 
 Depends on: P03, P06.
 
 | ID | Deliverable | Acceptance |
 | --- | --- | --- |
-| P08-01 — **Not started** | Customer dashboards: occupancy, collections vs billed, arrears aging, upcoming renewals, expenses by category, per-building performance; date-range filters; CSV + PDF export | Arrears aging buckets (0–30/31–60/61–90/90+) reconcile against a hand-computed fixture org; every report has a feature test with seeded edge data (voided bills excluded, refunds netted) |
+| P08-01 — **Complete (2026-11-03)** | Customer dashboards: occupancy, collections vs billed, arrears aging, upcoming renewals, expenses by category, per-building performance; date-range filters; CSV + PDF export | Arrears aging buckets (0–30/31–60/61–90/90+) reconcile against a hand-computed fixture org; every report has a feature test with seeded edge data (voided bills excluded, refunds netted) |
 | P08-02 — **Not started** | System Analytics dashboard ([PLATFORM_CONSOLE.md § 3](PLATFORM_CONSOLE.md)): MRR/ARR, signups and trial conversion, churn, unit growth, tier distribution, recorded collections by channel, customer leaderboard — from nightly `daily_platform_metrics` | Metrics match a fixture; nightly job is idempotent |
 | P08-03 — **Not started** | System Operations dashboard ([PLATFORM_CONSOLE.md § 2](PLATFORM_CONSOLE.md)): queues, scheduler heartbeat, webhooks (own + per agency), messaging, backups, storage, security; alerts to Slack/email | A stopped scheduler raises an alert within the configured window |
 | P08-04 — **Not started** | Cached aggregates for dashboards; report queries documented for the read-replica config | Dashboards load from cache; cache invalidates on relevant writes |

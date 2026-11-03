@@ -82,7 +82,8 @@ beforeEach(function () {
     $kemi = tenantIn($this->acme, ['first_name' => 'Kemi', 'last_name' => 'Adebayo']);
     draftLease($this->acme, $this->owner, $flat, $kemi);
     // A lease of the same flat running from today gets its first bill (P03-04b); the draft waits.
-    activeLease($this->acme, $this->owner, $flat, tenantIn($this->acme, ['first_name' => 'Tunde', 'last_name' => 'Bakare']), ['startDate' => now()->toDateString(), 'endDate' => now()->addYear()->toDateString()]);
+    // It is monthly and ends within 90 days, so the Reports page's upcoming renewals have a row (P08-01).
+    activeLease($this->acme, $this->owner, $flat, tenantIn($this->acme, ['first_name' => 'Tunde', 'last_name' => 'Bakare']), ['billingCycle' => 'monthly', 'rent' => '150,000', 'startDate' => now()->toDateString(), 'endDate' => now()->addMonths(2)->subDay()->toDateString()]);
     runBillGeneration();
     // A payment waiting for confirmation (P03-10a), and a confirmed one with its receipt (P03-10b; PDF held back).
     recordPayment($this->acme, $this->owner, $kemi, '150,000');
@@ -226,6 +227,8 @@ it('gives every workspace list page a working export, in Excel and CSV', functio
             foreach (['xlsx', 'csv'] as $format) {
                 // More lists than the hourly export limit (ListExportRequests::PER_HOUR) allows one member.
                 RateLimiter::clear('list-exports:'.$this->acme->id.':'.$this->owner->id);
+                // …and more downloads than the download route's 60 a minute (throttle:60,1, keyed by the member).
+                RateLimiter::clear(sha1((string) $this->owner->id));
                 $rows = exportRows($this->owner, $relative, $list, $format);
 
                 expect($rows[0])->toBe($headers, "{$list} ({$format}) from {$path}")
@@ -240,7 +243,7 @@ it('gives every workspace list page a working export, in Excel and CSV', functio
     $offered = array_values(array_unique($offered));
     sort($offered);
     expect($offered)->toBe(array_keys($registry->keys()))
-        ->toBe(['bank_statement_lines', 'bank_statements', 'bills', 'building_agents', 'building_groups', 'buildings', 'expenses', 'handovers_made', 'handovers_received', 'imports', 'leases', 'member_invitations', 'members', 'owner_statements', 'owners', 'payments', 'receipts', 'sms_credit_entries', 'tenants', 'tickets', 'units', 'utility_readings', 'utility_settings', 'utility_types']);
+        ->toBe(['bank_statement_lines', 'bank_statements', 'bills', 'building_agents', 'building_groups', 'buildings', 'expenses', 'handovers_made', 'handovers_received', 'imports', 'leases', 'member_invitations', 'members', 'owner_statements', 'owners', 'payments', 'receipts', 'report_arrears', 'report_buildings', 'report_collections', 'report_expenses', 'report_occupancy', 'report_renewals', 'sms_credit_entries', 'tenants', 'tickets', 'units', 'utility_readings', 'utility_settings', 'utility_types']);
 });
 
 it('makes every Livewire component that pages through a list use the export', function () {

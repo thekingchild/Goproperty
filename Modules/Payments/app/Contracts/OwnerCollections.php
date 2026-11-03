@@ -8,8 +8,8 @@ use Carbon\CarbonImmutable;
 
 /**
  * What was collected for bills, by when it counts (the owner statements,
- * P08-05; never the payments tables themselves, ARCHITECTURE.md § 8
- * rule 3):
+ * P08-05, and the customer dashboards' collections, P08-01; never the
+ * payments tables themselves, ARCHITECTURE.md § 8 rule 3):
  *
  * - a confirmed payment's allocations, at the payment's `confirmed_at`
  *   (payments refunded since count as confirmed: undoing a payment is not
