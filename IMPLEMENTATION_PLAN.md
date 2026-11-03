@@ -26,7 +26,7 @@ Each phase below is split into numbered tasks (`P00-01`, `P00-02`, …). Each ta
 | P04 | Maintenance tickets | 13 | M4 | Complete (2026-10-29) |
 | P05 | Reminders, notifications, email templates & WhatsApp | 14–15 | M5 | Complete (2026-10-30) |
 | P06 | SaaS billing, compliance monitoring & full platform console | 16–18 | M6 | Complete (2026-11-02) |
-| P07 | Building Group | 19 | M7 | In progress |
+| P07 | Building Group | 19 | M7 | Complete (2026-11-03) |
 | P08 | Reports, operations & analytics dashboards | 20 | M8 | Not started |
 | P09 | Hardening, NDPA & launch | 21–23 | M9 (Launch) | Not started |
 
@@ -184,7 +184,7 @@ Depends on: P05 (dunning notifications) and P01 (console core).
 
 **Phase exit:** all P06 tasks complete.
 
-### P07 — Building Group (Week 19) — In progress
+### P07 — Building Group (Week 19) — Complete (2026-11-03)
 
 Depends on: P03 (leases drive membership).
 
@@ -193,7 +193,7 @@ Depends on: P03 (leases drive membership).
 | P07-01 — **Complete (2026-11-02)** | Per-building group (auto-created), membership sync from leases | Ending a lease removes the tenant from the group; a new lease adds them |
 | P07-02 — **Complete (2026-11-02)** | Posts, comments, reactions; rich text (limited toolbar, sanitized); images (validated + thumbnails) | XSS suite: script/iframe/onload payloads neutralized; disallowed upload types rejected |
 | P07-03 — **Complete (2026-11-03)** | Polling updates (shared hosting) with Reverb realtime on VPS | Two browser sessions see a post/comment/reaction within 30 s by polling (shared-hosting profile) and within 1 s via Reverb (VPS profile) |
-| P07-04 — **Not started** | Moderation (pin/hide/mute), report-abuse | Hidden/removed posts vanish for members but remain for moderators with an audit trail |
+| P07-04 — **Complete (2026-11-03)** | Moderation (pin/hide/mute), report-abuse | Hidden/removed posts vanish for members but remain for moderators with an audit trail |
 
 **Phase exit:** all P07 tasks complete.
 

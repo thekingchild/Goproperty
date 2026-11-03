@@ -16,8 +16,9 @@ use LogicException;
  * Active while the building is one of the organization's active buildings;
  * closed (`is_active` false, `closed_at` set) when it is archived, removed
  * by an import rollback, or handed to another organization. `name` empty
- * means the building's name. Written only by Groups\BuildingGroups; never
- * deleted.
+ * means the building's name. Written only by Groups\BuildingGroups, but
+ * for `settings`, which moderators change through
+ * Moderation\GroupModeration (P07-04); never deleted.
  *
  * @property int $id
  * @property int $organization_id
@@ -56,6 +57,12 @@ final class BuildingGroup extends Model
     public function posts(): HasMany
     {
         return $this->hasMany(GroupPost::class);
+    }
+
+    /** @return HasMany<GroupReport, $this> */
+    public function reports(): HasMany
+    {
+        return $this->hasMany(GroupReport::class);
     }
 
     /** @return array<string, string> */

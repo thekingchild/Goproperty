@@ -34,16 +34,26 @@ use Spatie\Permission\Exceptions\PermissionDoesNotExist;
  * the buildings they see (an assigned agent: their buildings only, any
  * other group 404) and their posts, closed groups too; a member holding
  * `building_groups.participate` (the same three roles) posts, comments and
- * reacts in an open group. Moderation (`building_groups.moderate`) is
- * P07-04's.
+ * reacts in an open group, and reports posts and comments.
+ *
+ * Moderators (P07-04, docs/plans/P07-subtasks.md defaults 39–52): a member
+ * holding `building_groups.moderate` (the same three roles), in the groups
+ * they see, sees hidden and removed posts and comments with their trail,
+ * the open reports and the muted members (`viewModeration`, a read: kept
+ * while suspended), and in an open group hides, shows again, pins and
+ * unpins, dismisses reports and changes the group's settings (`moderate`),
+ * removes (`removeContent`: final, so refused while GoProperty staff
+ * impersonate, as every remove… ability) and mutes tenants (`mute`:
+ * it acts on a person; #[BlockedWhileImpersonating]). Tenants never
+ * moderate.
  *
  * Tenants (the portal; they hold no workspace role, so their membership is
  * the permission, as for tickets): a tenant sees a group while one of their
  * own tenant records here is a current member (Groups\GroupMembership: an
  * active lease in the building, P07-01) and the group is open; anyone else
  * gets 404. A member posts unless the group keeps posting to staff
- * (GroupSettings::$membersPost), comments and reacts; a muted member
- * (P07-04) only reads.
+ * (GroupSettings::$membersPost), comments, reacts and reports; a muted
+ * member (P07-04) only reads.
  *
  * Authors remove their own posts and comments (`deletePost`,
  * `deleteComment`). Images: adding them follows posting and the group's
@@ -112,6 +122,42 @@ final class BuildingGroupPolicy
         return $this->view($user, $group);
     }
 
+    /** Report a post or comment, from the workspace. */
+    public function report(User $user, BuildingGroup $group): Response|bool
+    {
+        return $this->staffWrites($user, $group);
+    }
+
+    /**
+     * Moderators' view of a group: hidden and removed posts and comments
+     * with their trail, open reports, muted members (a read; closed groups
+     * too).
+     */
+    public function viewModeration(User $user, BuildingGroup $group): Response|bool
+    {
+        return $this->reachable($user, $group)
+            ?? ($this->planAllows() && $this->holds($user, OrganizationPermission::ModerateBuildingGroups));
+    }
+
+    /** Hide or show again, pin or unpin, dismiss reports, change the group's settings. */
+    public function moderate(User $user, BuildingGroup $group): Response|bool
+    {
+        return $this->staffModerates($user, $group);
+    }
+
+    /** Remove a post or comment for good for members (it stays for moderators). Refused while staff impersonate (a remove… ability). */
+    public function removeContent(User $user, BuildingGroup $group): Response|bool
+    {
+        return $this->staffModerates($user, $group);
+    }
+
+    /** Mute or unmute a tenant of the group. */
+    #[BlockedWhileImpersonating]
+    public function mute(User $user, BuildingGroup $group): Response|bool
+    {
+        return $this->staffModerates($user, $group);
+    }
+
     /** A group the tenant lives in, from the portal. */
     public function viewAsTenant(User $user, BuildingGroup $group): Response|bool
     {
@@ -140,6 +186,12 @@ final class BuildingGroupPolicy
 
     /** React to a post or comment, from the portal. */
     public function reactAsTenant(User $user, BuildingGroup $group): Response|bool
+    {
+        return $this->tenantWrites($user, $group);
+    }
+
+    /** Report a post or comment, from the portal. */
+    public function reportAsTenant(User $user, BuildingGroup $group): Response|bool
     {
         return $this->tenantWrites($user, $group);
     }
@@ -185,6 +237,21 @@ final class BuildingGroupPolicy
         }
 
         if (! $this->planAllows() || ! $this->holds($user, OrganizationPermission::ParticipateInBuildingGroups)) {
+            return false;
+        }
+
+        return $group->is_active ? true : Response::deny(__('This group is closed: its building is no longer managed here.'));
+    }
+
+    private function staffModerates(User $user, BuildingGroup $group): Response|bool
+    {
+        $reachable = $this->reachable($user, $group);
+
+        if ($reachable !== null) {
+            return $reachable;
+        }
+
+        if (! $this->planAllows() || ! $this->holds($user, OrganizationPermission::ModerateBuildingGroups)) {
             return false;
         }
 

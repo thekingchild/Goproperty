@@ -11,6 +11,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Gate;
 use Modules\BuildingGroup\Enums\PostStatus;
+use Modules\BuildingGroup\Enums\ReportStatus;
 use Modules\BuildingGroup\Models\BuildingGroup;
 use Modules\Properties\Contracts\BuildingAccess;
 use Modules\Properties\Contracts\PropertyDirectory;
@@ -19,8 +20,9 @@ use Modules\Properties\Contracts\PropertyDirectory;
  * The organization's Building Groups (/o/{slug}/groups,
  * Livewire\GroupIndex) and their export (P02-07; P07-02): one per
  * building, open ones first, with the current tenant members, the
- * published posts and the time of the latest activity. An assigned
- * agent's list holds their buildings only. Never the posts' words.
+ * published posts, the time of the latest activity and the open reports
+ * (P07-04). An assigned agent's list holds their buildings only. Never the
+ * posts' words.
  *
  * @extends QueryListExport<BuildingGroup>
  */
@@ -63,6 +65,7 @@ final class GroupList extends QueryListExport
             ->withCount([
                 'members as members_count' => static fn (Builder $query) => $query->whereNull('left_at'),
                 'posts as posts_count' => static fn (Builder $query) => $query->where('status', PostStatus::Published),
+                'reports as open_reports_count' => static fn (Builder $query) => $query->where('status', ReportStatus::Open),
             ])
             ->withMax(['posts as latest_activity_at' => static fn (Builder $query) => $query->where('status', PostStatus::Published)], 'last_activity_at')
             ->orderByDesc('is_active')
@@ -76,6 +79,7 @@ final class GroupList extends QueryListExport
             ExportColumn::make('Status', static fn (BuildingGroup $group): string => $group->is_active ? 'Open' : 'Closed'),
             ExportColumn::make('Members', static fn (BuildingGroup $group): int => (int) $group->getAttribute('members_count')),
             ExportColumn::make('Posts', static fn (BuildingGroup $group): int => (int) $group->getAttribute('posts_count')),
+            ExportColumn::make('Open reports', static fn (BuildingGroup $group): int => (int) $group->getAttribute('open_reports_count')),
             ExportColumn::make('Latest activity', static fn (BuildingGroup $group): ?CarbonImmutable => self::latestActivity($group)),
             ExportColumn::make('Opened on', static fn (BuildingGroup $group) => $group->created_at),
             ExportColumn::make('Closed on', static fn (BuildingGroup $group) => $group->closed_at),

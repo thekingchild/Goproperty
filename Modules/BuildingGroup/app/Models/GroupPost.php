@@ -21,8 +21,11 @@ use Spatie\MediaLibrary\HasMedia;
  * A post in a Building Group (DATABASE_SCHEMA.md § 6 `group_posts`;
  * ARCHITECTURE.md § 6.8; P07-02): sanitized rich text (Posts\RichText)
  * and up to four images (media collection `group_images`, attachments).
- * Written only by Posts\GroupPosts. Its author removes it with a soft
- * delete; it is never deleted for good (the model throws).
+ * Written only by Posts\GroupPosts, but for `status` and `pinned_at`,
+ * which moderators change through Moderation\GroupModeration (P07-04:
+ * hidden and removed posts vanish for members and stay for moderators).
+ * Its author removes it with a soft delete; it is never deleted for good
+ * (the model throws).
  *
  * @property int $id
  * @property int $organization_id
@@ -82,6 +85,18 @@ final class GroupPost extends Model implements HasMedia
     public function scopePublished(Builder $query): Builder
     {
         return $query->where('status', PostStatus::Published);
+    }
+
+    /**
+     * Posts a moderator sees: every status, never the authors' own removals
+     * (soft deleted).
+     *
+     * @param  Builder<GroupPost>  $query
+     * @return Builder<GroupPost>
+     */
+    public function scopeModeratable(Builder $query): Builder
+    {
+        return $query->whereIn('status', [PostStatus::Published, PostStatus::Hidden, PostStatus::Removed]);
     }
 
     /** @return array<string, string> */

@@ -18,6 +18,10 @@
         </div>
     </header>
 
+    @if ($mutedUntil)
+        <flux:callout variant="secondary" icon="speaker-x-mark" :heading="__(':agency has paused your posting here until :time. You can still read the group.', ['agency' => $agency, 'time' => \Modules\BuildingGroup\Feed\GroupDates::show($mutedUntil)])" data-test="portal-muted" />
+    @endif
+
     <div class="mx-auto flex w-full max-w-2xl flex-col">
         @include('buildinggroup::partials.feed')
     </div>

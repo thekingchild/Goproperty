@@ -42,7 +42,7 @@ use Modules\Tenants\Models\TenantProfile;
  * committed rows, so this test commits and cleans up after itself.
  */
 
-const PAYMENT_DRILL_TABLES = ['payment_notices', 'notifications', 'jobs', 'receipts', 'payment_allocations', 'tenant_credit_entries', 'tenant_credit_balances', 'payments', 'bill_items', 'bills', 'document_verifications', 'lease_contracts', 'lease_deposit_entries', 'group_reactions', 'group_comments', 'group_posts', 'group_members', 'building_groups', 'leases', 'units', 'properties', 'tenant_profiles', 'document_counters', 'settings', 'organizations', 'users', 'activity_log'];
+const PAYMENT_DRILL_TABLES = ['payment_notices', 'notifications', 'jobs', 'receipts', 'payment_allocations', 'tenant_credit_entries', 'tenant_credit_balances', 'payments', 'bill_items', 'bills', 'document_verifications', 'lease_contracts', 'lease_deposit_entries', 'group_reports', 'group_moderation_events', 'group_reactions', 'group_comments', 'group_posts', 'group_members', 'building_groups', 'leases', 'units', 'properties', 'tenant_profiles', 'document_counters', 'settings', 'organizations', 'users', 'activity_log'];
 
 beforeEach(function () {
     // Activating a lease issues its contract (P03-03b); its PDF is not this drill's business.

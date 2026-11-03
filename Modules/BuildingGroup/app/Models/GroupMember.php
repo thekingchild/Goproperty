@@ -18,7 +18,10 @@ use Modules\BuildingGroup\Enums\MemberType;
  * P07-01). A tenant's row (`tenant_profile_id`) is current while
  * `left_at` is empty: they hold an active lease in the building. Leaving
  * sets `left_at`; coming back clears it and sets a new `joined_at` on the
- * same row. Written only by Groups\BuildingGroups; never deleted.
+ * same row. Written only by Groups\BuildingGroups, but for `muted_until`,
+ * which moderators set and clear through Moderation\GroupModeration
+ * (P07-04; the sync never touches it, so a mute stays with a tenant who
+ * leaves and comes back); never deleted.
  *
  * @property int $id
  * @property int $organization_id

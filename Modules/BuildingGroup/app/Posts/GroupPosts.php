@@ -121,6 +121,13 @@ final readonly class GroupPosts
         return DB::transaction(function () use ($by, $as, $group, $body, $images): GroupPost {
             $group = $this->lockedGroup($group->id);
             $this->plans->ensureFeature(Feature::BuildingGroup, $this->context->get());
+            // Again on the row as locked: a moderator may have changed the group's settings meanwhile (P07-04).
+            Gate::forUser($by)->authorize($as === AuthorKind::Staff ? 'post' : 'postAsTenant', $group);
+
+            if ($images !== []) {
+                Gate::forUser($by)->authorize($as === AuthorKind::Staff ? 'attachImages' : 'attachImagesAsTenant', $group);
+            }
+
             $now = CarbonImmutable::now();
 
             $post = new GroupPost;
@@ -198,7 +205,7 @@ final readonly class GroupPosts
             $comment->status = PostStatus::Published;
             $comment->save();
 
-            $post->comment_count = $this->visibleComments($post);
+            $post->comment_count = ShownComments::count($post);
             $post->last_activity_at = CarbonImmutable::now();
             $post->save();
 
@@ -316,7 +323,7 @@ final readonly class GroupPosts
                 ->each(static fn (GroupComment $reply): ?bool => $reply->delete());
             $comment->delete();
 
-            $post->comment_count = $this->visibleComments($post);
+            $post->comment_count = ShownComments::count($post);
             $post->save();
 
             activity(self::LOG)
@@ -463,13 +470,5 @@ final readonly class GroupPosts
         }
 
         return $target->parent_id ?? $target->id;
-    }
-
-    /** Published comments shown under the post: top-level ones and the replies of those. */
-    private function visibleComments(GroupPost $post): int
-    {
-        $top = GroupComment::query()->published()->where('group_post_id', $post->id)->whereNull('parent_id')->pluck('id');
-
-        return $top->count() + GroupComment::query()->published()->where('group_post_id', $post->id)->whereIn('parent_id', $top)->count();
     }
 }

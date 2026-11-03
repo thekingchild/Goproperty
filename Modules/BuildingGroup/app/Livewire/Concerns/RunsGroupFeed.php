@@ -16,12 +16,14 @@ use Livewire\WithFileUploads;
 use Modules\BuildingGroup\Enums\AuthorKind;
 use Modules\BuildingGroup\Enums\ReactableType;
 use Modules\BuildingGroup\Enums\Reaction;
+use Modules\BuildingGroup\Enums\ReportReason;
 use Modules\BuildingGroup\Feed\FeedPost;
 use Modules\BuildingGroup\Feed\GroupFeed;
 use Modules\BuildingGroup\Live\LiveFeed;
 use Modules\BuildingGroup\Models\BuildingGroup;
 use Modules\BuildingGroup\Models\GroupComment;
 use Modules\BuildingGroup\Models\GroupPost;
+use Modules\BuildingGroup\Moderation\AbuseReports;
 use Modules\BuildingGroup\Posts\GroupPosts;
 use Modules\BuildingGroup\Posts\GroupRefused;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
@@ -37,6 +39,10 @@ use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
  * property. A refused action shows its reason where it was asked for:
  * the post form (`body`, `images`), a comment box (`comments.{post}`), a
  * reply box (`replies.{comment}`) or the page (`group`).
+ *
+ * Reporting (P07-04, Moderation\AbuseReports): "Report" on someone
+ * else's post or comment opens a short form (a reason, an optional note)
+ * under it; the refusal or thanks shows there (`report`).
  *
  * Live updates (P07-03, Live\LiveFeed): the page calls refreshFeed() every
  * few seconds (App\Hosting\Realtime::pollSeconds()) and, on a VPS, when
@@ -63,6 +69,13 @@ trait RunsGroupFeed
 
     /** The comment whose reply box is open. */
     public ?int $replyingTo = null;
+
+    /** The post or comment being reported ("group_post:12"), whose form is open. */
+    public ?string $reporting = null;
+
+    public string $reportReason = '';
+
+    public string $reportNote = '';
 
     /** Posts shown; "Show more" adds a page. */
     public int $limit = GroupFeed::PAGE;
@@ -192,6 +205,35 @@ trait RunsGroupFeed
         $this->notice = __('Your comment was removed.');
     }
 
+    public function startReport(string $type, int $id): void
+    {
+        $type = ReactableType::tryFrom($type) ?? throw GroupRefused::because(__('That cannot be reported.'), 'report');
+        $this->reporting = $type->value.':'.$id;
+        $this->reportReason = '';
+        $this->reportNote = '';
+        $this->resetValidation('report');
+    }
+
+    public function cancelReport(): void
+    {
+        $this->reporting = null;
+        $this->resetValidation('report');
+    }
+
+    public function sendReport(AbuseReports $reports): void
+    {
+        [$type, $id] = self::itemKey($this->reporting, 'report');
+        $reason = ReportReason::tryFrom($this->reportReason)
+            ?? throw GroupRefused::because(__('Choose why you are reporting it.'), 'report');
+
+        $this->as('report', fn () => $this->inGroup(fn (BuildingGroup $group, User $user) => $reports->report($user, $this->author(), $type, $this->itemIn($group, $type, $id), $reason, $this->reportNote)));
+
+        $this->reporting = null;
+        $this->reportReason = '';
+        $this->reportNote = '';
+        $this->notice = __('Thank you. The agency will look at it; the author is not told who reported it.');
+    }
+
     public function showMore(): void
     {
         $this->limit = min($this->limit + GroupFeed::PAGE, 10 * GroupFeed::PAGE);
@@ -233,6 +275,25 @@ trait RunsGroupFeed
         if ($this->replyingTo !== null) {
             $this->replies[$this->replyingTo] ??= '';
         }
+    }
+
+    /**
+     * A "group_post:12" key of the page's state, parsed.
+     *
+     * @return array{0: ReactableType, 1: int}
+     *
+     * @throws ValidationException
+     */
+    protected static function itemKey(?string $key, string $field): array
+    {
+        [$type, $id] = array_pad(explode(':', (string) $key, 2), 2, '');
+        $type = ReactableType::tryFrom($type);
+
+        if ($type === null || ! ctype_digit($id)) {
+            throw GroupRefused::because(__('That post is no longer there.'), $field);
+        }
+
+        return [$type, (int) $id];
     }
 
     /** @return list<UploadedFile> */

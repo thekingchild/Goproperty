@@ -15,8 +15,8 @@ use Modules\BuildingGroup\Models\BuildingGroup;
  *   posting to the agency's staff while tenants still comment and react.
  * - `images` (default true): posts may carry images.
  *
- * Read and enforced since P07-02 (Policies\BuildingGroupPolicy); the form
- * that changes them comes with moderation (P07-04).
+ * Read and enforced since P07-02 (Policies\BuildingGroupPolicy); changed
+ * by moderators on the group's page (P07-04, Moderation\GroupModeration).
  */
 final readonly class GroupSettings
 {

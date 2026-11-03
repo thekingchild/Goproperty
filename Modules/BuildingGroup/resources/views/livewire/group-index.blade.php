@@ -26,7 +26,12 @@
                             ])->filter()->join(' · ') }}
                         </span>
                     </div>
-                    <flux:badge size="sm" :color="$group->is_active ? 'green' : 'zinc'" data-test="group-status">{{ $group->is_active ? __('Open') : __('Closed') }}</flux:badge>
+                    <div class="flex flex-wrap items-center gap-2">
+                        @if ((int) $group->open_reports_count > 0)
+                            <flux:badge size="sm" color="red" data-test="group-open-reports">{{ trans_choice(':count report to look at|:count reports to look at', (int) $group->open_reports_count) }}</flux:badge>
+                        @endif
+                        <flux:badge size="sm" :color="$group->is_active ? 'green' : 'zinc'" data-test="group-status">{{ $group->is_active ? __('Open') : __('Closed') }}</flux:badge>
+                    </div>
                 </li>
             @endforeach
         </ul>

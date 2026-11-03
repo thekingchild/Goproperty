@@ -58,13 +58,18 @@ use Modules\Billing\Models\UtilityType;
 use Modules\Billing\Utilities\MeterValue;
 use Modules\BuildingGroup\Enums\AuthorKind;
 use Modules\BuildingGroup\Enums\MemberType;
+use Modules\BuildingGroup\Enums\ModerationAction;
+use Modules\BuildingGroup\Enums\ModerationTarget;
 use Modules\BuildingGroup\Enums\ReactableType;
 use Modules\BuildingGroup\Enums\Reaction;
+use Modules\BuildingGroup\Enums\ReportReason;
 use Modules\BuildingGroup\Models\BuildingGroup;
 use Modules\BuildingGroup\Models\GroupComment;
 use Modules\BuildingGroup\Models\GroupMember;
+use Modules\BuildingGroup\Models\GroupModerationEvent;
 use Modules\BuildingGroup\Models\GroupPost;
 use Modules\BuildingGroup\Models\GroupReaction;
+use Modules\BuildingGroup\Models\GroupReport;
 use Modules\Collections\Enums\DateOrder;
 use Modules\Collections\Enums\LineDirection;
 use Modules\Collections\Enums\StatementFormat;
@@ -406,6 +411,23 @@ final class OrganizationScopedModels
                 'reactable_type' => ReactableType::Post,
                 'reactable_id' => self::groupPost()->id,
                 'emoji' => Reaction::ThumbsUp,
+            ])->save()),
+            // Moderation (P07-04): Moderation\GroupModeration and AbuseReports are the writers; the probes are about the rows.
+            GroupModerationEvent::class => fn (): Model => tap(new GroupModerationEvent, fn (GroupModerationEvent $event): bool => $event->forceFill([
+                'building_group_id' => self::buildingGroup()->id,
+                'actor_user_id' => User::factory()->create()->id,
+                'action' => ModerationAction::Hide,
+                'target_type' => ModerationTarget::Post,
+                'target_id' => self::groupPost()->id,
+                'reason' => 'Probe',
+            ])->save()),
+            GroupReport::class => fn (): Model => tap(new GroupReport, fn (GroupReport $report): bool => $report->forceFill([
+                'building_group_id' => self::buildingGroup()->id,
+                'reportable_type' => ReactableType::Post,
+                'reportable_id' => self::groupPost()->id,
+                'reporter_user_id' => User::factory()->create()->id,
+                'reporter_kind' => AuthorKind::Staff,
+                'reason' => ReportReason::Spam,
             ])->save()),
             // Maintenance tickets (P04-01): TicketService is the writer; the probes are about the rows.
             Ticket::class => fn (): Model => self::ticket(),

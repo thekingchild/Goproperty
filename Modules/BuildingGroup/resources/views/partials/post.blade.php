@@ -4,8 +4,23 @@
     impersonate), reactions, comments with their replies and the comment
     box. $post (Feed\FeedPost), $showImages, $canComment, $canReact,
     $replyingTo.
+
+    P07-04: a pinned post says so; members may report it; moderators
+    ($isModerator) also get hidden and removed posts, marked, with their
+    trail, the open reports' count and their actions. Nobody reacts to or
+    comments on a post members cannot see.
 --}}
-<article class="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900" data-test="post" data-post="{{ $post->id }}" wire:key="post-{{ $post->id }}">
+@php
+    $shown = $post->status === \Modules\BuildingGroup\Enums\PostStatus::Published;
+    $canComment = $canComment && $shown;
+    $canReact = $canReact && $shown;
+@endphp
+<article id="post-{{ $post->id }}" @class([
+    'flex flex-col gap-3 rounded-2xl border p-4',
+    'border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900' => $shown && ! $post->pinned,
+    'border-primary-300 bg-white dark:border-primary-700 dark:bg-zinc-900' => $shown && $post->pinned,
+    'border-dashed border-amber-400 bg-amber-50/60 dark:border-amber-700 dark:bg-amber-950/30' => ! $shown,
+]) data-test="post" data-post="{{ $post->id }}" data-status="{{ $post->status->value }}" @if ($post->pinned) data-pinned @endif wire:key="post-{{ $post->id }}">
     <header class="flex items-start justify-between gap-2">
         <div class="flex min-w-0 flex-wrap items-baseline gap-x-2">
             <span class="font-semibold text-zinc-900 dark:text-white" data-test="author">{{ $post->author }}</span>
@@ -13,11 +28,32 @@
                 <flux:badge size="sm" color="zinc" data-test="author-badge">{{ $post->badge }}</flux:badge>
             @endif
             <span class="text-sm text-zinc-500 dark:text-zinc-400">{{ \Modules\BuildingGroup\Feed\GroupDates::show($post->at) }}</span>
+            @if ($post->pinned)
+                <flux:badge size="sm" color="blue" icon="paper-clip" data-test="pinned">{{ __('Pinned') }}</flux:badge>
+            @endif
+            @unless ($shown)
+                <flux:badge size="sm" color="amber" data-test="moderation-status">{{ $post->status->label() }}</flux:badge>
+            @endunless
+            @if ($post->openReports > 0)
+                <flux:badge size="sm" color="red" data-test="open-reports">{{ trans_choice(':count report|:count reports', $post->openReports, ['count' => $post->openReports]) }}</flux:badge>
+            @endif
         </div>
         @if ($post->canDelete)
             <button type="button" wire:click="deletePost({{ $post->id }})" wire:confirm="{{ __('Remove your post? Its photos are deleted for good.') }}" class="min-h-9 shrink-0 rounded-md px-2 text-sm font-medium text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950" data-test="delete-post">{{ __('Remove') }}</button>
         @endif
     </header>
+
+    @if (! $shown)
+        <div class="flex flex-col gap-1" data-test="moderated-note">
+            <flux:text class="text-sm font-medium">{{ $post->status === \Modules\BuildingGroup\Enums\PostStatus::Hidden ? __('Hidden: members do not see this post or its comments.') : __('Removed: members do not see this post or its comments, and it cannot be shown again.') }}</flux:text>
+            @include('buildinggroup::partials.trail', ['trail' => $post->trail])
+        </div>
+    @elseif ($isModerator && $post->trail !== [])
+        <details class="text-sm" data-test="moderation-history">
+            <summary class="cursor-pointer text-zinc-500 dark:text-zinc-400">{{ __('Moderation history') }}</summary>
+            @include('buildinggroup::partials.trail', ['trail' => $post->trail])
+        </details>
+    @endif
 
     @if ($post->html)
         @include('buildinggroup::partials.rich-text', ['html' => $post->html])
@@ -37,7 +73,17 @@
         @endif
     @endif
 
-    @include('buildinggroup::partials.reactions', ['type' => 'group_post', 'id' => $post->id, 'reactions' => $post->reactions, 'canReact' => $canReact])
+    <div class="flex flex-wrap items-center justify-between gap-2">
+        @include('buildinggroup::partials.reactions', ['type' => 'group_post', 'id' => $post->id, 'reactions' => $post->reactions, 'canReact' => $canReact])
+        @if ($canReport && $shown && ! $post->mine)
+            @include('buildinggroup::partials.report', ['type' => 'group_post', 'id' => $post->id, 'reportedByMe' => $post->reportedByMe])
+        @endif
+    </div>
+
+    @if ($isModerator)
+        @include('buildinggroup::partials.moderation-actions', ['type' => 'group_post', 'id' => $post->id, 'status' => $post->status, 'pinned' => $post->pinned, 'fromTenant' => $post->fromTenant, 'openReports' => $post->openReports, 'where' => 'feed', 'mine' => $post->mine])
+        @include('buildinggroup::partials.moderation-form', ['key' => 'group_post:'.$post->id, 'where' => 'feed'])
+    @endif
 
     @if ($post->comments !== [])
         <div class="flex flex-col gap-3 border-t border-zinc-100 pt-3 dark:border-zinc-800" data-test="comments" data-count="{{ $post->commentCount }}">

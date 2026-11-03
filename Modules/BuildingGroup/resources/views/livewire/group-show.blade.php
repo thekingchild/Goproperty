@@ -1,6 +1,8 @@
 {{--
     A Building Group (Modules\BuildingGroup\Livewire\GroupShow, P07-02): the
-    group's name, its members now and whether it is open, then the feed.
+    group's name, its members now and whether it is open, then, for
+    moderators, the reports, muted tenants and settings (P07-04), then the
+    feed.
 --}}
 <x-page :heading="$name" :description="trans_choice(':count tenant is a member now.|:count tenants are members now.', $members, ['count' => $members])">
     <x-slot:actions>
@@ -11,7 +13,10 @@
         <flux:callout variant="secondary" icon="lock-closed" :heading="__('This group is closed: its building is no longer managed here. Its posts stay for reading.')" data-test="group-closed" />
     @endunless
 
-    <div class="mx-auto flex w-full max-w-2xl flex-col">
+    <div class="mx-auto flex w-full max-w-2xl flex-col gap-4">
+        @if ($isModerator)
+            @include('buildinggroup::partials.moderation-panel')
+        @endif
         @include('buildinggroup::partials.feed')
     </div>
 </x-page>

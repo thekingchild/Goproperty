@@ -15,7 +15,9 @@ use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 use Modules\BuildingGroup\Enums\AuthorKind;
+use Modules\BuildingGroup\Enums\ReportReason;
 use Modules\BuildingGroup\Feed\GroupFeed;
+use Modules\BuildingGroup\Groups\GroupMembership;
 use Modules\BuildingGroup\Livewire\Concerns\RunsGroupFeed;
 use Modules\BuildingGroup\Models\BuildingGroup;
 use Modules\BuildingGroup\Portal\TenantGroups;
@@ -28,8 +30,9 @@ use Modules\Tenants\Contracts\PortalTenant;
  * member). The group is looked up among the user's own on every request
  * (Portal\TenantGroups): a group they are not a member of now — never was,
  * or their lease there has ended — answers 404, and an open page goes back
- * to the list at its next refresh (P07-03). Phone first: one column,
- * 44 px targets, no autofocus.
+ * to the list at its next refresh (P07-03). Tenants report posts and
+ * comments (P07-04); a muted tenant reads, told until when. Phone first:
+ * one column, 44 px targets, no autofocus.
  */
 #[Layout('layouts::app')]
 #[Title('Building Group')]
@@ -54,6 +57,8 @@ final class PortalGroupShow extends Component
         $live = $this->goLive();
 
         $state = $groups->within($tenancy, function () use ($user, $group, $groups, $feed, $tenancy): array {
+            $membership = app(GroupMembership::class);
+            $member = $membership->rowFor($user, $group);
             $gate = Gate::forUser($user);
             $images = $gate->allows('viewImagesAsTenant', $group);
             [$posts, $more] = $feed->page($group, $user, $this->limit, $images);
@@ -68,6 +73,8 @@ final class PortalGroupShow extends Component
                 'canAttach' => $writable && $gate->allows('attachImagesAsTenant', $group),
                 'canComment' => $writable && $gate->allows('commentAsTenant', $group),
                 'canReact' => $writable && $gate->allows('reactAsTenant', $group),
+                'canReport' => $writable && $gate->allows('reportAsTenant', $group),
+                'mutedUntil' => $member !== null && $membership->muted($member) ? $member->muted_until : null,
             ];
         });
 
@@ -80,6 +87,7 @@ final class PortalGroupShow extends Component
             'initials' => $branding->initials(),
             'organizationId' => $tenancy->organization->id,
             'readOnly' => $tenancy->readOnly(),
+            'reasons' => ReportReason::cases(),
             'live' => $live,
         ]);
     }

@@ -14,9 +14,14 @@ use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 use Modules\BuildingGroup\Enums\AuthorKind;
+use Modules\BuildingGroup\Enums\MuteLength;
+use Modules\BuildingGroup\Enums\ReportReason;
 use Modules\BuildingGroup\Feed\GroupFeed;
+use Modules\BuildingGroup\Feed\MutedMembers;
+use Modules\BuildingGroup\Feed\ReportQueue;
 use Modules\BuildingGroup\Lists\GroupList;
 use Modules\BuildingGroup\Livewire\Concerns\InWorkspace;
+use Modules\BuildingGroup\Livewire\Concerns\ModeratesGroup;
 use Modules\BuildingGroup\Livewire\Concerns\RunsGroupFeed;
 use Modules\BuildingGroup\Models\BuildingGroup;
 use Modules\BuildingGroup\Models\GroupMember;
@@ -31,13 +36,18 @@ use Modules\BuildingGroup\Models\GroupMember;
  * or handed over) is read-only. Images show unless GoProperty staff are
  * impersonating (`viewImages`). Kept current while open (P07-03,
  * RunsGroupFeed::refreshFeed()).
+ *
+ * Moderators (`viewModeration`, P07-04; Concerns\ModeratesGroup) also see
+ * the open reports, the muted members and the group's settings above the
+ * feed, and in it the posts and comments hidden or removed, with their
+ * trail and the actions their permissions allow.
  */
 #[Layout('layouts::app')]
 #[Title('Building Group')]
 #[RequiresFeature(Feature::BuildingGroup)]
 final class GroupShow extends Component
 {
-    use InWorkspace, RunsGroupFeed;
+    use InWorkspace, ModeratesGroup, RunsGroupFeed;
 
     #[Locked]
     public int $groupId;
@@ -46,17 +56,20 @@ final class GroupShow extends Component
     {
         $this->enterWorkspace($context);
         $this->groupId = $group;
-        $this->authorize('view', $this->group());
+        $group = $this->group();
+        $this->authorize('view', $group);
+        $this->loadSettings($group);
     }
 
-    public function render(GroupFeed $feed, GroupList $list, OrganizationContext $context): View
+    public function render(GroupFeed $feed, GroupList $list, OrganizationContext $context, ReportQueue $reports, MutedMembers $muted): View
     {
         $group = $this->group();
         $this->authorize('view', $group);
         $user = $this->user();
         $images = $user->can('viewImages', $group);
+        $moderator = $user->can('viewModeration', $group);
         $live = $this->goLive();
-        [$posts, $more] = $feed->page($group, $user, $this->limit, $images);
+        [$posts, $more] = $feed->page($group, $user, $this->limit, $images, $moderator);
         $this->keepBoxes($posts);
 
         return view('buildinggroup::livewire.group-show', [
@@ -71,6 +84,15 @@ final class GroupShow extends Component
             'canAttach' => $user->can('attachImages', $group),
             'canComment' => $user->can('comment', $group),
             'canReact' => $user->can('react', $group),
+            'canReport' => ! $moderator && $user->can('report', $group),
+            'isModerator' => $moderator,
+            'canModerate' => $moderator && $user->can('moderate', $group),
+            'canRemove' => $moderator && $user->can('removeContent', $group),
+            'canMute' => $moderator && $user->can('mute', $group),
+            'reported' => $moderator ? $reports->open($group, $user) : [],
+            'muted' => $moderator ? $muted->of($group) : [],
+            'reasons' => ReportReason::cases(),
+            'muteLengths' => MuteLength::cases(),
             'live' => $live,
         ]);
     }

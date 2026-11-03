@@ -5,10 +5,23 @@
     pages' (posts, more, showImages, canPost, canAttach, canComment,
     canReact, notice, replyingTo, live).
 
+    Moderation (P07-04): the workspace's page also passes isModerator,
+    canModerate, canRemove, canMute, acting and muteLengths; reporting
+    needs canReport, reporting and reasons. Defaults below for the portal.
+
     Live updates (P07-03): Alpine `groupLive` (resources/js/app.js) calls
     refreshFeed every $live['poll'] seconds while the tab is shown and the
     person active, and on a VPS when Reverb says the group changed.
 --}}
+@php
+    $isModerator ??= false;
+    $canModerate ??= false;
+    $canRemove ??= false;
+    $canMute ??= false;
+    $canReport ??= false;
+    $acting ??= null;
+    $muteLengths ??= [];
+@endphp
 <div class="flex flex-col gap-4" data-test="group-feed" x-data="groupLive(@js($live))" data-live-poll="{{ $live['poll'] }}" @if ($live['websocket'] !== null) data-live-channel="{{ $live['websocket']['channel'] }}" @endif>
     @if ($notice)
         <flux:callout variant="success" icon="check-circle" :heading="$notice" role="status" data-test="group-notice" />
@@ -18,6 +31,12 @@
         <flux:callout variant="warning" icon="exclamation-triangle" :heading="$message" role="alert" data-test="group-warning" />
     @enderror
 
+    @if ($acting === null)
+        @error('moderation')
+            <flux:callout variant="warning" icon="exclamation-triangle" :heading="$message" role="alert" data-test="moderation-warning" />
+        @enderror
+    @endif
+
     @if ($canPost)
         @include('buildinggroup::partials.composer', ['canAttach' => $canAttach])
     @endif
@@ -26,7 +45,7 @@
         <x-empty-state icon="chat-bubble-left-right" :heading="__('No posts yet')" :description="$canPost ? __('Start the conversation: share news, ask a question, say hello.') : __('Posts will show here.')" data-test="feed-empty" />
     @else
         @foreach ($posts as $post)
-            @include('buildinggroup::partials.post', ['post' => $post, 'showImages' => $showImages, 'canComment' => $canComment, 'canReact' => $canReact, 'replyingTo' => $replyingTo])
+            @include('buildinggroup::partials.post', ['post' => $post, 'showImages' => $showImages, 'canComment' => $canComment, 'canReact' => $canReact, 'replyingTo' => $replyingTo, 'canReport' => $canReport, 'isModerator' => $isModerator])
         @endforeach
 
         @if ($more)

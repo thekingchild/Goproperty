@@ -10,13 +10,21 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Testing\TestResponse;
 use Livewire\Livewire;
 use Modules\BuildingGroup\Enums\AuthorKind;
+use Modules\BuildingGroup\Enums\ModerationTarget;
+use Modules\BuildingGroup\Enums\MuteLength;
 use Modules\BuildingGroup\Enums\ReactableType;
 use Modules\BuildingGroup\Enums\Reaction;
+use Modules\BuildingGroup\Enums\ReportReason;
 use Modules\BuildingGroup\Livewire\GroupShow;
 use Modules\BuildingGroup\Livewire\Portal\PortalGroupShow;
 use Modules\BuildingGroup\Models\BuildingGroup;
 use Modules\BuildingGroup\Models\GroupComment;
+use Modules\BuildingGroup\Models\GroupMember;
+use Modules\BuildingGroup\Models\GroupModerationEvent;
 use Modules\BuildingGroup\Models\GroupPost;
+use Modules\BuildingGroup\Models\GroupReport;
+use Modules\BuildingGroup\Moderation\AbuseReports;
+use Modules\BuildingGroup\Moderation\GroupModeration;
 use Modules\BuildingGroup\Posts\GroupPosts;
 
 /*
@@ -186,4 +194,68 @@ function shownRichText(TestResponse|string $page): string
 function groupPhoto(string $name = 'garden.jpg', string $type = 'jpeg', int $width = 800, int $height = 600): UploadedFile
 {
     return UploadedFile::fake()->createWithContent($name, (string) file_get_contents((string) mediaImage($name, $width, $height, $type)->getRealPath()));
+}
+
+/*
+ * Moderation and reports (P07-04), through their writers, in the group's
+ * organization.
+ */
+
+function groupModeration(): GroupModeration
+{
+    return app(GroupModeration::class);
+}
+
+function itemType(GroupPost|GroupComment $item): ReactableType
+{
+    return $item instanceof GroupPost ? ReactableType::Post : ReactableType::Comment;
+}
+
+function hideIn(Organization $organization, User $by, GroupPost|GroupComment $item, ?string $reason = 'Not for this group'): void
+{
+    groupsFreshRequest();
+    inOrganization($organization, fn () => groupModeration()->hide($by, itemType($item), $item->id, $reason));
+}
+
+function unhideIn(Organization $organization, User $by, GroupPost|GroupComment $item): void
+{
+    groupsFreshRequest();
+    inOrganization($organization, fn () => groupModeration()->unhide($by, itemType($item), $item->id));
+}
+
+function removeIn(Organization $organization, User $by, GroupPost|GroupComment $item, ?string $reason = 'Abusive'): void
+{
+    groupsFreshRequest();
+    inOrganization($organization, fn () => groupModeration()->remove($by, itemType($item), $item->id, $reason));
+}
+
+function pinIn(Organization $organization, User $by, GroupPost $post, bool $pin = true): void
+{
+    groupsFreshRequest();
+    inOrganization($organization, fn () => $pin ? groupModeration()->pin($by, $post->id) : groupModeration()->unpin($by, $post->id));
+}
+
+/** Mutes the tenant behind the tenant record in the group. */
+function muteIn(Organization $organization, User $by, BuildingGroup $group, int $tenantProfileId, MuteLength $length = MuteLength::Week, ?string $reason = 'Cooling off'): void
+{
+    groupsFreshRequest();
+    inOrganization($organization, function () use ($by, $group, $tenantProfileId, $length, $reason): void {
+        $member = GroupMember::query()->where('building_group_id', $group->id)->where('tenant_profile_id', $tenantProfileId)->firstOrFail();
+        groupModeration()->mute($by, $group, $member->id, $length, $reason);
+    });
+}
+
+function reportIn(Organization $organization, User $by, AuthorKind $as, GroupPost|GroupComment $item, ReportReason $reason = ReportReason::Abuse, ?string $note = null): GroupReport
+{
+    groupsFreshRequest();
+
+    return inOrganization($organization, fn (): GroupReport => app(AbuseReports::class)->report($by, $as, itemType($item), $item->id, $reason, $note));
+}
+
+/** The item's moderation events, oldest first. */
+function moderationEvents(Organization $organization, GroupPost|GroupComment|null $item = null): array
+{
+    return inOrganization($organization, fn (): array => GroupModerationEvent::query()
+        ->when($item !== null, fn ($query) => $query->where('target_type', ModerationTarget::of(itemType($item)))->where('target_id', $item->id))
+        ->orderBy('id')->get()->all());
 }

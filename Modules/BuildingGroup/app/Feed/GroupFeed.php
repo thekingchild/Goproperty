@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Tenancy\OrganizationContext;
 use Illuminate\Support\Collection;
 use Modules\BuildingGroup\Enums\AuthorKind;
+use Modules\BuildingGroup\Enums\PostStatus;
 use Modules\BuildingGroup\Enums\ReactableType;
 use Modules\BuildingGroup\Models\BuildingGroup;
 use Modules\BuildingGroup\Models\GroupComment;
@@ -29,6 +30,13 @@ use Modules\Tenants\Contracts\TenantDirectory;
  * the reactions and the viewer's own, and its published comments, oldest
  * first, with their replies. Removed posts and comments (their authors'
  * soft deletes) are not read; a reply shows only under a shown comment.
+ * Pinned posts come first, the newest pin first (P07-04).
+ *
+ * For a moderator ($moderator: `viewModeration`, P07-04) the feed also
+ * holds the posts and comments moderators hid or removed, each with its
+ * status and trail, and every item's open reports; members never get
+ * them (a hidden post's comments, a hidden comment's replies vanish with
+ * it). Everyone sees whether they have reported an item.
  *
  * Names (docs/plans/P07-subtasks.md default 16): a tenant by the agency's
  * record of them, first name and the initial of their surname ("Kemi A.");
@@ -52,10 +60,13 @@ final readonly class GroupFeed
      *
      * @return array{0: list<FeedPost>, 1: bool}
      */
-    public function page(BuildingGroup $group, User $viewer, int $limit, bool $images): array
+    public function page(BuildingGroup $group, User $viewer, int $limit, bool $images, bool $moderator = false): array
     {
-        $posts = GroupPost::query()->published()
+        $posts = GroupPost::query()
+            ->when($moderator, static fn ($query) => $query->moderatable(), static fn ($query) => $query->published())
             ->where('building_group_id', $group->id)
+            ->orderByRaw('pinned_at is null')
+            ->orderByDesc('pinned_at')
             ->orderByDesc('last_activity_at')->orderByDesc('id')
             ->limit($limit + 1)
             ->get();
@@ -66,8 +77,9 @@ final readonly class GroupFeed
             return [[], false];
         }
 
-        $comments = $this->comments(self::ids($posts));
+        $comments = $this->comments(self::ids($posts), $moderator);
         $reactions = $this->reactions(self::ids($posts), self::ids($comments), $viewer);
+        $moderation = ModerationView::load(self::ids($posts), self::ids($comments), $viewer, $moderator);
         $names = $this->names($posts, $comments);
         $media = $images ? $this->media($posts) : collect();
         $mayDelete = new DeletePermission($viewer);
@@ -83,10 +95,10 @@ final readonly class GroupFeed
                 $replies = [];
 
                 foreach ($postComments->where('parent_id', $comment->id) as $reply) {
-                    $replies[] = $this->comment($reply, $viewer, $names, $reactions, $mayDelete, []);
+                    $replies[] = $this->comment($reply, $viewer, $names, $reactions, $mayDelete, $moderation, []);
                 }
 
-                $commentRows[] = $this->comment($comment, $viewer, $names, $reactions, $mayDelete, $replies);
+                $commentRows[] = $this->comment($comment, $viewer, $names, $reactions, $mayDelete, $moderation, $replies);
             }
 
             $mine = $post->author_user_id === $viewer->id;
@@ -108,7 +120,13 @@ final readonly class GroupFeed
                 myReaction: $reactions->mine(ReactableType::Post, $post->id),
                 comments: $commentRows,
                 commentCount: count($commentRows) + array_sum(array_map(static fn (FeedComment $row): int => count($row->replies), $commentRows)),
-                canDelete: $mine && $mayDelete->post($post),
+                canDelete: $mine && $post->status === PostStatus::Published && $mayDelete->post($post),
+                status: $post->status,
+                pinned: $post->pinned_at !== null,
+                fromTenant: $post->author_kind === AuthorKind::Tenant,
+                trail: $moderation->trail(ReactableType::Post, $post->id),
+                openReports: $moderation->openReports(ReactableType::Post, $post->id),
+                reportedByMe: $moderation->reportedByViewer(ReactableType::Post, $post->id),
             );
         }
 
@@ -116,7 +134,7 @@ final readonly class GroupFeed
     }
 
     /** @param  list<FeedComment>  $replies */
-    private function comment(GroupComment $comment, User $viewer, AuthorNames $names, ReactionTally $reactions, DeletePermission $mayDelete, array $replies): FeedComment
+    private function comment(GroupComment $comment, User $viewer, AuthorNames $names, ReactionTally $reactions, DeletePermission $mayDelete, ModerationView $moderation, array $replies): FeedComment
     {
         $mine = $comment->author_user_id === $viewer->id;
         [$author, $badge] = $names->name($comment->author_kind, $comment->author_user_id, $comment->author_tenant_profile_id);
@@ -131,7 +149,12 @@ final readonly class GroupFeed
             reactions: $reactions->counts(ReactableType::Comment, $comment->id),
             myReaction: $reactions->mine(ReactableType::Comment, $comment->id),
             replies: $replies,
-            canDelete: $mine && $mayDelete->comment($comment),
+            canDelete: $mine && $comment->status === PostStatus::Published && $mayDelete->comment($comment),
+            status: $comment->status,
+            fromTenant: $comment->author_kind === AuthorKind::Tenant,
+            trail: $moderation->trail(ReactableType::Comment, $comment->id),
+            openReports: $moderation->openReports(ReactableType::Comment, $comment->id),
+            reportedByMe: $moderation->reportedByViewer(ReactableType::Comment, $comment->id),
         );
     }
 
@@ -145,14 +168,17 @@ final readonly class GroupFeed
     }
 
     /**
-     * Published comments of the posts, oldest first; replies only under a published comment.
+     * Published comments of the posts (for a moderator, hidden and removed
+     * ones too), oldest first; replies only under a shown comment.
      *
      * @param  list<int>  $postIds
      * @return Collection<int, GroupComment>
      */
-    private function comments(array $postIds): Collection
+    private function comments(array $postIds, bool $moderator): Collection
     {
-        $comments = GroupComment::query()->published()->whereIn('group_post_id', $postIds)->orderBy('id')->get();
+        $comments = GroupComment::query()
+            ->when($moderator, static fn ($query) => $query->moderatable(), static fn ($query) => $query->published())
+            ->whereIn('group_post_id', $postIds)->orderBy('id')->get();
         $shown = self::ids($comments->whereNull('parent_id'));
 
         return $comments->filter(static fn (GroupComment $comment): bool => $comment->parent_id === null || in_array($comment->parent_id, $shown, true))->values();

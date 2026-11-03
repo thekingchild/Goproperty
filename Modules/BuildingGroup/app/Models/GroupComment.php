@@ -18,8 +18,9 @@ use Modules\BuildingGroup\Enums\PostStatus;
  * A comment on a Building Group post, or a reply to one (one level:
  * `parent_id` is a top-level comment of the same post; DATABASE_SCHEMA.md
  * § 6 `group_comments`; P07-02). Same sanitized rich text as posts, no
- * images. Written only by Posts\GroupPosts; its author removes it with a
- * soft delete; never deleted for good.
+ * images. Written only by Posts\GroupPosts, but for `status`, which
+ * moderators change through Moderation\GroupModeration (P07-04); its
+ * author removes it with a soft delete; never deleted for good.
  *
  * @property int $id
  * @property int $organization_id
@@ -64,6 +65,18 @@ final class GroupComment extends Model
     public function scopePublished(Builder $query): Builder
     {
         return $query->where('status', PostStatus::Published);
+    }
+
+    /**
+     * Comments a moderator sees: every status, never the authors' own
+     * removals (soft deleted).
+     *
+     * @param  Builder<GroupComment>  $query
+     * @return Builder<GroupComment>
+     */
+    public function scopeModeratable(Builder $query): Builder
+    {
+        return $query->whereIn('status', [PostStatus::Published, PostStatus::Hidden, PostStatus::Removed]);
     }
 
     /** @return array<string, string> */
