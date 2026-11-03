@@ -19,9 +19,11 @@ root=$(cd "$(dirname "$0")/../.." && pwd)
 mkdir -p "$dest"
 
 # Tracked and new (not ignored) files only, so .env, vendor/, node_modules/
-# and local storage never ship from the build machine.
+# and local storage never ship from the build machine. One tar reads the
+# list from stdin: xargs would split a long list into several tar runs,
+# and the extracting tar stops at the first archive's end (broken pipe).
 (cd "$root" && git ls-files -z --cached --others --exclude-standard) \
-    | (cd "$root" && xargs -0 tar -cf - --no-recursion) \
+    | (cd "$root" && tar --no-recursion --null -T - -cf -) \
     | tar -xf - -C "$dest"
 
 cd "$dest"
