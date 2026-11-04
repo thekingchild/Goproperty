@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace App\Platform\Filament\Widgets\Operations;
 
+use App\Platform\Staff\StaffPermission;
 use Carbon\CarbonImmutable;
+use Filament\Facades\Filament;
 use Filament\Widgets\Widget;
+use Illuminate\Support\Facades\Gate;
 
 /**
  * A widget of Console → Operations → System operations (PLATFORM_CONSOLE.md
@@ -22,6 +25,14 @@ abstract class OperationsWidget extends Widget
 
     /** @var int|string|array<string, int|null> */
     protected int|string|array $columnSpan = 'full';
+
+    /** Whether the signed-in staff member holds any of these permissions. */
+    protected static function allowed(StaffPermission ...$permissions): bool
+    {
+        $staff = Filament::auth()->user();
+
+        return $staff !== null && Gate::forUser($staff)->any(array_map(static fn (StaffPermission $permission): string => $permission->value, $permissions));
+    }
 
     /** A time as the console shows it, in Lagos. */
     public static function lagos(?CarbonImmutable $time): ?string

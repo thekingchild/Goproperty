@@ -211,6 +211,27 @@ return [
         // Refunds above this (kobo, counting the payment's earlier refunds) need a second staff member's approval (P06-07b; PLATFORM_CONSOLE.md § 1). Default ₦100,000.
         'billing.refund_approval_above_kobo' => ['type' => 'integer', 'default' => 10_000_000, 'rules' => ['required', 'integer', 'between:0,100000000000'], 'permission' => 'refunds.configure'],
 
+        // ---------------------------------------------------------------
+        // Operations alerts (PLATFORM_CONSOLE.md § 2 "Alerts"; P08-03,
+        // docs/plans/P08-subtasks.md defaults 29–49): where the alerts go
+        // and when they fire. technical-admin, super-admin.
+        // ---------------------------------------------------------------
+
+        'operations.alerts_enabled' => ['type' => 'boolean', 'default' => true, 'rules' => ['boolean'], 'permission' => 'operations.alerts'],
+        // A Slack incoming webhook; only Slack's own host, so the console cannot be made to call anywhere else.
+        'operations.alert_slack_webhook_url' => ['type' => 'string', 'rules' => ['nullable', 'string', 'max:300', 'regex:/^https:\/\/hooks\.slack\.com\/(services|workflows|triggers)\/[A-Za-z0-9\/_\-]{10,250}$/'], 'secret' => true, 'permission' => 'operations.alerts', 'step_up' => true],
+        // Staff emailed, by id; empty = every active staff member holding system.status.
+        'operations.alert_staff_ids' => ['type' => 'json', 'default' => [], 'rules' => ['array', 'list', 'max:50'], 'item_rules' => ['*' => ['integer', 'distinct', 'min:1']], 'permission' => 'operations.alerts'],
+        // The scheduler counts as stopped when its heartbeat is older than this.
+        'operations.alert_scheduler_minutes' => ['type' => 'integer', 'default' => 5, 'rules' => ['required', 'integer', 'between:3,60'], 'permission' => 'operations.alerts'],
+        'operations.alert_queue_wait_minutes' => ['type' => 'integer', 'default' => 5, 'rules' => ['required', 'integer', 'between:1,240'], 'permission' => 'operations.alerts'],
+        'operations.alert_webhook_failure_percent' => ['type' => 'integer', 'default' => 5, 'rules' => ['required', 'integer', 'between:1,100'], 'permission' => 'operations.alerts'],
+        // Errors reported in 15 minutes.
+        'operations.alert_error_spike' => ['type' => 'integer', 'default' => 25, 'rules' => ['required', 'integer', 'between:1,100000'], 'permission' => 'operations.alerts'],
+        'operations.alert_renotify_minutes' => ['type' => 'integer', 'default' => 60, 'rules' => ['required', 'integer', 'between:15,1440'], 'permission' => 'operations.alerts'],
+        // SHA-256 of the uptime check link's token (the link is shown once, when made).
+        'operations.uptime_token_hash' => ['type' => 'string', 'rules' => ['nullable', 'string', 'regex:/^[a-f0-9]{64}$/'], 'secret' => true, 'permission' => 'operations.alerts', 'step_up' => true],
+
     ],
 
 ];

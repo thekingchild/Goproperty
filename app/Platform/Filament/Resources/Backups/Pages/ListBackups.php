@@ -22,6 +22,6 @@ final class ListBackups extends ListRecords
         $verified = BackupRun::query()->whereNotNull('verified_at')->latest('verified_at')->first()?->verified_at?->timezone('Africa/Lagos')->format('j M Y') ?? 'never';
         $drill = BackupOperation::query()->where('kind', OperationKind::Drill)->where('status', OperationStatus::Succeeded)->latest('drill_date')->first()?->drill_date?->format('j M Y') ?? 'never';
 
-        return "Last database backup: {$last('db')}. Last files backup: {$last('files')}. Last verified: {$verified}. Last passed drill: {$drill}. Nightly at 01:30 (database) and 02:30 (files); verified on the 1st of each month.";
+        return "Last database backup: {$last('db')}. Last files backup: {$last('files')}. Last verified: {$verified}. Last passed drill: {$drill}. Nightly at 01:30 (database) and 02:30 (files) server time (".config('app.timezone').'); verified on the 1st of each month.';
     }
 }

@@ -338,5 +338,8 @@ it('acceptance: checks every console page against each default staff role', func
         ->and($opened('/backup-destinations'))->toEqualCanonicalizing(['super-admin', 'technical-admin'])
         // P08-02: Operations → System analytics and its CSV downloads (PLATFORM_CONSOLE.md § 3).
         ->and($opened('/analytics'))->toEqualCanonicalizing(['super-admin', 'operations-manager', 'analyst'])
-        ->and($opened('/analytics/export/revenue'))->toEqualCanonicalizing(['super-admin', 'operations-manager', 'analyst']);
+        ->and($opened('/analytics/export/revenue'))->toEqualCanonicalizing(['super-admin', 'operations-manager', 'analyst'])
+        // P08-03: Operations → System operations (every area, or Messaging for the delivery log's readers) and Settings → Operations alerts.
+        ->and($opened('/operations'))->toEqualCanonicalizing(['super-admin', 'technical-admin', 'operations-manager', 'support-agent'])
+        ->and($opened('/settings/operations-alerts'))->toEqualCanonicalizing(['super-admin', 'technical-admin']);
 });

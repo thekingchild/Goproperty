@@ -13,8 +13,12 @@ use App\Platform\Analytics\SnapshotRunner;
 use App\Platform\Approvals\ApprovalService;
 use App\Platform\Compliance\DocumentExpiryCheck;
 use App\Platform\Impersonation\Impersonations;
+use App\Platform\Operations\Alerts\AlertMonitor;
+use App\Platform\Operations\Scheduler\ScheduledTasks;
 use App\Sms\Credits\GrantSmsAllowances;
 use App\Subscriptions\Jobs\EndTrials;
+use Carbon\CarbonImmutable;
+use Illuminate\Console\Scheduling\Schedule as Scheduler;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
@@ -40,6 +44,16 @@ Artisan::command('inspire', function () {
 Schedule::call(fn (Heartbeats $heartbeats) => $heartbeats->beat(Heartbeats::SCHEDULER))
     ->name('scheduler-heartbeat')
     ->everyMinute();
+
+// Operations alerts (P08-03, PLATFORM_CONSOLE.md § 2 "Alerts"): every rule,
+// right after the heartbeat, so a scheduler that comes back clears its own
+// alert at once. A stopped scheduler is noticed by the web watchdog and the
+// uptime link instead, since this cannot run then. The task list is kept
+// for the console's Scheduler area (routes/console.php is not loaded there).
+Schedule::call(function (Scheduler $schedule, ScheduledTasks $tasks, AlertMonitor $monitor): void {
+    $tasks->capture($schedule, CarbonImmutable::now());
+    $monitor->run('scheduler');
+})->name('operations-alerts')->everyMinute();
 
 // The audit log's hash chain is walked nightly; a break is a critical log
 // line for whoever watches the logs (PLATFORM_CONSOLE.md § 7).

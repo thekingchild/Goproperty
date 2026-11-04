@@ -27,7 +27,7 @@ Each phase below is split into numbered tasks (`P00-01`, `P00-02`, …). Each ta
 | P05 | Reminders, notifications, email templates & WhatsApp | 14–15 | M5 | Complete (2026-10-30) |
 | P06 | SaaS billing, compliance monitoring & full platform console | 16–18 | M6 | Complete (2026-11-02) |
 | P07 | Building Group | 19 | M7 | Complete (2026-11-03) |
-| P08 | Reports, operations & analytics dashboards | 20 | M8 | In progress |
+| P08 | Reports, operations & analytics dashboards | 20 | M8 | Complete (2026-11-04) |
 | P09 | Hardening, NDPA & launch | 21–23 | M9 (Launch) | Not started |
 
 ## 3. Work Packages
@@ -197,7 +197,7 @@ Depends on: P03 (leases drive membership).
 
 **Phase exit:** all P07 tasks complete.
 
-### P08 — Reports, operations & analytics dashboards (Week 20) — In progress
+### P08 — Reports, operations & analytics dashboards (Week 20) — Complete (2026-11-04)
 
 Depends on: P03, P06.
 
@@ -205,7 +205,7 @@ Depends on: P03, P06.
 | --- | --- | --- |
 | P08-01 — **Complete (2026-11-03)** | Customer dashboards: occupancy, collections vs billed, arrears aging, upcoming renewals, expenses by category, per-building performance; date-range filters; CSV + PDF export | Arrears aging buckets (0–30/31–60/61–90/90+) reconcile against a hand-computed fixture org; every report has a feature test with seeded edge data (voided bills excluded, refunds netted) |
 | P08-02 — **Complete (2026-11-03)** | System Analytics dashboard ([PLATFORM_CONSOLE.md § 3](PLATFORM_CONSOLE.md)): MRR/ARR, signups and trial conversion, churn, unit growth, tier distribution, recorded collections by channel, customer leaderboard — from nightly `daily_platform_metrics` | Metrics match a fixture; nightly job is idempotent |
-| P08-03 — **Not started** | System Operations dashboard ([PLATFORM_CONSOLE.md § 2](PLATFORM_CONSOLE.md)): queues, scheduler heartbeat, webhooks (own + per agency), messaging, backups, storage, security; alerts to Slack/email | A stopped scheduler raises an alert within the configured window |
+| P08-03 — **Complete (2026-11-04)** | System Operations dashboard ([PLATFORM_CONSOLE.md § 2](PLATFORM_CONSOLE.md)): queues, scheduler heartbeat, webhooks (own + per agency), messaging, backups, storage, security; alerts to Slack/email | A stopped scheduler raises an alert within the configured window |
 | P08-04 — **Complete (2026-11-04)** | Cached aggregates for dashboards; report queries documented for the read-replica config | Dashboards load from cache; cache invalidates on relevant writes |
 | P08-05 — **Complete (2026-10-28)** | **Owner statements in `/owner`** (product owner 2026-10-28; depends only on P03, so it can be brought forward): per building and per month, read-only, in the managing agency's branding: upcoming renewals (leases ending in the next 90 days and their renewal state), bills issued and their status, rent paid and utilities paid (confirmed payments by bill type), the agency's commission (a percentage of rent collected, set by the agency per owner profile), expenses the agency marks "charged to owner", and the **net due to the landlord**; each month **Settled / Unsettled**, marked by the agency's owner or administrator with the date paid and a reference (audited; unmarking needs a reason), never by the landlord; GoProperty records it and never moves money; the monthly owner statement PDF ([BRANDING_DOCUMENTS.md § 4](BRANDING_DOCUMENTS.md)); tenant names only, with an agency-controlled per-owner switch to share tenant phone and email | Net due (rent collected − commission − charged expenses, plus utilities when they pass to the landlord) reconciles against a hand-computed fixture (voided bills excluded, refunds netted, part payments counted when confirmed); an owner sees only their own buildings' figures across two agencies; only the agency marks a month settled, the landlord cannot; a payment confirmed after a month is settled counts in the next month and the settled month never changes; tenant contacts hidden unless the switch is on; 360 px pass |
 

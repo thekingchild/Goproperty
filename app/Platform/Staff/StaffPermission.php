@@ -58,6 +58,7 @@ enum StaffPermission: string
 
     // Operations (§ 2, § 4)
     case OperationsView = 'operations.view';
+    case OperationsAlerts = 'operations.alerts';
     case SystemStatus = 'system.status';
     case QueuesManage = 'queues.manage';
     case WebhooksReplay = 'webhooks.replay';
@@ -155,6 +156,7 @@ enum StaffPermission: string
             self::EmailsResend => 'Resend emails and invoices',
             self::DeliveryLogsView => 'View delivery logs',
             self::OperationsView => 'Operations dashboard',
+            self::OperationsAlerts => 'Operations alerts: where they go and when they fire',
             self::SystemStatus => 'System status and heartbeats',
             self::QueuesManage => 'Queues and failed jobs',
             self::WebhooksReplay => 'Replay webhooks',

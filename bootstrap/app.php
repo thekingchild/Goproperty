@@ -9,6 +9,7 @@ use App\Http\Middleware\ResumeImpersonation;
 use App\Http\Middleware\SetOrganizationContext;
 use App\Http\Middleware\StaffAccountState;
 use App\Http\Middleware\UseConsoleSession;
+use App\Http\Middleware\WatchSchedulerHeartbeat;
 use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -43,6 +44,10 @@ $app = Application::configure(basePath: dirname(__DIR__))
             // starts (ONBOARDING_COMPLIANCE.md § 1).
             UseConsoleSession::class,
         ]);
+
+        // After each response: is the scheduler still running? A stopped
+        // scheduler cannot raise its own alert (PLATFORM_CONSOLE.md § 2, P08-03).
+        $middleware->append(WatchSchedulerHeartbeat::class);
 
         // Paystack's server-to-server calls (OnlinePayments, P03-08): the
         // route is outside the `web` group (no session), and never asks
