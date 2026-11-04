@@ -30,6 +30,8 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 ## Ledger (newest first)
 
+Each entry: task ID and status, date, what was delivered, tests run and results, follow-ups, next task.
+
 ### P09-01 — Complete (2026-11-04): security review — policy coverage, rate limits, uploads, dependencies, sessions and two-factor, injection classes; two high findings fixed, none open; lasting route, Livewire and rate-limit guards
 
 Done by a task agent: a review of the whole codebase at `9cf2860` with fixes and tests on `task/P09-01`. The findings register (scope, method, the severity rule, 35 findings with status and test, the rate-limit table, the upload inventory, the lasting guards): [docs/security/review-2026-11.md](security/review-2026-11.md).
@@ -54,8 +56,6 @@ Done by a task agent: a review of the whole codebase at `9cf2860` with fixes and
 - Before launch: on a server that answers any host name the new host check returns 400 for other names; installs on a temporary address need `APP_URL` set to it (shared-hosting.md § 2 step 6).
 
 **Next:** the rest of P09 when the product owner asks.
-
-Each entry: task ID and status, date, what was delivered, tests run and results, follow-ups, next task.
 
 ### P09-02 — Complete (2026-11-04): NDPA 2023 + GAID 2025 — consent records, versioned privacy policy and terms with the data protection officer and what a landlord sees, tenant and organization data exports, tenant erasure and organization purge after the 90-day retention window, a breach register with the 72-hour deadline, and the breach response runbook
 
