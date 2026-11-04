@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Tenants\Models;
 
+use App\Dashboards\ChangesDashboardFigures;
 use App\Models\User;
 use App\Support\PhoneNumber;
 use App\Tenancy\BelongsToOrganization;
@@ -53,7 +54,7 @@ use Modules\Tenants\Enums\TenantIdType;
 final class TenantProfile extends Model
 {
     /** @use HasFactory<TenantProfileFactory> */
-    use BelongsToOrganization, HasFactory, SoftDeletes;
+    use BelongsToOrganization, ChangesDashboardFigures, HasFactory, SoftDeletes;
 
     /** @var list<string> */
     protected $fillable = ['first_name', 'last_name', 'email', 'phone', 'address', 'occupation', 'emergency_contact', 'id_type', 'id_value'];

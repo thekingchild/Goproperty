@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Properties\Models;
 
+use App\Dashboards\ChangesDashboardFigures;
 use App\Media\HasOrganizationMedia;
 use App\Media\Media;
 use App\Tenancy\BelongsToOrganization;
@@ -58,7 +59,7 @@ use Spatie\MediaLibrary\HasMedia;
 final class Property extends Model implements HasMedia
 {
     /** @use HasFactory<PropertyFactory> */
-    use BelongsToOrganization, HasFactory, HasOrganizationMedia, SoftDeletes;
+    use BelongsToOrganization, ChangesDashboardFigures, HasFactory, HasOrganizationMedia, SoftDeletes;
 
     /** The media collection of a building's photos (config/media.php). */
     public const string PHOTOS = 'photos';

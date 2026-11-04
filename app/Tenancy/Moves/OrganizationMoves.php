@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tenancy\Moves;
 
+use App\Dashboards\DashboardGenerations;
 use App\Models\Organization;
 use App\Models\User;
 use App\Tenancy\OrganizationContext;
@@ -29,6 +30,7 @@ final readonly class OrganizationMoves
     public function __construct(
         private BuildingRecordMovers $movers,
         private OrganizationContext $context,
+        private DashboardGenerations $generations,
     ) {}
 
     /**
@@ -77,6 +79,10 @@ final readonly class OrganizationMoves
         }
 
         $move->stop();
+
+        // The movers reassign rows by query (no model events): both
+        // organizations' dashboard figures change (P08-04).
+        $this->generations->changed($from->id, $to->id);
 
         foreach ($move->afterCommitCallbacks() as $callback) {
             DB::afterCommit($callback);

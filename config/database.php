@@ -120,6 +120,32 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Report Reads (read replica)
+    |--------------------------------------------------------------------------
+    |
+    | The dashboards' queries (the workspace's Reports page, its exports and
+    | PDF; P08-04, ARCHITECTURE.md § 13) read through App\Dashboards\
+    | ReportConnection. With no DB_REPORTS_HOST they use the main connection.
+    | With one, they use a `reports` connection built from the main one at
+    | run time: reads from the replica (host, port, user and password below,
+    | each falling back to the main connection's), any write still to the
+    | main database, sticky. For `primary_after_write` seconds after one of
+    | an organization's figures changed, its reports read from the main
+    | database, so a lagging replica never fills the cache with figures
+    | from before the write.
+    |
+    */
+
+    'reports' => [
+        'read_host' => env('DB_REPORTS_HOST'),
+        'read_port' => env('DB_REPORTS_PORT'),
+        'read_username' => env('DB_REPORTS_USERNAME'),
+        'read_password' => env('DB_REPORTS_PASSWORD'),
+        'primary_after_write' => (int) env('DB_REPORTS_PRIMARY_AFTER_WRITE', 60),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Migration Repository Table
     |--------------------------------------------------------------------------
     |

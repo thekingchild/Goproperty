@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Modules\Reports\Reports;
 
+use App\Dashboards\DashboardCache;
 use App\Models\User;
 use App\Support\Money;
+use App\Tenancy\OrganizationContext;
 use Carbon\CarbonImmutable;
+use Closure;
 use DateTimeImmutable;
 use DateTimeZone;
 use Modules\Billing\Contracts\BillReports;
@@ -47,9 +50,32 @@ use Modules\Tenants\Contracts\TenantDirectory;
  * so the whole page costs the same few queries as its largest part. Money
  * in kobo (App\Support\Money), days in Lagos. Reads only; the caller
  * checks the policy (ReportPolicy). See docs/plans/P08-subtasks.md.
+ *
+ * Cached (P08-04, Core's DashboardCache): all() and each part are kept
+ * for five minutes per organization, buildings covered and the dates they
+ * depend on — today's date for the figures "as of today" (arrears,
+ * renewals, per-building owed past due), so a new Lagos day works them out
+ * again — and only while the organization's dashboard generation is the
+ * one they were worked out at: any write to a bill, payment, allocation,
+ * receipt, credit entry, expense, building, unit, lease or tenant starts
+ * a new one (ChangesDashboardFigures). The page, its exports and its PDF
+ * read the same entries, so they always agree. The work itself runs on
+ * the read-replica-ready connection (ReportConnection).
  */
 final class PortfolioReports
 {
+    /** Bump when what a cached part means changes without its classes changing. */
+    public const int CACHE_VERSION = 1;
+
+    /** Every class a cached report holds (DashboardCache reads back only these). */
+    public const array CACHED_CLASSES = [
+        PortfolioReport::class, ReportFilters::class, ReportScope::class,
+        OccupancyReport::class, CollectionsReport::class, CollectionsMonth::class, ReportMonth::class, FlowTotals::class,
+        ArrearsReport::class, ArrearsLine::class, AgingBucket::class, RenewalsReport::class, RenewalLine::class,
+        ExpensesReport::class, ExpenseCategoryLine::class, BuildingsReport::class, BuildingLine::class,
+        ReportBill::class, BuildingUnits::class, UnitCounts::class, Money::class, CarbonImmutable::class,
+    ];
+
     /** @var array<string, mixed> what this instance has read already, per scope and filters */
     private array $read = [];
 
@@ -63,6 +89,8 @@ final class PortfolioReports
         private readonly UnitDirectory $units,
         private readonly TenantDirectory $tenants,
         private readonly BuildingAccess $access,
+        private readonly DashboardCache $cache,
+        private readonly OrganizationContext $context,
     ) {}
 
     public function scope(User $user, ReportFilters $filters): ReportScope
@@ -73,22 +101,55 @@ final class PortfolioReports
     public function all(User $user, ReportFilters $filters): PortfolioReport
     {
         $scope = $this->scope($user, $filters);
-        $buildingName = $filters->buildingId === null ? null : ($this->properties->find($filters->buildingId)->name ?? null);
 
-        return new PortfolioReport(
-            filters: $filters,
-            scope: $scope,
-            buildingName: $buildingName,
-            occupancy: $this->occupancy($scope),
-            collections: $this->collections($scope, $filters),
-            arrears: $this->arrears($scope, $filters),
-            renewals: $this->renewals($scope, $filters),
-            expenses: $this->expenses($scope, $filters),
-            buildings: $this->buildings($scope, $filters),
-        );
+        return $this->cached('all', $scope, [$filters->from, $filters->to, $filters->buildingId, $filters->renewalDays, $filters->today], PortfolioReport::class, function () use ($scope, $filters): PortfolioReport {
+            $buildingName = $filters->buildingId === null ? null : ($this->properties->find($filters->buildingId)->name ?? null);
+
+            return new PortfolioReport(
+                filters: $filters,
+                scope: $scope,
+                buildingName: $buildingName,
+                occupancy: $this->occupancyNow($scope),
+                collections: $this->collectionsIn($scope, $filters),
+                arrears: $this->arrearsToday($scope, $filters),
+                renewals: $this->renewalsAhead($scope, $filters),
+                expenses: $this->expensesIn($scope, $filters),
+                buildings: $this->buildingsIn($scope, $filters),
+            );
+        });
     }
 
     public function occupancy(ReportScope $scope): OccupancyReport
+    {
+        return $this->cached('occupancy', $scope, [], OccupancyReport::class, fn (): OccupancyReport => $this->occupancyNow($scope));
+    }
+
+    public function collections(ReportScope $scope, ReportFilters $filters): CollectionsReport
+    {
+        return $this->cached('collections', $scope, [$filters->from, $filters->to], CollectionsReport::class, fn (): CollectionsReport => $this->collectionsIn($scope, $filters));
+    }
+
+    public function arrears(ReportScope $scope, ReportFilters $filters): ArrearsReport
+    {
+        return $this->cached('arrears', $scope, [$filters->today], ArrearsReport::class, fn (): ArrearsReport => $this->arrearsToday($scope, $filters));
+    }
+
+    public function renewals(ReportScope $scope, ReportFilters $filters): RenewalsReport
+    {
+        return $this->cached('renewals', $scope, [$filters->today, $filters->renewalDays], RenewalsReport::class, fn (): RenewalsReport => $this->renewalsAhead($scope, $filters));
+    }
+
+    public function expenses(ReportScope $scope, ReportFilters $filters): ExpensesReport
+    {
+        return $this->cached('expenses', $scope, [$filters->from, $filters->to], ExpensesReport::class, fn (): ExpensesReport => $this->expensesIn($scope, $filters));
+    }
+
+    public function buildings(ReportScope $scope, ReportFilters $filters): BuildingsReport
+    {
+        return $this->cached('buildings', $scope, [$filters->from, $filters->to, $filters->today], BuildingsReport::class, fn (): BuildingsReport => $this->buildingsIn($scope, $filters));
+    }
+
+    private function occupancyNow(ReportScope $scope): OccupancyReport
     {
         $buildings = $this->activeBuildings($scope);
         $totals = [];
@@ -102,7 +163,7 @@ final class PortfolioReports
         return new OccupancyReport($buildings, UnitCounts::fromStatuses($totals));
     }
 
-    public function collections(ReportScope $scope, ReportFilters $filters): CollectionsReport
+    private function collectionsIn(ReportScope $scope, ReportFilters $filters): CollectionsReport
     {
         $flows = $this->flows($scope, $filters);
         $months = [];
@@ -117,7 +178,18 @@ final class PortfolioReports
         return new CollectionsReport($months, $totals);
     }
 
-    public function arrears(ReportScope $scope, ReportFilters $filters): ArrearsReport
+    private function arrearsToday(ReportScope $scope, ReportFilters $filters): ArrearsReport
+    {
+        $key = 'arrears:'.json_encode([$scope->propertyIds, $filters->today->toDateString()]);
+
+        if (isset($this->read[$key]) && $this->read[$key] instanceof ArrearsReport) {
+            return $this->read[$key];
+        }
+
+        return $this->read[$key] = $this->agedArrears($scope, $filters);
+    }
+
+    private function agedArrears(ReportScope $scope, ReportFilters $filters): ArrearsReport
     {
         $today = $filters->today;
         $lines = [];
@@ -154,7 +226,7 @@ final class PortfolioReports
         return new ArrearsReport($today, $lines, $buckets, $counts, $byBuilding, $notYetDue, $notYetDueCount, $names);
     }
 
-    public function renewals(ReportScope $scope, ReportFilters $filters): RenewalsReport
+    private function renewalsAhead(ReportScope $scope, ReportFilters $filters): RenewalsReport
     {
         $from = $filters->today;
         $until = $filters->renewalsUntil();
@@ -182,7 +254,7 @@ final class PortfolioReports
         return new RenewalsReport($from, $until, $filters->renewalDays, $lines);
     }
 
-    public function expenses(ReportScope $scope, ReportFilters $filters): ExpensesReport
+    private function expensesIn(ReportScope $scope, ReportFilters $filters): ExpensesReport
     {
         /** @var array<string, array{string, int, Money, Money}> $categories category => [label, count, buildings, organization] */
         $categories = [];
@@ -211,10 +283,10 @@ final class PortfolioReports
         return new ExpensesReport($lines, $scope->everything());
     }
 
-    public function buildings(ReportScope $scope, ReportFilters $filters): BuildingsReport
+    private function buildingsIn(ReportScope $scope, ReportFilters $filters): BuildingsReport
     {
         $flows = $this->flows($scope, $filters)['buildings'];
-        $arrears = $this->arrears($scope, $filters);
+        $arrears = $this->arrearsToday($scope, $filters);
         /** @var array<int, Money> $expenses property id (0: none) => spent */
         $expenses = [];
 
@@ -250,6 +322,26 @@ final class PortfolioReports
         }
 
         return new BuildingsReport($lines);
+    }
+
+    /**
+     * A part of the report from the cache (DashboardCache), for the
+     * organization of the context, the buildings covered and what the
+     * part depends on.
+     *
+     * @template TReport of object
+     *
+     * @param  list<CarbonImmutable|int|null>  $dependsOn
+     * @param  class-string<TReport>  $class
+     * @param  Closure(): TReport  $compute
+     * @return TReport
+     */
+    private function cached(string $part, ReportScope $scope, array $dependsOn, string $class, Closure $compute): object
+    {
+        $key = [self::CACHE_VERSION, ...array_map(static fn (CarbonImmutable|int|null $value): string|int|null => $value instanceof CarbonImmutable ? $value->toDateString() : $value, $dependsOn)];
+
+        // One entry per organization, part and buildings covered: other dates replace it.
+        return $this->cache->remember($this->context->id(), 'reports.'.$part, [$scope->propertyIds], $key, $class, self::CACHED_CLASSES, $compute);
     }
 
     /**

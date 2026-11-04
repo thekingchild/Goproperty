@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Payments\Models;
 
 use App\Casts\MoneyCast;
+use App\Dashboards\ChangesDashboardFigures;
 use App\Media\HasOrganizationMedia;
 use App\Support\Money;
 use App\Tenancy\BelongsToOrganization;
@@ -58,7 +59,7 @@ use Spatie\MediaLibrary\HasMedia;
  */
 final class Receipt extends Model implements HasMedia
 {
-    use BelongsToOrganization, HasOrganizationMedia;
+    use BelongsToOrganization, ChangesDashboardFigures, HasOrganizationMedia;
 
     /** Columns of a valid receipt that may change: the PDF's id (once) and the void request. */
     private const array CHANGEABLE_WHILE_VALID = [

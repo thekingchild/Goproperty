@@ -45,3 +45,25 @@ Started 2026-11-03 at the product owner's request ("Start P08-02"); one task, bu
 26. **Date range:** one for the whole page (Last 7, 30 — default —, 90 days, Last 12 months, This year, or two dates), ending yesterday at the latest, at most 731 days, never before 2020. Weeks start on Monday; months are Lagos months.
 27. **Charts** are simple server-drawn bars (one series each, no script); every section downloads as CSV for the page's range, a row per day (the leaderboard and states as lists). Every download is audited (log `analytics`).
 28. **Who:** `analytics.view` only (analyst, operations-manager, super-admin), as the permission catalogue already had it.
+
+## P08-04 — Cached aggregates for dashboards
+
+Built 2026-11-03 by a task agent in Core's `App\Dashboards` and `Modules\Reports` (ARCHITECTURE.md § 13 "How it is built (P08-04)"). No migration, no new table, no new package.
+
+### Defaults taken in P08-04 (agent, 2026-11-03; for the product owner to confirm)
+
+50. **Only the workspace's Reports page is cached** (the whole page and each of its six reports; its exports and PDF read the same entries). The workspace home shows no figures (the setup checklist only), so there is nothing there to cache.
+51. **Owner statements are not cached** (`/owner/statements` and the agency's statement pages): they are the figures the agency marks Settled against, they cover one owner's buildings across organizations, and twelve months cost a few queries. Live figures are cheap there and must be exact.
+52. **The console's System analytics is not cached:** it already reads only the nightly summary `daily_platform_metrics` (three queries a load), which is its cache. System operations (P08-03) and the delivery health widgets are live on purpose and are not cached.
+53. **Five minutes** (ARCHITECTURE.md § 13), or until the organization's next relevant write, whichever comes first.
+54. **Relevant writes** are every create, change or delete of a bill, payment, payment allocation, receipt, tenant credit entry, expense, building, unit, lease, tenant or import batch, and every building move (both organizations). A write that changes no figure (a credit refund, a bill's PDF stored) still renews the cache: it is simple and safe, and costs one cache write per committed transaction per organization. Writes are only read here; no state machine or writer behaves differently.
+55. **One cache for everyone who sees the same buildings:** figures depend only on the organization, the buildings covered and the dates, never on who asks, so an owner and an administrator share an entry, and a narrowed member shares one with an owner who picked the same building. Who may open the page is checked before the cache is read; a member's narrowing is read on every load and never cached.
+56. **"As of today" figures start again at Lagos midnight** (arrears aging, upcoming renewals, owed past due per building, the whole page): today's date is part of their key, so after midnight they are worked out again even when nothing was written. Collections and expenses depend only on their dates; occupancy only on writes.
+57. **Exports and the PDF read the cached figures, like the page,** not a fresh read: every relevant write renews the cache, so it never holds figures older than the last relevant write, and the page, its exports and its PDF always show the same money.
+58. **Support sessions and suspended organizations** read the same cache: reading figures is not a write, so nothing changes for them (P08-01 default 12).
+59. **One entry per organization, report and buildings covered:** figures for other dates replace it, so the cache never fills with old date ranges (on shared hosting the database cache removes an expired row only when it is read again). Figures larger than 4 MB once deflated are not cached (worked out each time).
+60. **Kept signed, read back as named classes only:** `cache.serializable_classes` stays false; the figures are a serialized string signed with the application key and read back allowing only the report's own classes.
+61. **A read replica is optional (VPS):** `DB_REPORTS_HOST` (and `_PORT`, `_USERNAME`, `_PASSWORD`, each falling back to the main connection's) sends the reports' reads to a replica, writes always to the main database. Unset (shared hosting, the tests), the reports read the main database.
+62. **After a write, the main database for 60 seconds** (`DB_REPORTS_PRIMARY_AFTER_WRITE`): an organization's reports read the main database for that long after its last relevant write, so a lagging replica never fills the cache with figures from before the write. A replica that lags by more than that is a hosting problem to fix, not something the reports work around.
+63. **An unreachable cache never fails anything:** writes still commit (the cached figures then live out their five minutes) and pages work their figures out live; the error is reported.
+64. **No page shows when the figures were worked out** ("as of 10:02"): they are at most five minutes behind a write the cache missed, which should not happen; a label was not built.

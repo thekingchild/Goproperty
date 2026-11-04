@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Compliance\Monitoring\CheckConfirmedPayment;
+use App\Dashboards\DashboardGenerations;
 use App\Documents\Verification\DocumentVerifiers;
 use App\Exports\ListExports;
 use App\Marketing\PlanCatalogue;
@@ -54,6 +55,8 @@ class AppServiceProvider extends ServiceProvider
         $this->app->scoped(ThemeContext::class);
         // The plan tables are read once per request or job (P06-01a).
         $this->app->scoped(PlanCatalogue::class);
+        // Dashboard generations waiting for a commit (P08-04), per request or job.
+        $this->app->scoped(DashboardGenerations::class);
 
         // The workspace sidebar: Core's pages, then whatever modules add
         // from their providers (callAfterResolving).

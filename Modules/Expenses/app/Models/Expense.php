@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Expenses\Models;
 
 use App\Casts\MoneyCast;
+use App\Dashboards\ChangesDashboardFigures;
 use App\Media\HasOrganizationMedia;
 use App\Support\Money;
 use App\Tenancy\BelongsToOrganization;
@@ -59,7 +60,7 @@ use Spatie\MediaLibrary\HasMedia;
  */
 final class Expense extends Model implements HasMedia
 {
-    use BelongsToOrganization, HasOrganizationMedia, SoftDeletes;
+    use BelongsToOrganization, ChangesDashboardFigures, HasOrganizationMedia, SoftDeletes;
 
     public const string COLLECTION = 'expense_receipts';
 

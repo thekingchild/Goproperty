@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Payments\Models;
 
 use App\Casts\MoneyCast;
+use App\Dashboards\ChangesDashboardFigures;
 use App\Support\Money;
 use App\Tenancy\BelongsToOrganization;
 use Carbon\CarbonImmutable;
@@ -71,7 +72,7 @@ use Modules\Payments\Enums\PaymentStatus;
  */
 final class Payment extends Model
 {
-    use BelongsToOrganization, SoftDeletes;
+    use BelongsToOrganization, ChangesDashboardFigures, SoftDeletes;
 
     /** What may still change on a confirmed payment. */
     private const array CHANGEABLE_ONCE_CONFIRMED = ['receipt_id', 'status', 'updated_at'];

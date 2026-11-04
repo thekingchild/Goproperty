@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Payments\Models;
 
 use App\Casts\MoneyCast;
+use App\Dashboards\ChangesDashboardFigures;
 use App\Support\Money;
 use App\Tenancy\BelongsToOrganization;
 use Carbon\CarbonImmutable;
@@ -30,7 +31,7 @@ use LogicException;
  */
 final class PaymentAllocation extends Model
 {
-    use BelongsToOrganization;
+    use BelongsToOrganization, ChangesDashboardFigures;
 
     protected static function booted(): void
     {

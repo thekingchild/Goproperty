@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Properties\Models;
 
 use App\Casts\MoneyCast;
+use App\Dashboards\ChangesDashboardFigures;
 use App\Support\Money;
 use App\Tenancy\BelongsToOrganization;
 use Carbon\CarbonImmutable;
@@ -51,7 +52,7 @@ use Modules\Properties\Enums\UnitType;
 final class Unit extends Model
 {
     /** @use HasFactory<UnitFactory> */
-    use BelongsToOrganization, HasFactory, SoftDeletes;
+    use BelongsToOrganization, ChangesDashboardFigures, HasFactory, SoftDeletes;
 
     /** @var list<string> */
     protected $fillable = ['unit_label', 'unit_type', 'bedrooms', 'bathrooms', 'size_sqm', 'floor', 'base_rent_kobo', 'service_charge_kobo', 'description'];

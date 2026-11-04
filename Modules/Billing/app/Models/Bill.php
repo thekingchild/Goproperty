@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Billing\Models;
 
 use App\Casts\MoneyCast;
+use App\Dashboards\ChangesDashboardFigures;
 use App\Media\HasOrganizationMedia;
 use App\Support\Money;
 use App\Tenancy\BelongsToOrganization;
@@ -74,7 +75,7 @@ use Spatie\MediaLibrary\HasMedia;
  */
 final class Bill extends Model implements HasMedia
 {
-    use BelongsToOrganization, HasOrganizationMedia, SoftDeletes;
+    use BelongsToOrganization, ChangesDashboardFigures, HasOrganizationMedia, SoftDeletes;
 
     /** Written at issue and never changed afterwards (the invoice as printed). */
     public const array ISSUED_COLUMNS = ['number', 'payment_reference', 'verification_code', 'issued_at', 'branding_snapshot', 'details'];

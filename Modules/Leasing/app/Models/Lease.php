@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Leasing\Models;
 
 use App\Casts\MoneyCast;
+use App\Dashboards\ChangesDashboardFigures;
 use App\Support\Money;
 use App\Tenancy\BelongsToOrganization;
 use Carbon\CarbonImmutable;
@@ -66,7 +67,7 @@ use Modules\Leasing\Enums\LeaseStatus;
  */
 final class Lease extends Model
 {
-    use BelongsToOrganization, SoftDeletes;
+    use BelongsToOrganization, ChangesDashboardFigures, SoftDeletes;
 
     /** @var array<string, mixed> */
     protected $attributes = ['status' => 'draft', 'deposit_kobo' => 0, 'due_day_offset' => 0, 'auto_renew' => false];

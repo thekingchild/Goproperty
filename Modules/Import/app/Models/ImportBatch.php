@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Import\Models;
 
+use App\Dashboards\ChangesDashboardFigures;
 use App\Media\HasOrganizationMedia;
 use App\Media\Media;
 use App\Models\User;
@@ -48,7 +49,9 @@ use Spatie\MediaLibrary\HasMedia;
  */
 final class ImportBatch extends Model implements HasMedia
 {
-    use BelongsToOrganization, HasOrganizationMedia;
+    // Imports write and roll back rows in bulk; the batch is saved in the
+    // same transaction, which tells the dashboards (P08-04).
+    use BelongsToOrganization, ChangesDashboardFigures, HasOrganizationMedia;
 
     public const string COLLECTION = 'imports';
 
@@ -59,6 +62,12 @@ final class ImportBatch extends Model implements HasMedia
 
     /** @var array<string, mixed> */
     protected $attributes = ['status' => 'uploaded', 'rows_total' => 0, 'rows_done' => 0];
+
+    /** Only a commit (rows written), a stopped commit and a roll-back change the dashboards' records; a dry run writes none. */
+    public function changesDashboardFigures(): bool
+    {
+        return in_array($this->status, [ImportStatus::Committing, ImportStatus::Committed, ImportStatus::PartiallyFailed, ImportStatus::RolledBack], true);
+    }
 
     /** @return list<SheetMapping> */
     public function sheets(): array
