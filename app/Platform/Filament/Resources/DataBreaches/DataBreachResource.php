@@ -6,6 +6,7 @@ namespace App\Platform\Filament\Resources\DataBreaches;
 
 use App\Models\DataBreach;
 use App\Platform\Filament\Concerns\ActsAsStaff;
+use App\Platform\Filament\Concerns\BadgeBeforeMigrations;
 use App\Platform\Filament\Resources\DataBreaches\Pages\ListDataBreaches;
 use App\Privacy\Breaches\BreachRegister;
 use App\Privacy\Breaches\BreachRisk;
@@ -34,7 +35,7 @@ use UnitEnum;
  */
 final class DataBreachResource extends Resource
 {
-    use ActsAsStaff;
+    use ActsAsStaff, BadgeBeforeMigrations;
 
     protected static ?string $model = DataBreach::class;
 
@@ -56,9 +57,7 @@ final class DataBreachResource extends Resource
 
     public static function getNavigationBadge(): ?string
     {
-        $waiting = DataBreach::query()->whereNull('commission_notified_at')->whereNull('not_notified_reason')->where('status', '!=', BreachStatus::Closed)->count();
-
-        return $waiting > 0 ? (string) $waiting : null;
+        return self::countBadge(fn (): int => DataBreach::query()->whereNull('commission_notified_at')->whereNull('not_notified_reason')->where('status', '!=', BreachStatus::Closed)->count());
     }
 
     public static function getNavigationBadgeColor(): string

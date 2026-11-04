@@ -6,6 +6,7 @@ namespace App\Platform\Filament\Resources\DataRequests;
 
 use App\Models\DataRequest;
 use App\Platform\Filament\Concerns\ActsAsStaff;
+use App\Platform\Filament\Concerns\BadgeBeforeMigrations;
 use App\Platform\Filament\Resources\DataRequests\Pages\ListDataRequests;
 use App\Privacy\DataRequestKind;
 use App\Privacy\DataRequests;
@@ -33,7 +34,7 @@ use UnitEnum;
  */
 final class DataRequestResource extends Resource
 {
-    use ActsAsStaff;
+    use ActsAsStaff, BadgeBeforeMigrations;
 
     protected static ?string $model = DataRequest::class;
 
@@ -60,9 +61,7 @@ final class DataRequestResource extends Resource
 
     public static function getNavigationBadge(): ?string
     {
-        $open = DataRequest::query()->whereIn('status', [DataRequestStatus::AwaitingApproval, DataRequestStatus::Queued, DataRequestStatus::Running])->count();
-
-        return $open > 0 ? (string) $open : null;
+        return self::countBadge(fn (): int => DataRequest::query()->whereIn('status', [DataRequestStatus::AwaitingApproval, DataRequestStatus::Queued, DataRequestStatus::Running])->count());
     }
 
     public static function table(Table $table): Table
