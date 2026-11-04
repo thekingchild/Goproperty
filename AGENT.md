@@ -42,6 +42,7 @@ php artisan goproperty:install                         # command-line install (i
 # web install: open /install, unlock with goproperty:setup-token or the file check (storage/app/install-unlock.txt)
 php artisan goproperty:check-installation              # health of an installed site; exits 1 on failure
 scripts/release/install-drill.sh dist/goproperty-1.4.0-dev.1.zip   # needs DB_* for an account that can create databases
+scripts/release/upgrade-drill.sh dist/goproperty-1.3.0.zip dist/goproperty-1.4.0-dev.1.zip   # previous → new (docs/runbooks/upgrade.md § 6)
 
 # Modules (nwidart)
 php artisan module:make <Name>   # then composer dump-autoload && composer lint (ARCHITECTURE.md § 8: what to keep)

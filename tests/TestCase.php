@@ -83,6 +83,7 @@ abstract class TestCase extends BaseTestCase
             'installer.paths.grant' => $directory.'/private/install.grant',
             'installer.paths.attempts' => $directory.'/private/install.attempts',
             'installer.paths.record' => $directory.'/private/installation-record.txt',
+            'installer.paths.upgrade_lock' => $directory.'/private/upgrade.lock',
             // The test's own connection, so the marker sees rows written
             // inside the test's transaction.
             'installer.marker_connection' => config('database.default'),

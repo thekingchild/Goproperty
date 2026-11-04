@@ -95,6 +95,8 @@ The **Deploy** workflow ([`.github/workflows/deploy.yml`](../../.github/workflow
 4. It checks `APP_URL/up` returns 200.
 5. Rollback = point `current` back to the previous release (`ln -sfn releases/<previous> current.next && mv -Tf current.next current`); migrations must be backward compatible for one release.
 
+**Without SSH** (or from a zip by hand): [upgrade.md](upgrade.md) — back up, maintenance mode, swap the folders, then Console → Operations → Version → **Run pending migrations** (super-admins), and the rollback by folder swap plus restoring the backup (P09-06).
+
 **GitHub environment settings** (Settings → Environments → `staging` / `production`; production should require a reviewer):
 
 | Name | Kind | Example |

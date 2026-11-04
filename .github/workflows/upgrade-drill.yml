@@ -1,0 +1,146 @@
+# Upgrade drill (INSTALLER.md § 10 and § 12, P09-06): builds the PREVIOUS
+# release and this one, installs the previous one under shared-host limits,
+# adds data, and upgrades it to this one by the folder swap of
+# docs/runbooks/upgrade.md, twice: over SSH (`migrate --force`, the install
+# seeders, then a rollback by swapping the folders back and restoring the
+# database copy) and without SSH (installed with the web wizard, upgraded with
+# the console's "Run pending migrations" over HTTP). Both upgraded schemas
+# must equal a plain `migrate` and the data must survive.
+#
+# The previous release (scripts/release/previous-ref.sh): the `previous`
+# input when given; else the newest v* tag before this commit; else, on a
+# pull request, its base commit; else this commit's first parent. It is
+# built from that commit with this checkout's release scripts.
+#
+# Runs nightly, on pull requests that touch migrations, seeders, the
+# installer, the upgrade step or the release scripts, by hand, and before
+# every release.
+name: Upgrade drill
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  pull_request:
+    paths:
+      - 'database/migrations/**'
+      - 'database/seeders/**'
+      - 'Modules/*/database/migrations/**'
+      - 'app/Installer/**'
+      - 'app/Http/Controllers/Console/UpgradeController.php'
+      - 'app/Http/Middleware/PreventRequestsDuringMaintenance.php'
+      - 'app/Platform/Filament/Pages/SystemUpgrade.php'
+      - 'app/Platform/Filament/Pages/SystemVersion.php'
+      - 'resources/views/console/upgrades/**'
+      - 'app/Http/Controllers/Install/**'
+      - 'routes/install.php'
+      - 'resources/views/installer/**'
+      - 'scripts/release/**'
+      - '.github/workflows/upgrade-drill.yml'
+  workflow_dispatch:
+    inputs:
+      previous:
+        description: Previous release to upgrade from (a tag, branch or commit); empty for the default
+        required: false
+        default: ''
+  workflow_call:
+    inputs:
+      previous:
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-upgrade-drill-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  drill:
+    name: Upgrade drill (${{ matrix.name }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: MySQL 8.0
+            image: mysql:8.0
+            connection: mysql
+            health: mysqladmin ping -h 127.0.0.1 -ppassword
+          - name: MySQL 8.4
+            image: mysql:8.4
+            connection: mysql
+            health: mysqladmin ping -h 127.0.0.1 -ppassword
+          - name: MariaDB 10.6
+            image: mariadb:10.6
+            connection: mariadb
+            health: healthcheck.sh --connect --innodb_initialized
+          - name: MariaDB 11.4
+            image: mariadb:11.4
+            connection: mariadb
+            health: healthcheck.sh --connect --innodb_initialized
+
+    services:
+      database:
+        image: ${{ matrix.image }}
+        env:
+          MYSQL_ROOT_PASSWORD: password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="${{ matrix.health }}"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    env:
+      DB_CONNECTION: ${{ matrix.connection }}
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_USERNAME: root
+      DB_PASSWORD: password
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The previous release is an earlier commit or tag.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@4424c9aab975b57bd706ee5a39c6b4334d6e4f60 # 2.40.0
+        with:
+          php-version: '8.4'
+          extensions: bcmath, ctype, curl, dom, exif, fileinfo, gd, intl, mbstring, openssl, pdo_mysql, sodium, tokenizer, xml, zip
+          tools: composer:v2
+          coverage: none
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Choose the previous release
+        env:
+          PREVIOUS_REF: ${{ inputs.previous }}
+          BASE_REF: ${{ github.event.pull_request.base.sha }}
+        run: |
+          previous=$(scripts/release/previous-ref.sh HEAD)
+          echo "PREVIOUS_COMMIT=$previous" >> "$GITHUB_ENV"
+          echo "Upgrading from $previous ($(git log -1 --format='%h %s' "$previous")) to $(git log -1 --format='%h %s' HEAD)"
+
+      - name: Build both packages
+        run: |
+          scripts/release/build-previous.sh "$PREVIOUS_COMMIT" "0.0.0-drill.${GITHUB_RUN_NUMBER}.1" "$RUNNER_TEMP/dist"
+          scripts/release/build-package.sh "0.0.0-drill.${GITHUB_RUN_NUMBER}.2" "$RUNNER_TEMP/dist"
+
+      - name: Upgrade drill
+        run: |
+          scripts/release/upgrade-drill.sh \
+            "$RUNNER_TEMP/dist/goproperty-0.0.0-drill.${GITHUB_RUN_NUMBER}.1.zip" \
+            "$RUNNER_TEMP/dist/goproperty-0.0.0-drill.${GITHUB_RUN_NUMBER}.2.zip"

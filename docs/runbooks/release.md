@@ -68,7 +68,9 @@ The CI workflow also runs the old-PHP check on every push (job `Old PHP guard`),
 - `verify-package` passes on the installed copy;
 - the schema is identical to a plain `migrate` of the same release.
 
-Both drills run before every release.
+**Upgrade drill** (`scripts/release/upgrade-drill.sh <previous.zip> <new.zip>`, P09-06; same database variables): installs the previous release's zip, adds data and upgrades it to the new one by the zip folder swap, once over SSH (`migrate --force`, the install seeders, then a rollback by swapping back and restoring the database copy) and once through the console's **Run pending migrations** over HTTP. The data must survive and the schema must equal a plain `migrate` of the new release. The previous release is the newest `v*` tag before the new one (or a pull request's base, or the first parent: `scripts/release/previous-ref.sh`), built by `scripts/release/build-previous.sh` ([upgrade.md § 6](upgrade.md)).
+
+All three drills run before every release (the Release workflow waits for the install and upgrade drills on every database).
 
 ## 4. Verifying on the server
 

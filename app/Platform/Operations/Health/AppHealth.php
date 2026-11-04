@@ -47,8 +47,9 @@ final readonly class AppHealth
 
     /**
      * Counted only, from the same files and `migrations` table as the
-     * installer; nothing here runs them (INSTALLER.md § 10: no web-reachable
-     * migration step outside the installer).
+     * installer; nothing here runs them. Running them from the console is
+     * the super-admins' upgrade step only (Operations → Version,
+     * INSTALLER.md § 10).
      */
     private function pendingMigrations(): int
     {

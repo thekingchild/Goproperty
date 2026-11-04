@@ -341,5 +341,8 @@ it('acceptance: checks every console page against each default staff role', func
         ->and($opened('/analytics/export/revenue'))->toEqualCanonicalizing(['super-admin', 'operations-manager', 'analyst'])
         // P08-03: Operations → System operations (every area, or Messaging for the delivery log's readers) and Settings → Operations alerts.
         ->and($opened('/operations'))->toEqualCanonicalizing(['super-admin', 'technical-admin', 'operations-manager', 'support-agent'])
-        ->and($opened('/settings/operations-alerts'))->toEqualCanonicalizing(['super-admin', 'technical-admin']);
+        ->and($opened('/settings/operations-alerts'))->toEqualCanonicalizing(['super-admin', 'technical-admin'])
+        // P09-06: Operations → Version, and the upgrade step for super-admins only (INSTALLER.md § 10).
+        ->and($opened('/system/version'))->toEqualCanonicalizing(['super-admin', 'technical-admin'])
+        ->and($opened('/system/upgrade'))->toBe(['super-admin']);
 });

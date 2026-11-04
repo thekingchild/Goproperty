@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Middleware\AwaitApplicationKey;
 use App\Http\Middleware\EnsurePlanAllows;
 use App\Http\Middleware\EnsureSiteInstalled;
+use App\Http\Middleware\PreventRequestsDuringMaintenance;
 use App\Http\Middleware\ResumeImpersonation;
 use App\Http\Middleware\SetOrganizationContext;
 use App\Http\Middleware\StaffAccountState;
@@ -14,6 +15,7 @@ use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance as LaravelPreventRequestsDuringMaintenance;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Support\Facades\Log;
@@ -44,6 +46,10 @@ $app = Application::configure(basePath: dirname(__DIR__))
             // starts (ONBOARDING_COMPLIANCE.md § 1).
             UseConsoleSession::class,
         ]);
+
+        // Maintenance mode for an upgrade keeps the console open for the
+        // upgrade step on hosts without SSH (INSTALLER.md § 10, P09-06).
+        $middleware->replace(LaravelPreventRequestsDuringMaintenance::class, PreventRequestsDuringMaintenance::class);
 
         // After each response: is the scheduler still running? A stopped
         // scheduler cannot raise its own alert (PLATFORM_CONSOLE.md § 2, P08-03).

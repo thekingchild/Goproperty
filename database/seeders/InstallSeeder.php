@@ -17,7 +17,9 @@ use Illuminate\Database\Seeder;
  * runs the list twice and compares every table.
  *
  * Added by later tasks: default plans and prices, Transaction Tiers,
- * default theme. Email templates since P05-04.
+ * default theme. Email templates since P05-04. Last, since P09-06: the
+ * release these seeders ran for, on a finished installation
+ * (InstalledVersionSeeder, INSTALLER.md § 10).
  */
 final class InstallSeeder extends Seeder
 {
@@ -26,6 +28,7 @@ final class InstallSeeder extends Seeder
         OrganizationRolesSeeder::class,
         StaffRolesSeeder::class,
         EmailTemplatesSeeder::class,
+        InstalledVersionSeeder::class,
     ];
 
     public function run(): void

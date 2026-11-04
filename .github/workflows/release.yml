@@ -1,6 +1,7 @@
 # Release package (INSTALLER.md § 2, docs/runbooks/release.md). On every
-# version tag (v1.4.0, v1.4.0-rc.1): the quality gate and the install drill
-# (install-drill.yml) on every database, then
+# version tag (v1.4.0, v1.4.0-rc.1): the quality gate, the install drill
+# (install-drill.yml) and the upgrade drill from the previous release
+# (upgrade-drill.yml) on every database, then
 # the release zip is built with production vendor/ and assets, checked by
 # goproperty:verify-package and the release drill (tampering is refused, both
 # layouts serve pages, the old-PHP guard answers on PHP 7.4 and 8.1), and
@@ -36,9 +37,13 @@ jobs:
     name: Install drill
     uses: ./.github/workflows/install-drill.yml
 
+  upgrade-drill:
+    name: Upgrade drill
+    uses: ./.github/workflows/upgrade-drill.yml
+
   package:
     name: Build, verify and publish
-    needs: [ci, install-drill]
+    needs: [ci, install-drill, upgrade-drill]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:

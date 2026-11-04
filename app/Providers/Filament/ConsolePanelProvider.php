@@ -9,6 +9,7 @@ use App\Http\Controllers\Console\BackupDownloadController;
 use App\Http\Controllers\Console\ComplianceDocumentController;
 use App\Http\Controllers\Console\SchedulerHeartbeatController;
 use App\Http\Controllers\Console\ThemePreviewController;
+use App\Http\Controllers\Console\UpgradeController;
 use App\Http\Middleware\StaffAccountState;
 use App\Http\Middleware\StaffIdleTimeout;
 use App\Http\Middleware\StaffIpAllowlist;
@@ -113,6 +114,14 @@ final class ConsolePanelProvider extends PanelProvider
 
                     // Scheduler and queue-tick heartbeats, polled by the installer's finish screen.
                     Route::get('system/heartbeat', SchedulerHeartbeatController::class)->name('system-heartbeat');
+
+                    // The upgrade step's posts (INSTALLER.md § 10): step-up, then one piece of work per request.
+                    Route::post('system/upgrade/confirm', [UpgradeController::class, 'confirm'])
+                        ->middleware('throttle:20,1')
+                        ->name('system-upgrade.confirm');
+                    Route::post('system/upgrade/run', [UpgradeController::class, 'run'])
+                        ->middleware('throttle:120,1')
+                        ->name('system-upgrade.run');
 
                     // A compliance document's file: signed, short-lived, permission-checked and audited (ARCHITECTURE.md § 9).
                     Route::get('compliance-documents/{document}/file', ComplianceDocumentController::class)

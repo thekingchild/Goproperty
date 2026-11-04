@@ -28,7 +28,7 @@ Each phase below is split into numbered tasks (`P00-01`, `P00-02`, …). Each ta
 | P06 | SaaS billing, compliance monitoring & full platform console | 16–18 | M6 | Complete (2026-11-02) |
 | P07 | Building Group | 19 | M7 | Complete (2026-11-03) |
 | P08 | Reports, operations & analytics dashboards | 20 | M8 | Complete (2026-11-04) |
-| P09 | Hardening, NDPA & launch | 21–23 | M9 (Launch) | Not started |
+| P09 | Hardening, NDPA & launch | 21–23 | M9 (Launch) | In progress |
 
 ## 3. Work Packages
 
@@ -211,18 +211,18 @@ Depends on: P03, P06.
 
 **Phase exit:** all P08 tasks complete.
 
-### P09 — Hardening, NDPA & launch (Weeks 21–23) — Not started
+### P09 — Hardening, NDPA & launch (Weeks 21–23) — In progress
 
 Depends on: P00–P08.
 
 | ID | Deliverable | Acceptance |
 | --- | --- | --- |
 | P09-01 — **Not started** | Security review: policy coverage sweep, rate-limit audit, upload validation audit, dependency audit, session/2FA checks; external pen-test if budget allows | No open critical/high findings |
-| P09-02 — **Not started** | NDPA 2023 + GAID 2025: data protection officer named, breach response plan (72-hour notification), consent records, data export (per tenant/org), erasure workflow with 90-day retention enforcement, privacy policy + terms pages | Export contains all of a tenant's data and nothing of others; erasure completes within retention rules |
+| P09-02 — **In progress** | NDPA 2023 + GAID 2025: data protection officer named, breach response plan (72-hour notification), consent records, data export (per tenant/org), erasure workflow with 90-day retention enforcement, privacy policy + terms pages | Export contains all of a tenant's data and nothing of others; erasure completes within retention rules |
 | P09-03 — **Not started** | Load test (k6) on hot paths: dashboard, bills list, group feed; fix N+1/cache gaps | Hot paths meet the agreed latency budget on the shared-hosting profile |
 | P09-04 — **Not started** | Backup + restore drill on staging from production-like data; runbook in `docs/runbooks/` | Drill achieves the RPO/RTO in [ARCHITECTURE.md § 11](ARCHITECTURE.md); the runbook is followed verbatim by someone other than the author |
 | P09-05 — **Not started** | Seed production demo org; monitoring/alerting (Sentry → Slack, queue-depth alerts) | A test error reaches Slack; queue-depth alert fires in a drill |
-| P09-06 — **Not started** | **Upgrades:** console **System → Version** page (current/latest version, pending migrations, last backup; read-only), authenticated batched "run pending migrations" for no-SSH upgrades, upgrade drill in CI (previous release → new) | Upgrade drill passes on both databases; one zip upgrade + rollback rehearsed on staging |
+| P09-06 — **In review** | **Upgrades:** console **System → Version** page (current/latest version, pending migrations, last backup; read-only), authenticated batched "run pending migrations" for no-SSH upgrades, upgrade drill in CI (previous release → new) | Upgrade drill passes on both databases; one zip upgrade + rollback rehearsed on staging |
 | P09-07 — **Not started** | Runbooks `docs/runbooks/install.md`, `install-recovery.md`, `upgrade.md`; owner's install guide with SSH and no-SSH variants for cPanel and Plesk | Real installs on a cPanel and a Plesk account (one with SSH, one without) follow the guide word for word |
 | P09-08 — **Not started** | Launch checklist (§ 4) executed | Every box in § 4 ticked |
 

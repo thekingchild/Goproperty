@@ -28,6 +28,11 @@ return [
         // Written once by the command-line install: version, site, console
         // path, database and APP_KEY. Store it offline, then delete it.
         'record' => storage_path('app/private/installation-record.txt'),
+        // The release number shipped in the package (INSTALLER.md § 2).
+        'version' => base_path('VERSION'),
+        // Held while the console's upgrade step runs (INSTALLER.md § 10), so
+        // two staff members never run it at once.
+        'upgrade_lock' => storage_path('app/private/upgrade.lock'),
     ],
 
     /*
@@ -43,8 +48,26 @@ return [
     | Batched migrations (INSTALLER.md § 4): a few migrations per request,
     | each request kept well under shared hosts' 30–60 s limits.
     */
-    'migrations_per_batch' => 5,
+    'migrations_per_batch' => (int) env('INSTALLER_MIGRATIONS_PER_BATCH', 5),
     'batch_seconds' => 20,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Upgrades (INSTALLER.md § 10)
+    |--------------------------------------------------------------------------
+    |
+    | Console → Operations → Version shows the newest published release of
+    | this GitHub repository (its public releases API; nothing is ever
+    | downloaded), asked only in production and staging, at most every
+    | `release_cache_minutes`, with short timeouts.
+    |
+    */
+
+    'releases' => [
+        'repository' => env('GOPROPERTY_RELEASES_REPOSITORY', 'thekingchild/Goproperty'),
+        'cache_minutes' => 360,
+        'failure_cache_minutes' => 15,
+    ],
 
     /*
     |--------------------------------------------------------------------------

@@ -60,6 +60,7 @@ enum StaffPermission: string
     case OperationsView = 'operations.view';
     case OperationsAlerts = 'operations.alerts';
     case SystemStatus = 'system.status';
+    case SystemUpgrade = 'system.upgrade';
     case QueuesManage = 'queues.manage';
     case WebhooksReplay = 'webhooks.replay';
     case BackupsRun = 'backups.run';
@@ -102,11 +103,14 @@ enum StaffPermission: string
 
     /**
      * Impersonation write mode, production restore approval, role
-     * management and data purge (PLATFORM_CONSOLE.md § 1).
+     * management and data purge (PLATFORM_CONSOLE.md § 1); since P09-06
+     * the console's upgrade step, which is for super-admins (INSTALLER.md
+     * § 10): no other default role holds it, and adding it to one needs a
+     * second super-admin.
      */
     public function isProtected(): bool
     {
-        return in_array($this, [self::ImpersonateWrite, self::BackupsApproveProductionRestore, self::RolesManage, self::DataPurge], true);
+        return in_array($this, [self::ImpersonateWrite, self::BackupsApproveProductionRestore, self::RolesManage, self::DataPurge, self::SystemUpgrade], true);
     }
 
     public function area(): string
@@ -158,6 +162,7 @@ enum StaffPermission: string
             self::OperationsView => 'Operations dashboard',
             self::OperationsAlerts => 'Operations alerts: where they go and when they fire',
             self::SystemStatus => 'System status and heartbeats',
+            self::SystemUpgrade => 'Run an upgrade\'s migrations and maintenance mode from the console',
             self::QueuesManage => 'Queues and failed jobs',
             self::WebhooksReplay => 'Replay webhooks',
             self::BackupsRun => 'Run backups',
