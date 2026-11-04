@@ -13,6 +13,7 @@ use App\Platform\Compliance\TierSettingsApproval;
 use App\Platform\Impersonation\WriteImpersonationApproval;
 use App\Platform\Staff\RoleGrantApproval;
 use App\Platform\Staff\StaffAudit;
+use App\Privacy\Erasure\ErasureApproval;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
@@ -34,6 +35,8 @@ final class StaffServiceProvider extends ServiceProvider
             $approvals->handle(ApprovalAction::Refund, RefundApproval::class);
             $approvals->handle(ApprovalAction::TierSettings, TierSettingsApproval::class);
             $approvals->handle(ApprovalAction::ProductionRestore, ProductionRestoreApproval::class);
+            // NDPA erasures (P09-02): approval starts the retention wait, the scheduler erases.
+            $approvals->handle(ApprovalAction::DataPurge, ErasureApproval::class);
 
             return $approvals;
         });

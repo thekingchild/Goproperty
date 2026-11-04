@@ -284,6 +284,8 @@ it('keeps exactly the reading, exporting and paying permissions while suspended'
         'owner_statements.view',
         // SMS credits (P05-03): seeing them (buying is organization.billing).
         'sms_credits.view',
+        // Data export for a data protection request (P09-02): an export.
+        'privacy.export',
     ]);
 });
 

@@ -1,6 +1,8 @@
 <?php
 
 use App\Notifications\Preferences\NotificationPreferences;
+use App\Privacy\Consents\Consents;
+use App\Privacy\Consents\ConsentSource;
 use App\Tenancy\BlockedWhileImpersonating;
 use Flux\Flux;
 use Illuminate\Support\Facades\Auth;
@@ -16,26 +18,32 @@ use Livewire\Component;
  * account's own choice: never changed during a GoProperty support session.
  * Below the form, panels other modules add (NotificationSettingsPanels;
  * P05-06: WhatsApp messages from each agency the account rents from).
+ * Product news by email is opt-in only (PLATFORM_CONSOLE.md § 5, NDPA):
+ * off until the person switches it on, each change a consent record (P09-02).
  */
 new #[Title('Notification settings')] class extends Component {
     public bool $remindersByEmail = true;
 
     public bool $remindersBySms = true;
 
-    public function mount(NotificationPreferences $preferences): void
+    public bool $productEmail = false;
+
+    public function mount(NotificationPreferences $preferences, Consents $consents): void
     {
         $user = Auth::user();
         $this->remindersByEmail = $preferences->allows($user, NotificationPreferences::REMINDERS, 'email');
         $this->remindersBySms = $preferences->allows($user, NotificationPreferences::REMINDERS, 'sms');
+        $this->productEmail = $consents->marketingEmail($user);
     }
 
     #[BlockedWhileImpersonating]
-    public function save(NotificationPreferences $preferences): void
+    public function save(NotificationPreferences $preferences, Consents $consents): void
     {
         $preferences->set(Auth::user(), NotificationPreferences::REMINDERS, [
             'email' => $this->remindersByEmail,
             'sms' => $this->remindersBySms,
         ]);
+        $consents->setMarketingEmail(Auth::user(), $this->productEmail, ConsentSource::NotificationSettings);
 
         Flux::toast(variant: 'success', text: __('Notification settings saved.'));
     }
@@ -55,6 +63,8 @@ new #[Title('Notification settings')] class extends Component {
             @else
                 <flux:text data-test="sms-unverified">{{ __('Reminders by SMS start once your phone number is verified: open a link your agency sends you by WhatsApp, or ask them to confirm your number in person.') }}</flux:text>
             @endif
+
+            <flux:switch wire:model="productEmail" :label="__('Product news by email')" :description="__('Now and then, what is new in :product and tips. Off unless you switch it on; switch it off any time.', ['product' => app(\App\Theme\ThemeContext::class)->current()->name()])" data-test="product-email" />
 
             <flux:text class="text-sm">{{ __('Security messages, receipts and notices in the app are always sent.') }}</flux:text>
 

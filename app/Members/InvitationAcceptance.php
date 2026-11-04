@@ -13,6 +13,8 @@ use App\Models\User;
 use App\Plans\Feature;
 use App\Plans\PlanGate;
 use App\Plans\PlanUsage;
+use App\Privacy\Consents\Consents;
+use App\Privacy\Consents\ConsentSource;
 use App\Rules\NigerianMobile;
 use App\Support\PhoneNumber;
 use App\Tenancy\OrganizationContext;
@@ -58,6 +60,7 @@ final readonly class InvitationAcceptance
         private WorkspaceLanding $landing,
         private PlanGate $plans,
         private PlanUsage $usage,
+        private Consents $consents,
     ) {}
 
     /**
@@ -213,6 +216,9 @@ final readonly class InvitationAcceptance
                     'accepted_at' => now(),
                     'accepted_by_user_id' => $user->id,
                 ])->save();
+
+                // The page says joining means agreeing to the terms and privacy policy (P09-02).
+                $this->consents->acceptTerms($user, ConsentSource::MemberInvitation, $organization);
 
                 $this->accessLog->record('invitation_accepted', $user);
                 $this->audit->record('invitation.accepted', $organization, $user, "{$user->name} accepted the invitation", [

@@ -95,6 +95,15 @@ enum OrganizationPermission: string
     case ManageWhatsAppMessages = 'whatsapp.messages';
 
     /**
+     * Exporting the organization's data, or one tenant's, as an archive for
+     * a data protection request (P09-02, NDPA 2023 ss. 34–36; Settings →
+     * Data export). Owners only. An export: kept while suspended. Personal
+     * data: refused while GoProperty staff impersonate (PLATFORM_CONSOLE.md
+     * § 6, exports of people's contact details are never taken away).
+     */
+    case ExportPersonalData = 'privacy.export';
+
+    /**
      * Whether members keep this permission while their organization is
      * suspended or cancelled (OrganizationWriteGuard): reading, exporting,
      * paying the GoProperty subscription (a confirmed payment reactivates,
@@ -127,7 +136,8 @@ enum OrganizationPermission: string
             self::ViewOwnerStatements,
             self::ViewSmsCredits,
             self::ManageBilling,
-            self::SubmitPaymentProof => true,
+            self::SubmitPaymentProof,
+            self::ExportPersonalData => true,
             self::UpdateOrganization,
             self::DeleteOrganization,
             self::ManagePaymentSettings,
@@ -216,7 +226,8 @@ enum OrganizationPermission: string
             self::ManageImports,
             self::ManageHandovers,
             self::ManageOwnerStatements,
-            self::ManageWhatsAppConnection => true,
+            self::ManageWhatsAppConnection,
+            self::ExportPersonalData => true,
             self::OpenWorkspace,
             self::UpdateOrganization,
             self::ViewSettings,
@@ -313,6 +324,7 @@ enum OrganizationPermission: string
             self::ManageWhatsAppMessages => 'Sync the organization\'s WhatsApp templates from Meta, choose which template each message uses and what fills its variables, and set each message\'s channel order (WhatsApp, then SMS)',
             self::ManageHandovers => 'Hand buildings to another organization for management or take them over, give or withdraw notice, and settle the moving tenants\' credit (management handovers)',
             self::ViewSmsCredits => 'See the SMS credits: the balance, this month\'s allowance, purchases and the credit ledger (buying credits needs organization.billing)',
+            self::ExportPersonalData => 'Export the organization\'s data, or one tenant\'s, as an archive for a data protection request (NDPA)',
         };
     }
 }

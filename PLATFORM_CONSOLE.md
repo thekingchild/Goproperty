@@ -25,10 +25,10 @@ Staff access is controlled only by **roles** (spatie permissions on the `staff` 
 | --- | --- | --- |
 | `super-admin` | Everything, including staff management, role grants, production restore approval, system settings | — (but still subject to two-person rules) |
 | `operations-manager` | Customers, organization suspend/reactivate, plan changes for customers, cancelling and reactivating subscriptions, feature overrides, grace extensions, view all dashboards | Refunds, backups restore, view compliance documents |
-| `compliance-officer` | Review Transaction Tier applications and documents, approve/reject tiers, work the compliance flag queue, restrict orgs for compliance | Billing actions, impersonation in write mode |
+| `compliance-officer` | Review Transaction Tier applications and documents, approve/reject tiers, work the compliance flag queue, restrict orgs for compliance; data protection requests, the breach register and the data protection officer (§ 11, P09-02) | Billing actions, impersonation in write mode |
 | `finance-admin` | Plans & prices, platform invoices, confirm bank-transfer subscription payments, refunds, credit notes | Staff management, compliance documents |
 | `support-agent` | Customer lookup, read-only impersonation (with reason), resend emails/invoices, view delivery logs | Money actions, compliance documents, write-mode impersonation |
-| `technical-admin` | Operations dashboard and where its alerts go (`operations.alerts`, P08-03), view delivery logs (the dashboard's Messaging figures open them, P05-05), the sign-in (access) log (§ 8, P06-07c), queues/failed jobs, webhook replay, backups (run, download, verify, restore to staging), email provider settings | Customer data editing, money actions |
+| `technical-admin` | The breach register (`privacy.breaches`, § 11, P09-02), operations dashboard and where its alerts go (`operations.alerts`, P08-03), view delivery logs (the dashboard's Messaging figures open them, P05-05), the sign-in (access) log (§ 8, P06-07c), queues/failed jobs, webhook replay, backups (run, download, verify, restore to staging), email provider settings | Customer data editing, money actions |
 | `content-manager` | Email templates, marketing page content, announcements | Customer data |
 | `analyst` | Analytics dashboard and reports (aggregated, no PII) | Anything that changes data |
 
@@ -75,6 +75,7 @@ Invite by email → set password + 2FA on first login → active. Deactivation i
 | Custom code (analytics, chat widgets) | `super-admin` (step-up) | — (audited) | § 9.5 |
 | Sign-in security (passkeys, Turnstile, 2FA rules) | `super-admin` | — (audited) | § 9.6 |
 | Console path (`ADMIN_PATH`) | `technical-admin` (via `.env` on the server) | — | § 10 |
+| Data protection officer (shown on the privacy page) | `compliance-officer` (`privacy.settings`) | — (audited by the settings store) | § 11; Settings → **Data protection** (P09-02) |
 
 ## 1B. Customers
 
@@ -487,3 +488,14 @@ Product name "GoProperty", primary blue `#1D4ED8`, accent amber `#F59E0B`, neutr
 - In production, if `ADMIN_PATH` is still the bare default `gp-control`, the operations dashboard shows a red warning and a daily email reminds `technical-admin` to change it.
 - To change it: edit `ADMIN_PATH` in `.env`, then run `php artisan config:cache`. Staff are told the new address; the old path returns a plain 404.
 - The path is the first thing staff bookmark. Never put it in public docs, emails to customers, `robots.txt` or support macros.
+
+## 11. Data Protection (NDPA 2023 + GAID 2025)
+
+Built in P09-02; how the tooling works is [ARCHITECTURE.md § 10 "How the NDPA tooling is built"](ARCHITECTURE.md), the procedure [docs/runbooks/breach-response.md](docs/runbooks/breach-response.md), the defaults (1–33) and an open question [docs/plans/P09-subtasks.md](docs/plans/P09-subtasks.md).
+
+- **Permissions** (area "Data protection" in the role editor): `privacy.requests` (compliance-officer, super-admin) asks for exports and erasures and downloads exports; `privacy.breaches` (compliance-officer, technical-admin, super-admin) keeps the breach register; `privacy.settings` (compliance-officer, super-admin) names the data protection officer. Erasures are approved with the protected `data.purge` (§ 1 two-person rules; super-admin).
+- **Compliance → Data requests** (`/{ADMIN_PATH}/data-requests`, `DataRequestPolicy`): every export and erasure with its state, who asked, the reference and reason, when an erasure runs and the export file (size, downloads). **Export data** and **Erase data** take the organization (searched by name, slug or number), the whole organization or one of its tenants (by name, phone, email or number) and the reference and reason (10–500 characters; the reference, not the person's name: it stays with the request and never reaches the audit log). An export is queued at once; **Download** opens a 15-minute signed link (`…/data-requests/{id}/download`, the permission checked again, audited `data_export.downloaded`); the file is deleted after 7 days. An erasure opens a `data_purge` approval request in Staff → Approvals, refused while the organization is not cancelled or deleted, or the tenant has a draft or active lease or an unpaid bill; approved, it waits until 90 days after the tenancy or subscription ended and the scheduler carries it out (`privacy-retention`, every 15 minutes), checking again first; **Withdraw** stops it until then.
+- **Compliance → Breach register** (`/{ADMIN_PATH}/breaches`, `DataBreachPolicy`): **Record a breach** (title, what happened, when GoProperty became aware, when it happened, the risk, kinds of data, people affected, customers by number, consequences, measures); each entry shows the 72-hour deadline for the Nigeria Data Protection Commission (due, overdue in red, or done) and has **Change details**, **Contained**, **Commission told** (with its reference), **Customers told**, **People told**, **No notice needed** (with the reason) and **Close** (what was learned). The menu counts breaches still waiting for a Commission notice. Entries are never deleted; each step is one audit entry (log `privacy`, reference and status only).
+- **Settings → Data protection** (`/{ADMIN_PATH}/settings/data-protection`): the officer's name, email, phone and postal address (`privacy.dpo_*`, name and email both or neither), shown on `/privacy`.
+- **Customers' side:** an organization's owners export their organization or one tenant from **Settings → Data export** (`privacy.export`; allowed while suspended, refused during a support session, § 6); consent records are written at signup and when any invitation is accepted, and product email is opted in or out in Settings → Notifications.
+

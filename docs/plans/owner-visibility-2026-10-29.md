@@ -28,7 +28,7 @@ Both changes apply only to owners whose buildings an organization manages for th
 3. **Lease contracts:** the issued contract PDF as stored (it carries the tenant's details, which owners now see, and no bank details). Drafts are never shown.
 4. **Owner reads of a tenant's details are not logged per view.** The owner's portal access itself is already audited (P03-15).
 5. **The owner statement and its PDF** show tenant phone and email whenever they show the tenant (the switch is gone). Settled months already snapshotted keep what they recorded.
-6. **NDPA:** the tenant-facing privacy notice must say that the landlord of the building sees these details. Recorded as a follow-up for P09-01 (NDPA).
+6. **NDPA:** the tenant-facing privacy notice must say that the landlord of the building sees these details. Recorded as a follow-up for P09-01 (NDPA). Done in P09-02 (2026-11-04): fixed wording on `/privacy`, "What the landlord of your building sees".
 
 ### P04-06 — tickets shared with the owner
 

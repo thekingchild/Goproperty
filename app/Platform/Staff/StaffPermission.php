@@ -101,6 +101,12 @@ enum StaffPermission: string
     // NDPA erasure
     case DataPurge = 'data.purge';
 
+    // Data protection (P09-02, PLATFORM_CONSOLE.md § 11): requests to export
+    // or erase personal data, the breach register, the data protection officer.
+    case PrivacyRequests = 'privacy.requests';
+    case PrivacyBreaches = 'privacy.breaches';
+    case PrivacySettings = 'privacy.settings';
+
     /**
      * Impersonation write mode, production restore approval, role
      * management and data purge (PLATFORM_CONSOLE.md § 1); since P09-06
@@ -127,6 +133,7 @@ enum StaffPermission: string
             'settings' => $this === self::EmailProviderSettings ? 'Operations' : 'Platform settings',
             'staff', 'roles', 'approvals' => 'Staff',
             'audit', 'access_log' => 'Audit',
+            'privacy' => 'Data protection',
             default => 'Data',
         };
     }
@@ -190,6 +197,9 @@ enum StaffPermission: string
             self::AuditView => 'Read the audit log',
             self::AccessLogView => 'Read the sign-in (access) log',
             self::DataPurge => 'Delete or purge an organization\'s data (NDPA)',
+            self::PrivacyRequests => 'Export or ask to erase personal data on a verified request (NDPA)',
+            self::PrivacyBreaches => 'Record and follow personal data breaches (72-hour notice)',
+            self::PrivacySettings => 'Name the data protection officer',
         };
     }
 

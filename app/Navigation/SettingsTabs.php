@@ -21,7 +21,7 @@ use LogicException;
  *     $this->callAfterResolving(SettingsTabs::class, fn (SettingsTabs $tabs) => $tabs->add(new SettingsTab(…)));
  *
  * Shown in `order` (Core: Profile 10, Payment collection 20, Branding 30,
- * SMS credits 35, Members 90; modules' pages in between: online payments 25, P03-08;
+ * SMS credits 35, Data export 85, Members 90; modules' pages in between: online payments 25, P03-08;
  * document settings 40, P03-03b), only to members whose `visible` check
  * passes and only while the route exists. A module's settings page is
  * named `workspace.settings.documents.*` (its address
@@ -43,6 +43,7 @@ final class SettingsTabs
         $tabs->add(new SettingsTab('branding', 'Branding', 'workspace.settings.branding', static fn (User $user, Organization $organization): bool => $user->can('viewSettings', $organization), 30));
         $tabs->add(new SettingsTab('subscription', 'Subscription', 'workspace.settings.subscription', static fn (User $user): bool => $user->can('viewAny', Subscription::class), 33));
         $tabs->add(new SettingsTab('sms-credits', 'SMS credits', 'workspace.settings.sms-credits', static fn (User $user): bool => $user->can('viewAny', SmsCreditEntry::class), 35));
+        $tabs->add(new SettingsTab('data-export', 'Data export', 'workspace.settings.data-export', static fn (User $user, Organization $organization): bool => $user->can('exportData', $organization), 85));
         $tabs->add(new SettingsTab('members', 'Members', 'workspace.settings.members', static fn (User $user): bool => $user->can('viewAny', Membership::class), 90));
 
         return $tabs;

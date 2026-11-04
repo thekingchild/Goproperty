@@ -13,6 +13,7 @@ use App\Platform\Customers\CustomerChangeRefused;
 use App\Platform\Impersonation\ImpersonationRefused;
 use App\Platform\Plans\PlanChangeRefused;
 use App\Platform\Staff\StaffChangeRefused;
+use App\Privacy\DataRequestRefused;
 use Closure;
 use Filament\Facades\Filament;
 use Filament\Notifications\Notification;
@@ -45,7 +46,7 @@ trait ActsAsStaff
     {
         try {
             $message = $change();
-        } catch (BackupRefused|StaffChangeRefused|ApprovalRefused|CustomerChangeRefused|ImpersonationRefused|TierReviewRefused|TierSettingsRefused|PlanChangeRefused $refused) {
+        } catch (BackupRefused|StaffChangeRefused|ApprovalRefused|CustomerChangeRefused|ImpersonationRefused|TierReviewRefused|TierSettingsRefused|PlanChangeRefused|DataRequestRefused $refused) {
             Notification::make()->title($refused->getMessage())->danger()->send();
 
             return false;

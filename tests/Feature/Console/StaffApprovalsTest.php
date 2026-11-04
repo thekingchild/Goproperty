@@ -3,7 +3,9 @@
 declare(strict_types=1);
 
 use App\Audit\AuditEntry;
+use App\Enums\OrganizationStatus;
 use App\Models\ApprovalRequest;
+use App\Models\Organization;
 use App\Models\PlatformStaff;
 use App\Models\StaffRole;
 use App\Platform\Approvals\ApprovalAction;
@@ -14,6 +16,8 @@ use App\Platform\Filament\Resources\ApprovalRequests\Pages\ListApprovalRequests;
 use App\Platform\Staff\StaffChangeRefused;
 use App\Platform\Staff\StaffLifecycle;
 use App\Platform\Staff\StaffRoles;
+use App\Privacy\DataRequests;
+use App\Privacy\DataRequestStatus;
 use Filament\Facades\Filament;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Livewire;
@@ -168,18 +172,23 @@ it('does not grant on approval if the staff member was deactivated meanwhile', f
         ->and(holds($this->chidi, 'finance-admin'))->toBeFalse();
 });
 
-it('serves later two-person actions the same way (no handler: marked approved)', function () {
-    // Data purges have no handler yet; refunds have theirs since P06-07b (Modules/SaasBilling/tests/Feature/RefundTest.php)
-    // and production restores since P06-10 (tests/Feature/Console/BackupsConsoleTest.php).
-    $requester = staffNamed('Funke', ['technical-admin']);
+it('serves later two-person actions the same way', function () {
+    // Refunds have their handler since P06-07b (Modules/SaasBilling/tests/Feature/RefundTest.php), production
+    // restores since P06-10 (tests/Feature/Console/BackupsConsoleTest.php) and data purges since P09-02
+    // (tests/Feature/Privacy/ErasureTest.php): the same rules decide who may approve them.
+    $requester = staffNamed('Funke', ['compliance-officer']);
     $approver = staffNamed('Gbenga', ['super-admin']);
+    $organization = Organization::factory()->create(['status' => OrganizationStatus::Cancelled]);
 
-    $request = $this->approvals->request(ApprovalAction::DataPurge, $requester, null, 'Purge organization #12\'s data (NDPA erasure)', ['organization_id' => 12], 'Erasure request from the owner');
+    $erasure = app(DataRequests::class)->erasure($organization, null, 'Erasure request from the owner, ticket 77', $requester);
+    $request = ApprovalRequest::query()->findOrFail($erasure->approval_request_id);
 
-    expect(fn () => $this->approvals->approve($request, $requester))->toThrow(ApprovalRefused::class, 'your own request')
+    expect($request->action)->toBe(ApprovalAction::DataPurge)
+        ->and(fn () => $this->approvals->approve($request, $requester))->toThrow(ApprovalRefused::class, 'your own request')
         ->and(fn () => $this->approvals->approve($request, staffNamed('Sade', ['support-agent'])))->toThrow(ApprovalRefused::class, 'permission');
 
-    expect($this->approvals->approve($request, $approver)->status)->toBe(ApprovalStatus::Approved);
+    expect($this->approvals->approve($request, $approver)->status)->toBe(ApprovalStatus::Approved)
+        ->and($erasure->refresh()->status)->toBe(DataRequestStatus::Waiting);
 });
 
 it('lets the lone super-admin make a second super-admin; after that, grants need approval', function () {

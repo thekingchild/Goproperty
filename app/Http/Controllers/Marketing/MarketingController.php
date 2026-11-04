@@ -7,6 +7,9 @@ namespace App\Http\Controllers\Marketing;
 use App\Marketing\PlanCatalogue;
 use App\Marketing\PublicSite;
 use App\Plans\Feature;
+use App\Privacy\Consents\ConsentDocument;
+use App\Privacy\LegalDocuments;
+use App\Settings\SettingsStore;
 use App\Support\Money;
 use Illuminate\Contracts\View\View;
 
@@ -40,19 +43,38 @@ final class MarketingController
         ]);
     }
 
-    public function privacy(PublicSite $site): View
+    /**
+     * The privacy policy (P09-02): the published text, then what the
+     * landlord of a tenant's building sees (P03-16, the product owner's
+     * decision of 2026-10-29: the tenant-facing notice must say so), the
+     * data protection officer (Settings → Data protection) and the version
+     * a consent record names.
+     */
+    public function privacy(PublicSite $site, LegalDocuments $documents, SettingsStore $settings): View
     {
+        $dpo = [];
+
+        foreach (['name', 'email', 'phone', 'address'] as $field) {
+            $value = $settings->get('privacy.dpo_'.$field);
+            $dpo[$field] = is_string($value) && $value !== '' ? $value : null;
+        }
+
         return view('marketing.legal', $this->shared($site) + [
             'heading' => 'Privacy policy',
-            'body' => $site->theme()->string('site.privacy_policy'),
+            'body' => $documents->text(ConsentDocument::Privacy, $site->theme()),
+            'version' => $documents->version(ConsentDocument::Privacy, $site->theme()),
+            'privacy' => true,
+            'dpo' => $dpo,
         ]);
     }
 
-    public function terms(PublicSite $site): View
+    public function terms(PublicSite $site, LegalDocuments $documents): View
     {
         return view('marketing.legal', $this->shared($site) + [
             'heading' => 'Terms of service',
-            'body' => $site->theme()->string('site.terms'),
+            'body' => $documents->text(ConsentDocument::Terms, $site->theme()),
+            'version' => $documents->version(ConsentDocument::Terms, $site->theme()),
+            'privacy' => false,
         ]);
     }
 

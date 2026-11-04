@@ -208,6 +208,8 @@ it('classes the money, bank, Paystack, billing, compliance, member, delete, impo
         'owner_statements.manage',
         // The organization's own WhatsApp credentials (P05-06): access token and app secret.
         'whatsapp.connection',
+        // Data protection exports (P09-02): personal data never leaves with staff.
+        'privacy.export',
     ]);
 });
 

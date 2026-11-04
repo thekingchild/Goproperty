@@ -117,18 +117,32 @@ return [
         ],
         'site.privacy_policy' => [
             'type' => 'string',
-            'default' => '<h2>Privacy policy</h2><p>This page explains how GoProperty handles personal data under the Nigeria Data Protection Act 2023. Replace this text with your published policy.</p>',
+            // A starting text for the product owner's lawyer (P09-02, docs/plans/P09-subtasks.md default 2):
+            // NDPA 2023 and GAID 2025. The page adds what the landlord sees, the
+            // data protection officer and the version (resources/views/marketing/legal.blade.php).
+            'default' => (string) file_get_contents(resource_path('legal/privacy-policy.html')),
             'rules' => ['required', 'string', 'max:100000'],
             'html' => [''],
             'permission' => 'settings.site',
         ],
         'site.terms' => [
             'type' => 'string',
-            'default' => '<h2>Terms of service</h2><p>These terms govern the use of GoProperty. Replace this text with your published terms.</p>',
+            'default' => (string) file_get_contents(resource_path('legal/terms.html')),
             'rules' => ['required', 'string', 'max:100000'],
             'html' => [''],
             'permission' => 'settings.site',
         ],
+
+        // ---------------------------------------------------------------
+        // Data protection (P09-02; NDPA 2023 s. 32, PLATFORM_CONSOLE.md
+        // § 11): the data protection officer, shown on the privacy page.
+        // Settings → Data protection; applies on save.
+        // ---------------------------------------------------------------
+
+        'privacy.dpo_name' => ['type' => 'string', 'rules' => ['nullable', 'string', 'max:120', $plain], 'permission' => 'privacy.settings'],
+        'privacy.dpo_email' => ['type' => 'string', 'rules' => ['nullable', 'email', 'max:254'], 'permission' => 'privacy.settings'],
+        'privacy.dpo_phone' => ['type' => 'string', 'rules' => ['nullable', 'string', $phone], 'permission' => 'privacy.settings'],
+        'privacy.dpo_address' => ['type' => 'string', 'rules' => ['nullable', 'string', 'max:255', $plain], 'permission' => 'privacy.settings'],
 
         // ---------------------------------------------------------------
         // Search & sharing (§ 9.4)

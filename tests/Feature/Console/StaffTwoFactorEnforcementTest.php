@@ -9,6 +9,7 @@ use App\Backup\Operations\DownloadLinks;
 use App\Compliance\Monitoring\ComplianceFlags;
 use App\Enums\ComplianceFlagType;
 use App\Mail\Templates\EmailTemplates;
+use App\Models\DataRequest;
 use App\Models\EmailTemplate;
 use App\Models\ImpersonationSession;
 use App\Models\Organization;
@@ -157,16 +158,33 @@ function consolePageUrls(PlatformStaff $someone): array
                 'document' => DB::table('compliance_documents')->where('tier_application_id', ($application ??= $tierApplication())->id)->value('id'),
                 // A System analytics section as CSV (P08-02).
                 'section' => 'revenue',
+                // A data export's archive (P09-02), reached through its signed link.
+                'dataRequest' => dataRequestForPages($someone)->id,
                 default => throw new RuntimeException("Fill the {$parameter} parameter of {$name} in this test."),
             };
         }
 
-        $urls[] = in_array($name, [DocumentLinks::ROUTE, DownloadLinks::ROUTE], true)
+        $urls[] = in_array($name, [DocumentLinks::ROUTE, DownloadLinks::ROUTE, 'filament.console.data-request-download'], true)
             ? URL::temporarySignedRoute($name, now()->addMinutes(5), $parameters)
             : route($name, $parameters);
     }
 
     return $urls;
+}
+
+/** A ready data export with its archive on the faked disk (P09-02; once per test). */
+function dataRequestForPages(PlatformStaff $someone): DataRequest
+{
+    return DataRequest::query()->where('reason', 'Console page test export')->first() ?? (function () use ($someone): DataRequest {
+        Storage::fake('data-exports');
+        Storage::disk('data-exports')->put('exports/page-test.zip', 'zip bytes');
+
+        return DataRequest::query()->forceCreate([
+            'kind' => 'export', 'scope' => 'organization', 'organization_id' => Organization::factory()->create()->id,
+            'status' => 'ready', 'reason' => 'Console page test export', 'requested_by_staff_id' => $someone->id,
+            'file_path' => 'exports/page-test.zip', 'file_size' => 9, 'file_expires_at' => now()->addDays(7),
+        ]);
+    })();
 }
 
 /** A successful database backup whose zip is in a folder destination (once per test). */
@@ -342,6 +360,11 @@ it('acceptance: checks every console page against each default staff role', func
         // P08-03: Operations → System operations (every area, or Messaging for the delivery log's readers) and Settings → Operations alerts.
         ->and($opened('/operations'))->toEqualCanonicalizing(['super-admin', 'technical-admin', 'operations-manager', 'support-agent'])
         ->and($opened('/settings/operations-alerts'))->toEqualCanonicalizing(['super-admin', 'technical-admin'])
+        // P09-02: Compliance → Data requests and Breach register, a data export's download, Settings → Data protection.
+        ->and($opened('/data-requests'))->toEqualCanonicalizing(['super-admin', 'compliance-officer'])
+        ->and($opened('/data-requests/'.DataRequest::query()->where('reason', 'Console page test export')->value('id').'/download'))->toEqualCanonicalizing(['super-admin', 'compliance-officer'])
+        ->and($opened('/breaches'))->toEqualCanonicalizing(['super-admin', 'compliance-officer', 'technical-admin'])
+        ->and($opened('/settings/data-protection'))->toEqualCanonicalizing(['super-admin', 'compliance-officer'])
         // P09-06: Operations → Version, and the upgrade step for super-admins only (INSTALLER.md § 10).
         ->and($opened('/system/version'))->toEqualCanonicalizing(['super-admin', 'technical-admin'])
         ->and($opened('/system/upgrade'))->toBe(['super-admin']);

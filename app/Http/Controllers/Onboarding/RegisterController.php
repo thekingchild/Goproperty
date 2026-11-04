@@ -10,6 +10,8 @@ use App\Marketing\PlanCatalogue;
 use App\Marketing\SignupPlanChoice;
 use App\Onboarding\RegisterAccount;
 use App\Onboarding\SignupBotCheck;
+use App\Privacy\Consents\Consents;
+use App\Privacy\Consents\ConsentSource;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -24,6 +26,8 @@ use Illuminate\View\View;
  *
  * The bot check follows the Sign-in security settings (SignupBotCheck), and
  * the route is rate-limited per IP and per email address (`register`).
+ * A new account's acceptance of the terms and privacy policy, and its
+ * choice about product email, are consent records (P09-02).
  */
 final class RegisterController
 {
@@ -35,7 +39,7 @@ final class RegisterController
 
     public const string CHECK_FAILED = 'Please complete the security check and try again.';
 
-    public function store(Request $request, RegisterAccount $register, SignupBotCheck $check, Turnstile $turnstile, AccessLog $log): RedirectResponse
+    public function store(Request $request, RegisterAccount $register, SignupBotCheck $check, Turnstile $turnstile, AccessLog $log, Consents $consents): RedirectResponse
     {
         $required = $check->required($request->ip());
         $check->count($request->ip());
@@ -51,6 +55,13 @@ final class RegisterController
         $request->session()->put(self::SESSION_EMAIL, Str::lower(trim((string) $request->input('email'))));
 
         if ($user !== null) {
+            // The page says creating the account means agreeing to both (P09-02, NDPA consent at signup).
+            $consents->acceptTerms($user, ConsentSource::Signup);
+
+            if ($request->boolean('marketing_email')) {
+                $consents->setMarketingEmail($user, true, ConsentSource::Signup);
+            }
+
             $request->session()->put(self::SESSION_USER, $user->id);
         } else {
             $request->session()->forget(self::SESSION_USER);

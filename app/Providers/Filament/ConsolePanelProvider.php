@@ -7,6 +7,7 @@ namespace App\Providers\Filament;
 use App\Http\Controllers\Console\AnalyticsExportController;
 use App\Http\Controllers\Console\BackupDownloadController;
 use App\Http\Controllers\Console\ComplianceDocumentController;
+use App\Http\Controllers\Console\DataExportDownloadController;
 use App\Http\Controllers\Console\SchedulerHeartbeatController;
 use App\Http\Controllers\Console\ThemePreviewController;
 use App\Http\Controllers\Console\UpgradeController;
@@ -134,6 +135,12 @@ final class ConsolePanelProvider extends PanelProvider
                         ->whereNumber('run')
                         ->middleware(['signed', 'throttle:30,1'])
                         ->name('backup-download');
+
+                    // A data export's archive: signed, 15 minutes, permission-checked and audited (P09-02, PLATFORM_CONSOLE.md § 11).
+                    Route::get('data-requests/{dataRequest}/download', DataExportDownloadController::class)
+                        ->whereNumber('dataRequest')
+                        ->middleware(['signed', 'throttle:30,1'])
+                        ->name('data-request-download');
 
                     // A System analytics section as CSV, for the page's range (PLATFORM_CONSOLE.md § 3; audited).
                     Route::get('analytics/export/{section}', AnalyticsExportController::class)

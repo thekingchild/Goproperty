@@ -16,6 +16,8 @@ use App\Members\MemberInvitations;
 use App\Models\Invitation;
 use App\Models\Organization;
 use App\Models\User;
+use App\Privacy\Consents\Consents;
+use App\Privacy\Consents\ConsentSource;
 use App\Tenancy\OrganizationContext;
 use App\Tenancy\OrganizationWriteGuard;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -69,6 +71,7 @@ final readonly class PortalInvitationAcceptance
         private AccessLog $accessLog,
         private PortalAccessAudit $audit,
         private PhoneVerification $phones,
+        private Consents $consents,
     ) {}
 
     /** The usable invitation for this link, or null. Records the first opening; marks a pending one past its date expired. */
@@ -254,6 +257,9 @@ final readonly class PortalInvitationAcceptance
                 $verified = $invitation->channel === InvitationChannel::WhatsApp
                     && $invitation->phone !== null
                     && $this->phones->byWhatsAppLink($user, $invitation->phone);
+
+                // The page says accepting means agreeing to the terms and privacy policy (P09-02).
+                $this->consents->acceptTerms($user, ConsentSource::TenantInvitation, $organization);
 
                 $this->accessLog->record('invitation_accepted', $user);
                 $this->audit->record('tenant.portal_access_granted', $tenant, $user, "{$user->name} accepted the portal invitation", [

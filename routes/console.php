@@ -15,6 +15,7 @@ use App\Platform\Compliance\DocumentExpiryCheck;
 use App\Platform\Impersonation\Impersonations;
 use App\Platform\Operations\Alerts\AlertMonitor;
 use App\Platform\Operations\Scheduler\ScheduledTasks;
+use App\Privacy\Erasure\RetentionEnforcer;
 use App\Sms\Credits\GrantSmsAllowances;
 use App\Subscriptions\Jobs\EndTrials;
 use Carbon\CarbonImmutable;
@@ -92,6 +93,13 @@ Schedule::call(fn (OperationRunner $operations) => $operations->runDue())
     ->name('backup-operations')
     ->everyMinute()
     ->withoutOverlapping(12 * 60);
+
+// NDPA retention (P09-02, ARCHITECTURE.md § 10): approved erasures whose
+// 90 days have passed are queued and carried out; export files older than
+// 7 days are deleted.
+Schedule::call(fn (RetentionEnforcer $retention) => $retention->run())
+    ->name('privacy-retention')
+    ->everyFifteenMinutes();
 
 // Two-person requests nobody decided in time (PLATFORM_CONSOLE.md § 1).
 Schedule::call(fn (ApprovalService $approvals) => $approvals->expireStale())

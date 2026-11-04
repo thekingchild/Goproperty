@@ -92,6 +92,17 @@ final class OrganizationPolicy
         return $this->view($user, $organization) && $this->holds($user, $organization, OrganizationPermission::ViewPaymentSettings);
     }
 
+    /**
+     * Settings → Data export (P09-02, NDPA): the organization's data, or one
+     * tenant's, as an archive. Owners only; kept while suspended (an export)
+     * and never while GoProperty staff impersonate (the permission is blocked:
+     * personal data never leaves with staff, PLATFORM_CONSOLE.md § 6).
+     */
+    public function exportData(User $user, Organization $organization): bool
+    {
+        return $this->view($user, $organization) && $this->holds($user, $organization, OrganizationPermission::ExportPersonalData);
+    }
+
     private function holds(User $user, Organization $organization, OrganizationPermission $permission): bool
     {
         return app(OrganizationContext::class)->run($organization, static function () use ($user, $permission): bool {

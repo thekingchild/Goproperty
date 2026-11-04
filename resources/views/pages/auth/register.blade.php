@@ -98,6 +98,8 @@
       </div>
     @endif
 
+    <label class="check"><input type="checkbox" name="marketing_email" value="1" @checked(old('marketing_email'))> Email me product news and tips (optional; stop any time)</label>
+
     <button class="btn-primary" type="submit" data-submit data-test="register-user-button"><span class="btn-label">Create account</span><span class="spinner" hidden aria-hidden="true"></span></button>
 
     <p class="fineprint">By creating an account you agree to the <a href="{{ route('terms') }}">Terms</a> and <a href="{{ route('privacy') }}">Privacy policy</a>.</p>

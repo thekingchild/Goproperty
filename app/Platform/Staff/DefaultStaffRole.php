@@ -32,10 +32,10 @@ enum DefaultStaffRole: string
         return match ($this) {
             self::SuperAdmin => 'Everything, including staff management, role grants, production restore approval and system settings. Still subject to two-person rules.',
             self::OperationsManager => 'Customers, organization suspend/reactivate, plan changes, feature overrides, grace extensions, all dashboards.',
-            self::ComplianceOfficer => 'Transaction Tier applications and documents, tier decisions, compliance flags, compliance restrictions.',
+            self::ComplianceOfficer => 'Transaction Tier applications and documents, tier decisions, compliance flags, compliance restrictions, data protection requests and breaches.',
             self::FinanceAdmin => 'Plans and prices, platform invoices, bank-transfer confirmations, refunds, credit notes.',
             self::SupportAgent => 'Customer lookup, read-only impersonation with a reason, resending emails and invoices, delivery logs.',
-            self::TechnicalAdmin => 'Operations dashboard and its alerts, delivery logs, the sign-in (access) log, queues, webhook replay, backups (run, download, verify, restore to staging), email provider settings.',
+            self::TechnicalAdmin => 'Operations dashboard and its alerts, delivery logs, the sign-in (access) log, queues, webhook replay, backups (run, download, verify, restore to staging), email provider settings, the breach register.',
             self::ContentManager => 'Email templates, marketing page content, announcements, platform theme and website text.',
             self::Analyst => 'Analytics dashboard and reports (aggregated, no personal data).',
         };
@@ -63,6 +63,8 @@ enum DefaultStaffRole: string
             self::ComplianceOfficer => [
                 P::CustomersView, P::ComplianceViewDocuments, P::TiersReview, P::TiersApprove, P::TiersConfigure, P::TiersOverride,
                 P::ComplianceFlags, P::ComplianceRestrict, P::ImpersonationViewLog,
+                // Data protection (P09-02): verified requests, breaches and the DPO.
+                P::PrivacyRequests, P::PrivacyBreaches, P::PrivacySettings,
             ],
             self::FinanceAdmin => [
                 P::CustomersView, P::PlansManage, P::InvoicesManage, P::PaymentsConfirmTransfer,
@@ -79,6 +81,8 @@ enum DefaultStaffRole: string
                 P::DeliveryLogsView,
                 // The sign-in log, for incident investigation (P06-07c, PLATFORM_CONSOLE.md § 8).
                 P::AccessLogView,
+                // Breaches are often found here first (P09-02, docs/runbooks/breach-response.md).
+                P::PrivacyBreaches,
             ],
             self::ContentManager => [P::TemplatesEdit, P::MarketingEdit, P::AnnouncementsManage, P::SettingsTheme, P::SettingsSite, P::SettingsSeo],
             self::Analyst => [P::AnalyticsView],

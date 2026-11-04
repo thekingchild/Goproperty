@@ -49,6 +49,17 @@ return [
             'report' => false,
         ],
 
+        // Data exports (P09-02, NDPA): the archives a data protection request
+        // makes, on this server only, downloaded through a signed link that
+        // lives 15 minutes, deleted after 7 days. Never served directly.
+        'data-exports' => [
+            'driver' => 'local',
+            'root' => storage_path('app/data-exports'),
+            'visibility' => 'private',
+            'throw' => true,
+            'report' => false,
+        ],
+
         // Transaction Tier documents (config/compliance.php): private,
         // encrypted by the app, opened by staff only through the console's
         // signed and audited route. Never served directly.

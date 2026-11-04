@@ -14,6 +14,7 @@ use App\Http\Controllers\Onboarding\RegisterController;
 use App\Http\Controllers\Onboarding\VerifyEmailController;
 use App\Http\Controllers\Workspace\BrandingFileController;
 use App\Http\Controllers\Workspace\DashboardController;
+use App\Http\Controllers\Workspace\DataExportDownloadController;
 use App\Http\Controllers\Workspace\ListExportController;
 use App\Http\Controllers\Workspace\SwitchOrganizationController;
 use App\Http\Controllers\Workspace\WorkspaceHomeController;
@@ -23,6 +24,7 @@ use App\Livewire\Compliance\TierApplicationPage;
 use App\Livewire\Onboarding\CreateOrganization;
 use App\Livewire\Onboarding\SetupWizard;
 use App\Livewire\Settings\BrandingPage;
+use App\Livewire\Settings\DataExportPage;
 use App\Livewire\Settings\OrganizationProfilePage;
 use App\Livewire\Settings\PaymentCollectionPage;
 use App\Livewire\Settings\SmsCreditsPage;
@@ -151,6 +153,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // Settings → SMS credits (P05-03; owners and administrators see it, owners buy).
         Route::livewire('settings/sms-credits', SmsCreditsPage::class)->name('settings.sms-credits');
         Route::livewire('settings/subscription', SubscriptionPage::class)->name('settings.subscription');
+        // Settings → Data export (P09-02, NDPA): owners export the organization's or a tenant's data.
+        Route::livewire('settings/data-export', DataExportPage::class)->name('settings.data-export');
+        Route::get('settings/data-export/{dataRequest}/download', DataExportDownloadController::class)
+            ->whereNumber('dataRequest')
+            ->middleware(['signed', 'throttle:30,1'])
+            ->name('settings.data-export.download');
         Route::get('settings/branding/files/{role}/{file}', BrandingFileController::class)
             ->whereIn('role', array_keys(BrandingFiles::ROLES))
             ->whereUuid('file')

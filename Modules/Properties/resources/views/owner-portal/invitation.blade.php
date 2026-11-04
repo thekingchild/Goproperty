@@ -35,6 +35,7 @@
     <form class="stack" method="post" action="{{ route('owner.invitations.accept', ['token' => $token]) }}" data-busy-form>
       @csrf
       <button class="btn-primary" type="submit" data-test="join-button"><span class="btn-label">Follow my buildings at {{ $organization->name }}</span><span class="spinner" hidden aria-hidden="true"></span></button>
+      <p class="fineprint">By accepting you agree to the <a href="{{ route('terms') }}">Terms</a> and <a href="{{ route('privacy') }}">Privacy policy</a>.</p>
     </form>
   @elseif ($mode === 'sign-in')
     <div class="stack">
