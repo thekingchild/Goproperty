@@ -385,3 +385,16 @@ it('keeps the session to its organization', function () {
     asSupport()->get('/o/other-realty')->assertNotFound();
     asSupport()->post('/organizations/other-realty/switch')->assertNotFound();
 });
+
+it('denies every policy check made inside another organization the user belongs to (security review SR-03)', function () {
+    $session = supportAsOwner(ImpersonationMode::Write);
+    app(CurrentImpersonation::class)->begin($session);
+    $context = app(OrganizationContext::class);
+    $ability = OrganizationPermission::ViewProperties->value;
+
+    expect($context->run($this->acme, fn (): bool => Gate::forUser($this->owner)->allows($ability)))->toBeTrue()
+        ->and($context->run($this->other, fn (): bool => Gate::forUser($this->owner)->allows($ability)))->toBeFalse();
+
+    app(CurrentImpersonation::class)->clear();
+    expect($context->run($this->other, fn (): bool => Gate::forUser($this->owner)->allows($ability)))->toBeTrue();
+});

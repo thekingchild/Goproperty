@@ -1,5 +1,6 @@
 <?php
 
+use App\Auth\PasswordGuesses;
 use App\Tenancy\BlockedWhileImpersonating;
 use App\Concerns\PasswordValidationRules;
 use App\Livewire\Actions\Logout;
@@ -16,6 +17,8 @@ new #[BlockedWhileImpersonating] class extends Component {
      */
     public function deleteUser(Logout $logout): void
     {
+        PasswordGuesses::attempt(Auth::user(), 'password');
+
         $this->validate([
             'password' => $this->currentPasswordRules(),
         ]);

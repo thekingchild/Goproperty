@@ -73,9 +73,7 @@ final readonly class PlatformRefunds implements PlatformRefundsContract
 
     public function needsApproval(int $paymentId, int $amountKobo): bool
     {
-        $summary = $this->refundable($paymentId);
-
-        return $summary->refunded->plus($summary->awaitingApproval)->plus(Money::kobo(max(0, $amountKobo)))->kobo > $this->approvalAboveKobo();
+        return $this->overApprovalLimit($this->refundable($paymentId), $amountKobo);
     }
 
     public function approvalAboveKobo(): int
@@ -97,6 +95,14 @@ final readonly class PlatformRefunds implements PlatformRefundsContract
 
         $refundId = $this->context->run($organization, fn (): int => DB::transaction(function () use ($staff, $paymentId, $amountKobo, $reason, $bankReference): int {
             [$payment, $invoice] = $this->lockedPayment($paymentId, $amountKobo, $bankReference);
+
+            // Asked again under the payment's lock: two refunds sent at once,
+            // each under the limit, must not add up past it without an
+            // approval (docs/security/review-2026-11.md, finding SR-02).
+            if ($this->overApprovalLimit($this->summary($payment), $amountKobo)) {
+                throw new RefundRefused('This refund is above '.Money::kobo($this->approvalAboveKobo())->format().' for the payment, so a second staff member must approve it.');
+            }
+
             $refund = $this->newRefund($staff, $payment, $amountKobo, $reason, $bankReference);
             $this->run($refund, $payment, $invoice, $staff);
 
@@ -407,6 +413,12 @@ final readonly class PlatformRefunds implements PlatformRefundsContract
             refunded: Money::sum($refunds->filter(static fn (PlatformRefund $refund): bool => $refund->status->refunds())->pluck('amount_kobo')),
             awaitingApproval: Money::sum($refunds->filter(static fn (PlatformRefund $refund): bool => $refund->status === RefundStatus::Requested)->pluck('amount_kobo')),
         );
+    }
+
+    /** Would the payment's refunds (done, waiting and this one) pass the amount that needs a second staff member? */
+    private function overApprovalLimit(RefundablePayment $summary, int $amountKobo): bool
+    {
+        return $summary->refunded->plus($summary->awaitingApproval)->plus(Money::kobo(max(0, $amountKobo)))->kobo > $this->approvalAboveKobo();
     }
 
     private static function refundableStatus(PlatformPayment $payment): bool

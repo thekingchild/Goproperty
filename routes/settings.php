@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Middleware\RequireFreshPassword;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth'])->group(function () {
@@ -15,8 +16,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('settings/notifications', 'pages::settings.notifications')->name('notifications.edit');
 
     Route::livewire('settings/security', 'pages::settings.security')
+        // RequireFreshPassword: `password.confirm`, also on the page's
+        // Livewire calls (docs/security/review-2026-11.md SR-08).
         ->middleware([
-            'password.confirm',
+            RequireFreshPassword::class,
         ])
         ->name('security.edit');
 });

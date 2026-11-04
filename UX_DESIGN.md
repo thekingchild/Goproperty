@@ -45,7 +45,7 @@ Companion documents: [ARCHITECTURE.md](ARCHITECTURE.md) · [ONBOARDING_COMPLIANC
 - **Passkeys** (WebAuthn, Fortify passkeys): passwordless sign-in from the button or the field's autofill; users add/rename/remove passkeys under Profile → Security. After any password sign-in without a passkey, a one-time prompt offers "Add a passkey for faster sign-in".
 - **2FA** (authenticator app, TOTP) with recovery codes, required for org-owners of Tier 2/3 organizations and optional for all others ([`login-2fa.html`](docs/design/templates/login-2fa.html)). A passkey sign-in already counts as two factors and skips the 2FA screen.
 - New passwords checked against breached-password lists; minimum 10 characters.
-- Session cookie `Secure`, `HttpOnly`, `SameSite=Lax`; session regenerated on login; "Log out other sessions" in profile.
+- Session cookie `Secure`, `HttpOnly`, `SameSite=Lax`; session regenerated on login; "Log out other sessions" in profile (not built yet; since P09-01 a changed or reset password signs the other sessions out at their next request).
 - New-device login email.
 - HTTPS only with HSTS; CSP headers; no third-party scripts on login pages except Turnstile (custom code from the console is never printed on auth pages).
 

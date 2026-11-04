@@ -260,6 +260,37 @@ it('counts earlier refunds against the approval amount, so splitting a refund ne
         ->and(refundsOf($this->acme)[0]->invoice_reopened)->toBeFalse();
 });
 
+it('asks again under the payment\'s lock, so two refunds sent at once never add up past the approval amount (security review SR-02)', function () {
+    refundApprovalAbove(10_000);
+    refundPaystack();
+    $payment = firstPayment($this->acme);
+    $refunds = app(PlatformRefunds::class);
+
+    // A second ₦6,000 refund of the same payment lands right after this
+    // request's first look (the check before the lock), as a request sent
+    // from another tab at the same moment would.
+    $raced = false;
+    DB::listen(function ($query) use (&$raced, $payment): void {
+        if ($raced || ! str_contains($query->sql, 'platform_refunds')) {
+            return;
+        }
+
+        $raced = true;
+        inOrganization($this->acme, fn () => (new PlatformRefund)->forceFill([
+            'organization_id' => $this->acme->id, 'platform_payment_id' => $payment->id, 'platform_invoice_id' => $payment->platform_invoice_id,
+            'method' => $payment->method, 'amount_kobo' => Money::kobo(600_000), 'status' => RefundStatus::Processing,
+            'reason' => 'Sent from another tab', 'requested_by_staff_id' => $this->funmi->id,
+        ])->save());
+    });
+
+    expect(fn () => $refunds->refundNow($this->funmi, $payment->id, 600_000, 'Goodwill for the outage'))
+        ->toThrow(RefundRefused::class, 'a second staff member must approve it');
+
+    expect($raced)->toBeTrue()
+        ->and(collect(refundsOf($this->acme))->map(fn (PlatformRefund $refund): string => $refund->reason)->all())->toBe(['Sent from another tab']);
+    Http::assertNotSent(fn (Request $request): bool => $request->method() === 'POST' && str_ends_with($request->url(), '/refund'));
+});
+
 it('frees the amount when the approval is rejected or expires, and refunds nothing', function () {
     refundApprovalAbove(5_000);
     $http = refundPaystack();

@@ -67,7 +67,8 @@ Composer and Node on the server are **not** required: the release zip already co
    - Plesk *Scheduled Tasks* → *Run a command* every minute: `/opt/plesk/php/8.4/bin/php /var/www/vhosts/DOMAIN/goproperty/current/artisan schedule:run`
    - If Plesk's **Laravel Toolkit** extension is installed, it can manage the scheduler instead.
    Each minute the scheduler runs every due job in [ARCHITECTURE.md § 7](../../ARCHITECTURE.md) and an in-process tick drains the database queue (about 45 seconds' work, never overlapping). The installer's finish screen shows the exact line for your server and waits for the first heartbeat.
-6. **SSL:** enable AutoSSL / Let's Encrypt; then turn on "redirect HTTP to HTTPS".
+6. **SSL:** enable AutoSSL / Let's Encrypt; then turn on "redirect HTTP to HTTPS". The app does not redirect by itself, and sends HSTS (one year) once `APP_URL` is https, so browsers that came once stay on https.
+   Once installed, the site answers only on `APP_URL`'s host, its subdomains (`www.`), the bare domain when `APP_URL` is on `www.`, and `ADMIN_DOMAIN`; any other name, a host's temporary preview address or the server's IP included, gets a plain 400 (docs/security/review-2026-11.md SR-01). Point the domain before installing, or set `APP_URL` to the address you use and change it (then `php artisan config:cache`) when the domain moves.
 7. **Cloudflare** (recommended): proxy the domain, SSL mode *Full (strict)*, cache static assets only, add a WAF rule rate-limiting `/login` and the console path.
 8. **PHP-FPM settings** (if the panel allows): `memory_limit=512M`, `max_execution_time=60`, `upload_max_filesize=20M`, `post_max_size=25M`, `opcache.enable=1`.
 

@@ -1,5 +1,6 @@
 <?php
 
+use App\Auth\PasswordGuesses;
 use App\Tenancy\BlockedWhileImpersonating;
 use App\Concerns\PasswordValidationRules;
 use Flux\Flux;
@@ -71,6 +72,8 @@ new #[Title('Security settings'), BlockedWhileImpersonating] class extends Compo
     public function updatePassword(): void
     {
         try {
+            PasswordGuesses::attempt(Auth::user(), 'current_password');
+
             $validated = $this->validate([
                 'current_password' => $this->currentPasswordRules(),
                 'password' => $this->passwordRules(),

@@ -4,6 +4,34 @@ The tasks of [IMPLEMENTATION_PLAN.md § 3](../../IMPLEMENTATION_PLAN.md) P09, an
 
 Rules: AGENT.md § 3 (invariants), § 7 (prohibitions); [INSTALLER.md](../../INSTALLER.md); [PLATFORM_CONSOLE.md](../../PLATFORM_CONSOLE.md); the runbooks in [docs/runbooks/](../runbooks/).
 
+## P09-01 — Security review
+
+Done 2026-11-04 by a task agent: a review of the whole codebase (every route, controller, Livewire component and console page; rate limits; uploads; dependencies; sessions and two-factor; XSS, SQL, mass assignment, redirects, SSRF, files, logs) with fixes and tests. The findings register, with each finding's severity, status and test: [docs/security/review-2026-11.md](../security/review-2026-11.md). Acceptance: "No open critical/high findings" — two highs (SR-01 forged Host header in emailed links, SR-02 refund approval race) fixed; none open.
+
+### Defaults taken in P09-01 (agent, 2026-11-04; for the product owner to confirm)
+
+None of these changes a state machine (AGENT.md § 8). SR-02 makes the existing two-person rule for refunds hold under concurrent requests; it changes no refund, payment or invoice status, only refuses a refund that needed an approval.
+
+61. **Trusted hosts:** the site answers only on the host of `APP_URL`, its subdomains (e.g. `www.`), the bare domain when `APP_URL` is on `www.` (added by the orchestrator), and `ADMIN_DOMAIN` when set; any other host name gets a plain 400 before anything runs, once the install is finalized (the installer runs at whatever address the owner opens, before `APP_URL` exists; Laravel skips the check locally and in tests). An install reached through a temporary address (a host's preview link, an IP) must have `APP_URL` set to that address until the domain points at it; a domain change is an `APP_URL` change.
+62. **HSTS:** `Strict-Transport-Security: max-age=31536000` on every response whenever `APP_URL` is https (not on local copies), without `includeSubDomains` or `preload` (other subdomains may not be on https yet). The app does not redirect http to https itself: the host does (docs/runbooks/shared-hosting.md § 2 step 6), since behind a proxy the app cannot tell.
+63. **Framing:** `X-Frame-Options: SAMEORIGIN`, `X-Content-Type-Options: nosniff` and `Referrer-Policy: strict-origin-when-cross-origin` on every response that does not set its own (the sign-in, public, media and download pages keep their stricter ones).
+64. **Session cookie:** `Secure` whenever `APP_URL` is https; `SESSION_SECURE_COOKIE` still overrides. `HttpOnly` and `SameSite=Lax` as before.
+65. **A changed or reset password signs the account's other sessions out** (and its "remember me" cookies) at their next request; the session that made the change stays signed in. A session that signs another account in (an invitation, a sign-in link) starts afresh for it. The "Log out other sessions" button of UX_DESIGN.md § 3.1 is not built (follow-up).
+66. **Password guesses:** "Confirm your password", "Update password" and "Delete account" share 5 tries a minute per account; the reset-password form takes 10 a minute per IP address. Over the limit: 429 (confirm, reset) or "Too many tries. Try again in N seconds." (the two forms).
+67. **Settings → Security's actions** (turn off 2FA, remove a passkey, change the password) need the same fresh password confirmation as opening the page (3 hours, `AUTH_PASSWORD_TIMEOUT`); past it, an action sends the person to confirm and back to the page.
+68. **Staff sign-in lockout** uses the customers' settings (`auth.lockout_after` / `auth.lockout_minutes`, default 5 failures and 15 minutes per email and IP address; 3 without Turnstile keys, as for customers), with its own counters; a paused sign-in shows "For your security, sign-in is paused for 15 minutes." and is in the sign-in log as `lockout`. Staff sign-in shows no Turnstile (mandatory 2FA; follow-up).
+69. **Console on Livewire updates:** the staff member's IP allowlist and the 30-minute idle timeout are checked on every Livewire update too (outside the allowlist: the plain 404 and signed out; idle: back to sign-in). Only page loads and the idle warning's "Stay signed in" count as activity, so a polling page never keeps a session alive.
+70. **Support sessions:** every permission and policy check made inside an organization other than the session's is refused, whatever code makes it (the session was already limited to its organization's pages, PLATFORM_CONSOLE.md § 6).
+71. **Owner-portal memberships** (an owner's account linked to the agency, role `property-owner` only) cannot be given workspace roles or removed from Settings → Members (404, as the list never shows them); owners' access is managed from the owner's page (P03-15).
+72. **Compliance documents in the console:** images open sandboxed, like `/media`; PDFs open in the browser's own viewer without the sandbox, which Chrome refuses to show sandboxed (their bytes were checked to be PDFs at upload). File names in headers are ASCII without quotes, slashes or control characters.
+73. **symfony/mime 8.1.10** (from 8.0.15, for CVE-2026-45070): the only package changed; it is not pinned in `composer.json` (a Laravel dependency) and its tests pass.
+74. **External penetration test: not done.** Recommended before launch once staging exists (a black-box test of the public site, sign-in and pay pages, and a grey-box test of the workspace and console with test accounts); budget and timing are the product owner's decision.
+
+### Open questions for the product owner (P09-01)
+
+- **Custom code and the console on one origin (SR-18):** third-party scripts pasted in Console → Settings → Custom code run on the same origin as the workspace and the path-based console. Accept, or move the console to its own domain (`ADMIN_DOMAIN`) before adding outside scripts?
+- **Canonical origin (SR-19):** PLATFORM_CONSOLE.md § 9.1 says super-admin + step-up; the code lets content-managers set it (with step-up), and publishing a draft does not ask for step-up. Which is right?
+
 ## P09-02 — NDPA 2023 + GAID 2025
 
 Built 2026-11-04: consent records, the privacy policy and terms pages (versioned, with the data protection officer and what a landlord sees), data exports of a tenant or an organization, erasure of a tenant and purge of a cancelled organization after the 90-day retention window, a breach register with the 72-hour deadline, and [docs/runbooks/breach-response.md](../runbooks/breach-response.md). How it is built: [ARCHITECTURE.md § 10 "How the NDPA tooling is built"](../../ARCHITECTURE.md), [PLATFORM_CONSOLE.md § 11](../../PLATFORM_CONSOLE.md), [DATABASE_SCHEMA.md](../../DATABASE_SCHEMA.md) `consent_records`, `data_requests`, `data_breaches`.

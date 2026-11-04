@@ -15,10 +15,15 @@ use App\Auth\SignIn\PasskeyLoginResponse;
 use App\Auth\SignIn\RedirectIfTwoFactorNeeded;
 use App\Auth\SignIn\TwoFactorLoginResponse;
 use App\Http\Controllers\Onboarding\RegisterController;
+use App\Http\Middleware\RequireFreshPassword;
+use App\Models\User;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Contracts\Routing\ResponseFactory;
+use Illuminate\Contracts\Routing\UrlGenerator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
@@ -29,6 +34,7 @@ use Laravel\Fortify\Contracts\TwoFactorLoginResponse as TwoFactorLoginResponseCo
 use Laravel\Fortify\Features;
 use Laravel\Fortify\Fortify;
 use Laravel\Passkeys\Contracts\PasskeyLoginResponse as PasskeyLoginResponseContract;
+use Livewire\Livewire;
 
 class FortifyServiceProvider extends ServiceProvider
 {
@@ -45,6 +51,13 @@ class FortifyServiceProvider extends ServiceProvider
         // (ONBOARDING_COMPLIANCE.md § 1 "After login", WorkspaceLanding).
         $this->app->singleton(LoginResponseContract::class, LoginResponse::class);
         $this->app->singleton(PasskeyLoginResponseContract::class, PasskeyLoginResponse::class);
+
+        // As Laravel binds its own RequirePassword: the configured timeout.
+        $this->app->bind(RequireFreshPassword::class, fn ($app): RequireFreshPassword => new RequireFreshPassword(
+            $app[ResponseFactory::class],
+            $app[UrlGenerator::class],
+            $app['config']->get('auth.password_timeout'),
+        ));
     }
 
     /**
@@ -55,6 +68,12 @@ class FortifyServiceProvider extends ServiceProvider
         $this->configureActions();
         $this->configureViews();
         $this->configureRateLimiting();
+
+        // Settings → Security sits behind "Confirm your password"; its
+        // Livewire calls (turn off 2FA, remove a passkey) need the same
+        // fresh confirmation, not only the page load
+        // (docs/security/review-2026-11.md SR-08).
+        Livewire::addPersistentMiddleware([RequireFreshPassword::class]);
     }
 
     /**
@@ -67,6 +86,15 @@ class FortifyServiceProvider extends ServiceProvider
 
         // One field, email or phone number (UX_DESIGN.md § 3.1).
         Fortify::authenticateUsing(fn (Request $request) => app(FindUser::class)($request));
+
+        // "Confirm your password" checks the signed-in account's password.
+        // Fortify's own check looks the account up again by the login field,
+        // which here is `identifier`, no column, so every confirmation
+        // failed with a database error (docs/security/review-2026-11.md
+        // SR-11).
+        Fortify::confirmPasswordsUsing(static fn (mixed $user, ?string $password): bool => $user instanceof User
+            && is_string($password) && $password !== ''
+            && Hash::check($password, $user->getAuthPassword()));
 
         // Fortify reports wrong details (unknown account or wrong password)
         // with this event; GuardSignIn counts it towards lockout.
@@ -123,6 +151,13 @@ class FortifyServiceProvider extends ServiceProvider
             Limit::perHour(30)->by('ip-hour:'.$request->ip()),
             Limit::perHour(6)->by('email:'.hash('sha256', Str::lower(trim((string) $request->input('email'))))),
         ]);
+
+        // "Confirm your password" and the reset form (ThrottlePasswordChecks;
+        // docs/security/review-2026-11.md SR-06): per account when signed
+        // in, else per IP.
+        RateLimiter::for('password-confirm', fn (Request $request): Limit => Limit::perMinute(5)
+            ->by('password-confirm:'.($request->user()?->getAuthIdentifier() ?? 'ip:'.$request->ip())));
+        RateLimiter::for('password-reset', fn (Request $request): Limit => Limit::perMinute(10)->by('password-reset:'.$request->ip()));
 
         RateLimiter::for('passkeys', function (Request $request) {
             $credentialId = $request->input('credential.id');

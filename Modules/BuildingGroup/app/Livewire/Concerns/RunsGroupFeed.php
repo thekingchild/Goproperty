@@ -77,7 +77,8 @@ trait RunsGroupFeed
 
     public string $reportNote = '';
 
-    /** Posts shown; "Show more" adds a page. */
+    /** Posts shown; "Show more" adds a page, up to 10 (locked: never sent from the browser; docs/security/review-2026-11.md SR-14). */
+    #[Locked]
     public int $limit = GroupFeed::PAGE;
 
     #[Locked]

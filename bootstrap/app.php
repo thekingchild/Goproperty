@@ -3,12 +3,15 @@
 declare(strict_types=1);
 
 use App\Http\Middleware\AwaitApplicationKey;
+use App\Http\Middleware\EndSessionsAfterPasswordChange;
 use App\Http\Middleware\EnsurePlanAllows;
 use App\Http\Middleware\EnsureSiteInstalled;
 use App\Http\Middleware\PreventRequestsDuringMaintenance;
 use App\Http\Middleware\ResumeImpersonation;
+use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\SetOrganizationContext;
 use App\Http\Middleware\StaffAccountState;
+use App\Http\Middleware\TrustedHosts;
 use App\Http\Middleware\UseConsoleSession;
 use App\Http\Middleware\WatchSchedulerHeartbeat;
 use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
@@ -40,6 +43,8 @@ $app = Application::configure(basePath: dirname(__DIR__))
         // Before anything else: no APP_KEY → /install, then "being set up"
         // until the install is finalized (INSTALLER.md § 3).
         $middleware->prepend([
+            // Only the site's own hosts once installed (SR-01, TrustedHosts).
+            TrustedHosts::class,
             AwaitApplicationKey::class,
             EnsureSiteInstalled::class,
             // Staff session cookie for console requests, before any session
@@ -54,6 +59,10 @@ $app = Application::configure(basePath: dirname(__DIR__))
         // After each response: is the scheduler still running? A stopped
         // scheduler cannot raise its own alert (PLATFORM_CONSOLE.md § 2, P08-03).
         $middleware->append(WatchSchedulerHeartbeat::class);
+
+        // HSTS, framing, nosniff and referrer on every response that did not
+        // set its own (ARCHITECTURE.md § 10).
+        $middleware->append(SecurityHeaders::class);
 
         // Paystack's server-to-server calls (OnlinePayments, P03-08): the
         // route is outside the `web` group (no session), and never asks
@@ -75,6 +84,12 @@ $app = Application::configure(basePath: dirname(__DIR__))
         // session starts, before `auth` (PLATFORM_CONSOLE.md § 6).
         $middleware->web(append: [ResumeImpersonation::class]);
         $middleware->prependToPriorityList(AuthenticatesRequests::class, ResumeImpersonation::class);
+
+        // A changed or reset password ends the account's other sessions and
+        // "remember me" cookies at their next request (UX_DESIGN.md § 3.1;
+        // docs/security/review-2026-11.md SR-07); the session that made the
+        // change keeps going.
+        $middleware->web(append: [EndSessionsAfterPasswordChange::class]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         // /admin and other guesses are plain 404s, logged as probes

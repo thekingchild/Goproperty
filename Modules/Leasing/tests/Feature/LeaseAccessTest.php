@@ -186,8 +186,13 @@ it('shows an agent assigned to buildings only those buildings\' leases, and 404 
     $refusedAs404(fn () => $service->activate($agent, $oakDraft));
     $refusedAs404(fn () => $service->draft($agent, ['tenantId' => $this->kemi->id, 'unitId' => unitIn($this->acme, $oak)->id] + leaseInput()));
 
-    // The form offers the agent's buildings only.
+    // The form offers the agent's buildings only, and never lists another
+    // building's units, even when its id is sent (security review SR-13).
     leasesPage($agent, '/create')->assertOk()->assertSee('Palm Court')->assertDontSee('Oak Lodge');
+    $penthouse = unitIn($this->acme, $oak, ['unit_label' => 'Oak Penthouse']);
+    $chosen = LivewireHttp::html(leasesUpdate($agent, leasesSnapshot($agent, '/create'), ['propertyId' => (string) $oak->id])->assertOk());
+    expect($chosen)->not->toContain('Oak Penthouse')->not->toContain('value="'.$penthouse->id.'"');
+    expect(LivewireHttp::html(leasesUpdate($agent, leasesSnapshot($agent, '/create'), ['propertyId' => (string) $this->palm->id])->assertOk()))->toContain('Flat 1');
 
     // Their own building's leases they work on.
     leasesUpdate($agent, leasesSnapshot($agent, "/{$this->draft->id}"), [], [['activate']])->assertOk();

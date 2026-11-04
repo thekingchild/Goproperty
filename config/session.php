@@ -172,7 +172,10 @@ return [
     |
     */
 
-    'secure' => env('SESSION_SECURE_COOKIE'),
+    // Secure whenever the site's address is https (UX_DESIGN.md § 3.1;
+    // docs/security/review-2026-11.md SR-05), so an install that never sets
+    // SESSION_SECURE_COOKIE still keeps the cookie off plain http.
+    'secure' => env('SESSION_SECURE_COOKIE', str_starts_with((string) env('APP_URL', ''), 'https://')),
 
     /*
     |--------------------------------------------------------------------------

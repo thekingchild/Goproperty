@@ -173,7 +173,11 @@ final class ConsolePanelProvider extends PanelProvider
             // for every request, not just page loads.
             ->middleware([StaffAccountState::class], isPersistent: true)
             ->persistentMiddleware([EnsureMultiFactorAuthenticationIsEnabled::class])
-            ->authMiddleware([Authenticate::class, StaffIpAllowlist::class, StaffIdleTimeout::class]);
+            ->authMiddleware([Authenticate::class])
+            // Also on Livewire updates (every console action is one): a staff
+            // member outside their IP allowlist, or idle past 30 minutes, is
+            // stopped there too (docs/security/review-2026-11.md SR-10).
+            ->authMiddleware([StaffIpAllowlist::class, StaffIdleTimeout::class], isPersistent: true);
 
         return $domain !== null ? $panel->domain($domain) : $panel;
     }

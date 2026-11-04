@@ -217,7 +217,7 @@ Depends on: P00–P08.
 
 | ID | Deliverable | Acceptance |
 | --- | --- | --- |
-| P09-01 — **Not started** | Security review: policy coverage sweep, rate-limit audit, upload validation audit, dependency audit, session/2FA checks; external pen-test if budget allows | No open critical/high findings |
+| P09-01 — **Complete (2026-11-04)** | Security review: policy coverage sweep, rate-limit audit, upload validation audit, dependency audit, session/2FA checks; external pen-test if budget allows | No open critical/high findings |
 | P09-02 — **Complete (2026-11-04)** | NDPA 2023 + GAID 2025: data protection officer named, breach response plan (72-hour notification), consent records, data export (per tenant/org), erasure workflow with 90-day retention enforcement, privacy policy + terms pages | Export contains all of a tenant's data and nothing of others; erasure completes within retention rules |
 | P09-03 — **Not started** | Load test (k6) on hot paths: dashboard, bills list, group feed; fix N+1/cache gaps | Hot paths meet the agreed latency budget on the shared-hosting profile |
 | P09-04 — **Not started** | Backup + restore drill on staging from production-like data; runbook in `docs/runbooks/` | Drill achieves the RPO/RTO in [ARCHITECTURE.md § 11](ARCHITECTURE.md); the runbook is followed verbatim by someone other than the author |

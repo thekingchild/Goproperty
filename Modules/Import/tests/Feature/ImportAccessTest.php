@@ -221,3 +221,19 @@ it('answers 404 for another organization\'s import guessed by ID', function () {
     importsPage($this->owner, "/{$theirs->id}", 'other-realty')->assertOk();
     expect(inAcme($this->acme, fn () => ImportBatch::query()->find($theirs->id)))->toBeNull();
 });
+
+it('stops showing a batch\'s report at the next refresh once the member may no longer see imports (security review SR-15)', function () {
+    $admin = joinAs(User::factory()->create(), $this->acme, OrganizationRole::Admin);
+    $batch = committedImport($this->acme, $this->owner);
+    $snapshot = LivewireHttp::snapshot(importsPage($admin, "/{$batch->id}")->assertOk());
+
+    // Made an agent instead (no imports.view).
+    inAcme($this->acme, function () use ($admin): void {
+        $admin->removeRole(OrganizationRole::Admin->value);
+        $admin->assignRole(OrganizationRole::Agent->value);
+    });
+    freshRequest();
+    $this->actingAs($admin);
+
+    LivewireHttp::update($this, $snapshot, [], [['$refresh']])->assertForbidden();
+});

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Audit\AuthenticationLog;
 use App\Http\Middleware\StaffIdleTimeout;
 use App\Models\PlatformStaff;
 use App\Platform\Filament\Auth\StaffLogin;
@@ -10,6 +11,7 @@ use App\Settings\SettingsStore;
 use Filament\Facades\Filament;
 use Livewire\Livewire;
 use PragmaRX\Google2FA\Google2FA;
+use Tests\Support\LivewireHttp;
 
 /*
  * P00-10c: staff sign-in (UX_DESIGN.md § 3.2): mandatory 2FA, one generic
@@ -191,4 +193,64 @@ describe('sign-in security settings', function () {
 
 it('does not offer "remember me" to staff', function () {
     Livewire::test(StaffLogin::class)->assertFormFieldDoesNotExist('remember');
+});
+
+it('pauses sign-in for an email after the lockout\'s failures from one address, even with the right password (security review SR-09)', function () {
+    $staff = staffMember();
+    $wrong = fn (string $email = 'ada@goproperty.ng') => Livewire::test(StaffLogin::class)
+        ->fillForm(['email' => $email, 'password' => 'wrong-password'])->call('authenticate');
+
+    // Without Turnstile keys the pause starts at the bot-check threshold (3).
+    foreach (range(1, 3) as $attempt) {
+        $wrong()->assertHasErrors(['data.email']);
+        // Filament's own limit is per address and minute; the lockout is not.
+        $this->travel(61)->seconds();
+    }
+
+    Livewire::test(StaffLogin::class)
+        ->fillForm(['email' => 'ada@goproperty.ng', 'password' => 'x-long-password-1'])
+        ->call('authenticate')
+        ->assertNotified('For your security, sign-in is paused for 15 minutes.')
+        ->assertDontSee('Enter your 2FA code');
+    expect(auth('staff')->check())->toBeFalse()
+        ->and(AuthenticationLog::query()->where('event', 'lockout')->where('authenticatable_type', 'platform_staff')->where('authenticatable_id', $staff->id)->exists())->toBeTrue();
+
+    // Another email from the same address is not paused; the paused one is again after 15 minutes.
+    staffMember(['name' => 'Bola', 'email' => 'bola@goproperty.ng']);
+    Livewire::test(StaffLogin::class)->fillForm(['email' => 'bola@goproperty.ng', 'password' => 'x-long-password-1'])->call('authenticate')->assertSee('Enter your 2FA code');
+
+    $this->travel(16)->minutes();
+    Livewire::test(StaffLogin::class)->fillForm(['email' => 'ada@goproperty.ng', 'password' => 'x-long-password-1'])->call('authenticate')->assertSee('Enter your 2FA code');
+});
+
+it('applies the IP allowlist and the idle timeout to Livewire updates too, where every console action runs (security review SR-10)', function () {
+    $staff = staffMember();
+    $staff->forceFill(['ip_allowlist' => ['198.51.100.7']])->save();
+    $inside = ['REMOTE_ADDR' => '198.51.100.7'];
+
+    $snapshot = LivewireHttp::snapshot($this->actingAs($staff, 'staff')->withServerVariables($inside)->get($this->console)->assertOk());
+    LivewireHttp::update($this, $snapshot)->assertOk();
+
+    // Idle for 31 minutes: an update is refused and signs the staff member out.
+    LivewireHttp::update($this->withSession([StaffIdleTimeout::SESSION_KEY => now()->subMinutes(31)->getTimestamp()]), $snapshot)
+        ->assertRedirect($this->console.'/login');
+    expect(auth('staff')->check())->toBeFalse();
+
+    // From outside the allowlist: the plain 404, signed out.
+    $snapshot = LivewireHttp::snapshot($this->actingAs($staff->fresh(), 'staff')->withServerVariables($inside)->get($this->console)->assertOk());
+    LivewireHttp::update($this->withServerVariables(['REMOTE_ADDR' => '203.0.113.5']), $snapshot)
+        ->assertNotFound()
+        ->assertContent('Not Found');
+    expect(auth('staff')->check())->toBeFalse();
+});
+
+it('counts page loads, not Livewire updates, as activity, so a polling page never keeps a session alive', function () {
+    $staff = staffMember();
+    $snapshot = LivewireHttp::snapshot($this->actingAs($staff, 'staff')->get($this->console)->assertOk());
+    $stamp = session(StaffIdleTimeout::SESSION_KEY);
+
+    $this->travel(5)->minutes();
+    LivewireHttp::update($this, $snapshot)->assertOk();
+
+    expect(session(StaffIdleTimeout::SESSION_KEY))->toBe($stamp);
 });

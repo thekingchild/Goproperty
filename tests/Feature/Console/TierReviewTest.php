@@ -321,6 +321,18 @@ describe('document files', function () {
             ->assertSee('NUM-SCUML_-12345');
     });
 
+    it('opens images sandboxed and never puts the customer\'s raw file name in a header (security review SR-16)', function () {
+        submittedApplication($this->acme, $this->owner);
+        $document = inOrganization($this->acme, fn () => ComplianceDocument::query()->where('type', 'scuml_certificate')->sole());
+        inOrganization($this->acme, fn () => $document->forceFill(['mime' => 'image/png', 'original_name' => "Ad\"a\\/\r\nSet-Cookie: x=1 certificat\u{e9}.png"])->save());
+
+        $response = $this->actingAs($this->officer, 'staff')->get(app(DocumentLinks::class)->for(reviewDocument($document->fresh())))->assertOk();
+
+        expect($response->headers->get('Content-Security-Policy'))->toContain('sandbox')
+            ->and($response->headers->get('Content-Disposition'))->toBe('inline; filename="Ada Set-Cookie: x=1 certificate.png"')
+            ->and($response->headers->get('Set-Cookie'))->not->toContain('x=1');
+    });
+
     it('is not reachable without a valid signature, once the link has expired, or outside the console', function () {
         submittedApplication($this->acme, $this->owner);
         $document = inOrganization($this->acme, fn () => ComplianceDocument::query()->firstOrFail());

@@ -7,6 +7,7 @@ namespace App\Http\Middleware;
 use App\Models\PlatformStaff;
 use Closure;
 use Filament\Facades\Filament;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\IpUtils;
 use Symfony\Component\HttpFoundation\Response;
@@ -30,7 +31,9 @@ final class StaffIpAllowlist
             Filament::auth()->logout();
             $request->session()->invalidate();
 
-            return response('Not Found', 404, ['Content-Type' => 'text/plain; charset=UTF-8']);
+            // Thrown, not returned: Livewire ignores a plain response from
+            // persistent middleware on its updates.
+            throw new HttpResponseException(response('Not Found', 404, ['Content-Type' => 'text/plain; charset=UTF-8']));
         }
 
         return $next($request);

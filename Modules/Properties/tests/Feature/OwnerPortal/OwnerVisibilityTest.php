@@ -112,9 +112,13 @@ describe('acceptance: an owner sees her tenants in full, read-only; the ID numbe
             ->assertSee('Verified')->assertSee('NIN ···8901')
             ->assertSee('Flat 3B · Palm Court');
 
+        // The snapshot without its checksum: a random hash may contain "8901".
+        $snapshot = json_decode(LivewireHttp::snapshot($page), true);
+        unset($snapshot['checksum']);
+
         expect(ownerPortalIds($page, 'lease'))->toBe([$this->lease->id])
             ->and((string) $page->getContent())->not->toContain(KEMI_NIN)->not->toContain('345678901')
-            ->and(LivewireHttp::snapshot($page))->not->toContain(KEMI_NIN)->not->toContain('8901');
+            ->and((string) json_encode($snapshot))->not->toContain(KEMI_NIN)->not->toContain('8901');
     });
 
     it('never puts the full ID number on any owner page or in a Livewire payload', function () {

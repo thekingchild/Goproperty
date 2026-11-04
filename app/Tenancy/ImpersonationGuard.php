@@ -34,7 +34,8 @@ use Throwable;
  *   every call except paging, refreshes and #[AllowedWhileSuspended] exports.
  * - Permissions: HasOrganizationRoles::hasPermissionTo drops every
  *   permission OrganizationPermission::blockedWhileImpersonating() names,
- *   and in read-only mode every permission that writes.
+ *   in read-only mode every permission that writes, and every permission
+ *   inside an organization other than the session's.
  * - Policies: a Gate::before hook denies the same permissions, policy
  *   methods marked #[BlockedWhileImpersonating], abilities that delete or
  *   void (delete…, forceDelete…, destroy…, remove…, purge…, void…), in
@@ -73,6 +74,7 @@ final class ImpersonationGuard
     public function __construct(
         private readonly CurrentImpersonation $current,
         private readonly ImpersonationAudit $audit,
+        private readonly OrganizationContext $context,
     ) {}
 
     public function active(): bool
@@ -85,6 +87,10 @@ final class ImpersonationGuard
     {
         if (! $this->current->isImpersonated($user)) {
             return true;
+        }
+
+        if ($this->outsideSession()) {
+            return false;
         }
 
         $known = OrganizationPermission::tryFrom($permission);
@@ -115,7 +121,10 @@ final class ImpersonationGuard
 
         $first = $arguments[array_key_first($arguments) ?? 0] ?? null;
 
-        if ($first instanceof Organization && $first->getKey() !== $session->organization_id) {
+        // Any check about the session's organization only: the argument's,
+        // or the context it runs in (a record of another organization the
+        // user also belongs to; docs/security/review-2026-11.md SR-03).
+        if (($first instanceof Organization && $first->getKey() !== $session->organization_id) || $this->outsideSession()) {
             return Response::deny('This support session is limited to one organization.');
         }
 
@@ -235,6 +244,18 @@ final class ImpersonationGuard
     public function isLivewireUpdate(Request $request): bool
     {
         return $request->isMethod('POST') && trim($request->path(), '/') === trim(EndpointResolver::updatePath(), '/');
+    }
+
+    /**
+     * Is the code running inside an organization other than the support
+     * session's (a record of another organization the user also belongs
+     * to, e.g. a broadcast channel looping over their workspaces)?
+     */
+    private function outsideSession(): bool
+    {
+        $session = $this->current->session();
+
+        return $session !== null && $this->context->has() && $this->context->id() !== (int) $session->organization_id;
     }
 
     private function message(): string

@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace App\Platform\Filament\Auth;
 
 use App\Audit\AccessLog;
+use App\Auth\SignIn\Identifier;
+use App\Auth\SignIn\SignInSecurity;
 use App\Models\PlatformStaff;
 use Filament\Auth\Http\Responses\Contracts\LoginResponse;
 use Filament\Auth\Pages\Login;
 use Filament\Facades\Filament;
+use Filament\Notifications\Notification;
 use Filament\Schemas\Schema;
 use Illuminate\Validation\ValidationException;
 
@@ -40,6 +43,21 @@ final class StaffLogin extends Login
     public function authenticate(): ?LoginResponse
     {
         $challenged = filled($this->userUndertakingMultiFactorAuthentication) ? $this->getUserUndertakingMultiFactorAuthentication() : null;
+        $security = app(SignInSecurity::class);
+        $ip = request()->ip();
+        // The password step counts towards the same lockout as customers'
+        // (auth.lockout_after / auth.lockout_minutes per email + IP;
+        // ONBOARDING_COMPLIANCE.md § 1; docs/security/review-2026-11.md
+        // SR-09), under its own keys. The code step has Filament's limit.
+        $identifier = $challenged === null ? Identifier::from('staff:'.(is_string($this->data['email'] ?? null) ? $this->data['email'] : '')) : null;
+
+        if ($identifier !== null && $security->isLocked($identifier, $ip)) {
+            Notification::make()->danger()
+                ->title(sprintf('For your security, sign-in is paused for %d minutes.', $security->lockoutMinutes()))
+                ->send();
+
+            return null;
+        }
 
         try {
             $response = parent::authenticate();
@@ -48,7 +66,20 @@ final class StaffLogin extends Login
                 app(AccessLog::class)->record('2fa_failed', $challenged);
             }
 
+            if ($identifier !== null) {
+                $security->recordFailure($identifier, $ip);
+
+                if ($security->isLocked($identifier, $ip)) {
+                    app(AccessLog::class)->record('lockout', 'platform_staff', PlatformStaff::query()->where('email', substr($identifier->value, 6))->value('id'), substr($identifier->value, 6));
+                }
+            }
+
             throw $exception;
+        }
+
+        // The password was right (signed in, or now asked for the code).
+        if ($identifier !== null && (Filament::auth()->check() || filled($this->userUndertakingMultiFactorAuthentication))) {
+            $security->clear($identifier, $ip);
         }
 
         if ($challenged instanceof PlatformStaff && Filament::auth()->check()) {

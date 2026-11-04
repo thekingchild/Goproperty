@@ -7,6 +7,7 @@ namespace App\Http\Middleware;
 use Closure;
 use Filament\Facades\Filament;
 use Illuminate\Http\Request;
+use Livewire\Livewire;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -35,11 +36,20 @@ final class StaffIdleTimeout
             $session->invalidate();
             $session->regenerateToken();
 
-            return redirect()->guest(Filament::getLoginUrl())
+            // Back to the page after signing in again: $request is the page's
+            // even on a Livewire update (Livewire replays its route).
+            $session->put('url.intended', $request->isMethod('GET') ? $request->fullUrl() : url()->previous());
+
+            return redirect()->to(Filament::getLoginUrl())
                 ->with('console.timed-out', true);
         }
 
-        $session->put(self::SESSION_KEY, now()->getTimestamp());
+        // Page loads and the idle warning's ping count as activity; a
+        // Livewire update (a widget's poll as much as a click) is only
+        // checked, so an open dashboard never keeps a session alive.
+        if (! Livewire::isLivewireRequest()) {
+            $session->put(self::SESSION_KEY, now()->getTimestamp());
+        }
 
         return $next($request);
     }

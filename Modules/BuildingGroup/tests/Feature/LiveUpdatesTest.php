@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Enums\OrganizationRole;
 use App\Hosting\Realtime;
+use App\Platform\Impersonation\ImpersonationMode;
 use Illuminate\Broadcasting\BroadcastException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -14,6 +16,7 @@ use Modules\BuildingGroup\Enums\AuthorKind;
 use Modules\BuildingGroup\Enums\Reaction;
 use Modules\BuildingGroup\Live\FeedChanged;
 use Modules\BuildingGroup\Live\LiveFeed;
+use Modules\BuildingGroup\Models\BuildingGroup;
 use Modules\BuildingGroup\Models\GroupPost;
 use Modules\Leasing\Leases\LeaseService;
 use Modules\Properties\Models\AgentAssignment;
@@ -21,6 +24,7 @@ use Tests\Support\LivewireHttp;
 
 require_once __DIR__.'/group-world.php';
 require_once __DIR__.'/../../../../tests/Support/realtime.php';
+require_once __DIR__.'/../../../../tests/Support/impersonation.php';
 
 /*
  * P07-03: open Building Group pages stay current (Live\LiveFeed,
@@ -126,6 +130,13 @@ it('acceptance (shared hosting): another session sees a post, a comment and a re
     onFeed($this->kemi, $kemi, [], [['deletePost', [$post->id]]]);
     $this->travel(15)->seconds();
     expect(LivewireHttp::html(onFeed($this->tunde, $tunde)))->not->toContain('The lift is fixed')->toContain('data-test="feed-empty"');
+});
+
+it('never takes the number of posts shown from the browser (security review SR-14)', function () {
+    $kemi = openFeed($this->kemi);
+    test()->actingAs($this->kemi);
+
+    expect(LivewireHttp::update(test(), $kemi, ['limit' => 100000000], [['refreshFeed']])->isSuccessful())->toBeFalse();
 });
 
 it('renders nothing at a poll when the group has not changed since the page showed it', function () {
@@ -291,6 +302,21 @@ describe('who may listen (VPS)', function () {
         }
 
         expect(listenTo(null, $palm)->status())->not->toBe(200);
+    });
+
+    it('keeps a GoProperty support session to its organization: no listening to the user\'s groups at another agency (security review SR-03)', function () {
+        seedStaffRoles();
+        // Chidi owns Bello Homes and is also an administrator at Adeyemi.
+        joinAs($this->otherOwner, $this->acme, OrganizationRole::Admin);
+        expect(listenTo($this->otherOwner, $this->foreignGroup->id)->status())->toBe(200);
+
+        $handOff = startSupport(staffMember(['name' => 'Ada Okafor', 'email' => 'ada@goproperty.ng']), $this->otherOwner, $this->acme, ImpersonationMode::Write);
+        enterSupport($handOff)->assertRedirect('/o/acme-homes');
+
+        $listen = fn (BuildingGroup $group): int => asSupport()->post('/broadcasting/auth', ['socket_id' => '1234.5678', 'channel_name' => "private-group.{$group->id}"])->status();
+
+        expect($listen($this->palmGroup))->toBe(200)
+            ->and($listen($this->foreignGroup))->toBe(403);
     });
 
     it('stops a tenant listening once their lease there ends', function () {

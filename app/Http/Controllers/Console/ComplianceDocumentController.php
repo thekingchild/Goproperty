@@ -12,6 +12,7 @@ use Filament\Facades\Filament;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
@@ -49,16 +50,26 @@ final class ComplianceDocumentController
             'type' => $record->type->value,
         ]);
 
-        $name = str_replace(['"', '\\'], '', $record->original_name);
-
-        return response($bytes, 200, [
+        // The customer's file name, as MediaController shows one: ASCII, no
+        // quotes, slashes or control characters (docs/security/review-2026-11.md SR-16).
+        $name = (string) preg_replace('/[\x00-\x1F\x7F"\\\\\/]/', '', Str::ascii($record->original_name));
+        $headers = [
             'Content-Type' => $record->mime,
             'Content-Length' => (string) strlen($bytes),
-            'Content-Disposition' => 'inline; filename="'.$name.'"',
+            'Content-Disposition' => 'inline; filename="'.($name !== '' ? $name : 'document').'"',
             'Cache-Control' => 'no-store, private',
             'X-Content-Type-Options' => 'nosniff',
             'Referrer-Policy' => 'no-referrer',
             'X-Robots-Tag' => 'noindex, nofollow',
-        ]);
+        ];
+
+        // Images open sandboxed, as on /media. PDFs are left to the
+        // browser's viewer, which a sandbox would block (Chrome); the bytes
+        // were checked to be a PDF when uploaded (ComplianceFiles).
+        if (str_starts_with($record->mime, 'image/')) {
+            $headers['Content-Security-Policy'] = "default-src 'none'; style-src 'unsafe-inline'; sandbox";
+        }
+
+        return response($bytes, 200, $headers);
     }
 }

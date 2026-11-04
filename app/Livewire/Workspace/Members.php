@@ -132,7 +132,7 @@ final class Members extends Component
     #[BlockedWhileImpersonating]
     public function editMember(int $membershipId, RoleGrants $grants): void
     {
-        $membership = Membership::query()->with('user')->findOrFail($membershipId);
+        $membership = $this->listedMembership($membershipId, $grants);
         $current = $grants->memberRolesOf($membership->user);
         $this->authorize('changeRoles', [$membership, $current === [] ? [OrganizationRole::Agent] : $current]);
 
@@ -149,14 +149,14 @@ final class Members extends Component
     }
 
     #[BlockedWhileImpersonating]
-    public function saveRoles(MemberService $members): void
+    public function saveRoles(MemberService $members, RoleGrants $grants): void
     {
         $this->validate([
             'editRoles' => ['required', 'array', 'min:1'],
             'editRoles.*' => ['string', Rule::in($this->memberRoleValues())],
         ], ['editRoles.required' => 'Choose at least one role.', 'editRoles.min' => 'Choose at least one role.'], ['editRoles' => 'roles']);
 
-        $membership = Membership::query()->with('user')->findOrFail($this->editing ?? 0);
+        $membership = $this->listedMembership($this->editing ?? 0, $grants);
         $roles = $this->toRoles($this->editRoles);
         $this->authorize('changeRoles', [$membership, $roles]);
 
@@ -167,9 +167,9 @@ final class Members extends Component
     }
 
     #[BlockedWhileImpersonating]
-    public function removeMember(int $membershipId, MemberService $members): void
+    public function removeMember(int $membershipId, MemberService $members, RoleGrants $grants): void
     {
-        $membership = Membership::query()->with('user')->findOrFail($membershipId);
+        $membership = $this->listedMembership($membershipId, $grants);
         $this->authorize('remove', $membership);
 
         if ($this->attempt(fn () => $members->remove($this->user(), $membership), 'members')) {
@@ -179,6 +179,21 @@ final class Members extends Component
                 $this->cancelEdit();
             }
         }
+    }
+
+    /**
+     * A membership the page lists (MemberList::withRoles). One held only for
+     * another role (an owner's portal access, P03-15) is not a team member:
+     * it is managed from the owner's page, never given workspace roles or
+     * removed here (docs/security/review-2026-11.md SR-12).
+     */
+    private function listedMembership(int $membershipId, RoleGrants $grants): Membership
+    {
+        $membership = Membership::query()->with('user')->findOrFail($membershipId);
+        $user = $membership->user;
+        abort_if($grants->memberRolesOf($user) === [] && $user->roleNamesIn(app(OrganizationContext::class)->get()) !== [], 404);
+
+        return $membership;
     }
 
     public function render(OrganizationContext $context, RoleGrants $grants): View

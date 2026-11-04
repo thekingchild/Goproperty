@@ -146,6 +146,10 @@ final class ImportBatchPage extends Component
     public function render(OrganizationContext $context, ImportTargets $targets, PlanCatalogue $plans, ImportReportPanels $panels): View
     {
         $batch = $this->batch();
+        // On every render (polls too), as the other show pages: a member who
+        // lost imports.view stops seeing the report at once
+        // (docs/security/review-2026-11.md SR-15).
+        $this->authorize('view', $batch);
         $user = $this->user();
         $report = $batch->dry_run_report;
         $units = is_array($report) && is_int($report['units'] ?? null) ? $report['units'] : 0;

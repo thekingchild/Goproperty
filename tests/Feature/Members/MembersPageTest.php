@@ -224,6 +224,18 @@ it('never leaves the organization without an owner', function () {
     expect($second->roleNamesIn($this->acme))->toBe(['org-owner']);
 });
 
+it('leaves a membership held only for the owner portal alone: no workspace roles, no removal (security review SR-12)', function () {
+    $landlord = joinAs(User::factory()->create(['name' => 'Tunde Landlord']), $this->acme, OrganizationRole::PropertyOwner);
+    $membership = memberMembershipOf($landlord, $this->acme);
+
+    membersPage($this->admin)->assertOk()->assertDontSee('Tunde Landlord');
+    membersCall($this->admin, [['editMember', [$membership->id]]])->assertNotFound();
+    membersCall($this->owner, [['removeMember', [$membership->id]]])->assertNotFound();
+
+    expect($landlord->roleNamesIn($this->acme))->toBe(['property-owner'])
+        ->and($landlord->belongsToOrganization($this->acme))->toBeTrue();
+});
+
 it('removes a member with their roles in that organization only', function () {
     joinAs($this->agent, $this->other, OrganizationRole::Admin);
     // A direct permission in each organization too.

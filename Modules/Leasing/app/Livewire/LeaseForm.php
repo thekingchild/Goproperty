@@ -182,6 +182,12 @@ final class LeaseForm extends Component
         $unit = $lease !== null ? $units->find($lease->unit_id) : null;
         $tenant = $lease !== null ? $tenants->find($lease->tenant_profile_id) : null;
 
+        $buildingOptions = $lease === null ? $buildings->activeOptions($user) : [];
+        // Only a building the member works on: the building is the client's
+        // to choose, so it is checked against the options offered
+        // (docs/security/review-2026-11.md SR-13).
+        $chosen = ctype_digit($this->propertyId) && array_key_exists((int) $this->propertyId, $buildingOptions) ? (int) $this->propertyId : null;
+
         return view('leasing::livewire.lease-form', [
             'organization' => $context->get(),
             'lease' => $lease,
@@ -189,8 +195,8 @@ final class LeaseForm extends Component
             'fixedTenant' => $tenant?->name,
             'fixedUnit' => $unit !== null ? $unit->label.' · '.$unit->propertyName : null,
             'tenants' => $lease === null ? $tenants->activeOptions($user) : [],
-            'buildings' => $lease === null ? $buildings->activeOptions($user) : [],
-            'units' => $lease === null && ctype_digit($this->propertyId) ? $units->inProperty((int) $this->propertyId) : [],
+            'buildings' => $buildingOptions,
+            'units' => $chosen !== null ? $units->inProperty($chosen) : [],
             'cycles' => BillingCycle::cases(),
             'reservationDays' => $leases->reservationDays(),
             'carriedDeposit' => $this->renewingId !== null && $lease !== null ? $leases->depositBalance($lease) : null,

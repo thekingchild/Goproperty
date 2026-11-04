@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Middleware\PasskeySignInSwitch;
 use App\Http\Middleware\RememberDuration;
 use App\Http\Middleware\SignInPageHeaders;
+use App\Http\Middleware\ThrottlePasswordChecks;
 use Laravel\Fortify\Features;
 
 return [
@@ -106,7 +107,7 @@ return [
     |
     */
 
-    'middleware' => ['web', SignInPageHeaders::class, PasskeySignInSwitch::class, RememberDuration::class],
+    'middleware' => ['web', SignInPageHeaders::class, PasskeySignInSwitch::class, RememberDuration::class, ThrottlePasswordChecks::class],
 
     /*
     |--------------------------------------------------------------------------
