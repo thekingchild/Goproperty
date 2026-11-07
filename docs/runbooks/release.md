@@ -1,6 +1,6 @@
 # Runbook — Release Packages
 
-How a GoProperty release zip is built, checked and published. The package itself is specified in [INSTALLER.md § 2](../../INSTALLER.md); installing from it is [shared-hosting.md § 2](shared-hosting.md) and [INSTALLER.md](../../INSTALLER.md).
+How a GoProperty release zip is built, checked and published. The package itself is specified in [INSTALLER.md § 2](../../INSTALLER.md); installing from it is [install.md](install.md) (step by step, cPanel and Plesk, with or without SSH), and upgrading to it [upgrade.md](upgrade.md).
 
 The zip is for installs and upgrades **from a file upload** (no SSH, or a manual upgrade, [INSTALLER.md § 10](../../INSTALLER.md)). GoProperty's own servers are normally updated by the SSH **Deploy** workflow, which ships a plain tarball instead ([shared-hosting.md § 3](shared-hosting.md)).
 

@@ -2,6 +2,8 @@
 
 Companion documents: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) · [ARCHITECTURE.md § 12](ARCHITECTURE.md) · [docs/runbooks/shared-hosting.md](docs/runbooks/shared-hosting.md) · [PLATFORM_CONSOLE.md § 10](PLATFORM_CONSOLE.md)
 
+**The step-by-step guides** for whoever installs, recovers or upgrades a site — cPanel and Plesk, with and without SSH, click by click — are [docs/runbooks/install.md](docs/runbooks/install.md), [install-recovery.md](docs/runbooks/install-recovery.md) and [upgrade.md](docs/runbooks/upgrade.md). This document is the specification they follow.
+
 How the platform owner installs GoProperty on their own hosting — cPanel or Plesk shared hosting, or a VPS — from a release zip, **with or without SSH**, and how it is upgraded afterwards. It is the installer for GoProperty's own servers (production and staging), not something agencies use.
 
 The design follows the installer in the product owner's SocietyFlow build (studied Oct 2026) and keeps its security model, but fixes the parts that made SocietyFlow hard to use on shared hosting. § 11 lists what was kept and what was changed.
@@ -153,6 +155,7 @@ php artisan goproperty:install --no-interaction \
   - `goproperty:setup-token`: prints the unlock token once and stores only its hash.
   - `goproperty:check-installation {--json}`: the server check, pending migrations and missing tables, the three markers, production settings (key, debug off, unique console path, https, hosting profile), and fresh scheduler and queue-tick heartbeats. Exits 1 on any failure.
   - `goproperty:finish-install`: recovery for a finish that stopped at `cleanup_pending`.
+  - `goproperty:staff-reset-2fa {email} {--force}`: recovery for a staff member who lost their authenticator app and recovery codes (§ 9).
   - `goproperty:verify-package`.
 
 ## 8. Cron and background work without `exec`
@@ -170,7 +173,7 @@ php artisan goproperty:install --no-interaction \
 
 - **Markers disagree** (for example the lock exists but the database row doesn't): a table of each combination and the fix.
 - **Lost console path:** read `ADMIN_PATH` from `.env`.
-- **Locked-out super-admin:** `php artisan goproperty:staff-reset-2fa {email}` (SSH), or the one-shot cron pattern for hosts without SSH. Audited.
+- **Locked-out super-admin:** `php artisan goproperty:staff-reset-2fa {email}` (SSH; asks first), or the one-shot cron pattern for hosts without SSH (`--force`, [install-recovery.md § 0](docs/runbooks/install-recovery.md)). It clears the app secret and recovery codes, so the next console sign-in sets up a new authenticator app (2FA stays mandatory); audited (`staff.two_factor_reset`, log `staff`). Built in P09-07.
 - **Start over on a fresh database:** delete `installed.lock`, `install.checkpoint`, the database row and all tables. Only allowed while no organization exists.
 
 There is deliberately no web route for any of these; a test fails if one is added.
@@ -229,4 +232,5 @@ GoProperty's own production is normally upgraded by CI over SSH ([docs/runbooks/
 - **Upgrade drill in CI** (P09-06; `scripts/release/upgrade-drill.sh <previous.zip> <new.zip>`, workflow `upgrade-drill.yml`: nightly, on pull requests touching migrations, seeders, the installer, the upgrade step or the release scripts, by hand, and before every release; the same four databases and shared-host limits): installs the **previous release** (chosen by `scripts/release/previous-ref.sh`: an input, else the newest `v*` tag before this commit, else a pull request's base, else the first parent; built by `build-previous.sh` with this commit's release scripts), adds data, and upgrades it to the new package by the folder swap of § 10 twice: over SSH (`down`, swap, `migrate --force`, the install seeders, `optimize`, `up`; `check-installation`, `audit-verify`, `verify-package`; then a **rollback** by swapping the folders back and restoring a copy of the database taken before the upgrade) and without SSH (installed by walking the web wizard, then Console → Version and **Run pending migrations** over HTTP with curl, one migration per request, visitors getting 503 meanwhile). Each time the data added before must be unchanged, the database must record the new release, and the schema must equal a plain `migrate` of the new release ([docs/runbooks/upgrade.md § 6](docs/runbooks/upgrade.md)).
 - **Feature tests (P09-06):** `tests/Feature/Upgrades/SystemVersionPageTest.php` (who opens it, every figure, GitHub found / newer / up to date / unreachable / 5xx / not a version / no release / repository setting, caching and the 15-minute retry, Check again limited, the upgrade link for super-admins only, maintenance on/off with step-up and audit, console open and visitors 503, `php artisan down` left alone, no action that downloads code) and `UpgradeStepTest.php` (batches then seeders and caches with maintenance on and off and every audit entry, a seeder-only release, refused when nothing is pending, step-up and the backup tick required and expiring, `system.upgrade` only, no 2FA, the lock held by another request, a failing migration kept in maintenance mode then continued, failing caches, the console kept open in upgrade maintenance only, forward-only code, `InstalledVersionSeeder`).
 - **Schema check:** a database built by the installer must match one built by `migrate` exactly.
-- **Manual drills before launch:** a real install on a cPanel account and a Plesk account, one with SSH and one without, following the owner manual word for word.
+- **The guides match the code (P09-07):** `tests/Feature/Installer/InstallGuidesTest.php` reads docs/runbooks/install.md, install-recovery.md and upgrade.md (`Tests\Support\RunbookCheck`) and fails when a command or option, setting, path in the release layout, panel PHP binary, installer route, GoProperty screen text (written in **bold** there), console page (**Console → Group → Page**) or link anchor they name no longer exists; it also checks the cron commands they show are the ones `CronLine` prints and that every wizard step is named. `StaffResetTwoFactorCommandTest.php` covers `goproperty:staff-reset-2fa`.
+- **Manual drills before launch:** a real install on a cPanel account and a Plesk account, one with SSH and one without, following [docs/runbooks/install.md](docs/runbooks/install.md) word for word (its § 9 says how, its § 8 what to check).

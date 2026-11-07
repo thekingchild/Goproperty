@@ -37,10 +37,11 @@ scripts/release/build-package.sh 1.4.0-dev.1 dist     # build the zip locally
 scripts/release/verify-drill.sh dist/goproperty-1.4.0-dev.1.zip
 php artisan goproperty:verify-package <zip|folder>     # no argument: this installation
 
-# Installer (INSTALLER.md § 7, docs/runbooks/install-recovery.md)
+# Installer (INSTALLER.md § 7; guides docs/runbooks/install.md, install-recovery.md, upgrade.md: InstallGuidesTest keeps them true to the code)
 php artisan goproperty:install                         # command-line install (interactive or --no-interaction)
 # web install: open /install, unlock with goproperty:setup-token or the file check (storage/app/install-unlock.txt)
 php artisan goproperty:check-installation              # health of an installed site; exits 1 on failure
+php artisan goproperty:staff-reset-2fa ada@goproperty.ng   # recovery: lost authenticator app (--force from a one-time cron job)
 scripts/release/install-drill.sh dist/goproperty-1.4.0-dev.1.zip   # needs DB_* for an account that can create databases
 scripts/release/upgrade-drill.sh dist/goproperty-1.3.0.zip dist/goproperty-1.4.0-dev.1.zip   # previous → new (docs/runbooks/upgrade.md § 6)
 

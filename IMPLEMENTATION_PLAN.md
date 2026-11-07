@@ -223,7 +223,7 @@ Depends on: P00–P08.
 | P09-04 — **Not started** | Backup + restore drill on staging from production-like data; runbook in `docs/runbooks/` | Drill achieves the RPO/RTO in [ARCHITECTURE.md § 11](ARCHITECTURE.md); the runbook is followed verbatim by someone other than the author |
 | P09-05 — **Not started** | Seed production demo org; monitoring/alerting (Sentry → Slack, queue-depth alerts) | A test error reaches Slack; queue-depth alert fires in a drill |
 | P09-06 — **In review** | **Upgrades:** console **System → Version** page (current/latest version, pending migrations, last backup; read-only), authenticated batched "run pending migrations" for no-SSH upgrades, upgrade drill in CI (previous release → new) | Upgrade drill passes on both databases; one zip upgrade + rollback rehearsed on staging |
-| P09-07 — **Not started** | Runbooks `docs/runbooks/install.md`, `install-recovery.md`, `upgrade.md`; owner's install guide with SSH and no-SSH variants for cPanel and Plesk | Real installs on a cPanel and a Plesk account (one with SSH, one without) follow the guide word for word |
+| P09-07 — **In review** | Runbooks `docs/runbooks/install.md`, `install-recovery.md`, `upgrade.md`; owner's install guide with SSH and no-SSH variants for cPanel and Plesk | Real installs on a cPanel and a Plesk account (one with SSH, one without) follow the guide word for word |
 | P09-08 — **Not started** | Launch checklist (§ 4) executed | Every box in § 4 ticked |
 
 **Phase exit:** all P09 tasks complete — launch.

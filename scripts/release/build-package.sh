@@ -105,7 +105,8 @@ Before installing, compare the zip's SHA-256 checksum with the
 
     php artisan goproperty:verify-package
 
-Full guide: INSTALLER.md and docs/runbooks/release.md in the repository.
+Step-by-step guide for cPanel and Plesk, with or without SSH:
+docs/runbooks/install.md in the repository (upgrades: docs/runbooks/upgrade.md).
 TXT
 
 # Same timestamps and entry order on every build of the same commit.
