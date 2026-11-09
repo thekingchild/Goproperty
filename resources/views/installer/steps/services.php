@@ -76,7 +76,7 @@ $badge = fn (?string $state): string => match ($state) {
     <form class="section" method="post" action="<?= e($base) ?>/install/services/storage" aria-labelledby="storage-heading">
         <input type="hidden" name="_token" value="<?= e((string) $token) ?>">
         <h2 id="storage-heading">File storage (S3-compatible) <?= $badge($storage) ?></h2>
-        <p>Payment proofs, documents and photos are kept in a bucket: AWS S3, Cloudflare R2, DigitalOcean Spaces, Wasabi or another S3-compatible service.</p>
+        <p>Optional. Uploaded payment proofs, documents and photos are kept on this hosting account. Test a bucket here (AWS S3, Cloudflare R2, DigitalOcean Spaces, Wasabi or another S3-compatible service) to move them there later with <code>php artisan goproperty:media-move</code>.</p>
         <?php if (isset($errors['storage'])) { ?><p class="alert" role="alert"><?= e($errors['storage']) ?></p><?php } ?>
         <?php if (isset($status['storage'])) { ?><p class="alert alert--ok" role="status"><?= e($status['storage']) ?></p><?php } ?>
         <div class="field">

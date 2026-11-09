@@ -333,7 +333,7 @@ it('hands the owner a signed-in console session that shows the cron heartbeat', 
     $finish = $this->browser->post('/install/finish')->assertOk()
         ->assertSee('You are signed in to the console.')
         ->assertSee('Set up outgoing email')
-        ->assertSee('Set up file storage');
+        ->assertSee('File storage (optional): uploads are kept on this hosting account.');
 
     $cookie = collect($finish->headers->getCookies())->firstWhere(fn ($cookie) => $cookie->getName() === 'gp_staff_session');
 

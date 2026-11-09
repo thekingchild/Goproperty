@@ -97,10 +97,9 @@ return [
             'report' => false,
         ],
 
-        // The production choice (MEDIA_DISK=media-s3, the default when
-        // FILESYSTEM_DISK=s3): a private S3-compatible bucket. Uses the
-        // installer's AWS_* bucket under `media/` unless MEDIA_S3_* names
-        // another one.
+        // A private S3-compatible bucket (MEDIA_DISK=media-s3, set with the
+        // files by `goproperty:media-move`). Uses the installer's AWS_*
+        // bucket under `media/` unless MEDIA_S3_* names another one.
         'media-s3' => [
             'driver' => 's3',
             'key' => env('MEDIA_S3_ACCESS_KEY_ID', env('AWS_ACCESS_KEY_ID')),

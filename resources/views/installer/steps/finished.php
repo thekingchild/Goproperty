@@ -22,8 +22,10 @@ if ($services['mail'] !== 'tested') {
     $next[] = ['Set up outgoing email: put an email service\'s SMTP settings (MAIL_*) in .env, then send a test from the console.', null];
 }
 
-if ($services['storage'] !== 'tested') {
-    $next[] = ['Set up file storage: put the bucket\'s settings (AWS_*) in .env. Uploads need it.', null];
+if ($services['storage'] === 'tested') {
+    $next[] = ['File storage: uploads are kept on this hosting account. To keep them in the bucket you tested, run php artisan goproperty:media-move (docs/runbooks/install.md § 6 step 7).', null];
+} else {
+    $next[] = ['File storage (optional): uploads are kept on this hosting account. To move them to a bucket later, put its settings (AWS_*) in .env and run php artisan goproperty:media-move (docs/runbooks/install.md § 6 step 7).', null];
 }
 
 $next[] = ['Paystack keys for your own subscription income (Console → Settings, with billing).', $console];
@@ -58,7 +60,7 @@ $next[] = ['Cloudflare in front of the site: proxied DNS and SSL mode "Full (str
             <summary>Where to add it</summary>
             <ol class="howto">
                 <li><b>cPanel:</b> Advanced → Cron Jobs → Common Settings: "Once Per Minute (* * * * *)", then paste the command: <code><?= e($cronCommand) ?></code></li>
-                <li><b>Plesk:</b> Websites &amp; Domains → Scheduled Tasks → Add Task → "Run a command", "Cron style" <code>* * * * *</code>, then the same command.</li>
+                <li><b>Plesk:</b> Websites &amp; Domains → Scheduled Tasks → Add Task → "Run a PHP script". Script path: <code><?= e($artisanPath) ?></code>, with arguments <code>schedule:run</code>, PHP version 8.4, "Cron style" <code>* * * * *</code>. (It works with or without SSH.)</li>
             </ol>
         </details>
         <p id="cron-status" role="status" aria-live="polite">

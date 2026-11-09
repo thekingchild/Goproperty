@@ -8,9 +8,11 @@ use Closure;
 
 /**
  * The one cron line for this server (INSTALLER.md § 5, finish screen). The
- * PHP **CLI** binary is found from the panels' known paths, not PHP_BINARY:
- * under the web server that is often php-fpm or lsphp, which cannot run
- * artisan (a SocietyFlow bug).
+ * PHP **CLI** binary is never PHP_BINARY itself under the web server: that is
+ * often php-fpm or lsphp, which cannot run artisan (a SocietyFlow bug). It is,
+ * in order: the CLI beside the PHP serving the site (same build, so the same
+ * extensions: on CloudLinux that tells alt-php from ea-php), the panel CLI
+ * this command already runs on, then the panels' known paths.
  */
 final class CronLine
 {
@@ -34,6 +36,17 @@ final class CronLine
 
     public function phpBinary(): string
     {
+        $current = $this->currentBinary ?? PHP_BINARY;
+        $isCli = preg_match('/^php(?:\d[\d.]*)?$/', basename($current)) === 1;
+
+        if (! $isCli && ($sibling = $this->cliBeside($current)) !== null) {
+            return $sibling;
+        }
+
+        if ($isCli && in_array($current, self::KNOWN_BINARIES, true) && ($this->isExecutable)($current)) {
+            return $current;
+        }
+
         foreach (self::KNOWN_BINARIES as $path) {
             if (($this->isExecutable)($path)) {
                 return $path;
@@ -41,9 +54,29 @@ final class CronLine
         }
 
         // Trust PHP_BINARY only when it is a CLI binary.
-        $current = $this->currentBinary ?? (PHP_SAPI === 'cli' ? PHP_BINARY : '');
+        return $isCli ? $current : 'php';
+    }
 
-        return preg_match('/^php(?:\d[\d.]*)?$/', basename($current)) === 1 ? $current : 'php';
+    /**
+     * The CLI of the build a web server binary belongs to: lsphp sits beside
+     * it (/opt/alt/php84/usr/bin/), php-fpm in the sibling sbin/
+     * (/opt/cpanel/ea-php84/root/usr/sbin/, /opt/plesk/php/8.4/sbin/).
+     */
+    private function cliBeside(string $binary): ?string
+    {
+        if (preg_match('/^(?:lsphp|php-fpm|php-cgi)[\d.]*$/', basename($binary)) !== 1) {
+            return null;
+        }
+
+        $folder = dirname($binary);
+
+        foreach ([$folder.'/php', dirname($folder).'/bin/php'] as $candidate) {
+            if (($this->isExecutable)($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     public function line(string $basePath): string

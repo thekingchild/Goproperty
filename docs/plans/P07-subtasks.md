@@ -20,6 +20,8 @@ Started 2026-11-02 at the product owner's request ("Start P07-01"); one task, bu
 
 **Open question for the product owner:** default 8 means a group's posts stay with the organization that wrote them when a building is handed over. If the receiving agency should see the landlord's earlier posts, that is a copy step for P07-02 to add.
 
+**Settled by the product owner (2026-11-09):** no. Posts stay with the organization that wrote them; the receiving agency starts a fresh group, as built.
+
 ## P07-02 — posts, comments, reactions; rich text; images
 
 Started 2026-11-02 at the product owner's request ("Start P07-02"); one task, built by the orchestrator in `Modules\BuildingGroup` (ARCHITECTURE.md § 6.8 "How posts, comments and reactions are built").
@@ -44,7 +46,7 @@ Started 2026-11-02 at the product owner's request ("Start P07-02"); one task, bu
 25. **Audit:** publishing and removing posts and comments are logged (`building_group`), ids only, never the words; reactions are not logged.
 26. **No notifications for posts yet.** P07-03 brings live updates; whether to notify by email or SMS is for later.
 27. **The building's owner (`/owner`) has no group page in P07-02.** Owners are not members (default 3); whether they read or write in their buildings' groups is for the product owner.
-28. **Default 8's open question stays open:** posts are not copied when a building is handed over; the receiving agency starts a fresh group.
+28. **Default 8's open question (settled 2026-11-09: no copy):** posts are not copied when a building is handed over; the receiving agency starts a fresh group.
 
 **Found while building (not changed):** `App\Media\UploadValidator` checks that a JPEG, PNG or WebP decodes by reading its header only (to keep memory low on shared hosts), so a file cut short after its header passes and its thumbnail then fails on the `media` queue (the page then links the original, which a browser cannot show). A full decode before storing would catch it at a memory cost; for the product owner to decide.
 

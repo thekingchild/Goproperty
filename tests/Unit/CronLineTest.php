@@ -24,6 +24,25 @@ it('never uses a web server binary', function (string $binary) {
     expect((new CronLine(fn (): bool => false, $binary))->phpBinary())->toBe('php');
 })->with(['/usr/sbin/php-fpm8.4', '/usr/local/lsws/lsphp84/bin/lsphp', '']);
 
+it('uses the CLI beside the PHP serving the site, so its extensions match', function (string $web, array $present, string $expected) {
+    $cron = new CronLine(fn (string $path): bool => in_array($path, $present, true), $web);
+
+    expect($cron->phpBinary())->toBe($expected);
+})->with([
+    // CloudLinux with both builds: the site runs alt-php through Select PHP Version.
+    'CloudLinux lsphp' => ['/opt/alt/php84/usr/bin/lsphp', ['/opt/cpanel/ea-php84/root/usr/bin/php', '/opt/alt/php84/usr/bin/php'], '/opt/alt/php84/usr/bin/php'],
+    'cPanel php-fpm' => ['/opt/cpanel/ea-php84/root/usr/sbin/php-fpm', ['/opt/cpanel/ea-php84/root/usr/bin/php', '/opt/alt/php84/usr/bin/php'], '/opt/cpanel/ea-php84/root/usr/bin/php'],
+    'Plesk php-fpm' => ['/opt/plesk/php/8.4/sbin/php-fpm', ['/opt/plesk/php/8.4/bin/php'], '/opt/plesk/php/8.4/bin/php'],
+    'no CLI beside it: the known paths' => ['/usr/local/lsws/lsphp84/bin/lsphp', ['/opt/cpanel/ea-php84/root/usr/bin/php'], '/opt/cpanel/ea-php84/root/usr/bin/php'],
+]);
+
+it('keeps the panel CLI a command-line install runs on', function () {
+    $present = ['/opt/cpanel/ea-php84/root/usr/bin/php', '/opt/alt/php84/usr/bin/php'];
+    $cron = new CronLine(fn (string $path): bool => in_array($path, $present, true), '/opt/alt/php84/usr/bin/php');
+
+    expect($cron->phpBinary())->toBe('/opt/alt/php84/usr/bin/php');
+});
+
 it('accepts versioned CLI binaries', function () {
     expect((new CronLine(fn (): bool => false, '/usr/bin/php8.4'))->phpBinary())->toBe('/usr/bin/php8.4');
 });

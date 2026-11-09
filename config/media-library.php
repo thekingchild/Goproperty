@@ -40,9 +40,9 @@ use Spatie\MediaLibrary\Support\FileRemover\DefaultFileRemover;
 
 return [
 
-    // The private `media` disk (local) or `media-s3` (config/filesystems.php).
-    // Defaults to `media-s3` when the site's files live in S3
-    // (FILESYSTEM_DISK=s3, docs/runbooks/shared-hosting.md).
+    // The private `media` disk (local, the default) or `media-s3`
+    // (config/filesystems.php). Change it with `goproperty:media-move`, which
+    // moves the files too (docs/runbooks/install.md § 6 step 7).
     'disk_name' => env('MEDIA_DISK', env('FILESYSTEM_DISK') === 's3' ? 'media-s3' : 'media'),
 
     // Conversions sit next to their original.

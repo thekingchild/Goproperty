@@ -259,12 +259,13 @@ cPanel:
 2. Under *Add New Cron Job*, set *Common Settings* to *Once Per Minute (\* \* \* \* \*)*.
 3. Paste the command into *Command* and press *Add New Cron Job*.
 
-Plesk:
+Plesk (the same task as without SSH, so the PHP is Plesk's own whatever the shell finds):
 
 1. Open *Websites & Domains* → `goproperty.ng` → *Scheduled Tasks* → *Add Task*.
-2. *Task type*: *Run a command*. Paste the command into *Command*.
-3. *Run*: *Cron style*, and type `* * * * *`.
-4. *Notify*: *Do not notify*. Press *OK*.
+2. *Task type*: *Run a PHP script*.
+3. *Script path*: the path in the command that ends in `/artisan`, e.g. `/var/www/vhosts/goproperty.ng/goproperty/artisan`. *With arguments*: `schedule:run`. *Use PHP version*: `8.4`.
+4. *Run*: *Cron style*, and type `* * * * *`.
+5. *Notify*: *Do not notify*. Press *OK*.
 
 ### Step 6. Check the installation
 
@@ -393,7 +394,7 @@ cPanel:
 2. Under *Add New Cron Job*, set *Common Settings* to *Once Per Minute (\* \* \* \* \*)*.
 3. Paste the command into *Command* and press *Add New Cron Job*.
 
-Plesk (a subscription without SSH may not be able to run the command as written, so use Plesk's own PHP instead):
+Plesk (the finish screen says the same: a subscription without SSH may not be able to run the command as written, so Plesk's own PHP runs `artisan`):
 
 1. Open *Websites & Domains* → `goproperty.ng` → *Scheduled Tasks* → *Add Task*.
 2. *Task type*: *Run a PHP script*.
@@ -439,14 +440,32 @@ Add at least one backup destination (an S3-compatible bucket or a Google Shared 
 
 GoProperty answers only at the address in `APP_URL` (the **Site address** you gave), its `www.` form and its bare domain. Any other address, such as the server's IP or the host's temporary preview link, gets a plain "Bad Request" page. If you installed at another address, or the domain changes, see [install-recovery.md § 6](install-recovery.md#6-the-site-answers-bad-request).
 
-### Step 7. Keep uploaded files in the bucket (only if you have one)
+### Step 7. Move uploaded files to a bucket (optional)
 
-Until you do this, uploaded files (photos, payment proofs, documents) stay on the hosting account in `storage/app/media`, where the nightly files backup copies them.
+Uploaded files (photos, payment proofs, documents) are kept on the hosting account in `storage/app/media`, where the nightly files backup copies them. That is the default, and you can keep it. If the hosting account runs short of space, or you would rather keep files in a bucket, move them with one command, now or at any time later. The site keeps working while they move, and new uploads go to the bucket from the start of the move.
 
-- If the web installer's file storage test passed: add the line `MEDIA_DISK=media-s3` to `.env` in the GoProperty folder.
-- After a command-line install, or a skipped test: add the bucket's settings to `.env` as well (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION`, `AWS_BUCKET`, `AWS_ENDPOINT`, and `AWS_USE_PATH_STYLE_ENDPOINT=true` only if the service needs it), then `MEDIA_DISK=media-s3`.
+Before you start:
 
-`.env` is a hidden file: in cPanel's *File Manager* it shows once *Show Hidden Files (dotfiles)* is ticked (§ 2 step 4); right-click it and choose *Edit*. In Plesk *Files*, click it to edit. Then rebuild the settings cache: with SSH `php artisan config:cache`; without SSH, with a one-time cron job ([install-recovery.md § 0](install-recovery.md#0-running-a-command-on-the-server)). (Use `MEDIA_DISK`, not `FILESYSTEM_DISK=s3`: the latter also sends the browser's uploads straight to the bucket, which then needs CORS settings.)
+1. The bucket's settings must be in `.env`. The web installer's file storage test put them there if it passed. After a command-line install, or a skipped test, add them yourself: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION`, `AWS_BUCKET`, `AWS_ENDPOINT`, and `AWS_USE_PATH_STYLE_ENDPOINT=true` only if the service needs it. Then rebuild the settings cache: with SSH `php artisan config:cache`; without SSH, with a one-time cron job ([install-recovery.md § 0](install-recovery.md#0-running-a-command-on-the-server)).
+2. In the storage service's dashboard, turn on versioning for the bucket (or replication to a second bucket). Files in the bucket are no longer in the nightly files backup.
+
+`.env` is a hidden file: in cPanel's *File Manager* it shows once *Show Hidden Files (dotfiles)* is ticked (§ 2 step 4); right-click it and choose *Edit*. In Plesk *Files*, click it to edit.
+
+With SSH, in the GoProperty folder:
+
+```bash
+php artisan goproperty:media-move
+```
+
+It asks first, then tests the bucket, sets `MEDIA_DISK=media-s3` in `.env` (so new uploads go to the bucket) and copies every file, checks each copy and points it at the bucket. You should see **Every file that can move has moved.** at the end. If it says instead that files are still to move (files changed in the last ten minutes wait for the next run), run it again ten minutes later. Running it again is always safe: it carries on where it stopped.
+
+Without SSH: run `goproperty:media-move --force` as a one-time cron job ([install-recovery.md § 0](install-recovery.md#0-running-a-command-on-the-server)) and read what it printed. On cPanel the second minute's run prints **Another move is running.** while the first is still copying; that is expected. If the output does not end with **Every file that can move has moved.**, run it again ten minutes later.
+
+Then open a building with photos in the workspace and check the photos show. The old copies stay in `storage/app/media` until you remove them: run the command again with `--delete-source` (`goproperty:media-move --force --delete-source` without SSH).
+
+To move the files back to the hosting account: `php artisan goproperty:media-move media` (`goproperty:media-move media --force` without SSH). It sets `MEDIA_DISK=media` and works the same way.
+
+Set `MEDIA_DISK` this way, not `FILESYSTEM_DISK=s3`: that setting also sends the browser's uploads straight to the bucket, which then needs CORS settings, and it does not move the files already uploaded.
 
 ### Step 8. Tidy up and finish setting up
 
@@ -474,10 +493,10 @@ Panel screens were written from current cPanel (Jupiter theme) and Plesk Obsidia
 1. cPanel § 2 step 2.6: the *Server Information* place that names MySQL or MariaDB; Plesk § 3 step 2.3: where the database server's type shows.
 2. cPanel *File Manager* *Move* dialog: whether `/` and `/public_html` are the paths it expects (they are relative to the home folder).
 3. cPanel § 2 step 5: on a CloudLinux host, whether *Select PHP Version* alone sets PHP 8.4 for the domain, or *MultiPHP Manager* must also be left on its default; and whether moving GoProperty's `.htaccess` in before choosing PHP keeps cPanel's PHP lines in it.
-4. cPanel § 4 step 5: on a CloudLinux host with both PHP builds, the cron line uses `/opt/cpanel/ea-php84/root/usr/bin/php`, which may lack extensions chosen in *Select PHP Version* (then use `/opt/alt/php84/usr/bin/php`; [install-recovery.md § 3](install-recovery.md#3-cron-does-not-run)).
+4. cPanel § 4 step 5 and § 5 step 9: on a CloudLinux host with both PHP builds, the cron line should name the build the site runs on (`/opt/alt/php84/usr/bin/php` with *Select PHP Version*, `/opt/cpanel/ea-php84/root/usr/bin/php` with *MultiPHP Manager*). A command-line install takes the `php` it runs on, so check the line after setting the `alias` of § 4 step 1 item 3 ([install-recovery.md § 3](install-recovery.md#3-cron-does-not-run) if cron reports missing extensions).
 5. Plesk § 3 steps 4–5: the menu names *Hosting Settings* / *Hosting & DNS* → *Hosting* and *PHP Settings* / *PHP* on the host's Plesk version.
 6. Plesk § 3 step 3: the *Files* buttons (*+* → *Upload File*, *Extract Files*, *Move*, *Remove*).
-7. Plesk § 5 step 9: whether *Run a command* works on a subscription without SSH (if it does, the finish screen's own Plesk instructions are enough); the *Script path* form *Run a PHP script* accepts (full path, or relative to the home folder like `goproperty/artisan`).
+7. Plesk § 4 step 5 and § 5 step 9: the *Script path* form *Run a PHP script* accepts (full path, as the finish screen shows it, or relative to the home folder like `goproperty/artisan`).
 8. § 4 step 7: the console's first sign-in screens for setting up two-factor sign-in (Filament's own), seen here only in its language files.
 9. Plesk: whether any page other than the home page answers "Not Found" (nginx without Apache ignores `.htaccess`; [install-recovery.md § 7](install-recovery.md#7-plesk-every-page-but-the-home-page-is-not-found)).
 10. Every "You should see": the exact wording on screen.

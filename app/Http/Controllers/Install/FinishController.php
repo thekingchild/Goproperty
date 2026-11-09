@@ -84,6 +84,7 @@ final class FinishController extends WizardController
             'heartbeat' => $cookie !== null ? $request->getBaseUrl().'/'.$result->adminPath.'/system/heartbeat' : null,
             'cronLine' => $line,
             'cronCommand' => (string) preg_replace('/^(\S+\s+){5}/', '', $line),
+            'artisanPath' => CronLine::stablePath(base_path()).'/artisan',
             'record' => $record,
             'services' => $services,
             'debugOff' => filter_var($environment->get('APP_DEBUG') ?? 'true', FILTER_VALIDATE_BOOL) === false,
