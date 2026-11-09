@@ -12,6 +12,9 @@ use App\Marketing\PlanCatalogue;
 use App\Media\MediaMover;
 use App\Members\InvitationList;
 use App\Members\MemberList;
+use App\Models\Organization;
+use App\Models\OrganizationFeatureOverride;
+use App\Models\Subscription;
 use App\Navigation\PortalTabs;
 use App\Navigation\SettingsTabs;
 use App\Navigation\WorkspaceNavigation;
@@ -19,6 +22,7 @@ use App\Notifications\Channels\NoWhatsAppRouting;
 use App\Notifications\Channels\WhatsAppEvents;
 use App\Notifications\Channels\WhatsAppRouting;
 use App\Notifications\Preferences\NotificationSettingsPanels;
+use App\Plans\FeatureLookups;
 use App\Settings\SettingDefinition;
 use App\Settings\SettingsRegistry;
 use App\Sms\Credits\SmsCreditLedger;
@@ -55,6 +59,8 @@ class AppServiceProvider extends ServiceProvider
         $this->app->scoped(ThemeContext::class);
         // The plan tables are read once per request or job (P06-01a).
         $this->app->scoped(PlanCatalogue::class);
+        // Features' answers, per request or job (P09-03; forgotten on a change, below).
+        $this->app->scoped(FeatureLookups::class);
         // Dashboard generations waiting for a commit (P08-04), per request or job.
         $this->app->scoped(DashboardGenerations::class);
 
@@ -141,6 +147,14 @@ class AppServiceProvider extends ServiceProvider
 
         // The Transaction Tier checks of each confirmed payment (P06-09).
         Event::listen(PaymentConfirmed::class, CheckConfirmedPayment::class);
+
+        // What a plan includes is kept for the request (FeatureLookups): a
+        // change to what it is worked out from is seen at once.
+        foreach ([Subscription::class, OrganizationFeatureOverride::class, Organization::class] as $model) {
+            foreach (['saved', 'deleted'] as $event) {
+                $model::$event(static fn () => app(FeatureLookups::class)->forget());
+            }
+        }
     }
 
     /**

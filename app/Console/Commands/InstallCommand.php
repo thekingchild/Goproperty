@@ -137,7 +137,7 @@ final class InstallCommand extends Command
             $this->components->warn($warning);
         }
 
-        $this->components->warn('File storage (S3-compatible) is not set up by the command-line install yet: set AWS_* in .env.');
+        $this->components->info('Uploaded files are kept on this server (storage/app/media). To keep them in an S3-compatible bucket later, set AWS_* in .env and run php artisan goproperty:media-move.');
         $this->line('  Two-factor sign-in is set up at the first console sign-in. Then run: php artisan goproperty:check-installation');
 
         return self::SUCCESS;

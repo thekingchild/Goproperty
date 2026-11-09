@@ -27,13 +27,17 @@ use UnitEnum;
  *
  * Keys: each entry sits in a slot named by the organization, the figures'
  * name and the caller's slot (for the reports: the buildings covered), and
- * holds the figures for one key (everything they depend on: dates, today's
- * date for "as of today" figures). A read uses the entry only when both
- * its key and its generation are the current ones, so it never serves
- * another organization, another set of buildings, other dates or another
- * day; figures for other dates replace it. That keeps the number of
- * entries bounded per organization (the database store of shared hosting
- * removes expired rows only when they are read again).
+ * the slot holds the figures for up to KEYS_PER_SLOT keys (everything they
+ * depend on: dates, today's date for "as of today" figures), the most
+ * recently worked out last, MAX_BYTES at most together. A read uses an
+ * entry only when both its key and its generation are the current ones, so
+ * it never serves another organization, another set of buildings, other
+ * dates or another day. Figures for a new key push out the oldest, and
+ * those of an older generation go at once. That keeps the cache bounded
+ * per organization (the database store of shared hosting removes expired
+ * rows only when they are read again), while two members looking at
+ * different dates no longer push each other's figures out on every load
+ * (P09-03: one key per slot made each such load work them out again).
  *
  * Values: the cache store unserializes no objects (`cache.serializable_classes`
  * is false), so the figures are kept as a PHP-serialized string (deflated
@@ -50,6 +54,9 @@ final readonly class DashboardCache
     public const int TTL_SECONDS = 300;
 
     public const int MAX_BYTES = 4_000_000;
+
+    /** Date ranges kept per slot (this month, last month, this year, …). */
+    public const int KEYS_PER_SLOT = 4;
 
     private const string KEY = 'dashboards:';
 
@@ -108,9 +115,8 @@ final readonly class DashboardCache
         [$encoding, $payload] = self::encode(serialize($value));
 
         if (strlen($payload) <= self::MAX_BYTES) {
-            $this->keep($cacheKey, [
+            $this->keep($cacheKey, $figuresKey, [
                 'generation' => $generation->token,
-                'key' => $figuresKey,
                 'encoding' => $encoding,
                 'payload' => base64_encode($payload),
                 'signature' => $this->sign($generation->token, $figuresKey, $encoding, $payload),
@@ -120,14 +126,43 @@ final readonly class DashboardCache
         return $value;
     }
 
-    /** @param  array<string, string>  $entry */
-    private function keep(string $cacheKey, array $entry): void
+    /**
+     * Adds the entry to its slot as the most recent: entries of other
+     * generations go, then the oldest until KEYS_PER_SLOT and MAX_BYTES fit.
+     *
+     * @param  array<string, string>  $entry
+     */
+    private function keep(string $cacheKey, string $figuresKey, array $entry): void
     {
         try {
-            $this->cache->put($cacheKey, $entry, self::TTL_SECONDS);
+            $kept = [];
+
+            foreach ($this->entries($cacheKey) as $key => $other) {
+                if ($key !== $figuresKey && ($other['generation'] ?? null) === $entry['generation']) {
+                    $kept[$key] = $other;
+                }
+            }
+
+            $kept[$figuresKey] = $entry;
+
+            while (count($kept) > 1 && (count($kept) > self::KEYS_PER_SLOT
+                || array_sum(array_map(static fn (array $one): int => strlen((string) ($one['payload'] ?? '')), $kept)) > self::MAX_BYTES * 4 / 3)) {
+                unset($kept[array_key_first($kept)]);
+            }
+
+            $this->cache->put($cacheKey, ['entries' => $kept], self::TTL_SECONDS);
         } catch (Throwable $failure) {
             report($failure);
         }
+    }
+
+    /** @return array<string, array<string, mixed>> figures key => entry, oldest first */
+    private function entries(string $cacheKey): array
+    {
+        $slot = $this->cache->get($cacheKey);
+        $entries = is_array($slot) && is_array($slot['entries'] ?? null) ? $slot['entries'] : [];
+
+        return array_filter($entries, static fn (mixed $entry, mixed $key): bool => is_string($key) && is_array($entry), ARRAY_FILTER_USE_BOTH);
     }
 
     /**
@@ -140,14 +175,14 @@ final readonly class DashboardCache
     private function read(string $cacheKey, string $figuresKey, DashboardGeneration $generation, string $expects, array $classes): ?object
     {
         try {
-            $entry = $this->cache->get($cacheKey);
+            $entry = $this->entries($cacheKey)[$figuresKey] ?? null;
         } catch (Throwable $failure) {
             report($failure);
 
             return null;
         }
 
-        if (! is_array($entry) || ($entry['generation'] ?? null) !== $generation->token || ($entry['key'] ?? null) !== $figuresKey) {
+        if (! is_array($entry) || ($entry['generation'] ?? null) !== $generation->token) {
             return null;
         }
 

@@ -363,24 +363,22 @@ final class PortfolioReports
         $byMonth = [];
         $byBuilding = [];
 
-        foreach ($this->bills->issuedBetween($filters->start(), $filters->end(), $scope->propertyIds) as $bill) {
-            if ($bill->isVoid()) {
-                continue;
-            }
+        // Sums, not bills: a year of a large agency is ~12,000 bills (P09-03).
+        $periods = [];
 
-            $group = FlowTotals::groupOf($bill->type);
-            $month = self::monthOf($months, $bill->issuedAt);
-            $building = $bill->propertyId ?? 0;
+        foreach ($months as $month) {
+            $periods[$month->key] = $month->first->startOfDay();
+        }
 
-            if ($month !== null) {
-                $byMonth[$month] = ($byMonth[$month] ?? FlowTotals::empty())->addBilled($group, $bill->amount);
-            }
-
-            $byBuilding[$building] = ($byBuilding[$building] ?? FlowTotals::empty())->addBilled($group, $bill->amount);
+        foreach ($periods === [] ? [] : $this->bills->billedTotals($filters->start(), $filters->end(), $scope->propertyIds, $periods) as $total) {
+            $group = FlowTotals::groupOf($total->type);
+            $building = $total->propertyId ?? 0;
+            $byMonth[$total->month] = ($byMonth[$total->month] ?? FlowTotals::empty())->addBilled($group, $total->amount);
+            $byBuilding[$building] = ($byBuilding[$building] ?? FlowTotals::empty())->addBilled($group, $total->amount);
         }
 
         $amounts = $this->collections->between($filters->start(), $filters->end());
-        $bills = $amounts === [] ? [] : $this->bills->findMany(array_values(array_unique(array_map(static fn (CollectedAmount $amount): int => $amount->billId, $amounts))));
+        $bills = $amounts === [] ? [] : $this->bills->placesOf(array_values(array_unique(array_map(static fn (CollectedAmount $amount): int => $amount->billId, $amounts))));
 
         foreach ($amounts as $amount) {
             $bill = $bills[$amount->billId] ?? null;

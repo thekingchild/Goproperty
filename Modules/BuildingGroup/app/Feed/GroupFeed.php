@@ -85,16 +85,19 @@ final readonly class GroupFeed
         $mayDelete = new DeletePermission($viewer);
 
         $feed = [];
+        // Grouped once, oldest first within each: filtering every comment of
+        // the page per post and per comment added up (P09-03).
+        $byPost = $comments->groupBy('group_post_id');
+        $byParent = $comments->whereNotNull('parent_id')->groupBy('parent_id');
 
         foreach ($posts as $post) {
-            $postComments = $comments->where('group_post_id', $post->id);
-            $top = $postComments->whereNull('parent_id');
+            $top = $byPost->get($post->id, collect())->whereNull('parent_id');
             $commentRows = [];
 
             foreach ($top as $comment) {
                 $replies = [];
 
-                foreach ($postComments->where('parent_id', $comment->id) as $reply) {
+                foreach ($byParent->get($comment->id, collect())->where('group_post_id', $post->id) as $reply) {
                     $replies[] = $this->comment($reply, $viewer, $names, $reactions, $mayDelete, $moderation, []);
                 }
 

@@ -47,4 +47,28 @@ interface BillReports
      * @return array<int, ReportBill> by id
      */
     public function findMany(array $billIds): array;
+
+    /**
+     * What was billed in [$from, $to) (`issued_at`), void bills left out,
+     * summed by building, bill type and period. $periods names each period
+     * by the moment it starts, earliest first, the first at $from (the
+     * caller's months: no date arithmetic here, AGENT.md § 3 rule 3); a
+     * bill counts in the last period started by its issue time. For totals
+     * over many bills: no bill is read as a model (P09-03).
+     *
+     * @param  list<int>|null  $propertyIds
+     * @param  non-empty-array<string, CarbonImmutable>  $periods  key => start
+     * @return list<BilledTotal>
+     */
+    public function billedTotals(CarbonImmutable $from, CarbonImmutable $to, ?array $propertyIds, array $periods): array;
+
+    /**
+     * The building and type of the bills of these ids that the current
+     * organization has (void ones included); unknown ids are left out. For
+     * summing collected money: lighter than findMany() (P09-03).
+     *
+     * @param  list<int>  $billIds
+     * @return array<int, BillPlace> by id
+     */
+    public function placesOf(array $billIds): array;
 }

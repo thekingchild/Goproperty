@@ -52,7 +52,7 @@ it('works figures out once and reads them back for five minutes, per organizatio
         ->and($runs)->toBe(3);
 });
 
-it('keeps one entry per slot: figures for other dates replace it, so the store never fills up with them', function () {
+it('keeps the last few dates in one entry per slot, so members on other dates share it and the store never fills up', function () {
     $runs = 0;
     $for = function (string $day) use (&$runs): Money {
         return app(DashboardCache::class)->remember(1, 'test.day', ['every building'], ['day' => $day], Money::class, [Money::class], function () use (&$runs, $day): Money {
@@ -61,13 +61,27 @@ it('keeps one entry per slot: figures for other dates replace it, so the store n
             return Money::kobo((int) str_replace('-', '', $day));
         });
     };
+    $days = ['2027-01-28', '2027-01-29', '2027-01-30', '2027-01-31'];
 
-    expect($for('2027-01-31')->kobo)->toBe(20270131)
-        ->and($for('2027-01-31')->kobo)->toBe(20270131)
+    // P09-03: four dates worked out once each, then all read back, in any order.
+    foreach ([...$days, ...array_reverse($days)] as $day) {
+        expect($for($day)->kobo)->toBe((int) str_replace('-', '', $day));
+    }
+
+    expect($runs)->toBe(DashboardCache::KEYS_PER_SLOT)
+        // A fifth pushes out the one worked out longest ago.
         ->and($for('2027-02-01')->kobo)->toBe(20270201)
-        ->and($for('2027-01-31')->kobo)->toBe(20270131)
-        ->and($runs)->toBe(3)
+        ->and($for('2027-01-29')->kobo)->toBe(20270129)
+        ->and($runs)->toBe(5)
+        ->and($for('2027-01-28')->kobo)->toBe(20270128)
+        ->and($runs)->toBe(6)
         ->and(DB::table('cache')->where('key', 'like', '%dashboards:1:test.day:%')->count())->toBe(1);
+
+    // A write empties the slot: every date is worked out again.
+    app(DashboardGenerations::class)->renew(1);
+    $for('2027-02-01');
+    $for('2027-01-29');
+    expect($runs)->toBe(8);
 });
 
 it('renews an organization\'s generation once its write commits, once per transaction, and never for a rollback', function () {

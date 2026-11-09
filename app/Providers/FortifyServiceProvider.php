@@ -39,6 +39,14 @@ use Livewire\Livewire;
 class FortifyServiceProvider extends ServiceProvider
 {
     /**
+     * Sign-ins a minute from one IP address (a backstop: lockout and the bot
+     * check do the per-account work). 120, not 30 (product owner,
+     * 2026-11-09, P09-03): Nigerian mobile networks put many people behind
+     * one shared address, and a busy morning must not turn tenants away.
+     */
+    public const int SIGN_INS_PER_ADDRESS = 120;
+
+    /**
      * Register any application services.
      */
     public function register(): void
@@ -139,7 +147,7 @@ class FortifyServiceProvider extends ServiceProvider
         // A backstop on the login route; lockout and the bot check
         // (App\Auth\SignIn) do the per-account work.
         RateLimiter::for('login', fn (Request $request): array => [
-            Limit::perMinute(30)->by('ip:'.$request->ip()),
+            Limit::perMinute(self::SIGN_INS_PER_ADDRESS)->by('ip:'.$request->ip()),
             Limit::perMinute(10)->by('id:'.hash('sha256', Str::lower(trim((string) $request->input('identifier'))).'|'.$request->ip())),
         ]);
 

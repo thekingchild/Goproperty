@@ -8,6 +8,7 @@ use App\Models\PlanFeature;
 use App\Models\PlanVersion;
 use App\Models\SubscriptionPlan;
 use App\Plans\Feature;
+use App\Plans\FeatureLookups;
 use App\Plans\FeatureValue;
 use App\Support\Money;
 use Carbon\CarbonImmutable;
@@ -107,6 +108,8 @@ final class PlanCatalogue
     public function flush(): void
     {
         $this->byDate = [];
+        // What each organization's plan includes is worked out from these tables (P09-03).
+        app(FeatureLookups::class)->forget();
     }
 
     public function vatPercent(): string

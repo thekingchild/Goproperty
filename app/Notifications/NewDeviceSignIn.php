@@ -6,19 +6,31 @@ namespace App\Notifications;
 
 use App\Models\UserDevice;
 use App\Theme\ThemeContext;
+use Carbon\CarbonImmutable;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 /**
  * "We email you whenever a new device signs in" (UX_DESIGN.md § 3.1).
- * Email only: no SMS is ever sent for sign-in.
+ * Email only: no SMS is ever sent for sign-in. Queued, so signing in never
+ * waits for the mail provider (P09-03: sent inline, a slow or unreachable
+ * provider held up, or failed, the sign-in itself). The time is taken when
+ * the sign-in happens, not when the email goes.
  */
-final class NewDeviceSignIn extends Notification
+final class NewDeviceSignIn extends Notification implements ShouldQueue
 {
     use Queueable;
 
-    public function __construct(private readonly UserDevice $device) {}
+    private readonly CarbonImmutable $signedInAt;
+
+    public function __construct(private readonly UserDevice $device)
+    {
+        $this->signedInAt = CarbonImmutable::instance($device->last_seen_at ?? now());
+        $this->onQueue('notifications');
+        $this->afterCommit();
+    }
 
     /** @return list<string> */
     public function via(object $notifiable): array
@@ -29,7 +41,7 @@ final class NewDeviceSignIn extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         $brand = app(ThemeContext::class)->current()->name();
-        $when = ($this->device->last_seen_at ?? now())->timezone('Africa/Lagos')->format('j M Y, g:i a').' (Lagos time)';
+        $when = $this->signedInAt->timezone('Africa/Lagos')->format('j M Y, g:i a').' (Lagos time)';
 
         return (new MailMessage)
             ->subject("New sign-in to your {$brand} account")

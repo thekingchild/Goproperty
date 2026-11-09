@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Auth\SignIn\GuardSignIn;
 use App\Auth\SignIn\Turnstile;
 use App\Models\User;
+use App\Providers\FortifyServiceProvider;
 use App\Settings\SettingsStore;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
@@ -189,12 +190,14 @@ it('keeps people signed in for the configured days only when asked', function ()
     expect($plain)->toBeNull();
 });
 
-it('rate limits sign-in requests from one IP', function () {
-    foreach (range(1, 30) as $attempt) {
-        signIn("person{$attempt}@example.com", 'wrong-password');
+it('rate limits sign-in requests from one IP, at 120 a minute (carrier NAT: many people share one address)', function () {
+    expect(FortifyServiceProvider::SIGN_INS_PER_ADDRESS)->toBe(120);
+
+    foreach (range(1, FortifyServiceProvider::SIGN_INS_PER_ADDRESS) as $attempt) {
+        signIn("person{$attempt}@example.com", 'wrong-password')->assertStatus(302);
     }
 
-    signIn('person31@example.com', 'wrong-password')->assertStatus(429);
+    signIn('person-one-more@example.com', 'wrong-password')->assertStatus(429);
 });
 
 it('turns passkey sign-in off on the page and the server', function () {

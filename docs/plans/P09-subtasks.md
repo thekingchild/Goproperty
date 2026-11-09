@@ -91,6 +91,38 @@ Built 2026-11-04: consent records, the privacy policy and terms pages (versioned
 
 **Settled by the product owner (2026-11-09):** that is enough. Audit entries written before an erasure keep their values until the audit retention ends; no per-person encryption.
 
+## P09-03 — Load test of the hot paths
+
+Built 2026-11-09 by the orchestrator at the product owner's request ("start"): the k6 script [tests/Load/hot-paths.js](../../tests/Load/hot-paths.js), the data (`Database\Seeders\LoadTestSeeder`), the runbook [docs/runbooks/load-test.md](../runbooks/load-test.md) (how to run it, the budget, the results), the fixes the measurements called for, and four query guards. Measured locally on the shared-hosting profile as the runbook § 2 describes; staging runs it again once it exists (PRE-04).
+
+### Defaults taken in P09-03 (orchestrator, 2026-11-09; for the product owner to confirm)
+
+None of these changes a state machine (AGENT.md § 8): the fixes change how figures and pages are read, never what they say.
+
+86. **The latency budget** (the AC's "agreed latency budget", which no doc set): server time at 15 staff and 35 tenants at once on 2 CPU cores: full pages p95 under 800 ms and median under 300 ms; Livewire updates p95 under 500 ms; the group's poll p95 under 250 ms; no 5xx, under 1% failures, 99% of checks passing. The k6 thresholds are these numbers.
+87. **The load:** an agency at the top of the shared-hosting profile (ARCHITECTURE.md § 12): 1,075 units, a year of monthly rent bills and payments on their real dates, a group of 100 flats with 300 posts, 1,500 comments and 3,000 reactions; plus 4 smaller agencies. 15 staff and 35 tenants at once is a busy hour for it. Everything is made through the modules' own writers (the seeder takes ~40 minutes).
+88. **The site under test:** the release package's layout installed with `goproperty:install` under the shared-host limits, `optimize`d, PHP's own server on 2 cores with 8 workers, OPcache, MariaDB 11.4, cron every minute, the `log` mailer. Not a real cPanel or Plesk host: the staging run (PRE-04) is the check on real hardware.
+89. **Reports read sums, not bills** (a cold year for this agency took 12 s, now ~1.9 s): Billing's `BillReports` gained `billedTotals()` (billed by building, type and the page's months, from plain rows; Reports passes the months' first moments, so Billing does no date arithmetic (AGENT.md § 3 rule 3, `CycleMathBoundaryTest`), and each bill's month comes from comparing `issued_at` as stored with them, exact in any app timezone) and `placesOf()` (a bill's building and type only); Payments' `OwnerCollections::between()` reads plain rows with the models' own values (amounts in kobo, times in the app's timezone). The owner statements read the same, unchanged figures.
+90. **The Reports cache keeps the last 4 date ranges per slot** (`DashboardCache::KEYS_PER_SLOT`), 4 MB at most together, instead of one: two members on different dates no longer work the figures out again on every load. A write still empties the slot.
+91. **The group feed counts reactions, trails and comments once per page**, by item (`ReactionTally`, `ModerationView`, `GroupFeed`): each post and comment filtered every row of the page (555 ms of the portal group page; now ~75 ms).
+92. **Answers kept for the request:** `GroupMembership` is now one instance per request or job (its docblock already said its answers were kept for the request; each policy check made a new one); `Features::value()` is kept per request (`FeatureLookups`, scoped) by organization, feature and Lagos day, and forgotten when a subscription, a feature override or an organization is saved or deleted, or the plan tables change (`PlanCatalogue::flush()`).
+93. **The new-device sign-in email is queued** (`NewDeviceSignIn` on the `notifications` queue, after commit), with the sign-in's time taken when it happens: sent inline, an unreachable mail provider failed the sign-in (500) and a slow one held it up.
+94. **Guards against N+1:** the bills list (organization, narrowed agent, search, Livewire update), the group page (portal and workspace) and its poll (20 queries at most), the portal home and My bills, and a cold year of Reports each run the same queries for a few rows as for many (`Tests\Support\QueryCounter`); plus the Lagos month edge of the billed totals.
+95. **The CLI installer's storage line** now says uploads stay on the server and names `goproperty:media-move` (it still said storage was "not set up … yet", against the 2026-11-09 decision).
+96. **The sign-in limit and compression** were questions for the product owner (below; settled 2026-11-09: 120 a minute per address, compression by Cloudflare).
+97. **k6 itself** is not in the repository or the release: download it from Grafana's releases (k6 v2.3.0 used here, its checksum checked).
+
+### Open questions for the product owner (P09-03)
+
+- **Sign-in limit per IP address:** 30 sign-ins a minute per address (and 10 per account and address), `FortifyServiceProvider`. Nigerian mobile networks put many people behind one shared address (carrier NAT), so on a busy morning (rent day, a reminder going out) tenants of one network could be told to wait. Keep it, raise it (for example 120 a minute per address, the per-account limit unchanged), or leave it until real traffic shows it?
+- **Compressing pages:** `public/.htaccess` does not compress responses, and cPanel's "Optimize Website" is off by default per account; a busy group page is ~1 MB of HTML, ~70 KB compressed. Adding a `mod_deflate` block would help tenants on slow mobile data a lot. The cost is a theoretical BREACH exposure (a compressed page holding the session's form token beside text from the address, such as a bills search); Cloudflare in front, which the runbook recommends, compresses the same way already. Turn it on in `.htaccess`, or rely on Cloudflare?
+
+**Settled by the product owner (2026-11-09):**
+
+- **The latency budget (default 86)** is agreed as proposed.
+- **Sign-in limit:** 120 sign-ins a minute per IP address (`FortifyServiceProvider::SIGN_INS_PER_ADDRESS`), 10 a minute per account and address unchanged; `SignInTest` checks both edges.
+- **Compressing pages:** rely on Cloudflare (on by default for proxied sites); `public/.htaccess` stays as it is. Without Cloudflare, the panel's own compression ([shared-hosting.md § 2 step 7](../runbooks/shared-hosting.md)).
+
 ## P09-06 — Upgrades
 
 Built by a task agent (2026-11-04): Console → Operations → **Version** and the super-admins' **Run pending migrations** step (`App\Installer\Upgrades`, `App\Platform\Filament\Pages\SystemVersion` / `SystemUpgrade`, `App\Http\Controllers\Console\UpgradeController`), maintenance mode for an upgrade that keeps the console open, and the upgrade drill (`scripts/release/upgrade-drill.sh`, workflow `upgrade-drill.yml`). Specification and how it is built: [INSTALLER.md § 10, § 12](../../INSTALLER.md); runbook [docs/runbooks/upgrade.md](../runbooks/upgrade.md). Acceptance: "Upgrade drill passes on both databases; one zip upgrade + rollback rehearsed on staging" (the staging rehearsal is for the product owner: upgrade.md § 5).

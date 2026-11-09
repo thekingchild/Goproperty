@@ -15,6 +15,7 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Livewire;
+use Modules\BuildingGroup\Groups\GroupMembership;
 use Modules\BuildingGroup\Handover\BuildingGroupsMover;
 use Modules\BuildingGroup\Jobs\SyncBuildingGroups;
 use Modules\BuildingGroup\Listeners\FollowLeases;
@@ -64,6 +65,11 @@ final class BuildingGroupServiceProvider extends ModuleServiceProvider
     public function register(): void
     {
         parent::register();
+
+        // Its answers are kept for the request (a page asks several abilities
+        // of one group): one instance per request or job, not per policy check
+        // (P09-03: each check looked the membership up again).
+        $this->app->scoped(GroupMembership::class);
 
         // The posts' photos (P07-02; ARCHITECTURE.md § 6.8): JPEG, PNG or
         // WebP, 2 MB each, within the media library's pixel caps, with a

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Modules\BuildingGroup\Feed;
 
 use App\Models\User;
-use Illuminate\Support\Collection;
 use Modules\BuildingGroup\Enums\ModerationTarget;
 use Modules\BuildingGroup\Enums\ReactableType;
 use Modules\BuildingGroup\Models\GroupModerationEvent;
@@ -22,13 +21,13 @@ use Modules\BuildingGroup\Models\GroupReport;
 final readonly class ModerationView
 {
     /**
-     * @param  Collection<int, GroupModerationEvent>  $events
+     * @param  array<string, list<GroupModerationEvent>>  $events  "target type:id" => oldest first (by item, once: P09-03)
      * @param  array<string, int>  $openReports  "type:id" => count
      * @param  array<string, true>  $mine  "type:id" reported by the viewer
      * @param  array<int, string>  $actors  user id => name
      */
     private function __construct(
-        private Collection $events,
+        private array $events,
         private array $openReports,
         private array $mine,
         private array $actors,
@@ -59,7 +58,7 @@ final readonly class ModerationView
         }
 
         if (! $moderator) {
-            return new self(collect(), [], $mine, []);
+            return new self([], [], $mine, []);
         }
 
         $events = GroupModerationEvent::query()
@@ -80,23 +79,24 @@ final readonly class ModerationView
         /** @var array<int, string> $actors */
         $actors = $actorIds === [] ? [] : User::query()->whereIn('id', $actorIds)->pluck('name', 'id')->all();
 
-        return new self($events, $open, $mine, $actors);
+        $byItem = [];
+
+        foreach ($events as $event) {
+            $byItem[$event->target_type->value.':'.$event->target_id][] = $event;
+        }
+
+        return new self($byItem, $open, $mine, $actors);
     }
 
     /** @return list<TrailEntry> oldest first */
     public function trail(ReactableType $type, int $id): array
     {
-        $target = ModerationTarget::of($type);
-
-        return array_values($this->events
-            ->filter(static fn (GroupModerationEvent $event): bool => $event->target_type === $target && $event->target_id === $id)
-            ->map(fn (GroupModerationEvent $event): TrailEntry => new TrailEntry(
-                action: $event->action,
-                actor: $event->actor_user_id !== null && isset($this->actors[$event->actor_user_id]) ? $this->actors[$event->actor_user_id] : __('A former member of staff'),
-                at: $event->created_at,
-                reason: $event->reason,
-            ))
-            ->all());
+        return array_map(fn (GroupModerationEvent $event): TrailEntry => new TrailEntry(
+            action: $event->action,
+            actor: $event->actor_user_id !== null && isset($this->actors[$event->actor_user_id]) ? $this->actors[$event->actor_user_id] : __('A former member of staff'),
+            at: $event->created_at,
+            reason: $event->reason,
+        ), $this->events[ModerationTarget::of($type)->value.':'.$id] ?? []);
     }
 
     public function openReports(ReactableType $type, int $id): int

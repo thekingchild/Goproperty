@@ -32,24 +32,16 @@ final readonly class Features
     public function __construct(
         private PlanCatalogue $plans,
         private OrganizationContext $context,
+        private FeatureLookups $lookups,
     ) {}
 
+    /** Kept for the request (FeatureLookups), until a subscription, override or organization changes. */
     public function value(Feature $feature, ?Organization $organization = null): FeatureValue
     {
         $organization ??= $this->context->get();
-        $override = $this->override($feature, $organization);
 
-        if ($override !== null) {
-            return $override;
-        }
-
-        $plan = $this->planFor($organization);
-
-        if ($plan === null) {
-            return $feature->isLimit() ? FeatureValue::limit(null) : FeatureValue::on();
-        }
-
-        return $plan->feature($feature);
+        return $this->lookups->get($organization->id, $feature)
+            ?? $this->lookups->put($organization->id, $feature, $this->lookUp($feature, $organization));
     }
 
     public function enabled(Feature $feature, ?Organization $organization = null): bool
@@ -108,6 +100,23 @@ final readonly class Features
         }
 
         return null;
+    }
+
+    private function lookUp(Feature $feature, Organization $organization): FeatureValue
+    {
+        $override = $this->override($feature, $organization);
+
+        if ($override !== null) {
+            return $override;
+        }
+
+        $plan = $this->planFor($organization);
+
+        if ($plan === null) {
+            return $feature->isLimit() ? FeatureValue::limit(null) : FeatureValue::on();
+        }
+
+        return $plan->feature($feature);
     }
 
     private function override(Feature $feature, Organization $organization): ?FeatureValue

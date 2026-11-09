@@ -9,6 +9,7 @@ use App\Models\UserDevice;
 use App\Notifications\NewDeviceSignIn;
 use App\Settings\SettingsStore;
 use Illuminate\Auth\Notifications\ResetPassword;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Support\Facades\Notification;
 use PragmaRX\Google2FA\Google2FA;
 
@@ -134,7 +135,9 @@ it('emails the account when a new browser signs in', function () {
     Notification::assertSentTo($plain, NewDeviceSignIn::class, function (NewDeviceSignIn $notification) use ($plain) {
         $mail = $notification->toMail($plain);
 
-        return $mail->subject === 'New sign-in to your GoProperty account'
+        // Queued: the sign-in never waits for the mail provider (P09-03).
+        return $notification instanceof ShouldQueue && $notification->queue === 'notifications'
+            && $mail->subject === 'New sign-in to your GoProperty account'
             && in_array('Browser: Firefox on Windows', $mail->introLines, true)
             && in_array('IP address: 198.51.100.20', $mail->introLines, true);
     });

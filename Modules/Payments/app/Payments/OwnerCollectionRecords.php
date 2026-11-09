@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Payments\Payments;
 
+use App\Support\Money;
 use Carbon\CarbonImmutable;
 use Modules\Payments\Contracts\CollectedAmount;
 use Modules\Payments\Contracts\CollectedKind;
@@ -25,14 +26,19 @@ final readonly class OwnerCollectionRecords implements OwnerCollections
 {
     public function between(CarbonImmutable $from, CarbonImmutable $to): array
     {
-        $from = $from->setTimezone((string) config('app.timezone'));
-        $to = $to->setTimezone((string) config('app.timezone'));
+        $timezone = (string) config('app.timezone');
+        $from = $from->setTimezone($timezone);
+        $to = $to->setTimezone($timezone);
         $amounts = [];
 
+        // Plain rows, not models: a year of a large agency is ~12,000
+        // payments and as many allocations (P09-03). The values are the
+        // models' own: amounts in kobo, times in the app's timezone.
         $confirmed = Payment::query()
             ->whereIn('status', [PaymentStatus::Confirmed, PaymentStatus::Refunded])
             ->where('confirmed_at', '>=', $from)
             ->where('confirmed_at', '<', $to)
+            ->toBase()
             ->get(['id', 'confirmed_at', 'receipt_id'])
             ->keyBy('id');
 
@@ -40,14 +46,15 @@ final readonly class OwnerCollectionRecords implements OwnerCollections
             ->whereNotNull('voided_at')
             ->where('voided_at', '>=', $from)
             ->where('voided_at', '<', $to)
+            ->toBase()
             ->get(['id', 'payment_id', 'number', 'voided_at']);
 
         $paymentIds = array_values(array_unique([...$confirmed->keys()->all(), ...$voided->pluck('payment_id')->all()]));
         $allocations = [];
 
         foreach (array_chunk($paymentIds, 1000) as $chunk) {
-            foreach (PaymentAllocation::query()->whereIn('payment_id', $chunk)->orderBy('id')->get(['id', 'payment_id', 'bill_id', 'amount_kobo']) as $allocation) {
-                $allocations[$allocation->payment_id][] = $allocation;
+            foreach (PaymentAllocation::query()->whereIn('payment_id', $chunk)->orderBy('id')->toBase()->get(['id', 'payment_id', 'bill_id', 'amount_kobo']) as $allocation) {
+                $allocations[(int) $allocation->payment_id][] = $allocation;
             }
         }
 
@@ -56,27 +63,29 @@ final readonly class OwnerCollectionRecords implements OwnerCollections
             : Receipt::query()->whereIn('payment_id', $confirmed->keys()->all())->pluck('number', 'payment_id')->all();
 
         foreach ($confirmed as $payment) {
-            foreach ($allocations[$payment->id] ?? [] as $allocation) {
+            $paymentId = (int) $payment->id;
+
+            foreach ($allocations[$paymentId] ?? [] as $allocation) {
                 $amounts[] = new CollectedAmount(
-                    billId: $allocation->bill_id,
-                    amount: $allocation->amount_kobo,
-                    at: $payment->confirmed_at ?? $from,
+                    billId: (int) $allocation->bill_id,
+                    amount: Money::kobo((int) $allocation->amount_kobo),
+                    at: self::time($payment->confirmed_at, $timezone) ?? $from,
                     kind: CollectedKind::Payment,
-                    paymentId: $payment->id,
-                    receiptNumber: $receiptNumbers[$payment->id] ?? null,
+                    paymentId: $paymentId,
+                    receiptNumber: $receiptNumbers[$paymentId] ?? null,
                 );
             }
         }
 
         foreach ($voided as $receipt) {
-            foreach ($allocations[$receipt->payment_id] ?? [] as $allocation) {
+            foreach ($allocations[(int) $receipt->payment_id] ?? [] as $allocation) {
                 $amounts[] = new CollectedAmount(
-                    billId: $allocation->bill_id,
-                    amount: $allocation->amount_kobo->negate(),
-                    at: $receipt->voided_at ?? $from,
+                    billId: (int) $allocation->bill_id,
+                    amount: Money::kobo((int) $allocation->amount_kobo)->negate(),
+                    at: self::time($receipt->voided_at, $timezone) ?? $from,
                     kind: CollectedKind::ReceiptVoided,
-                    paymentId: $receipt->payment_id,
-                    receiptNumber: $receipt->number,
+                    paymentId: (int) $receipt->payment_id,
+                    receiptNumber: (string) $receipt->number,
                 );
             }
         }
@@ -87,11 +96,12 @@ final readonly class OwnerCollectionRecords implements OwnerCollections
             ->where('created_at', '>=', $from)
             ->where('created_at', '<', $to)
             ->orderBy('id')
+            ->toBase()
             ->get(['id', 'applied_bill_id', 'amount_kobo', 'created_at']) as $entry) {
             $amounts[] = new CollectedAmount(
                 billId: (int) $entry->applied_bill_id,
-                amount: $entry->amount_kobo->abs(),
-                at: $entry->created_at ?? $from,
+                amount: Money::kobo((int) $entry->amount_kobo)->abs(),
+                at: self::time($entry->created_at, $timezone) ?? $from,
                 kind: CollectedKind::Credit,
                 paymentId: null,
                 receiptNumber: null,
@@ -101,5 +111,17 @@ final readonly class OwnerCollectionRecords implements OwnerCollections
         usort($amounts, static fn (CollectedAmount $a, CollectedAmount $b): int => [$a->at->getTimestamp(), $a->billId] <=> [$b->at->getTimestamp(), $b->billId]);
 
         return $amounts;
+    }
+
+    /** A stored timestamp as the models read it: in the app's timezone. */
+    private static function time(mixed $value, string $timezone): ?CarbonImmutable
+    {
+        if (! is_string($value) || $value === '') {
+            return null;
+        }
+
+        $time = CarbonImmutable::createFromFormat('Y-m-d H:i:s', substr($value, 0, 19), $timezone);
+
+        return $time instanceof CarbonImmutable ? $time : null;
     }
 }
