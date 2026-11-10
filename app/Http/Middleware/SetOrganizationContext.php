@@ -16,8 +16,11 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\URL;
+use Sentry\State\Scope;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+
+use function Sentry\configureScope;
 
 /**
  * For /o/{organization} routes (ARCHITECTURE.md § 4): finds the organization
@@ -76,6 +79,10 @@ final class SetOrganizationContext
         /** @var Route $route */
         $route->setParameter('organization', $organization);
         URL::defaults(['organization' => $organization->slug]);
+
+        // Errors in Sentry say which organization they came from, by number
+        // only (ARCHITECTURE.md § 11; AGENT.md § 5: no PII).
+        configureScope(fn (Scope $scope) => $scope->setTag('organization_id', (string) $organization->getKey()));
 
         $this->writes->ensureRequestAllowed($request);
 

@@ -129,6 +129,7 @@ The first install still uses the installer ([INSTALLER.md](../../INSTALLER.md)),
 - `php artisan goproperty:hosting` (from `current/`) reports a consistent configuration, a scheduler heartbeat under 2 minutes old and a recent queue tick.
 - Console → Operations: scheduler heartbeat < 2 min old, queue wait < 1 min, last backup OK.
 - Console → Settings → Operations alerts: a Slack webhook or the staff to email set, **Send a test alert** received, and an **uptime link** made and added to an outside uptime monitor (every 5 minutes, alert on anything but 200): it answers 503 once the scheduler has stopped, and its calls let the site raise its own alert when nobody visits it ([PLATFORM_CONSOLE.md § 2](../../PLATFORM_CONSOLE.md) "Who notices a stopped scheduler").
+- Error monitoring: `SENTRY_LARAVEL_DSN` in `.env` set to the Sentry project's DSN (Sentry → Settings → Projects → goproperty → Client Keys), then the settings cache rebuilt (`php artisan config:cache`, or a one-time cron job without SSH, [install-recovery.md § 0](install-recovery.md#0-running-a-command-on-the-server)). `php artisan sentry:test` (without SSH, `sentry:test` as a one-time cron job) then shows a test event in Sentry tagged with this site's `APP_ENV` and release `goproperty@<version>` ([ARCHITECTURE.md § 11](../../ARCHITECTURE.md)).
 - Log in as a test agency; open an invoice PDF; send a test email; trigger a Paystack test webhook.
 - `APP_DEBUG=false` confirmed (an error page must not show stack traces).
 

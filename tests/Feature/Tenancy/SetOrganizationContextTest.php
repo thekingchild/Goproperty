@@ -6,6 +6,8 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Tenancy\OrganizationContext;
 use Illuminate\Support\Facades\Route;
+use Sentry\Event;
+use Sentry\State\Scope;
 use Tests\Fixtures\Models\ScopedRecord;
 use Tests\Support\TenancyFixture;
 
@@ -74,4 +76,16 @@ it('scopes models bound from the URL', function () {
 
     $this->actingAs($this->user)->get("/o/acme-homes/records/{$own->id}")->assertOk()->assertSee('Acme flat');
     $this->actingAs($this->user)->get("/o/acme-homes/records/{$foreign->id}")->assertNotFound();
+});
+
+it('tags Sentry events with the organization number only', function () {
+    $this->actingAs($this->user)->getJson('/o/acme-homes/probe')->assertOk();
+
+    $tags = null;
+    \Sentry\configureScope(function (Scope $scope) use (&$tags): void {
+        $tags = $scope->applyToEvent(Event::createEvent())?->getTags();
+    });
+
+    expect($tags)->toMatchArray(['organization_id' => (string) $this->acme->getKey()])
+        ->and($tags)->not->toContain('acme-homes');
 });

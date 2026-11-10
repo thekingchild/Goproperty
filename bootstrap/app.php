@@ -23,6 +23,7 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
+use Sentry\Laravel\Integration;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 $app = Application::configure(basePath: dirname(__DIR__))
@@ -92,6 +93,10 @@ $app = Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [EndSessionsAfterPasswordChange::class]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        // Reported exceptions go to Sentry when SENTRY_LARAVEL_DSN is set
+        // (ARCHITECTURE.md § 11); ignored ones (404s, validation) do not.
+        Integration::handles($exceptions);
+
         // /admin and other guesses are plain 404s, logged as probes
         // (ONBOARDING_COMPLIANCE.md § 1).
         $exceptions->render(function (NotFoundHttpException $exception, Request $request) {
