@@ -22,6 +22,10 @@ use ZipArchive;
  * production restore from the console uses (P06-10); by hand
  * (`goproperty:backup-restore`) a restore goes into a new database that
  * .env is then pointed at.
+ *
+ * After the dump, what only meant something to the site at the moment it
+ * was taken is cleared (settle()): the cache and its locks, and backup runs
+ * and operations still running then.
  */
 final readonly class Restorer
 {
@@ -238,7 +242,46 @@ final readonly class Restorer
             fclose($handle);
         }
 
+        $this->settle($connection);
+
         return $count;
+    }
+
+    /**
+     * Clears what the dump caught in the middle (P09-04 drill, 2026-11-10).
+     * A backup taken from the console runs inside the scheduler's
+     * `backup-operations` task, whose 12-hour overlap lock sits in the
+     * database cache: restored, it blocked every console backup, verify and
+     * restore until it expired, and the restored scheduler heartbeat raised
+     * a false "scheduler stopped" alert. The cache is disposable, so it is
+     * emptied. A backup run or operation still running when the dump was
+     * made finished afterwards; this copy cannot know how, so it is marked
+     * failed with that reason (and no longer blocks a new one).
+     */
+    private function settle(Connection $connection): void
+    {
+        $schema = $connection->getSchemaBuilder();
+        $cache = (string) $this->config->get('cache.stores.database.table', 'cache');
+        $locks = (string) ($this->config->get('cache.stores.database.lock_table') ?? 'cache_locks');
+
+        foreach ([$cache, $locks] as $table) {
+            if ($table !== '' && $schema->hasTable($table)) {
+                $connection->table($table)->delete();
+            }
+        }
+
+        $reason = 'Still running when this backup was taken: how it ended is not in this copy.';
+        $now = now();
+
+        if ($schema->hasTable('backup_runs')) {
+            $connection->table('backup_runs')->where('status', 'running')
+                ->update(['status' => 'failed', 'finished_at' => $now, 'notes' => $reason, 'updated_at' => $now]);
+        }
+
+        if ($schema->hasTable('backup_operations')) {
+            $connection->table('backup_operations')->where('status', 'running')
+                ->update(['status' => 'failed', 'finished_at' => $now, 'result' => $reason, 'updated_at' => $now]);
+        }
     }
 
     /** @return list<string> */

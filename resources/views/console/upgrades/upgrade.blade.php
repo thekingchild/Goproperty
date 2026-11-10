@@ -5,7 +5,7 @@
     /** @var \App\Installer\Upgrades\UpgradeState|null $state */
     $pending = $state?->pending() ?? false;
     $kind = $result['kind'] ?? null;
-    $auto = $fresh && $pending && ($result['auto'] ?? false) === true && $errors->isEmpty();
+    $auto = $fresh && $backedUp && $pending && ($result['auto'] ?? false) === true && $errors->isEmpty();
     $done = $state?->migrations->done ?? 0;
     $total = $state?->migrations->total ?? 0;
     $backupAt = $lastDatabaseBackup?->finished_at?->toImmutable();
@@ -66,15 +66,17 @@
                 <a href="{{ $versionUrl }}" style="text-decoration:underline;text-underline-offset:2px">Back to Version</a>
             </p>
         </x-filament::section>
-    @elseif ($state !== null && ! $fresh)
-        <x-filament::section heading="Confirm it is you" description="The upgrade changes the database for every customer: your password{{ $needsCode ? ' and authenticator code' : '' }} first. It stays confirmed for {{ \App\Platform\Console\StepUp::MINUTES }} minutes.">
+    @elseif ($state !== null && (! $fresh || ! $backedUp))
+        <x-filament::section heading="{{ $fresh ? 'Before you start' : 'Confirm it is you' }}" description="{{ $fresh ? 'Your password and code are still confirmed. Confirm the backup for this upgrade.' : 'The upgrade changes the database for every customer: your password'.($needsCode ? ' and authenticator code' : '').' first. It stays confirmed for '.\App\Platform\Console\StepUp::MINUTES.' minutes.' }}">
             <form method="post" action="{{ $confirmUrl }}" id="upgrade-confirm" style="display:grid;gap:.75rem;font-size:.875rem">
                 @csrf
+                @if (! $fresh)
                 <div>
                     <label for="upgrade-password">Your password</label>
                     <input id="upgrade-password" type="password" name="password" required autocomplete="current-password" style="{{ $field }}">
                 </div>
-                @if ($needsCode)
+                @endif
+                @if ($needsCode && ! $fresh)
                     <div>
                         <label for="upgrade-code">Code from your authenticator app</label>
                         <input id="upgrade-code" type="text" name="code" required inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" style="{{ $field }}">
@@ -92,7 +94,7 @@
             <form method="post" action="{{ $runUrl }}" id="upgrade-run" style="font-size:.875rem">
                 @csrf
                 <p style="margin:0 0 .75rem">Each step runs a few migrations (or, at the end, the install seeders and caches) in one short request. It turns maintenance mode on first, if it is not on yet, and off again at the end.</p>
-                <button type="submit" style="{{ $button }}">{{ $kind === 'failed' ? 'Try this step again' : ($done === 0 && $kind === null ? 'Run the upgrade' : 'Continue') }}</button>
+                <button type="submit" style="{{ $button }}">{{ $kind === 'failed' ? 'Try this step again' : ($kind === null ? 'Run the upgrade' : 'Continue') }}</button>
             </form>
         </x-filament::section>
     @endif

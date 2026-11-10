@@ -28,11 +28,11 @@ The command never writes to the site's own database. Restore into a new, empty d
 
 1. **Create a database:** an empty one in the control panel (cPanel → MySQL Databases), e.g. `acct_goproperty_restore`, and give the site's database user all privileges on it.
 2. **Maintenance mode:** put the site in maintenance mode with `php artisan down`. Do this unless you are only investigating.
-3. **Restore:** `php artisan goproperty:backup-restore latest --database=acct_goproperty_restore`. This downloads the newest database backup from the first destination that takes database backups; add `--destination=<id>` to choose another. To use a zip you already have, pass its path instead of `latest`.
+3. **Restore:** `php artisan goproperty:backup-restore latest --database=acct_goproperty_restore`. It asks before emptying that database: answer `yes` (add `--force` when it runs as a one-time cron job without SSH, [install-recovery.md § 0](install-recovery.md#0-running-a-command-on-the-server)). This downloads the newest database backup from the first destination that takes database backups; add `--destination=<id>` to choose another. To use a zip you already have, pass its path instead of `latest`. The restored copy starts with an empty cache, and a backup that was still running when the backup was taken shows as **Failed** with the reason "Still running when this backup was taken" (its zip is fine if it is at the destination).
 4. **Check the restored data:**
    - log in with a database tool and look at recent rows (`payments`, `bills`);
    - run `php artisan goproperty:audit-verify` after the switch: the audit log must be intact.
-5. **Switch:** set `DB_DATABASE=acct_goproperty_restore` in `.env`, then run `php artisan config:cache` and `php artisan up`.
+5. **Switch:** set `DB_DATABASE=acct_goproperty_restore` in `.env`, then run `php artisan config:cache` and `php artisan up`. Then `php artisan goproperty:check-installation`: right after the switch it may say the scheduler and the queue tick have not run for a while (the restored data is from the backup's time); run `php artisan schedule:run` once and check again. The backup list in the console then starts from the restored copy: backups taken after it (the one you restored included) are not listed, but their zips are still at the destination.
 6. **Keep the old database** until you are sure. Write down what happened in the incident notes.
 
 ## 3. Restore by hand (no working copy of the site)

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Audit\AuditEntry;
+use App\Http\Controllers\Console\UpgradeController;
 use App\Installer\Finishing\ApplicationOptimizer;
 use App\Installer\InstallationRecord;
 use App\Installer\InstallStage;
@@ -168,6 +169,32 @@ it('needs a fresh password, authenticator code and the backup tick before any st
     $this->travel(11)->minutes();
     $this->actingAs($this->admin, 'staff');
     runUpgradeStep($this)->assertSessionHasErrors('password');
+});
+
+it('asks for the backup tick even when the password and code are still confirmed, for each release', function () {
+    // P09-06 rehearsal (2026-11-10): turning maintenance mode on from the
+    // Version page confirms the password and code; the upgrade page then
+    // skipped its form, and with it the backup tick.
+    upgradeRelease('1.5.0', database: '1.4.0');
+    pendingMigrations(1);
+    $this->actingAs($this->admin, 'staff')->withSession(['console.step_up_at' => now()->getTimestamp()]);
+
+    $page = $this->get($this->console.'/system/upgrade')->assertOk()->getContent();
+    expect($page)->toContain('Before you start', 'name="backed_up"')
+        ->not->toContain('name="password"', 'id="upgrade-run"');
+
+    runUpgradeStep($this)->assertSessionHasErrors(['backed_up' => UpgradeController::BACKUP_TICK]);
+    expect(DB::table('settings')->where('key', 'upgrade.test.1')->exists())->toBeFalse();
+
+    // A tick given for another release does not count.
+    $this->withSession([UpgradeController::BACKED_UP => '1.4.9']);
+    runUpgradeStep($this)->assertSessionHasErrors('backed_up');
+
+    // The tick alone, no password again while it is fresh.
+    $this->post($this->console.'/system/upgrade/confirm', ['backed_up' => '1'])->assertSessionHasNoErrors();
+    expect($this->get($this->console.'/system/upgrade')->getContent())->toContain('id="upgrade-run"', 'Run the upgrade');
+    runUpgradeStep($this);
+    expect(DB::table('settings')->where('key', 'upgrade.test.1')->exists())->toBeTrue();
 });
 
 it('is for system.upgrade only: super-admins; technical-admins and others get 403', function (string $role) {

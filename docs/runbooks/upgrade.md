@@ -73,7 +73,7 @@ Plesk (`goproperty`):
   ```
 - Without SSH:
   1. Open **Console → Operations → Version** and press **Run pending migrations** (super-admins).
-  2. Type **Your password** and the **Code from your authenticator app**, tick that a database backup was taken (step 3), and press **Confirm and start**.
+  2. Type **Your password** and the **Code from your authenticator app**, tick that a database backup was taken (step 3), and press **Confirm and start**. If you turned maintenance mode on from the Version page in the last 10 minutes, the page says **Before you start** and asks only for the tick.
   3. Press **Run the upgrade**. The page then runs one short step per request by itself — a few migrations each, then the install seeders, then the caches — with a progress bar. Keep the tab open until it says **Upgraded to …**. It turns maintenance mode on first if it is not on yet, and off at the end. If two people press it at once, the second is told **Another staff member is running the upgrade right now.**
 
 ### Step 7. Caches, checks, back up

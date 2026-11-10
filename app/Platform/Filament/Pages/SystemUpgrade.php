@@ -54,6 +54,7 @@ final class SystemUpgrade extends Page
         return [
             'state' => SystemVersion::state(),
             'fresh' => $stepUp->isFresh(),
+            'backedUp' => UpgradeController::backedUp(request()),
             'needsCode' => $staff instanceof PlatformStaff && $stepUp->needsCode($staff),
             'lastDatabaseBackup' => app(BackupHealth::class)->lastSuccess('db'),
             'maintenance' => app(UpgradeMaintenance::class)->active(),
