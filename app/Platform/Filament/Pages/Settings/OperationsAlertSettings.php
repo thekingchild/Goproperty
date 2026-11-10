@@ -11,6 +11,7 @@ use App\Platform\Operations\Alerts\AlertSettings;
 use App\Platform\Operations\Alerts\Notices\AlertNotice;
 use App\Platform\Operations\Alerts\Notices\AlertNotifier;
 use App\Platform\Operations\Alerts\Notices\NoticeKind;
+use App\Platform\Operations\Alerts\Notices\SlackWebhook;
 use App\Platform\Operations\OperationsAudit;
 use App\Platform\Staff\StaffPermission;
 use App\Settings\SettingsStore;
@@ -271,12 +272,16 @@ final class OperationsAlertSettings extends Page
         RateLimiter::hit('operations-alert-test:'.$staff->id);
         $settings = AlertSettings::current();
         $result = app(AlertNotifier::class)->send(new AlertNotice(NoticeKind::Test, null, "{$staff->name} sent a test of the operations alerts.", null, CarbonImmutable::now(), AlertNotifier::dashboardUrl()), $settings);
-        app(OperationsAudit::class)->record('alert.test_sent', 'Test operations alert sent', causer: $staff, properties: ['slack' => $result['slack'], 'emails' => $result['emails']]);
+        // Slack is called only in production (SlackWebhook): elsewhere the
+        // message goes to the log, and the page must not say Slack took it.
+        $called = $result['slack'] !== null && app(SlackWebhook::class)->live();
+        app(OperationsAudit::class)->record('alert.test_sent', 'Test operations alert sent', causer: $staff, properties: ['slack' => $called ? $result['slack'] : null, 'slack_logged' => $result['slack'] !== null && ! $called, 'emails' => $result['emails']]);
 
-        $slack = match ($result['slack']) {
-            null => 'Slack is not set',
-            true => 'Slack took it',
-            false => 'Slack refused it (see the log)',
+        $slack = match (true) {
+            $result['slack'] === null => 'Slack is not set',
+            ! $called => 'Slack is called only in production, so the Slack message went to the log',
+            $result['slack'] => 'Slack took it',
+            default => 'Slack refused it (see the log)',
         };
 
         Notification::make()->title("Test sent. {$slack}; {$result['emails']} staff emailed.")->success()->send();

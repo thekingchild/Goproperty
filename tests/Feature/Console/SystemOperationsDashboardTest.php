@@ -403,4 +403,18 @@ describe('Settings → Operations alerts', function () {
         Http::assertSent(fn ($request): bool => str_contains((string) ($request->data()['text'] ?? ''), 'Test alert: operations alerts'));
         expect(DB::table('activity_log')->where('log_name', OperationsAudit::LOG)->where('event', 'alert.test_sent')->value('causer_id'))->toBe($this->tech->id);
     });
+
+    it('says the Slack message went to the log outside production, and never calls Slack there', function () {
+        Notification::fake();
+        Http::fake();
+        app()->detectEnvironment(fn (): string => 'staging');
+        app(SettingsStore::class)->set('operations.alert_slack_webhook_url', 'https://hooks.slack.com/services/T1/B1/testsecretvalue123');
+
+        Livewire::test(OperationsAlertSettings::class)->callAction('sendTest')
+            ->assertNotified('Test sent. Slack is called only in production, so the Slack message went to the log; 1 staff emailed.');
+
+        Http::assertNothingSent();
+        expect(json_decode((string) DB::table('activity_log')->where('log_name', OperationsAudit::LOG)->where('event', 'alert.test_sent')->value('properties'), true))
+            ->toMatchArray(['slack' => null, 'slack_logged' => true, 'emails' => 1]);
+    });
 });

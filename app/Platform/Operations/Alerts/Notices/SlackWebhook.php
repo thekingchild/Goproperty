@@ -22,9 +22,15 @@ final readonly class SlackWebhook
 
     public function __construct(private Application $app) {}
 
+    /** Whether this environment calls Slack for real (else the message is logged). */
+    public function live(): bool
+    {
+        return in_array($this->app->environment(), self::LIVE_ENVIRONMENTS, true);
+    }
+
     public function post(string $url, string $text): bool
     {
-        if (! in_array($this->app->environment(), self::LIVE_ENVIRONMENTS, true)) {
+        if (! $this->live()) {
             Log::info('Operations alert for Slack (Slack is called only in production).', ['text' => $text]);
 
             return true;
