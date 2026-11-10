@@ -41,6 +41,7 @@ use LogicException;
  * @property OrganizationStatus $status
  * @property TransactionTier $transaction_tier
  * @property bool $platform_covered
+ * @property bool $is_demo GoProperty's demo organization (P09-05)
  * @property Carbon|null $trial_ends_at
  * @property Carbon|null $suspended_at
  * @property OrganizationStatus|null $status_before_suspension
@@ -71,6 +72,7 @@ class Customer extends Model
             'status' => OrganizationStatus::class,
             'transaction_tier' => TransactionTier::class,
             'platform_covered' => 'boolean',
+            'is_demo' => 'boolean',
             'trial_ends_at' => 'datetime',
             'suspended_at' => 'datetime',
             'status_before_suspension' => OrganizationStatus::class,

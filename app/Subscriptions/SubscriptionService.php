@@ -27,6 +27,8 @@ use Illuminate\Support\Facades\DB;
  *
  * - start(): the signup wizard's plan step starts a `trialing` subscription;
  *   choosing again during the trial changes the plan and keeps the end.
+ *   Refused for the demo organization (`is_demo`, P09-05), which never has
+ *   one, so no billing job ever selects it.
  * - changePlan(): at once, at the new plan's current terms (§ 3: the current
  *   invoice is untouched). A customer may not move to a plan whose limits
  *   it is over, nor while its organization is read-only.
@@ -60,7 +62,12 @@ final readonly class SubscriptionService
     public function start(?User $by, Plan $plan, CarbonImmutable $trialEndsAt, BillingCycle $cycle = BillingCycle::Monthly): Subscription
     {
         return DB::transaction(function () use ($by, $plan, $trialEndsAt, $cycle): Subscription {
-            $this->lockOrganization();
+            $organization = $this->lockOrganization();
+
+            if ($organization->is_demo) {
+                throw new SubscriptionChangeRefused("{$organization->name} is GoProperty's demo organization: it is never billed, so it has no subscription.");
+            }
+
             $existing = Subscription::query()->lockForUpdate()->first();
 
             if ($existing instanceof Subscription) {

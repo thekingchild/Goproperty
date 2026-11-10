@@ -28,6 +28,9 @@ use InvalidArgumentException;
  * a whole in one transaction, so running it again for the same day leaves
  * the same rows, never a second set; the unique (date, metric, dimension)
  * backs that up.
+ *
+ * GoProperty's demo organization (`is_demo`, P09-05) is left out of every
+ * figure: its signup, units, people, tickets and collections are made up.
  */
 final readonly class MetricsSnapshot
 {
@@ -92,6 +95,7 @@ final readonly class MetricsSnapshot
     {
         [$from, $to] = self::window($day);
         $covered = $this->coveredOrganizations();
+        $demo = $this->demoOrganizations();
 
         // Revenue: GoProperty's invoices issued (not void), money received and refunded.
         $invoiced = DB::table('platform_invoices')
@@ -130,6 +134,7 @@ final readonly class MetricsSnapshot
         // Customers: signups by type, trials ended, first payments, cancellations.
         $signups = DB::table('organizations')
             ->whereNull('deleted_at')
+            ->where('is_demo', false)
             ->where('created_at', '>=', $from)->where('created_at', '<', $to)
             ->groupBy('type')
             ->select('type')->selectRaw('COUNT(*) AS organizations')
@@ -173,19 +178,22 @@ final readonly class MetricsSnapshot
         // Usage.
         $rows->total(PlatformMetric::UnitsAdded, DB::table('units')
             ->whereNull('deleted_at')
+            ->whereNotIn('organization_id', $demo)
             ->where('created_at', '>=', $from)->where('created_at', '<', $to)
             ->count());
 
-        $rows->total(PlatformMetric::ActiveUsersDay, $this->signedIn($from, $to));
-        $rows->total(PlatformMetric::ActiveUsersWeek, $this->signedIn(self::window($day->subDays(6))[0], $to));
+        $rows->total(PlatformMetric::ActiveUsersDay, $this->signedIn($from, $to, $demo));
+        $rows->total(PlatformMetric::ActiveUsersWeek, $this->signedIn(self::window($day->subDays(6))[0], $to, $demo));
 
         $rows->total(PlatformMetric::TicketsOpened, DB::table('tickets')
             ->whereNull('deleted_at')
+            ->whereNotIn('organization_id', $demo)
             ->where('submitted_at', '>=', $from)->where('submitted_at', '<', $to)
             ->count());
 
         $rows->total(PlatformMetric::TicketsResolved, DB::table('tickets')
             ->whereNull('deleted_at')
+            ->whereNotIn('organization_id', $demo)
             ->where('resolved_at', '>=', $from)->where('resolved_at', '<', $to)
             ->count());
 
@@ -202,6 +210,7 @@ final readonly class MetricsSnapshot
         // Collections agencies recorded (confirmed that day), by channel.
         $collections = DB::table('payments')
             ->whereNull('deleted_at')
+            ->whereNotIn('organization_id', $demo)
             ->whereIn('status', ['confirmed', 'refunded'])
             ->where('source', '!=', 'import')
             ->where('confirmed_at', '>=', $from)->where('confirmed_at', '<', $to)
@@ -236,7 +245,7 @@ final readonly class MetricsSnapshot
     {
         $today = $now->setTimezone(self::TIMEZONE)->startOfDay();
         $covered = $this->coveredOrganizations();
-        $organizations = DB::table('organizations')->whereNull('deleted_at')->get(['id', 'status', 'state', 'transaction_tier']);
+        $organizations = DB::table('organizations')->whereNull('deleted_at')->where('is_demo', false)->get(['id', 'status', 'state', 'transaction_tier']);
         $customers = $organizations->reject(static fn (object $organization): bool => isset($covered[(int) $organization->id]));
         $open = $organizations->filter(static fn (object $organization): bool => $organization->status !== 'cancelled');
         $subscriptions = DB::table('subscriptions')->get(['organization_id', 'plan_id', 'billing_cycle', 'status'])->keyBy('organization_id');
@@ -299,6 +308,7 @@ final readonly class MetricsSnapshot
         $rows->total(PlatformMetric::UnitsTotal, $open->sum(static fn (object $organization): int => $units[(int) $organization->id] ?? 0));
         $rows->total(PlatformMetric::PortalTenants, (int) DB::table('tenant_profiles')
             ->whereNull('deleted_at')
+            ->whereNotIn('organization_id', $this->demoOrganizations())
             ->whereNotNull('user_id')
             ->selectRaw('COUNT(DISTINCT user_id) AS people')
             ->value('people'));
@@ -389,12 +399,31 @@ final readonly class MetricsSnapshot
         return array_fill_keys($covered->merge($billedToCovered)->unique()->values()->all(), true);
     }
 
-    /** Customer users (not staff) who signed in between the two times. */
-    private function signedIn(CarbonImmutable $from, CarbonImmutable $to): int
+    /** @return list<int> GoProperty's demo organizations (P09-05), left out of every figure */
+    private function demoOrganizations(): array
     {
+        return array_values(DB::table('organizations')->where('is_demo', true)->pluck('id')->map(static fn (mixed $id): int => (int) $id)->all());
+    }
+
+    /**
+     * Customer users (not staff) who signed in between the two times; the
+     * demo organization's members only when they also belong elsewhere.
+     *
+     * @param  list<int>  $demo
+     */
+    private function signedIn(CarbonImmutable $from, CarbonImmutable $to, array $demo): int
+    {
+        $demoOnly = $demo === [] ? [] : DB::table('organization_user')
+            ->whereIn('organization_id', $demo)
+            ->whereNotExists(static fn ($query) => $query->from('organization_user AS other')
+                ->whereColumn('other.user_id', 'organization_user.user_id')
+                ->whereNotIn('other.organization_id', $demo))
+            ->pluck('user_id')->all();
+
         return (int) DB::table('authentication_logs')
             ->where('authenticatable_type', 'user')
             ->whereNotNull('authenticatable_id')
+            ->whereNotIn('authenticatable_id', $demoOnly)
             ->whereIn('event', self::SIGN_INS)
             ->where('created_at', '>=', $from)->where('created_at', '<', $to)
             ->selectRaw('COUNT(DISTINCT authenticatable_id) AS people')

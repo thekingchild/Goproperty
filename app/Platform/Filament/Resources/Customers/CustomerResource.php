@@ -146,7 +146,7 @@ final class CustomerResource extends Resource
                         ->orWhere('organizations.slug', 'like', '%'.addcslashes($search, '%_\\').'%')
                         ->orWhereIn('organizations.id', Customer::ownedBy($search))))
                     ->sortable()
-                    ->description(fn (Customer $record): string => '/o/'.$record->slug),
+                    ->description(fn (Customer $record): string => '/o/'.$record->slug.($record->is_demo ? ' · Demo organization' : '')),
                 TextColumn::make('type')
                     ->formatStateUsing(fn (OrganizationType $state): string => $state->label()),
                 TextColumn::make('status')
@@ -248,6 +248,9 @@ final class CustomerResource extends Resource
                         ->placeholder('Not billed yet'),
                     IconEntry::make('platform_covered')->label('Platform covered')->boolean()
                         ->helperText(fn (Customer $record): ?string => $record->platform_covered ? 'Invoices are marked paid when issued.' : null),
+                    // P09-05: GoProperty's own demo organization, never billed.
+                    IconEntry::make('is_demo')->label('Demo organization')->boolean()
+                        ->helperText(fn (Customer $record): ?string => $record->is_demo ? 'No subscription, no SMS, left out of analytics (goproperty:demo-organization).' : null),
                 ]),
             // P06-08: the Transaction Tier limits that apply (Set / End tier limits are page actions).
             Section::make('Transaction Tier limits')

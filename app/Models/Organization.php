@@ -44,6 +44,7 @@ use Spatie\MediaLibrary\HasMedia;
  * @property OrganizationStatus $status
  * @property TransactionTier $transaction_tier
  * @property bool $platform_covered
+ * @property bool $is_demo GoProperty's own demo organization (P09-05): no subscription, no SMS, not in analytics; set only by goproperty:demo-organization, never mass-assigned
  * @property array<string, mixed>|null $branding
  * @property Money|null $online_payment_cap_kobo
  * @property CarbonImmutable|null $trial_ends_at dates are immutable (AppServiceProvider)
@@ -73,6 +74,7 @@ class Organization extends Model implements HasMedia
         'status' => 'onboarding',
         'transaction_tier' => 1,
         'platform_covered' => false,
+        'is_demo' => false,
     ];
 
     /** @return array<string, string> */
@@ -85,6 +87,7 @@ class Organization extends Model implements HasMedia
             'status' => OrganizationStatus::class,
             'transaction_tier' => TransactionTier::class,
             'platform_covered' => 'boolean',
+            'is_demo' => 'boolean',
             'branding' => 'array',
             'online_payment_cap_kobo' => MoneyCast::class,
             'trial_ends_at' => 'datetime',

@@ -117,9 +117,12 @@ final class MessagingHealth
         $attempted = DeliveryOutcome::Attempted->statusValues();
         $problems = DeliveryOutcome::Problems->statusValues();
         $in = static fn (array $values): string => implode(', ', array_fill(0, count($values), '?'));
+        // The demo organization's SMS are refused before any provider (P09-05): not the provider's failures.
+        $demo = DB::table('organizations')->where('is_demo', true)->pluck('id')->all();
 
         $groups = DeliveryLogEntry::query()->toBase()
             ->where('queued_at', '>=', $week)
+            ->whereNotIn('organization_id', $demo)
             ->groupBy('channel', 'provider')
             ->select(['channel', 'provider'])
             ->selectRaw('MAX(sent_at) AS last_sent_at')
@@ -135,6 +138,7 @@ final class MessagingHealth
             $provider = (string) $group->provider;
             $failure = DeliveryLogEntry::query()->toBase()
                 ->where('queued_at', '>=', $week)
+                ->whereNotIn('organization_id', $demo)
                 ->where('channel', $channel)
                 ->where('provider', $provider)
                 ->whereIn('status', $problems)

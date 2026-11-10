@@ -33,7 +33,8 @@ use Throwable;
  * is never called. A delivery `paid_by_platform` (GoProperty's own SMS to
  * the organization's owners, P06-05) takes no credit. A retry takes nothing again. When the last attempt
  * ends with GoText refusing the message outright, and no attempt's outcome
- * was unknown, the credit is given back.
+ * was unknown, the credit is given back. The demo organization's SMS are
+ * never sent (P09-05): they end `failed` at once.
  */
 final class SendSms implements ShouldQueue
 {
@@ -61,6 +62,12 @@ final class SendSms implements ShouldQueue
         $organization = Organization::query()->find($this->organizationId);
 
         if ($organization === null) {
+            return;
+        }
+
+        if ($organization->is_demo) {
+            $context->run($organization, fn () => $this->refuseForDemo());
+
             return;
         }
 
@@ -132,6 +139,17 @@ final class SendSms implements ShouldQueue
                 }
             });
         });
+    }
+
+    /**
+     * The demo organization's people have made-up numbers (P09-05): its SMS
+     * end `failed` with the reason, take no credit and never reach GoText.
+     */
+    private function refuseForDemo(): void
+    {
+        NotificationDelivery::query()->whereKey($this->deliveryId)
+            ->whereIn('status', [DeliveryStatus::Queued->value, DeliveryStatus::Sending->value])
+            ->update(['status' => DeliveryStatus::Failed->value, 'failed_at' => now(), 'error' => 'Not sent: a demo organization never sends SMS.']);
     }
 
     /** The delivery, claimed for this attempt with its credit taken, or null when there is nothing to send. */

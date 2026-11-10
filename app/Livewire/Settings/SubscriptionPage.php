@@ -110,6 +110,12 @@ final class SubscriptionPage extends Component
         $this->notice = null;
         $plan = $plans->find($key);
 
+        if (app(OrganizationContext::class)->get()->is_demo) {
+            $this->addError('plan', __('This is a demo organization: GoProperty never bills it, so its plan does not change here.'));
+
+            return;
+        }
+
         if (! $plan instanceof Plan || ! $plan->offered) {
             $this->addError('plan', __('That plan is not offered.'));
 
@@ -253,6 +259,7 @@ final class SubscriptionPage extends Component
         $units = $overview->units();
 
         return view('livewire.settings.subscription-page', [
+            'demo' => app(OrganizationContext::class)->get()->is_demo,
             'subscription' => $overview->subscription(),
             'plan' => $plan,
             'units' => $units,

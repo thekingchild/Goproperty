@@ -74,6 +74,7 @@ Examples (before 7.5% VAT):
 - VAT: 7.5% Nigerian VAT added as a separate line on every platform invoice.
 - Currency: **NGN only** at launch; amounts stored in kobo.
 - **Plans vs Transaction Tiers:** the plan (priced per unit) and the Transaction Tier (how much money the agency may manage, based on verification — [ONBOARDING_COMPLIANCE.md § 5](ONBOARDING_COMPLIANCE.md)) are independent.
+- **GoProperty's demo organization (P09-05) is never billed.** Made once by `php artisan goproperty:demo-organization <owner email>` (a staff mailbox; `Database\Seeders\DemoOrganizationSeeder`: a Lagos agency with six months of made-up history) and marked `organizations.is_demo`. It never has a subscription (`SubscriptionService::start()` refuses it), so trial end, metering, invoicing, dunning, price-change notices and plan customer counts, which all select organizations through `subscriptions`, never touch it; its plan is `signup_plan_key` (the most complete standard plan, for showing every feature). It does not buy SMS credits, its SMS are never sent (`SendSms` ends them `failed`: "Not sent: a demo organization never sends SMS."; its tenants have made-up 0700 numbers and no email), and the console leaves it out of the analytics and of the SMS provider's health. Settings → Subscription says it is a demo and offers no plan moves; Console → Customers labels it.
 
 ## 2. Subscription Lifecycle
 

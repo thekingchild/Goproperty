@@ -44,6 +44,13 @@
     <section class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900" data-test="subscription">
         <flux:heading size="lg" level="2">{{ __('Your plan') }}</flux:heading>
 
+        @if ($demo)
+            <flux:callout icon="presentation-chart-bar" class="mt-3" data-test="demo-notice"
+                :heading="__('Demo organization')">
+                <flux:callout.text>{{ __('GoProperty uses this organization for demonstrations. It is never billed and sends no SMS; its people and figures are made up.') }}</flux:callout.text>
+            </flux:callout>
+        @endif
+
         @if ($plan === null)
             <flux:text class="mt-1">{{ __('No plan chosen yet. An owner chooses one while setting up the organization.') }}</flux:text>
         @else
@@ -85,7 +92,7 @@
         @endif
     </section>
 
-    @if ($plan !== null && $choices !== [])
+    @if ($plan !== null && $choices !== [] && ! $demo)
         <section class="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900" data-test="plans">
             <flux:heading size="lg" level="2">{{ __('Plans at your :units units', ['units' => number_format($units)]) }}</flux:heading>
             <flux:text class="mt-1">{{ __('A move takes effect at once; your next invoice uses the new plan. Monthly prices before VAT.') }}</flux:text>

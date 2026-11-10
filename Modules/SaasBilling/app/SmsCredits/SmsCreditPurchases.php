@@ -80,6 +80,11 @@ final readonly class SmsCreditPurchases implements SmsCreditCheckout
 
     public function start(User $buyer, int $credits, string $returnUrl): string
     {
+        // The demo organization is never billed and sends no SMS (P09-05).
+        if ($this->context->get()->is_demo) {
+            throw new CheckoutRefused(__('This is a demo organization: it sends no SMS, so it does not buy SMS credits.'));
+        }
+
         $bundle = null;
 
         foreach ($this->bundles() as $offered) {
