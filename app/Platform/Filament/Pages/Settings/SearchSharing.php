@@ -16,7 +16,8 @@ use Filament\Support\Icons\Heroicon;
 /**
  * Settings → Search & sharing (PLATFORM_CONSOLE.md § 9.4). The preview
  * column shows the Google result and the link card from the draft.
- * Changing the canonical origin needs step-up.
+ * The canonical origin is for super-admins (`settings.canonical_origin`,
+ * SR-19), read-only for everyone else, and changing it needs step-up.
  */
 final class SearchSharing extends DraftSettingsPage
 {
@@ -64,7 +65,10 @@ final class SearchSharing extends DraftSettingsPage
                         ->helperText('Off: robots.txt disallows everything and pages say noindex.'),
                     TextInput::make('seo.canonical_origin')->label('Canonical address')->placeholder(rtrim((string) config('app.url'), '/'))
                         ->rule('regex:/^https:\/\/[a-z0-9.\-]+(:\d{1,5})?$/')
-                        ->helperText('https://host only. Changing it asks for your password.'),
+                        ->disabled(fn (): bool => in_array('seo.canonical_origin', $this->lockedKeys(), true))
+                        ->helperText(fn (): string => in_array('seo.canonical_origin', $this->lockedKeys(), true)
+                            ? 'Only a super-admin can change it.'
+                            : 'https://host only. Changing it asks for your password.'),
                 ]),
         ];
     }

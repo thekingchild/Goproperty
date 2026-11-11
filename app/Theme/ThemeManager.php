@@ -10,6 +10,7 @@ use App\Settings\SettingsStore;
 use App\Support\JsonValues;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\DatabaseManager;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 use RuntimeException;
@@ -20,6 +21,12 @@ use RuntimeException;
  * keeps reading the published values until a staff member publishes. Each
  * publish writes the changed keys through the settings store (validated
  * and audited) and keeps a numbered snapshot that can be restored.
+ *
+ * A key whose registry entry names a permission (the canonical address:
+ * `settings.canonical_origin`, super-admins only; SR-19) can be changed in
+ * a draft, published or brought back by a restore only by staff holding
+ * it. The settings pages also ask for a fresh step-up before publishing or
+ * restoring a change to a `step_up` key (stepUpChanges()).
  */
 final class ThemeManager
 {
@@ -131,6 +138,7 @@ final class ThemeManager
             $values[$key] = $value;
         }
 
+        $this->ensureAllowed($by, array_keys($audit));
         $this->writeDraft($values, $by);
 
         // Every save is audited with before and after (PLATFORM_CONSOLE.md § 9.1).
@@ -167,13 +175,78 @@ final class ThemeManager
     /** Starts a draft from an earlier published version. */
     public function restore(int $version, ?PlatformStaff $by = null): void
     {
+        $values = $this->versionValues($version) ?? throw new InvalidArgumentException("There is no published version {$version}.");
+        $this->ensureAllowed($by, $this->changedKeys($this->publishedValues(), $values));
+        $this->writeDraft($values, $by);
+    }
+
+    /**
+     * The values a restore of $version would draft, or null when there is no such version.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function versionValues(int $version): ?array
+    {
         $row = $this->connection()->table(self::TABLE)->where('version', $version)->first();
 
-        if ($row === null) {
-            throw new InvalidArgumentException("There is no published version {$version}.");
+        return $row === null ? null : $this->decode($row->keys ?? null) + $this->defaults();
+    }
+
+    /**
+     * Whether $values change a key that needs a fresh step-up (registry
+     * `step_up`, e.g. the canonical address) against what is published.
+     *
+     * @param  array<string, mixed>  $values
+     */
+    public function stepUpChanges(array $values): bool
+    {
+        foreach ($this->changedKeys($this->publishedValues(), $values) as $key) {
+            if ($this->registry->get($key)->stepUp) {
+                return true;
+            }
         }
 
-        $this->writeDraft($this->decode($row->keys ?? null) + $this->defaults(), $by);
+        return false;
+    }
+
+    /**
+     * @param  array<string, mixed>  $from
+     * @param  array<string, mixed>  $to
+     * @return list<string> versioned, registered keys whose value differs
+     */
+    private function changedKeys(array $from, array $to): array
+    {
+        $keys = [];
+
+        foreach ($to as $key => $value) {
+            if ($this->isVersioned($key) && $this->registry->has($key) && ! JsonValues::same($from[$key] ?? null, $value)) {
+                $keys[] = $key;
+            }
+        }
+
+        return $keys;
+    }
+
+    /**
+     * @param  list<string>  $keys
+     *
+     * @throws ThemeChangeRefused when $by lacks a key's permission
+     */
+    private function ensureAllowed(?PlatformStaff $by, array $keys): void
+    {
+        if ($by === null) {
+            return;
+        }
+
+        foreach ($keys as $key) {
+            $permission = $this->registry->get($key)->permission;
+
+            if ($permission !== null && ! Gate::forUser($by)->allows($permission)) {
+                throw new ThemeChangeRefused($key === 'seo.canonical_origin'
+                    ? 'Only a super-admin can change the canonical address, and this would change it.'
+                    : "You may not change {$key}.");
+            }
+        }
     }
 
     /** Starts a draft with the shipped defaults (PLATFORM_CONSOLE.md § 9.9). */
@@ -195,6 +268,8 @@ final class ThemeManager
     public function publish(?PlatformStaff $by = null): int
     {
         $draft = $this->draftValues() ?? throw new RuntimeException('There is no draft to publish.');
+
+        $this->ensureAllowed($by, $this->changedKeys($this->publishedValues(), $draft));
 
         return $this->connection()->transaction(function () use ($draft, $by): int {
             $published = $this->publishedValues();

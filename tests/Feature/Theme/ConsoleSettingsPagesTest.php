@@ -10,6 +10,7 @@ use App\Platform\Filament\Pages\Settings\PublicWebsite;
 use App\Platform\Filament\Pages\Settings\SearchSharing;
 use App\Platform\Filament\Pages\Settings\ThemeVersions;
 use App\Settings\SettingsStore;
+use App\Theme\ThemeChangeRefused;
 use App\Theme\ThemeManager;
 use Filament\Facades\Filament;
 use Illuminate\Http\UploadedFile;
@@ -233,6 +234,67 @@ it('asks for the password before changing the canonical origin', function () {
 
     $page->callAction('saveDraft', data: ['password' => 'x-long-password-1', 'code' => staffCode($this->staff)])->assertNotified('Draft saved');
     expect(themes()->draftValues()['seo.canonical_origin'])->toBe('https://goproperty.ng');
+});
+
+it('lets only super-admins change the canonical address; content-managers see it read-only (SR-19)', function () {
+    seedStaffRoles();
+    $manager = staffNamed('Bola', ['content-manager']);
+    $this->actingAs($manager, 'staff');
+
+    Livewire::test(SearchSharing::class)
+        ->assertFormFieldIsDisabled('seo.canonical_origin')
+        ->fillForm(['seo' => ['title' => 'Ile Homes', 'canonical_origin' => 'https://evil.example']])
+        ->call('saveDraft')
+        ->assertNotified('Draft saved');
+
+    expect(themes()->draftValues())->toMatchArray(['seo.title' => 'Ile Homes', 'seo.canonical_origin' => null]);
+    expect(fn () => themes()->saveDraft(['seo.canonical_origin' => 'https://evil.example'], $manager))
+        ->toThrow(ThemeChangeRefused::class, 'Only a super-admin can change the canonical address');
+});
+
+it('asks for step-up again to publish a draft that changes the canonical address, and refuses content-managers (SR-19)', function () {
+    themes()->saveDraft(['seo.canonical_origin' => 'https://goproperty.ng'], $this->staff);
+
+    seedStaffRoles();
+    $manager = staffNamed('Bola', ['content-manager']);
+    $this->actingAs($manager, 'staff');
+    Livewire::test(BrandAppearance::class)->callAction('publish', data: ['password' => 'x-long-password-1', 'code' => staffCode($manager)])
+        ->assertNotified('Only a super-admin can change the canonical address, and this would change it.');
+    expect(themes()->publishedValues()['seo.canonical_origin'])->toBeNull();
+
+    session()->forget('console.step_up_at'); // the content-manager's step-up, same test session
+    $this->actingAs($this->staff, 'staff');
+    Livewire::test(BrandAppearance::class)->callAction('publish', data: ['password' => 'wrong-password', 'code' => '000000'])
+        ->assertNotified('The password or code is not right.');
+    expect(themes()->publishedValues()['seo.canonical_origin'])->toBeNull();
+
+    Livewire::test(BrandAppearance::class)->callAction('publish', data: ['password' => 'x-long-password-1', 'code' => staffCode($this->staff)])
+        ->assertNotified('Version 1 published');
+    expect(themes()->publishedValues()['seo.canonical_origin'])->toBe('https://goproperty.ng');
+});
+
+it('asks for step-up to restore a version with another canonical address, and refuses content-managers (SR-19)', function () {
+    themes()->saveDraft(['seo.canonical_origin' => 'https://old.goproperty.ng'], $this->staff);
+    themes()->publish($this->staff);
+    themes()->saveDraft(['seo.canonical_origin' => 'https://goproperty.ng'], $this->staff);
+    themes()->publish($this->staff);
+
+    seedStaffRoles();
+    $manager = staffNamed('Bola', ['content-manager']);
+    $this->actingAs($manager, 'staff');
+    Livewire::test(ThemeVersions::class)->callAction('restore', arguments: ['version' => 1], data: ['password' => 'x-long-password-1', 'code' => staffCode($manager)])
+        ->assertNotified('Only a super-admin can change the canonical address, and this would change it.');
+    expect(themes()->hasDraft())->toBeFalse();
+
+    session()->forget('console.step_up_at'); // the content-manager's step-up, same test session
+    $this->actingAs($this->staff, 'staff');
+    Livewire::test(ThemeVersions::class)->callAction('restore', arguments: ['version' => 1], data: ['password' => 'wrong-password', 'code' => '000000'])
+        ->assertNotified('The password or code is not right.');
+    expect(themes()->hasDraft())->toBeFalse();
+
+    Livewire::test(ThemeVersions::class)->callAction('restore', arguments: ['version' => 1], data: ['password' => 'x-long-password-1', 'code' => staffCode($this->staff)])
+        ->assertNotified('Draft started from version 1');
+    expect(themes()->draftValues()['seo.canonical_origin'])->toBe('https://old.goproperty.ng');
 });
 
 it('applies custom code on save, after step-up, with a full audit', function () {

@@ -5,11 +5,15 @@ declare(strict_types=1);
 namespace App\Platform\Filament\Pages\Settings;
 
 use App\Models\PlatformStaff;
+use App\Platform\Console\StepUp;
+use App\Theme\ThemeChangeRefused;
 use App\Theme\ThemeManager;
 use Filament\Actions\Action;
 use Filament\Facades\Filament;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
+use Filament\Schemas\Components\Component;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Gate;
 use UnitEnum;
@@ -60,14 +64,65 @@ final class ThemeVersions extends Page
             ->label('Restore as draft')
             ->color('gray')
             ->requiresConfirmation()
-            ->modalDescription(fn (array $arguments): string => 'Starts a draft from version '.(int) ($arguments['version'] ?? 0).'. Visitors keep the published version until you publish the draft.')
-            ->action(function (array $arguments): void {
+            ->modalDescription(fn (array $arguments): string => 'Starts a draft from version '.(int) ($arguments['version'] ?? 0).'. Visitors keep the published version until you publish the draft.'
+                .($this->restoreNeedsStepUp((int) ($arguments['version'] ?? 0)) ? ' It changes the canonical address: confirm it is you.' : ''))
+            // SR-19: restoring a version with another canonical address asks for step-up again.
+            ->schema(fn (array $arguments): array => $this->restoreNeedsStepUp((int) ($arguments['version'] ?? 0)) ? $this->stepUpFields() : [])
+            ->action(function (array $arguments, array $data): void {
                 $staff = Filament::auth()->user();
                 $version = (int) ($arguments['version'] ?? 0);
-                app(ThemeManager::class)->restore($version, $staff instanceof PlatformStaff ? $staff : null);
+
+                if ($this->restoreNeedsStepUp($version) && ! $this->confirmStepUp($data)) {
+                    return;
+                }
+
+                try {
+                    app(ThemeManager::class)->restore($version, $staff instanceof PlatformStaff ? $staff : null);
+                } catch (ThemeChangeRefused $refused) {
+                    Notification::make()->title($refused->getMessage())->danger()->send();
+
+                    return;
+                }
 
                 Notification::make()->title("Draft started from version {$version}")->body('Check it in the preview, then publish.')->success()->send();
                 $this->redirect(BrandAppearance::getUrl());
             });
+    }
+
+    private function restoreNeedsStepUp(int $version): bool
+    {
+        $values = app(ThemeManager::class)->versionValues($version);
+
+        return $values !== null && app(ThemeManager::class)->stepUpChanges($values) && ! app(StepUp::class)->isFresh();
+    }
+
+    /** @return array<Component> */
+    private function stepUpFields(): array
+    {
+        $staff = Filament::auth()->user();
+        $fields = [TextInput::make('password')->label('Your password')->password()->required()];
+
+        if ($staff instanceof PlatformStaff && app(StepUp::class)->needsCode($staff)) {
+            $fields[] = TextInput::make('code')->label('Code from your authenticator app')->required()->length(6);
+        }
+
+        return $fields;
+    }
+
+    /** @param  array<string, mixed>  $data */
+    private function confirmStepUp(array $data): bool
+    {
+        $staff = Filament::auth()->user();
+        $problem = $staff instanceof PlatformStaff
+            ? app(StepUp::class)->confirm($staff, is_string($data['password'] ?? null) ? $data['password'] : '', is_string($data['code'] ?? null) ? $data['code'] : null)
+            : 'Sign in again.';
+
+        if ($problem !== null) {
+            Notification::make()->title($problem)->danger()->send();
+
+            return false;
+        }
+
+        return true;
     }
 }

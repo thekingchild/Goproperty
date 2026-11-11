@@ -156,7 +156,7 @@ return [
         // Null: on in production, off everywhere else (staging is never indexed).
         'seo.indexing_enabled' => ['type' => 'boolean', 'rules' => ['nullable', 'boolean'], 'permission' => 'settings.seo'],
         // Null: APP_URL.
-        'seo.canonical_origin' => ['type' => 'string', 'rules' => ['nullable', 'string', 'regex:/^https:\/\/[a-z0-9.\-]+(:\d{1,5})?$/'], 'permission' => 'settings.seo', 'step_up' => true],
+        'seo.canonical_origin' => ['type' => 'string', 'rules' => ['nullable', 'string', 'regex:/^https:\/\/[a-z0-9.\-]+(:\d{1,5})?$/'], 'permission' => 'settings.canonical_origin', 'step_up' => true],
 
         // ---------------------------------------------------------------
         // Custom code (§ 9.5): public marketing pages only; apply on save

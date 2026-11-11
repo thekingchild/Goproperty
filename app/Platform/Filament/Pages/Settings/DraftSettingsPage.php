@@ -10,6 +10,7 @@ use App\Settings\SettingsRegistry;
 use App\Settings\SettingsStore;
 use App\Settings\SettingType;
 use App\Theme\BrandAssets;
+use App\Theme\ThemeChangeRefused;
 use App\Theme\ThemeManager;
 use Filament\Actions\Action;
 use Filament\Facades\Filament;
@@ -133,12 +134,21 @@ abstract class DraftSettingsPage extends Page
 
         // Compared after cleaning, so rich text the editor merely reformats
         // does not count as a change.
-        $values = $this->validateValues($this->valuesFromForm());
+        // A field this staff member may not change is shown read-only; its
+        // value is left as it is (SR-19: the canonical address).
+        $values = Arr::except($this->validateValues($this->valuesFromForm()), $this->lockedKeys());
         $current = $this->currentValues();
         $changes = array_filter($values, fn (mixed $value, string $key): bool => ($current[$key] ?? null) !== $value, ARRAY_FILTER_USE_BOTH);
 
         if ($changes !== []) {
-            $this->manager()->saveDraft($changes, $this->staff());
+            try {
+                $this->manager()->saveDraft($changes, $this->staff());
+            } catch (ThemeChangeRefused $refused) {
+                Notification::make()->title($refused->getMessage())->danger()->send();
+
+                return;
+            }
+
             $this->pruneAssets();
         }
 
@@ -174,16 +184,31 @@ abstract class DraftSettingsPage extends Page
             Action::make('publish')
                 ->label('Publish')
                 ->requiresConfirmation()
-                ->modalDescription('The draft goes live for every visitor at once. You can restore this version later.')
+                ->modalDescription(fn (): string => $this->publishNeedsStepUp()
+                    ? 'The draft goes live for every visitor at once, and it changes the canonical address: confirm it is you. You can restore this version later.'
+                    : 'The draft goes live for every visitor at once. You can restore this version later.')
+                // SR-19: publishing a change to the canonical address asks for step-up again.
+                ->schema(fn (): array => $this->publishNeedsStepUp() ? $this->stepUpFields() : [])
                 ->disabled(fn (): bool => ! $manager->hasDraft())
-                ->action(function () use ($manager): void {
+                ->action(function (array $data) use ($manager): void {
                     if (! $manager->hasDraft()) {
                         Notification::make()->title('There is no draft to publish')->warning()->send();
 
                         return;
                     }
 
-                    $version = $manager->publish($this->staff());
+                    if ($this->publishNeedsStepUp() && ! $this->confirmStepUp($data)) {
+                        return;
+                    }
+
+                    try {
+                        $version = $manager->publish($this->staff());
+                    } catch (ThemeChangeRefused $refused) {
+                        Notification::make()->title($refused->getMessage())->danger()->send();
+
+                        return;
+                    }
+
                     $this->pruneAssets();
                     $this->form->fill($this->toFormState($this->currentValues()));
                     $this->previewVersion++;
@@ -350,7 +375,7 @@ abstract class DraftSettingsPage extends Page
         $registry = app(SettingsRegistry::class);
         $current = $this->currentValues();
 
-        foreach (static::settingKeys() as $key) {
+        foreach (array_diff(static::settingKeys(), $this->lockedKeys()) as $key) {
             if (! $registry->get($key)->stepUp) {
                 continue;
             }
@@ -364,6 +389,32 @@ abstract class DraftSettingsPage extends Page
         }
 
         return false;
+    }
+
+    /** Whether publishing the draft changes a step-up key (the canonical address) and the step-up is not fresh. */
+    protected function publishNeedsStepUp(): bool
+    {
+        $draft = $this->manager()->draftValues();
+
+        return $draft !== null && $this->manager()->stepUpChanges($draft) && ! app(StepUp::class)->isFresh();
+    }
+
+    /**
+     * This page's keys the staff member may not change (a registry
+     * permission they lack): shown read-only and never saved from here.
+     *
+     * @return list<string>
+     */
+    protected function lockedKeys(): array
+    {
+        $registry = app(SettingsRegistry::class);
+        $staff = $this->staff();
+
+        return array_values(array_filter(static::settingKeys(), static function (string $key) use ($registry, $staff): bool {
+            $permission = $registry->get($key)->permission;
+
+            return $permission !== null && ! Gate::forUser($staff)->allows($permission);
+        }));
     }
 
     /** @return array<Component> */

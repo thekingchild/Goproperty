@@ -42,7 +42,9 @@ use Modules\BuildingGroup\Posts\GroupRefused;
  * resolves the item's open reports here as actioned) or dismisses them.
  * Reporting never hides anything by itself. Audited (log
  * `building_group`, `group.reported`: ids and the reason's key, never the
- * note); open pages are nudged (moderators see the count).
+ * note); open pages are nudged (moderators see the count), and the
+ * moderators are told by email and in the app of an item's first open
+ * report (ReportNotifier; product owner, 2026-11-11).
  */
 final readonly class AbuseReports
 {
@@ -55,6 +57,7 @@ final readonly class AbuseReports
         private PlanGate $plans,
         private OrganizationContext $context,
         private LiveFeed $live,
+        private ReportNotifier $notifier,
     ) {}
 
     /** @throws ValidationException */
@@ -123,6 +126,7 @@ final readonly class AbuseReports
         }, 3);
 
         RateLimiter::hit($key, 86400);
+        $this->notifier->reported($report, $group, $by);
 
         return $report;
     }

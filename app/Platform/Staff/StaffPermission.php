@@ -84,6 +84,8 @@ enum StaffPermission: string
     case SettingsTheme = 'settings.theme';
     case SettingsSite = 'settings.site';
     case SettingsSeo = 'settings.seo';
+    // SR-19 (product owner, 2026-11-11): the site's canonical address, super-admins only.
+    case SettingsCanonicalOrigin = 'settings.canonical_origin';
     case SettingsCustomCode = 'settings.custom_code';
     case SettingsSecurity = 'settings.security';
 
@@ -111,12 +113,13 @@ enum StaffPermission: string
      * Impersonation write mode, production restore approval, role
      * management and data purge (PLATFORM_CONSOLE.md § 1); since P09-06
      * the console's upgrade step, which is for super-admins (INSTALLER.md
-     * § 10): no other default role holds it, and adding it to one needs a
+     * § 10), and since 2026-11-11 the site's canonical address (SR-19): no
+     * other default role holds them, and adding one to a role needs a
      * second super-admin.
      */
     public function isProtected(): bool
     {
-        return in_array($this, [self::ImpersonateWrite, self::BackupsApproveProductionRestore, self::RolesManage, self::DataPurge, self::SystemUpgrade], true);
+        return in_array($this, [self::ImpersonateWrite, self::BackupsApproveProductionRestore, self::RolesManage, self::DataPurge, self::SystemUpgrade, self::SettingsCanonicalOrigin], true);
     }
 
     public function area(): string
@@ -187,6 +190,7 @@ enum StaffPermission: string
             self::SettingsTheme => 'Brand and appearance',
             self::SettingsSite => 'Public website text',
             self::SettingsSeo => 'Search and sharing (SEO)',
+            self::SettingsCanonicalOrigin => 'Change the site\'s canonical address',
             self::SettingsCustomCode => 'Custom code on public pages',
             self::SettingsSecurity => 'Sign-in security',
             self::StaffView => 'View staff',

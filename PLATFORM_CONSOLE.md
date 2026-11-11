@@ -429,7 +429,7 @@ Plain-text fields strip tags and reject `<` `>`. Prices on the landing page are 
 | `seo.description` | — | ≤ 160 recommended, ≤ 320 max, no `<>` |
 | `seo.share_image` | Generated 1200×630 brand card (logo, name, tagline, colours) | JPG/PNG/WebP ≤ 3 MB, 200–4096 px a side; re-encoded, EXIF stripped |
 | `seo.indexing_enabled` | on in production, **off on staging** | Off → `robots.txt` = `Disallow: /`, `<meta name="robots" content="noindex">`, sitemap 404 |
-| `seo.canonical_origin` | `APP_URL` | `https://host` only; `super-admin` + step-up |
+| `seo.canonical_origin` | `APP_URL` | `https://host` only; `super-admin` + step-up (the protected permission `settings.canonical_origin`; read-only for content-managers; publishing or restoring a version that changes it asks for step-up again: SR-19, 2026-11-11) |
 
 Output on public pages: `<title>`, description, canonical, Open Graph (`og:site_name`, `og:type`, `og:title`, `og:description`, `og:url`, `og:image` + size, `og:locale=en_NG`), `twitter:card=summary_large_image`, `theme-color`, favicon/manifest links, and JSON-LD (`Organization` + `SoftwareApplication` with the Starter price as an `Offer`). Help-centre and news articles can override title and description per page.
 
