@@ -196,6 +196,16 @@ it('refuses to start a checkout for a bundle not offered, a buyer without an ema
         ->and(smsInvoice($this->acme)->status)->toBe(InvoiceStatus::Void);
 });
 
+it('says so when Paystack refuses the buyer\'s email address, keeping Paystack\'s reason for staff', function () {
+    withPaystackKey();
+    fakePaystack(['api.paystack.co/transaction/initialize' => Http::response(['status' => false, 'message' => '"email" must be a valid email', 'type' => 'validation_error'], 400)]);
+
+    expect(LivewireHttp::html(buyCredits($this->owner, 500)))->toContain('Paystack did not accept your email address, '.e($this->owner->email).'. Change it in your profile settings and try again.');
+
+    expect(smsPayment($this->acme)->status)->toBe(PlatformPaymentStatus::Failed)
+        ->and(smsPayment($this->acme)->hold_reason)->toContain('Paystack answered 400: "email" must be a valid email');
+});
+
 it('never takes real money outside production: a live key there offers no bundles', function () {
     config(['services.paystack.secret_key' => 'sk_live_goproperty_platform']);
     $http = fakePaystack([]);

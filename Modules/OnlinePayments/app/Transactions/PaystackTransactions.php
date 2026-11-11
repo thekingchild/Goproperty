@@ -134,6 +134,10 @@ final readonly class PaystackTransactions
             $transaction->hold_reason = mb_substr('Paystack did not start the payment: '.$problem->getMessage(), 0, 300);
             $transaction->save();
 
+            if ($problem instanceof PaystackRefused && $problem->aboutEmail()) {
+                throw new OnlinePaymentRefused(__('Paystack did not accept the email address :email. Check it and try again, or pay by bank transfer.', ['email' => $email]));
+            }
+
             throw new OnlinePaymentRefused(__('Paystack could not start the payment just now. Try again in a few minutes, or pay by bank transfer.'));
         }
     }
@@ -184,8 +188,13 @@ final readonly class PaystackTransactions
             return WebhookOutcome::Duplicate;
         }
 
-        $paid = Money::kobo($verified->amount);
-        $transaction->paid_amount_kobo = $verified->amount > 0 ? $paid : null;
+        // A Paystack account that passes its fees to the payer charges the
+        // amount asked plus the fee and settles the amount asked: only that
+        // is the bill's (product owner, 2026-11-11).
+        $fee = $verified->feeOnTop($transaction->amount_kobo->kobo);
+        $paid = Money::kobo($fee === null ? $verified->amount : $verified->amount - $fee);
+        $transaction->paid_amount_kobo = $verified->amount > 0 ? Money::kobo($verified->amount) : null;
+        $transaction->payer_fee_kobo = $fee === null ? null : Money::kobo($fee);
         $transaction->paid_currency = mb_substr($verified->currency, 0, 3);
         $transaction->channel = $verified->channel;
         $transaction->paid_at = $verified->paidAt ?? CarbonImmutable::now();
@@ -223,7 +232,8 @@ final readonly class PaystackTransactions
 
         try {
             if ($reason === null) {
-                $recorded = $this->recorder->recordConfirmed($draft(null, $transaction->bill_id));
+                $feeNote = $fee === null ? null : sprintf('The payer also paid Paystack\'s fee of %s, which Paystack kept.', Money::kobo($fee)->format());
+                $recorded = $this->recorder->recordConfirmed($draft($feeNote, $transaction->bill_id));
                 $transaction->status = $recorded->isConfirmed() ? TransactionStatus::Confirmed : TransactionStatus::Held;
                 $transaction->payment_id = $recorded->paymentId;
                 $transaction->hold_reason = $recorded->isConfirmed() ? null : 'Recorded earlier and not confirmed.';

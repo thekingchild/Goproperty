@@ -31,6 +31,7 @@ use Modules\OnlinePayments\Enums\TransactionStatus;
  * @property TransactionStatus $status
  * @property string|null $hold_reason
  * @property Money|null $paid_amount_kobo
+ * @property Money|null $payer_fee_kobo
  * @property string|null $paid_currency
  * @property string|null $channel
  * @property CarbonImmutable|null $paid_at
@@ -72,6 +73,7 @@ final class PaystackTransaction extends Model
         return [
             'amount_kobo' => MoneyCast::class,
             'paid_amount_kobo' => MoneyCast::class,
+            'payer_fee_kobo' => MoneyCast::class,
             'mode' => ConnectionMode::class,
             'status' => TransactionStatus::class,
             'paid_at' => 'datetime',

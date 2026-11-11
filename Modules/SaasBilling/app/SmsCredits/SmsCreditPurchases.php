@@ -23,6 +23,7 @@ use Modules\SaasBilling\Invoices\PlatformInvoiceNumbers;
 use Modules\SaasBilling\Models\PlatformInvoice;
 use Modules\SaasBilling\Models\PlatformPayment;
 use Modules\SaasBilling\Payments\PlatformPaymentSettlement;
+use Modules\SaasBilling\Paystack\PaystackRefused;
 use Modules\SaasBilling\Paystack\PaystackUnavailable;
 use Modules\SaasBilling\Paystack\PlatformPaystack;
 
@@ -147,6 +148,10 @@ final readonly class SmsCreditPurchases implements SmsCreditCheckout
             ]);
         } catch (PaystackUnavailable $problem) {
             $this->settlement->fail($payment->id, 'Paystack did not start the checkout: '.$problem->getMessage());
+
+            if ($problem instanceof PaystackRefused && $problem->aboutEmail()) {
+                throw new CheckoutRefused(__('Paystack did not accept your email address, :email. Change it in your profile settings and try again.', ['email' => $buyer->email]));
+            }
 
             throw new CheckoutRefused(__('Paystack could not start the payment just now. Try again in a few minutes.'));
         }

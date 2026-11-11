@@ -260,6 +260,20 @@ describe('verify by fetch, with the organization\'s key', function () {
             ->and(webhookLogOf($this->acme)->pluck('outcome')->all())->toBe([WebhookOutcome::NotPaid, WebhookOutcome::NotPaid, WebhookOutcome::NotPaid]);
     });
 
+    it('keeps Paystack\'s paid time in Lagos time, so a payment just after midnight carries that day\'s date', function () {
+        // As installed (INSTALLER.md: APP_TIMEZONE=Africa/Lagos); the next test's application sets its own.
+        config(['app.timezone' => 'Africa/Lagos']);
+        date_default_timezone_set('Africa/Lagos');
+
+        // 23:30 UTC on 24 December is 00:30 on 25 December in Lagos.
+        $this->paystack->pays($this->transaction->reference, paidAt: '2026-12-24T23:30:00.000Z');
+
+        paystackWebhook(webhookPathOf($this->acme), chargeSuccess($this->transaction->reference, 85_000_000), $this->acmeSecret)->assertOk();
+
+        expect(storedTransaction($this->acme, $this->transaction)->paid_at?->format('Y-m-d H:i'))->toBe('2026-12-25 00:30')
+            ->and(paymentsOf($this->acme)->sole()->paid_at->toDateString())->toBe('2026-12-25');
+    });
+
     it('ignores events it does not act on, and charges GoProperty never started', function () {
         paystackWebhook(webhookPathOf($this->acme), ['event' => 'transfer.success', 'data' => ['reference' => $this->transaction->reference]], $this->acmeSecret)->assertOk();
         paystackWebhook(webhookPathOf($this->acme), chargeSuccess('T-SHOP-SALE-1', 5_000_000), $this->acmeSecret)->assertOk();
@@ -301,6 +315,45 @@ describe('the amount check', function () {
         paystackWebhook(webhookPathOf($this->acme), chargeSuccess($this->transaction->reference, 50_000_000), $this->acmeSecret)->assertOk();
         expect(paymentsOf($this->acme))->toHaveCount(1)->and(paymentsOf($this->acme)->sole()->status)->toBe(PaymentStatus::PendingConfirmation);
         paymentsPage($this->owner, '?status=pending_confirmation')->assertOk()->assertSee('data-payment="'.$payment->id.'"', false);
+    });
+
+    it('confirms a payment whose payer also paid Paystack\'s fee: the bill gets the amount asked, never the fee (product owner, 2026-11-11)', function () {
+        // As in the test-mode run: ₦850,000 asked, Paystack added its fee of ₦2,000 and kept it.
+        $this->paystack->paysWithFee($this->transaction->reference, 200_000);
+
+        paystackWebhook(webhookPathOf($this->acme), chargeSuccess($this->transaction->reference, 85_200_000), $this->acmeSecret)->assertOk();
+
+        $payment = paymentsOf($this->acme)->sole();
+        $settled = storedTransaction($this->acme, $this->transaction);
+        expect($payment->status)->toBe(PaymentStatus::Confirmed)
+            ->and($payment->amount_kobo->kobo)->toBe(85_000_000)
+            ->and($payment->note)->toBe('The payer also paid Paystack\'s fee of ₦2,000, which Paystack kept.')
+            ->and(allocationsOf($this->acme, $payment))->toEqual([$this->bill->id => 85_000_000])
+            ->and(storedBill($this->acme, $this->bill)->status)->toBe(BillStatus::Paid)
+            ->and(receiptsOf($this->acme))->toHaveCount(1)
+            ->and($settled->status)->toBe(TransactionStatus::Confirmed)
+            ->and($settled->paid_amount_kobo?->kobo)->toBe(85_200_000)
+            ->and($settled->payer_fee_kobo?->kobo)->toBe(200_000)
+            ->and($settled->hold_reason)->toBeNull();
+    });
+
+    it('still holds an amount that is not the amount asked plus Paystack\'s fee', function () {
+        // Charged more than the amount asked plus the fee Paystack reports.
+        $this->paystack->paysWithFee($this->transaction->reference, 200_000, charged: 85_300_000);
+        paystackWebhook(webhookPathOf($this->acme), chargeSuccess($this->transaction->reference, 85_300_000), $this->acmeSecret)->assertOk();
+
+        // Paystack says it was asked for another amount.
+        $second = startOnlinePayment($this->acme, $this->bill);
+        $this->paystack->paysWithFee($second->reference, 200_000, requested: 84_000_000);
+        paystackWebhook(webhookPathOf($this->acme), chargeSuccess($second->reference, 84_200_000), $this->acmeSecret)->assertOk();
+
+        expect(storedTransaction($this->acme, $this->transaction)->status)->toBe(TransactionStatus::Held)
+            ->and(storedTransaction($this->acme, $this->transaction)->payer_fee_kobo)->toBeNull()
+            ->and(storedTransaction($this->acme, $this->transaction)->hold_reason)->toBe('₦853,000 was paid, but ₦850,000 was asked for bill '.$this->bill->number.'.')
+            ->and(storedTransaction($this->acme, $second)->status)->toBe(TransactionStatus::Held)
+            ->and(storedTransaction($this->acme, $second)->hold_reason)->toBe('₦842,000 was paid, but ₦850,000 was asked for bill '.$this->bill->number.'.')
+            ->and(paymentsOf($this->acme)->pluck('status')->all())->toBe([PaymentStatus::PendingConfirmation, PaymentStatus::PendingConfirmation])
+            ->and(storedBill($this->acme, $this->bill)->paid_kobo->kobo)->toBe(0);
     });
 
     it('holds a payment the bill no longer needs (paid meanwhile, or voided), and money in another currency', function () {

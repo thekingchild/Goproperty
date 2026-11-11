@@ -51,7 +51,7 @@ final class FakePaystackServer
     /** @var array<string, string> secret key => test|live */
     public array $keys = [];
 
-    /** @var array<string, array{secret: string, amount: int, currency: string, status: string, domain: string, email: string, callback: string, paid_at: string|null, channel: string|null}> */
+    /** @var array<string, array{secret: string, amount: int, currency: string, status: string, domain: string, email: string, callback: string, paid_at: string|null, channel: string|null, requested?: int, fees?: int}> */
     public array $transactions = [];
 
     /** @var list<array{method: string, path: string, secret: string, body: array<string, mixed>}> */
@@ -62,6 +62,9 @@ final class FakePaystackServer
 
     /** Refuse initializing (a 400 with a message). */
     public bool $refuseInitialize = false;
+
+    /** Paystack's message when it refuses to initialize. */
+    public string $refusal = '"email" must be a valid email';
 
     public function know(string $secret, string $mode = 'live'): self
     {
@@ -78,13 +81,28 @@ final class FakePaystackServer
     }
 
     /** The payer paid at Paystack: what verify will answer from now on. */
-    public function pays(string $reference, ?int $kobo = null, string $status = 'success', string $currency = 'NGN', string $channel = 'card'): self
+    public function pays(string $reference, ?int $kobo = null, string $status = 'success', string $currency = 'NGN', string $channel = 'card', string $paidAt = '2026-12-25T09:30:00.000Z'): self
     {
         $this->transactions[$reference]['status'] = $status;
         $this->transactions[$reference]['amount'] = $kobo ?? $this->transactions[$reference]['amount'];
         $this->transactions[$reference]['currency'] = $currency;
-        $this->transactions[$reference]['paid_at'] = '2026-12-25T09:30:00.000Z';
+        $this->transactions[$reference]['paid_at'] = $paidAt;
         $this->transactions[$reference]['channel'] = $channel;
+
+        return $this;
+    }
+
+    /**
+     * The payer paid at Paystack with Paystack's fee on top (the account
+     * passes its fees to the payer): charged $requested + $fee, as
+     * Paystack's verify answer reports it (the 2026-11-11 test-mode run).
+     */
+    public function paysWithFee(string $reference, int $fee, ?int $requested = null, ?int $charged = null): self
+    {
+        $requested ??= $this->transactions[$reference]['amount'];
+        $this->pays($reference, $charged ?? $requested + $fee);
+        $this->transactions[$reference]['requested'] = $requested;
+        $this->transactions[$reference]['fees'] = $fee;
 
         return $this;
     }
@@ -116,7 +134,7 @@ final class FakePaystackServer
 
         if ($request->method() === 'POST' && $path === '/transaction/initialize') {
             if ($this->refuseInitialize) {
-                return Http::response(['status' => false, 'message' => 'Invalid Email Address Passed'], 400);
+                return Http::response(['status' => false, 'message' => $this->refusal, 'type' => 'validation_error', 'code' => 'invalid_params'], 400);
             }
 
             $reference = (string) ($body['reference'] ?? '');
@@ -155,6 +173,11 @@ final class FakePaystackServer
                 'reference' => $reference,
                 'amount' => $transaction['amount'],
                 'currency' => $transaction['currency'],
+                // Paystack always reports both: without fee pass-through the
+                // amount asked is the amount charged and the fee comes off
+                // the merchant's settlement.
+                'requested_amount' => $transaction['requested'] ?? $transaction['amount'],
+                'fees' => $transaction['fees'] ?? min(200_000, intdiv($transaction['amount'] * 15, 1000) + 10_000),
                 'paid_at' => $transaction['paid_at'],
                 'channel' => $transaction['channel'],
                 'gateway_response' => $transaction['status'] === 'success' ? 'Successful' : 'The transaction was not completed',

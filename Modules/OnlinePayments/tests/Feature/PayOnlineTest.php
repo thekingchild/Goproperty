@@ -225,7 +225,7 @@ describe('paying online', function () {
         expect(onlinePaymentsOf($this->acme))->toBeEmpty()->and(onlinePaymentsOf($this->other))->toBeEmpty();
     });
 
-    it('asks again for a missing email, and says so when Paystack refuses to start, keeping that attempt as failed', function () {
+    it('asks again for a missing email, says so when Paystack refuses the email or refuses to start, keeping each attempt as failed with Paystack\'s reason', function () {
         $link = payOnlineLink($this->acme, $this->bill);
 
         freshRequest();
@@ -234,8 +234,16 @@ describe('paying online', function () {
 
         $this->paystack->refuseInitialize = true;
         freshRequest();
+        $this->from($link)->post($link, ['email' => 'payer@example.com'])->assertRedirect($link)->assertSessionHasErrors(['email' => 'Paystack did not accept the email address payer@example.com. Check it and try again, or pay by bank transfer.']);
+        $failed = onlinePaymentsOf($this->acme)->sole();
+        expect($failed->status)->toBe(TransactionStatus::Failed)
+            ->and($failed->hold_reason)->toBe('Paystack did not start the payment: "email" must be a valid email');
+
+        // Any other refusal: the payer may try again later; Paystack's words stay in the note.
+        $this->paystack->refusal = 'No active channel to process transaction. Please contact merchant';
+        freshRequest();
         $this->from($link)->post($link, ['email' => 'payer@example.com'])->assertRedirect($link)->assertSessionHasErrors(['email' => 'Paystack could not start the payment just now. Try again in a few minutes, or pay by bank transfer.']);
-        expect(onlinePaymentsOf($this->acme)->sole()->status)->toBe(TransactionStatus::Failed);
+        expect(onlinePaymentsOf($this->acme)->last()->hold_reason)->toBe('Paystack did not start the payment: No active channel to process transaction. Please contact merchant');
     });
 
     it('limits starting payments to 10 a minute per address', function () {

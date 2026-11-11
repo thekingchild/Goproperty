@@ -48,6 +48,7 @@ final readonly class PlatformPaystack
      *
      * @param  array<string, mixed>  $fields
      *
+     * @throws PaystackRefused when Paystack refuses it with a reason
      * @throws PaystackUnavailable
      */
     public function initialize(array $fields): string
@@ -56,6 +57,12 @@ final readonly class PlatformPaystack
             $response = $this->request()->post('/transaction/initialize', $fields);
         } catch (ConnectionException $exception) {
             throw new PaystackUnavailable('Paystack could not be reached.', previous: $exception);
+        }
+
+        $message = $response->json('message');
+
+        if ($response->clientError() && is_string($message) && $message !== '') {
+            throw new PaystackRefused('Paystack answered '.$response->status().': '.mb_substr($message, 0, 200));
         }
 
         $url = $response->json('data.authorization_url');

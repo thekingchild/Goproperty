@@ -122,9 +122,12 @@ final readonly class PaystackClient
 
         $paidAt = $response->json('data.paid_at') ?? $response->json('data.paidAt');
         $channel = $response->json('data.channel');
+        $requested = $response->json('data.requested_amount');
+        $fees = $response->json('data.fees');
 
         try {
-            $paidAt = is_string($paidAt) && $paidAt !== '' ? CarbonImmutable::parse($paidAt) : null;
+            // Paystack answers in UTC; GoProperty keeps Lagos time.
+            $paidAt = is_string($paidAt) && $paidAt !== '' ? CarbonImmutable::parse($paidAt)->setTimezone((string) config('app.timezone')) : null;
         } catch (Throwable) {
             $paidAt = null;
         }
@@ -137,6 +140,8 @@ final readonly class PaystackClient
             domain: strtolower($domain),
             paidAt: $paidAt,
             channel: is_string($channel) ? mb_substr($channel, 0, 30) : null,
+            requestedAmount: is_int($requested) ? $requested : null,
+            fees: is_int($fees) ? $fees : null,
         );
     }
 

@@ -14,6 +14,7 @@ use Modules\SaasBilling\Enums\InvoiceStatus;
 use Modules\SaasBilling\Enums\PlatformPaymentStatus;
 use Modules\SaasBilling\Models\PlatformInvoice;
 use Modules\SaasBilling\Models\PlatformPayment;
+use Modules\SaasBilling\Paystack\PaystackRefused;
 use Modules\SaasBilling\Paystack\PaystackUnavailable;
 use Modules\SaasBilling\Paystack\PlatformPaystack;
 
@@ -93,6 +94,10 @@ final readonly class SubscriptionCheckout implements SubscriptionPayments
             ]);
         } catch (PaystackUnavailable $problem) {
             $this->settlement->fail($payment->id, 'Paystack did not start the checkout: '.$problem->getMessage());
+
+            if ($problem instanceof PaystackRefused && $problem->aboutEmail()) {
+                throw new CheckoutRefused(__('Paystack did not accept your email address, :email. Change it in your profile settings and try again, or pay by bank transfer.', ['email' => $payer->email]));
+            }
 
             throw new CheckoutRefused(__('Paystack could not start the payment just now. Try again in a few minutes.'));
         }
