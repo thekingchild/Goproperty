@@ -17,9 +17,12 @@ use Illuminate\Support\Facades\Http;
  * the URL — and `GET /api/http/sms/{uid}` with the token in the body.
  *
  * GoText answers `{"status": "success", "data": …}` or `{"status":
- * "error", "message": …}`. What `data` holds is still to be confirmed with
- * GoText, so the `uid`, status word, pages and cost are looked for by name
- * anywhere in it and left empty when absent.
+ * "error", "message": …}`. Seen on GoProperty's own account (2026-11-11,
+ * docs/plans/sms-provider-2026-10-29.md): `data` holds `uid` (e.g.
+ * "RPT349XGWJ"), `to`, `from` (the sender ID), `message`, `sms_type`,
+ * `direction`, `status` ("Delivered"), `sms_count` (pages) and `cost` (naira,
+ * as a string: "6"). They are still looked for by name anywhere in `data`
+ * and left empty when absent, in case GoText's reply changes.
  */
 final readonly class GoTextSmsSender implements SmsSender
 {

@@ -26,11 +26,15 @@ Settles the "SMS provider" item of PRE-01 and two rules for P05-02/P05-03. Other
 
 ## To confirm with GoText (before P05-02 is built)
 
-- The exact fields of `data` on send and on `GET /sms/{uid}`: the `uid`, delivery status values, pages used and cost.
+- ~~The exact fields of `data` on send and on `GET /sms/{uid}`~~ — seen on GoProperty's own account (2026-11-11): `uid` (e.g. `RPT349XGWJ`), `to`, `from`, `message`, `sms_type` (`plain`), `direction` (`api`), `status` (`Delivered`), `sms_count` (pages) and `cost` (naira as a string, `"6"` for one page). `GoTextSmsSender` reads them as built. Status words other than `Delivered` are still to be seen.
 - ~~Whether GoText can call a **delivery-report webhook**~~ — answered (product owner, 2026-10-30, from GoText's "View an SMS" docs): the delivery report comes through the API, `GET /api/http/sms/{uid}` with `api_token` in the JSON body, answering `{"status": "success", "data": …}` (or `{"status": "error", "message": …}`). P05-02's polling is the design; there is no webhook to add.
-- The **DND/transactional route**: whether it needs a registered sender ID, approved templates (`dlt_template_id`) or both, and how long approval takes.
+- The **DND/transactional route**: whether it needs a registered sender ID, approved templates (`dlt_template_id`) or both, and how long approval takes. *Seen 2026-11-11:* the sender ID `IChannelTEC` on GoProperty's account delivered a plain test SMS to a Nigerian mobile through the API (1 page, ₦6); whether DND numbers need more is still to be asked.
 - **Per-agency sender IDs** (BRANDING_DOCUMENTS.md § 1): how GoText registers them and what is needed from the agency.
 - A test mode or test sender for staging, rate limits, the account balance endpoint (Profile API), and how messages over 160 characters or with non-GSM characters are counted.
+
+## Tested on GoProperty's own account (2026-11-11)
+
+At the product owner's request, with GoProperty's real GoText token (kept outside the repository; to be rotated, since it was pasted in a chat) and sender ID `IChannelTEC`: one test SMS through `App\Sms\GoTextSmsSender::send()` (the app's own code, not a script) was taken and reported **Delivered** (uid `RPT349XGWJ`, 1 page, ₦6), and `status()` (`GET /api/http/sms/{uid}`) answered `delivered`. The live sender ID is not yet formally approved for production use (launch checklist); the token and sender ID go in production's `.env` (`config/services.php` `gotext`) once hosting exists.
 
 ## Built in P05-02 (2026-10-30), before GoText's answers
 

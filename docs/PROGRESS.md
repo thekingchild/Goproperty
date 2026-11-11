@@ -32,6 +32,10 @@ Status values: `Not started` · `In progress` · `Blocked` · `In review` · `Co
 
 Each entry: task ID and status, date, what was delivered, tests run and results, follow-ups, next task.
 
+### Extra (not a plan task) — 2026-11-11: GoText tested on GoProperty's own account
+
+At the product owner's request, one test SMS to a Nigerian mobile number the product owner gave ("GoProperty test: this SMS was sent through GoText from the GoProperty code. No action needed.") was sent with sender ID `IChannelTEC` through `App\Sms\GoTextSmsSender` itself: GoText reported it **Delivered** (uid `RPT349XGWJ`, 1 page, ₦6), and the status lookup answered `delivered`. GoText's reply fields are now known and match what the sender reads (code comment and docs/plans/sms-provider-2026-10-29.md updated). Still open with GoText: whether DND numbers need a registered sender ID or templates, per-agency sender IDs, test mode, long and non-GSM messages, and formal approval of the live sender ID (launch checklist). The token is kept outside the repository and should be rotated (it was pasted in a chat).
+
 ### PL-02 — Complete (2026-11-11): late fees on overdue rent (post-launch backlog item 2)
 
 Started 2026-11-11 at the product owner's request ("Build late fees"), while hosting is not chosen. Decided by the product owner: a percentage of what is unpaid, once, with an optional cap; to the landlord like rent (less commission); rent bills only; the quit notice later. Defaults 1–10 in `docs/plans/late-fees-2026-11-11.md`.
