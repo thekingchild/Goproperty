@@ -30,7 +30,7 @@ Both Paystack flows were tried on the local pilot (http://localhost:8090) with t
 
 The product owner took the recommendation:
 
-1. **GoProperty's own account:** the product owner sets the Paystack account so GoProperty pays the fees; the app keeps holding any payment that differs from the invoice.
+1. **GoProperty's own account:** set so GoProperty pays the fees, on the live account when SaaS billing starts (product owner, 2026-11-11; step 9 of [the shared-hosting runbook](../runbooks/shared-hosting.md) § 2). The app keeps holding any payment that differs from the invoice.
 2. **Agencies' accounts:** the app accepts exactly the amount asked plus Paystack's fee, credits the bill with the amount asked and keeps the fee apart (`payer_fee_kobo`, a note on the payment). Any other difference is still held.
 3. **Findings 2 and 3 fixed:** a refused email address is explained to the payer and Paystack's reason is kept; Paystack's paid time is converted to Lagos time.
 
