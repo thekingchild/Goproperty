@@ -1,5 +1,7 @@
 # P05 — Reminders, notifications, email templates & WhatsApp: waves and defaults
 
+> **Defaults confirmed by the product owner on 2026-11-11** ("Agree to everything" on the launch sign-off list): every default in this file not settled earlier stands as built, unless a later note says otherwise.
+
 Rules: [ARCHITECTURE.md § 6.7](../../ARCHITECTURE.md) (reminder engine, ladders, channels, WhatsApp), § 7 (scheduler), § 8 (modules talk through contracts); [DATABASE_SCHEMA.md § 7](../../DATABASE_SCHEMA.md) (`reminders`, `notification_deliveries`, WhatsApp tables, `sms_credit_entries`); [PLATFORM_CONSOLE.md § 5](../../PLATFORM_CONSOLE.md) (email templates); [sms-provider-2026-10-29.md](sms-provider-2026-10-29.md) (GoText, GoProperty-owned SMS wording, never promotional); [DATA_IMPORT.md § 3](../../DATA_IMPORT.md) (imported tenants hear nothing until invited); AGENT.md § 3 rules 3 (dates through the cycle calculator), 6 (idempotency) and 10 (templates are data).
 
 ## Waves

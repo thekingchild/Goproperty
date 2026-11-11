@@ -1,5 +1,7 @@
 # P07 — Building Group: tasks and defaults
 
+> **Defaults confirmed by the product owner on 2026-11-11** ("Agree to everything" on the launch sign-off list): every default in this file not settled earlier stands as built, unless a later note says otherwise.
+
 Rules: [ARCHITECTURE.md § 6.8](../../ARCHITECTURE.md) (the Building Group), § 6.10 (feature enablement), § 8 (modules talk through contracts and events); [DATABASE_SCHEMA.md § 6](../../DATABASE_SCHEMA.md); [BILLING_PAYMENTS.md § 7.4](../../BILLING_PAYMENTS.md) (what a management handover moves); AGENT.md § 3 rules 1 (tenancy), 6 (idempotency) and 7 (no data destruction).
 
 ## P07-01 — per-building group, membership sync from leases
@@ -44,7 +46,7 @@ Started 2026-11-02 at the product owner's request ("Start P07-02"); one task, bu
 23. **While GoProperty staff impersonate**, a write session may post words (audited with both identities) but photos are neither added nor shown (people's photos, PLATFORM_CONSOLE.md § 6), as on tickets; removing is refused (a delete).
 24. **Read-only cases:** a suspended organization's groups (staff and tenants), a closed group (staff read it; tenants do not see it), a muted member (P07-04 sets the mute; it is honoured now).
 25. **Audit:** publishing and removing posts and comments are logged (`building_group`), ids only, never the words; reactions are not logged.
-26. **No notifications for posts yet.** P07-03 brings live updates; whether to notify by email or SMS is for later.
+26. **No notifications for posts yet.** P07-03 brings live updates; whether to notify by email or SMS is for later. *Settled 2026-11-11: no notifications for new posts at launch.*
 27. **The building's owner (`/owner`) has no group page in P07-02.** Owners are not members (default 3); whether they read or write in their buildings' groups is for the product owner.
 28. **Default 8's open question (settled 2026-11-09: no copy):** posts are not copied when a building is handed over; the receiving agency starts a fresh group.
 
@@ -82,12 +84,12 @@ Started 2026-11-03 at the product owner's request ("Start P07-04"); one task, bu
 43. **Pins: at most 3 a group**, shown above every other post to everyone, the newest pin first. Only a published post is pinned; hiding or removing a post unpins it.
 44. **Mutes: 1, 7 or 30 days, tenants only.** A muted tenant reads but does not post, comment, react or report until then; the portal tells them until when ("…has paused your posting here until …"). A moderator can unmute at any time; a mute ends by itself. It stays on the member row, so a tenant who leaves and comes back is still muted until it ends (the sync never touches it). Members of staff are never muted: their roles decide what they do.
 45. **Reports:** a member who may write in the group (a tenant not muted; staff who write but do not moderate — none of the default roles) reports someone else's published post or comment, with one of four reasons (spam or advertising; abusive, threatening or harassing; someone's private details; something else) and an optional note (500 characters). Once per person and item, ever; 20 reports a day a person. **Reporting never hides anything by itself** (no "hidden after N reports": that would let a few neighbours silence someone). The reporter sees "You reported this"; the author is not told who reported.
-46. **Moderators see the open reports on the group's page** (the most reported first, who reported it, why and their note, an excerpt) and a count on the Building Groups list and in its export. **No email, SMS or in-app notification for a report yet**, like posts (default 26): for the product owner to decide.
+46. **Moderators see the open reports on the group's page** (the most reported first, who reported it, why and their note, an excerpt) and a count on the Building Groups list and in its export. **No email, SMS or in-app notification for a report yet**, like posts (default 26): for the product owner to decide. *Settled 2026-11-11: moderators are also told of a new report by email and in the app (to build).*
 47. **Acting on a reported item closes its reports:** hiding or removing it marks them "actioned"; "Dismiss reports" marks them "dismissed" with nothing changed. Showing a hidden item again does not reopen them; a member who reported it cannot report it again (default 45).
 48. **Moderation needs an open group, the plan's Building Group and an active organization.** A closed group stays read-only, moderation included. While an organization is suspended its staff lose `building_groups.moderate` (the central guard keeps only reading permissions), so they see what members see until it is active again; hidden and removed items stay so meanwhile.
 49. **GoProperty staff in a write support session** may hide, show again, pin, unpin, dismiss reports and change the settings (audited with both identities); **removing** (final, a `remove…` ability) and **muting** (it acts on a person) are refused, as deletes and membership changes are.
 50. **The group's settings** (P07-02 default 19: tenants start posts; posts take photos) are changed by moderators on the group's page; each change is in the trail and the audit log with before and after.
 51. **Every moderation write and every report nudges open pages** (P07-03): members' pages drop a hidden item at their next refresh.
-52. **The building's owner still has no group page** (default 27 unchanged): owners neither read, report nor moderate.
+52. **The building's owner still has no group page** (default 27 unchanged): owners neither read, report nor moderate. *Confirmed 2026-11-11 for launch.*
 
 **Changed while building:** `Posts\GroupPosts::post` now checks the policy again on the group as locked, so a settings change made while someone was writing (no more tenant posts, no photos) is honoured.

@@ -1,5 +1,7 @@
 # P08 — Reports, operations & analytics dashboards: tasks and defaults
 
+> **Defaults confirmed by the product owner on 2026-11-11** ("Agree to everything" on the launch sign-off list): every default in this file not settled earlier stands as built, unless a later note says otherwise.
+
 Rules: [ARCHITECTURE.md § 5 "Reports (P08-01)"](../../ARCHITECTURE.md), § 8 (modules talk through contracts and events), § 13 (performance notes); [BILLING_PAYMENTS.md § 7.9](../../BILLING_PAYMENTS.md) (what counts as collected, and when: the owner statements' rule, reused); [BRANDING_DOCUMENTS.md § 4–5](../../BRANDING_DOCUMENTS.md) (the PDF); AGENT.md § 3 rules 1 (tenancy), 2 (money in kobo) and 4 (policies), § 5 (lists export).
 
 P08-05 (owner statements) was brought forward and is complete (2026-10-28).

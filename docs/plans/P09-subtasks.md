@@ -32,7 +32,9 @@ None of these changes a state machine (AGENT.md § 8). SR-02 makes the existing 
 - **Custom code and the console on one origin (SR-18):** third-party scripts pasted in Console → Settings → Custom code run on the same origin as the workspace and the path-based console. Accept, or move the console to its own domain (`ADMIN_DOMAIN`) before adding outside scripts?
 - **Canonical origin (SR-19):** PLATFORM_CONSOLE.md § 9.1 says super-admin + step-up; the code lets content-managers set it (with step-up), and publishing a draft does not ask for step-up. Which is right?
 
-**Settled by the product owner (2026-11-09):** no external penetration test now (SR-32, default 74); it can be bought later. SR-18 and SR-19 are still open, with a recommendation given on 2026-11-09 (SR-18: give the console its own subdomain through `ADMIN_DOMAIN` before any outside script goes into Custom code, and keep Custom code empty until then; SR-19: super-admin only with step-up, as the spec says, and step-up again when a draft that changes it is published or restored).
+**Settled by the product owner (2026-11-09):** no external penetration test now (SR-32, default 74); it can be bought later. SR-18 and SR-19 were then open, with a recommendation given on 2026-11-09 (SR-18: give the console its own subdomain through `ADMIN_DOMAIN` before any outside script goes into Custom code, and keep Custom code empty until then; SR-19: super-admin only with step-up, as the spec says, and step-up again when a draft that changes it is published or restored).
+
+**Settled by the product owner (2026-11-11):** SR-18 and SR-19 as recommended above (SR-19 still to build: a super-admin-only permission and the step-up on publish/restore), and every default in this file not settled earlier (P09-01 61–73, P09-02 1–33, P09-03 87–95 and 97, P09-06 40–60, P09-07 75–85) confirmed as built.
 
 ## P09-02 — NDPA 2023 + GAID 2025
 

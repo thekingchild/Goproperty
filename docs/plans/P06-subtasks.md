@@ -1,5 +1,7 @@
 # P06 — SaaS billing, compliance monitoring & full platform console: tasks and defaults
 
+> **Defaults confirmed by the product owner on 2026-11-11** ("Agree to everything" on the launch sign-off list): every default in this file not settled earlier stands as built, unless a later note says otherwise.
+
 Rules: [BILLING_PAYMENTS.md](../../BILLING_PAYMENTS.md) § 1 (plans, prices, features, 30 days' notice), § 2 (subscription lifecycle), § 3 (metering), § 4–6 (Paystack, bank transfer, dunning); [DATABASE_SCHEMA.md § 2](../../DATABASE_SCHEMA.md); [ARCHITECTURE.md § 4](../../ARCHITECTURE.md) (suspended organizations are read-only), § 6.10 (feature enablement); [PLATFORM_CONSOLE.md § 1A](../../PLATFORM_CONSOLE.md) (plans are `finance-admin`'s, audited, customers told 30 days ahead); AGENT.md § 3 rules 2 (kobo), 5 (state machines through their services) and 6 (idempotency).
 
 ## P06-01 — plans, features and subscriptions
@@ -147,7 +149,7 @@ The acceptance ("every page policy-checked per staff role") is proven for every 
 
 ### Defaults taken in P06-07a (for the product owner to confirm)
 
-66. **Not cancelled while past due or in grace.** The lifecycle (BILLING_PAYMENTS.md § 2, `SubscriptionStatus::next()`) has no move from `past_due` or `grace` to `cancelled`, and a state machine changes only with the product owner's word (AGENT.md § 8), so staff cancel from trial, active or suspended only; a past-due customer that wants to leave is cancelled once suspended (or the product owner allows the two moves). **Question for the product owner.**
+66. **Not cancelled while past due or in grace.** The lifecycle (BILLING_PAYMENTS.md § 2, `SubscriptionStatus::next()`) has no move from `past_due` or `grace` to `cancelled`, and a state machine changes only with the product owner's word (AGENT.md § 8), so staff cancel from trial, active or suspended only; a past-due customer that wants to leave is cancelled once suspended (or the product owner allows the two moves). **Question for the product owner.** *Confirmed by the product owner 2026-11-11: kept as built.*
 67. **An override's end is a day:** the override stops at the start of that Lagos day (the plan applies again from it), at the earliest tomorrow. **End override** takes an optional reason. The page shows only overrides in force; ended ones stay in the table (`expires_at`) and in the History.
 68. **The organization's History** on its console page also lists its subscription's audit entries (plan changes, cancellation, reactivation, the dunning ladder's moves), so the staff member and the reason of every move show there.
 69. **Change plan is offered for a cancelled subscription too** (staff may set the plan before reactivating it); it needs only a subscription.

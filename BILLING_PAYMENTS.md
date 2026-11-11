@@ -304,10 +304,10 @@ How it is built: [ARCHITECTURE.md § 5 "Owner statements (P08-05)"](ARCHITECTURE
 
 1. ~~Final plan prices~~ — set in § 1.1 (editable).
 2. ~~Trial length and card~~ — 14 days, no card (product owner, P06-11, 2026-11-02; confirmed 2026-11-09).
-3. VAT registration status of the platform company (affects invoice compliance lines).
-4. DVA provider timing: Paystack DVA at launch vs manual confirmation only (recommend: launch manual, add DVA in the first quarter after launch).
+3. VAT registration status of the platform company (affects invoice compliance lines). **Agreed 2026-11-11:** the product owner confirms it with the company's accountant; until then 7.5 % VAT stays on every invoice and SMS bundle (P06-02 default 17), and the VAT line comes off if the company is not registered.
+4. ~~DVA provider timing~~ — launch with manual confirmation of transfers (P06-04); add Paystack dedicated virtual accounts in the first quarter after launch (product owner, 2026-11-11).
 5. ~~Transaction Tier thresholds~~ — set in [ONBOARDING_COMPLIANCE.md § 5.2](ONBOARDING_COMPLIANCE.md) (editable).
 6. ~~Which plans get automation~~ — statement matching on all plans; own Paystack and WhatsApp from Growth (§ 1.2).
 7. ~~Free tier~~ — no free plan at launch; 14-day trial (§ 1.1). Revisit after 6 months.
-8. Corporate customers deducting withholding tax: accept payment net of WHT on upload of the WHT credit note.
+8. ~~Corporate customers deducting withholding tax~~ — accept payment net of WHT once the customer uploads the WHT credit note; not built: built when the first corporate customer needs it (product owner, 2026-11-11).
 9. ~~SMS provider~~ — GoText, one GoProperty account; GoProperty pays GoText and agencies pay through SMS credits (§ 1.2); SMS templates are GoProperty's and never promotional ([docs/plans/sms-provider-2026-10-29.md](docs/plans/sms-provider-2026-10-29.md), 2026-10-29).

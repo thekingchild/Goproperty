@@ -1,5 +1,7 @@
 # Part payments of rent bills: the agency sets how many (P03-17)
 
+> **Defaults confirmed by the product owner on 2026-11-11** ("Agree to everything" on the launch sign-off list): every default in this file not settled earlier stands as built, unless a later note says otherwise.
+
 Asked by the product owner on 2026-10-31, while confirming P06-04's default 35: "Part payment is allowed. The number of installments is determined by the agency/agent." GoProperty's own subscription invoices stay paid in full (docs/plans/P06-subtasks.md, "Decided by the product owner (2026-10-31)"); this is about **tenants' rent bills**.
 
 ## Today
