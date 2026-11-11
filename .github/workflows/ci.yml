@@ -163,11 +163,20 @@ jobs:
           coverage: none
 
       # pdftoppm and pdftotext for the document visual-diff tests (not on the runner image).
+      # The runner's own Ubuntu mirror (azure.archive.ubuntu.com) was unreachable for
+      # hours on 2026-11-11: when it fails (apt retries each download 3 times), use Ubuntu's public mirrors.
       - name: Install poppler-utils
         run: |
+          install_poppler() {
+            sudo apt-get update -qq -o Acquire::Retries=3 \
+              && sudo apt-get install -y -qq --no-install-recommends -o Acquire::Retries=3 poppler-utils
+          }
           if ! command -v pdftoppm >/dev/null; then
-            sudo apt-get update -qq
-            sudo apt-get install -y -qq --no-install-recommends poppler-utils
+            if ! install_poppler; then
+              echo "::warning::The runner's Ubuntu mirror failed; using archive.ubuntu.com and mirrors.edge.kernel.org."
+              printf 'http://archive.ubuntu.com/ubuntu/\nhttp://mirrors.edge.kernel.org/ubuntu/\n' | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
+              install_poppler
+            fi
           fi
           pdftoppm -v
 
