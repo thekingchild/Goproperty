@@ -1,0 +1,11 @@
+{
+    "name": "LateFees",
+    "alias": "latefees",
+    "description": "Late fees on overdue rent: a percentage of what is unpaid, once per rent bill after the agency's grace days, as its own bill (PL-02)",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\LateFees\\Providers\\LateFeesServiceProvider"
+    ],
+    "files": []
+}

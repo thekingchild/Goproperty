@@ -15,5 +15,6 @@
     "Reminders": true,
     "WhatsApp": true,
     "BuildingGroup": true,
-    "Reports": true
+    "Reports": true,
+    "LateFees": true
 }

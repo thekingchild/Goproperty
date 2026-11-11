@@ -100,6 +100,7 @@ final class PersonalDataMap
                 static fn (Eraser $e): Eraser => $e->scrub('note'),
             ),
 
+            'late_fees' => TableRule::notPersonal('Late fees charged on rent bills (PL-02): bill ids, the rate and amounts.'),
             'lease_contracts' => TableRule::person(
                 $in('lease_id', 'leases'),
                 static fn (Eraser $e): Eraser => $e->scrubJson('details')->scrub('clauses')->set(['document_media_id' => null]),

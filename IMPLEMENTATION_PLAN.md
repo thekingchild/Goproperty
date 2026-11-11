@@ -279,7 +279,7 @@ Depends on: P00–P08.
 Ordered by expected demand in the Nigerian market:
 
 1. **DVA auto-matching** for platform billing (Paystack dedicated virtual accounts).
-2. **Late fees & penalties** module — configurable grace + percentage, auto bill line, legal-notice templates (7-day quit notice generation for agencies).
+2. **Late fees & penalties** module — configurable grace + percentage, auto bill line, legal-notice templates (7-day quit notice generation for agencies). **PL-02 — Complete (2026-11-11)**: late fees on overdue rent ([docs/plans/late-fees-2026-11-11.md](docs/plans/late-fees-2026-11-11.md)); the quit notice is a later task.
 3. **Owner payouts** — payout approvals and payout workflows on top of the owner statements already in the MVP (the commission rate, the net due to the owner and the agency's Settled / Unsettled mark are in the MVP since 2026-10-28: P08-05).
 4. **WhatsApp Embedded Signup** — GoProperty as a Meta Tech Provider so agencies connect WhatsApp in a few clicks (the MVP already supports the agency's own WhatsApp Business API with template mapping).
 5. **E-signatures** on lease contracts (tenant signs in portal).

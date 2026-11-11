@@ -21,6 +21,7 @@ use Livewire\Livewire;
 use Modules\Billing\Bills\BillIssuer;
 use Modules\Billing\Bills\BillReportRecords;
 use Modules\Billing\Bills\BillService;
+use Modules\Billing\Bills\LateFeeBillRecords;
 use Modules\Billing\Bills\Ledger;
 use Modules\Billing\Bills\OpeningBalanceBillRecords;
 use Modules\Billing\Bills\OwnerBillRecords;
@@ -28,6 +29,7 @@ use Modules\Billing\Bills\RemindableBillRecords;
 use Modules\Billing\Bills\TenantBillRecords;
 use Modules\Billing\Contracts\BillLedger;
 use Modules\Billing\Contracts\BillReports;
+use Modules\Billing\Contracts\LateFeeBills;
 use Modules\Billing\Contracts\OpeningBalanceBills;
 use Modules\Billing\Contracts\OwnerBills;
 use Modules\Billing\Contracts\PaymentOptions;
@@ -103,6 +105,8 @@ final class BillingServiceProvider extends ModuleServiceProvider
 
         $this->app->bind(BillLedger::class, Ledger::class);
         $this->app->bind(OpeningBalanceBills::class, OpeningBalanceBillRecords::class);
+        // PL-02: the LateFees module charges late fees on overdue rent through this.
+        $this->app->bind(LateFeeBills::class, LateFeeBillRecords::class);
         $this->app->singleton(UtilitiesImportTarget::class);
         $this->app->bind(TenantBills::class, TenantBillRecords::class);
         // The owner portal's read-only view of an owner's buildings' bills (P03-15).

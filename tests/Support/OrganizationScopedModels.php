@@ -86,6 +86,7 @@ use Modules\Handovers\Models\ManagementHandover;
 use Modules\Import\Enums\ImportFileType;
 use Modules\Import\Models\ImportBatch;
 use Modules\Import\Models\ImportColumnMapping;
+use Modules\LateFees\Models\LateFee;
 use Modules\Leasing\Contracts\BillingCycle;
 use Modules\Leasing\Enums\DepositEntryType;
 use Modules\Leasing\Models\Lease;
@@ -389,6 +390,15 @@ final class OrganizationScopedModels
                 'net_due_kobo' => 100_000,
                 'figures' => ['format' => 1],
                 'version' => 1,
+            ])->save()),
+            // Late fees (PL-02): Charges\LateFeeCharger is the writer; the probes are about the rows.
+            LateFee::class => fn (): Model => tap(new LateFee, fn (LateFee $fee): bool => $fee->forceFill([
+                'rent_bill_id' => self::bill()->id,
+                'fee_bill_id' => self::bill()->id,
+                'rate_bps' => 500,
+                'base_kobo' => Money::naira(1_500_000),
+                'amount_kobo' => Money::naira(75_000),
+                'charged_on' => '2027-01-08',
             ])->save()),
             // Building Group (P07-01): Groups\BuildingGroups is the writer; the probes are about the rows.
             BuildingGroup::class => fn (): Model => self::buildingGroup(),

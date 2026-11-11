@@ -289,6 +289,8 @@ When the agency collects (§ 7.5), or simply manages an owner's buildings, it ow
 
 How it is built: [ARCHITECTURE.md § 5 "Owner statements (P08-05)"](ARCHITECTURE.md), [DATABASE_SCHEMA.md § 4](DATABASE_SCHEMA.md).
 
+- **Late fees (PL-02, 2026-11-11):** a fee bill (type `late_fee`) counts as rent on the owner statement, like `other` and `opening_balance`: to the landlord, less the agency's commission (product owner's decision; docs/plans/late-fees-2026-11-11.md).
+
 ## 8. Refunds & Credit Notes
 
 - Paystack refunds via API, only by `finance-admin` (second approval above the two-person threshold — [PLATFORM_CONSOLE.md § 1](PLATFORM_CONSOLE.md)), always tied to a `platform_payment`, audit-logged, invoice returns to `open` unless a credit note replaces it.
